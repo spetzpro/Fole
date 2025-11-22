@@ -55,7 +55,7 @@ The following files ALWAYS constitute the definitive system contract:
 
 If these files conflict with any module/block spec, these files take precedence.
 
-----
+---
 
 # 3. WHAT AI MAY AND MAY NOT DO
 
