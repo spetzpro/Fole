@@ -1,0 +1,12 @@
+{
+  "name": "fole",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "lint": "echo \"no lint yet\"",
+    "test": "echo \"no tests yet\""
+  },
+  "devDependencies": {
+    "ajv-cli": "^5.0.0"
+  }
+}
