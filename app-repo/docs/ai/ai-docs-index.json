@@ -2,8 +2,6 @@
   "documentVersion": "1.0.0",
   "lastUpdated": "2025-11-23T00:00:00Z",
 
-  "agentFirstRunChecklist": "app-repo/docs/ai/agent-first-run.md",
-
   "documents": [
     {
       "id": "ai_master_rules",
@@ -33,6 +31,14 @@
       "type": "ai-metadata",
       "required": false,
       "description": "Machine-readable routing rules used by agents for context selection."
+    },
+
+    {
+      "id": "agent_first_run_checklist",
+      "path": "app-repo/docs/ai/agent-first-run.md",
+      "type": "ai-helper",
+      "required": false,
+      "description": "Step-by-step checklist for what an AI agent should do on first run."
     },
 
     {
