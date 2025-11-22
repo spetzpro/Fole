@@ -1,0 +1,67 @@
+# -----------------------------------------------------
+# FOLE PROJECT: Gitignore
+# Ensures repo contains ONLY source code + templates
+# -----------------------------------------------------
+
+# === Runtime Storage Root (localstorage) ===
+/localstorage/
+/storage/
+/data/
+
+# === Databases ===
+*.db
+*.sqlite
+*.sqlite3
+*.wal
+*.shm
+
+# === Logs & Temporary Files ===
+*.log
+logs/
+tmp/
+temp/
+cache/
+__cache__/
+*.pid
+
+# === Uploads / Exports / Tiles ===
+uploads/
+exports/
+tiles/
+generated/
+output/
+thumbnails/
+
+# === AI Tooling & Indexes ===
+ai-index/
+vectorstore/
+rag-cache/
+
+# === Environment Files ===
+.env
+*.env
+.env.*   
+
+# === Virtual Environments ===
+.venv/
+venv/
+ENV/
+
+# === Node / Python Dependencies ===
+node_modules/
+__pycache__/
+*.pyc
+
+# === VSCode / Editor Settings ===
+.vscode/
+.idea/
+*.code-workspace
+
+# === OS Noise ===
+.DS_Store
+Thumbs.db
+
+# === Build Output ===
+dist/
+build/
+out/

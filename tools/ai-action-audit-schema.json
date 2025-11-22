@@ -1,0 +1,14 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "AI Action Audit Entry",
+  "type": "object",
+  "required": ["timestamp", "agent", "action", "scope", "commit"],
+  "properties": {
+    "timestamp": { "type": "string", "format": "date-time" },
+    "agent": { "type": "string" },
+    "action": { "type": "string" },
+    "scope": { "type": "string" },
+    "commit": { "type": "string" },
+    "notes": { "type": "string" }
+  }
+}

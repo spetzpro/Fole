@@ -1,0 +1,32 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Destructive Change Metadata",
+  "type": "object",
+  "required": [
+    "destructiveType",
+    "summary",
+    "author",
+    "rationale",
+    "mitigationPlan",
+    "rollbackPlan",
+    "approvals"
+  ],
+  "properties": {
+    "destructiveType": { "type": "string" },
+    "summary": { "type": "string" },
+    "author": { "type": "string" },
+    "rationale": { "type": "string" },
+    "mitigationPlan": { "type": "string" },
+    "rollbackPlan": { "type": "string" },
+    "approvals": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "approvedBy": { "type": "string" },
+          "date": { "type": "string", "format": "date" }
+        }
+      }
+    }
+  }
+}
