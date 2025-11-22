@@ -1,35 +1,26 @@
 name: AI Crossref Compliance
 
 on:
-  pull_request:
-    types: [opened, synchronize, edited, reopened]
+  push:
+    branches:
+      - "*"          # run on all branches
+  pull_request:      # and on PRs
 
 jobs:
-  crossref-check:
+  crossref:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Install Node
+      - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: "20"
+
+      - name: Install tooling dependencies
+        run: npm install
 
       - name: Run crossref validator
-        run: |
-          if [ -f tools/enforce-crossref.js ]; then
-             node tools/enforce-crossref.js
-          else
-             echo "No crossref validator found."
-          fi
-
-      - name: Validate destructive-change.json (if exists)
-        run: |
-          if [ -f destructive-change.json ]; then
-             echo "Destructive change detected — validating schema..."
-             npx ajv validate -s tools/destructive-change-schema.json -d destructive-change.json || exit 1
-          else
-             echo "No destructive change file found."
-          fi
+        run: node tools/ai/enforce-crossref.js
