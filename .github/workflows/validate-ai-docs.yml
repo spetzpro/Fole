@@ -1,0 +1,40 @@
+name: Validate AI docs
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+  push:
+    branches: ["main", "master"]
+
+jobs:
+  validate-ai-docs:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Check AI automation pause flag
+        run: |
+          if [ -f "localstorage/AI_AUTOMATION_PAUSED" ]; then
+            echo "AI automation is paused via localstorage/AI_AUTOMATION_PAUSED"
+            exit 1
+          fi
+          echo "No AI pause flag found."
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install ajv-cli
+        run: |
+          npm install ajv-cli@5 --no-save
+
+      - name: Validate ai-docs-index.json against schema
+        run: |
+          npx ajv validate -s tools/ai/ai-docs-index-schema.json -d app-repo/docs/ai/ai-docs-index.json
+
+      - name: Validate ai-context-routing.json against schema
+        run: |
+          npx ajv validate -s tools/ai/ai-context-routing-schema.json -d app-repo/docs/ai/ai-context-routing.json

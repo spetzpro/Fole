@@ -1,0 +1,25 @@
+{
+  "version": "1.0.0",
+  "lastUpdated": "2025-11-23T00:00:00Z",
+  "routingRules": [
+    {
+      "id": "core_specs_default",
+      "pathPrefix": "app-repo/specs/core/",
+      "requiredDocs": [
+        "app-repo/docs/ai/_AI_MASTER_RULES.md",
+        "app-repo/docs/ai/_AI_DOCS_OVERVIEW.md",
+        "app-repo/docs/ai/_AI_CONTEXT_MAP.md"
+      ],
+      "notes": "Generic core-spec task. Load AI governance + overview + context map, then the specific core spec requested."
+    },
+    {
+      "id": "ai_docs_any",
+      "pathPrefix": "app-repo/docs/ai/",
+      "requiredDocs": [
+        "app-repo/docs/ai/_AI_MASTER_RULES.md",
+        "app-repo/docs/ai/_AI_DOCS_OVERVIEW.md"
+      ],
+      "notes": "When editing AI docs themselves, always load master rules + docs overview."
+    }
+  ]
+}

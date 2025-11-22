@@ -1,0 +1,81 @@
+{
+  "documentVersion": "1.0.0",
+  "lastUpdated": "2025-11-23T00:00:00Z",
+
+  "agentFirstRunChecklist": "app-repo/docs/ai/agent-first-run.md",
+
+  "documents": [
+    {
+      "id": "ai_master_rules",
+      "path": "app-repo/docs/ai/_AI_MASTER_RULES.md",
+      "type": "ai-governance",
+      "required": true,
+      "description": "The governing constitution for all AI behavior and safety."
+    },
+    {
+      "id": "ai_docs_overview",
+      "path": "app-repo/docs/ai/_AI_DOCS_OVERVIEW.md",
+      "type": "ai-overview",
+      "required": true,
+      "description": "High-level map of all AI-relevant specs and documentation."
+    },
+    {
+      "id": "ai_context_map",
+      "path": "app-repo/docs/ai/_AI_CONTEXT_MAP.md",
+      "type": "ai-routing",
+      "required": true,
+      "description": "Routing logic that determines which specs to load for a given task."
+    },
+
+    {
+      "id": "ai_context_routing_json",
+      "path": "app-repo/docs/ai/ai-context-routing.json",
+      "type": "ai-metadata",
+      "required": false,
+      "description": "Machine-readable routing rules used by agents for context selection."
+    },
+
+    {
+      "id": "ai_storage_architecture",
+      "path": "app-repo/specs/core/_AI_STORAGE_ARCHITECTURE.md",
+      "type": "core-spec",
+      "required": false,
+      "description": "How all runtime data, DBs, maps, tiles, and storage roots function."
+    },
+    {
+      "id": "ai_templates_and_defaults",
+      "path": "app-repo/specs/core/_AI_TEMPLATES_AND_DEFAULTS.md",
+      "type": "core-spec",
+      "required": false,
+      "description": "How factory defaults, server overrides, and project-level overrides work."
+    },
+    {
+      "id": "ai_roles_and_permissions",
+      "path": "app-repo/specs/core/_AI_ROLES_AND_PERMISSIONS.md",
+      "type": "core-spec",
+      "required": false,
+      "description": "Role hierarchy, permission weight logic, and cross-project rules."
+    },
+    {
+      "id": "ai_ui_system_spec",
+      "path": "app-repo/specs/core/_AI_UI_SYSTEM_SPEC.md",
+      "type": "core-spec",
+      "required": false,
+      "description": "Global UI, window system, selection rules, viewer behavior."
+    },
+    {
+      "id": "geo_and_calibration_spec",
+      "path": "app-repo/specs/core/_AI_GEO_AND_CALIBRATION_SPEC.md",
+      "type": "core-spec",
+      "required": false,
+      "description": "Coordinate systems, calibration, projections, and geo math."
+    },
+    {
+      "id": "file_and_image_pipeline",
+      "path": "app-repo/specs/core/_AI_FILE_AND_IMAGE_PIPELINE_SPEC.md",
+      "type": "core-spec",
+      "required": false,
+      "description": "Rasterization, vectorization, normalization, metadata, EXIF, TIFF, PDF, PSD."
+    }
+  ]
+}
