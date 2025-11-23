@@ -33,6 +33,7 @@ export class DefaultAtomicWriteExecutor implements AtomicWriteExecutor {
   }
 
   async execute(plan: AtomicWriteExecutionPlan, hooks: AtomicWriteHooks): Promise<AtomicWriteExecutorResult> {
+    const startedAt = Date.now();
     const lockId: LockId = { id: buildLockIdForPlan(plan) };
     const owner: LockOwner = { ownerId: plan.manifest.author };
     const stepsExecuted: string[] = [];
