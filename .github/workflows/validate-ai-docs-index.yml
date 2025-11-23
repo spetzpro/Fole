@@ -1,0 +1,41 @@
+name: Validate AI Docs Index
+
+on:
+  pull_request:
+    paths:
+      - 'app-repo/docs/ai/ai-docs-index.json'
+      - 'tools/ai/ai-docs-index-schema.json'
+      - '.github/workflows/validate-ai-docs-index.yml'
+  push:
+    branches: [ main ]
+    paths:
+      - 'app-repo/docs/ai/ai-docs-index.json'
+      - 'tools/ai/ai-docs-index-schema.json'
+      - '.github/workflows/validate-ai-docs-index.yml'
+
+jobs:
+  validate-ai-docs-index:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install
+          fi
+
+      - name: Validate ai-docs-index.json against schema
+        run: |
+          npx ajv validate \
+            -s tools/ai/ai-docs-index-schema.json \
+            -d app-repo/docs/ai/ai-docs-index.json

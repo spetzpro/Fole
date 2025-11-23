@@ -1,44 +1,43 @@
 {
-  "documentVersion": "1.0.0",
+  "documentVersion": "1.1.0",
   "lastUpdated": "2025-11-23T00:00:00Z",
 
   "documents": [
+
     {
       "id": "ai_master_rules",
       "path": "app-repo/docs/ai/_AI_MASTER_RULES.md",
       "type": "ai-governance",
       "required": true,
-      "description": "The governing constitution for all AI behavior and safety."
+      "description": "The governing constitution for all AI behavior, safety, STOP rules, and authority hierarchy."
     },
     {
       "id": "ai_docs_overview",
       "path": "app-repo/docs/ai/_AI_DOCS_OVERVIEW.md",
       "type": "ai-overview",
       "required": true,
-      "description": "High-level map of all AI-relevant specs and documentation."
+      "description": "High-level overview of the entire AI documentation system."
     },
     {
       "id": "ai_context_map",
       "path": "app-repo/docs/ai/_AI_CONTEXT_MAP.md",
       "type": "ai-routing",
       "required": true,
-      "description": "Routing logic that determines which specs to load for a given task."
+      "description": "Routing logic for determining which specs apply to a given AI task."
     },
-
     {
       "id": "ai_context_routing_json",
       "path": "app-repo/docs/ai/ai-context-routing.json",
       "type": "ai-metadata",
       "required": false,
-      "description": "Machine-readable routing rules used by agents for context selection."
+      "description": "Machine-readable routing rules used by the AI agent for context selection."
     },
-
     {
       "id": "agent_first_run_checklist",
       "path": "app-repo/docs/ai/agent-first-run.md",
       "type": "ai-helper",
       "required": false,
-      "description": "Step-by-step checklist for what an AI agent should do on first run."
+      "description": "Checklist for AI agent first-run initialization and document loading."
     },
 
     {
@@ -46,42 +45,155 @@
       "path": "app-repo/specs/core/_AI_STORAGE_ARCHITECTURE.md",
       "type": "core-spec",
       "required": false,
-      "description": "How all runtime data, DBs, maps, tiles, and storage roots function."
+      "description": "STORAGE_ROOT rules, atomic operations, WAL, tmp semantics, migrations, durability."
     },
     {
       "id": "ai_templates_and_defaults",
       "path": "app-repo/specs/core/_AI_TEMPLATES_AND_DEFAULTS.md",
       "type": "core-spec",
       "required": false,
-      "description": "How factory defaults, server overrides, and project-level overrides work."
+      "description": "Template hierarchy: Factory → Server → Project. Overrides, versioning, safety."
     },
     {
       "id": "ai_roles_and_permissions",
       "path": "app-repo/specs/core/_AI_ROLES_AND_PERMISSIONS.md",
       "type": "core-spec",
       "required": false,
-      "description": "Role hierarchy, permission weight logic, and cross-project rules."
+      "description": "Role model, permission domains, inheritance chain, deny-wins rules."
     },
     {
       "id": "ai_ui_system_spec",
       "path": "app-repo/specs/core/_AI_UI_SYSTEM_SPEC.md",
       "type": "core-spec",
       "required": false,
-      "description": "Global UI, window system, selection rules, viewer behavior."
+      "description": "Window system, viewers, selection model, undo rules, layout, help modes."
     },
     {
       "id": "geo_and_calibration_spec",
       "path": "app-repo/specs/core/_AI_GEO_AND_CALIBRATION_SPEC.md",
       "type": "core-spec",
       "required": false,
-      "description": "Coordinate systems, calibration, projections, and geo math."
+      "description": "Coordinate systems, conversions, projections, calibrations, global→local math."
     },
     {
       "id": "file_and_image_pipeline",
       "path": "app-repo/specs/core/_AI_FILE_AND_IMAGE_PIPELINE_SPEC.md",
       "type": "core-spec",
       "required": false,
-      "description": "Rasterization, vectorization, normalization, metadata, EXIF, TIFF, PDF, PSD."
+      "description": "Raster/vector normalization, EXIF, TIFF, PSD, color profiles, ICC, pipeline rules."
+    },
+    {
+      "id": "ai_db_and_data_models",
+      "path": "app-repo/specs/core/_AI_DB_AND_DATA_MODELS_SPEC.md",
+      "type": "core-spec",
+      "required": false,
+      "description": "Database schemas, model relationships, versioning, migrations, constraints."
+    },
+    {
+      "id": "ai_module_system_spec",
+      "path": "app-repo/specs/core/_AI_MODULE_SYSTEM_SPEC.md",
+      "type": "core-spec",
+      "required": false,
+      "description": "Module discovery, registration, capabilities, versioning, and lifecycle rules."
+    },
+    {
+      "id": "ai_automation_engine",
+      "path": "app-repo/specs/core/_AI_AUTOMATION_ENGINE_SPEC.md",
+      "type": "core-spec",
+      "required": false,
+      "description": "Automation execution, scheduling, approvals, metadata, STOP conditions."
+    },
+    {
+      "id": "ai_testing_and_verification",
+      "path": "app-repo/specs/core/_AI_TESTING_AND_VERIFICATION_SPEC.md",
+      "type": "core-spec",
+      "required": false,
+      "description": "Test classification, fixtures, golden tests, verification rules, CI requirements."
+    },
+    {
+      "id": "ai_export_and_import",
+      "path": "app-repo/specs/core/_AI_EXPORT_AND_IMPORT_SPEC.md",
+      "type": "core-spec",
+      "required": false,
+      "description": "Export/import of projects, server data, assets, manifests, deterministic restore."
+    },
+    {
+      "id": "ai_monitoring_and_alerting",
+      "path": "app-repo/specs/core/_AI_MONITORING_AND_ALERTING_SPEC.md",
+      "type": "core-spec",
+      "required": false,
+      "description": "Metrics, logs, alert thresholds, observability rules, auditability."
+    },
+    {
+      "id": "ai_security_and_compliance",
+      "path": "app-repo/specs/core/_AI_SECURITY_AND_COMPLIANCE_SPEC.md",
+      "type": "core-spec",
+      "required": false,
+      "description": "Security rules, encryption, permissions, audit requirements, compliance frameworks."
+    },
+    {
+      "id": "ai_performance_and_scaling",
+      "path": "app-repo/specs/core/_AI_PERFORMANCE_AND_SCALING_SPEC.md",
+      "type": "core-spec",
+      "required": false,
+      "description": "Performance budgets, scaling rules, resource constraints, optimization guidelines."
+    },
+    {
+      "id": "ai_concurrency_and_locking",
+      "path": "app-repo/specs/core/_AI_CONCURRENCY_AND_LOCKING_SPEC.md",
+      "type": "core-spec",
+      "required": false,
+      "description": "Locks, lease semantics, stale-lock recovery, concurrency limits, atomicity."
+    },
+    {
+      "id": "ai_backup_and_recovery",
+      "path": "app-repo/specs/core/_AI_BACKUP_AND_RECOVERY_SPEC.md",
+      "type": "core-spec",
+      "required": false,
+      "description": "Backups, snapshot consistency, restore protocol, manifests, DR policy."
+    },
+    {
+      "id": "ai_event_system_and_webhooks",
+      "path": "app-repo/specs/core/_AI_EVENT_SYSTEM_AND_WEBHOOK_SPEC.md",
+      "type": "core-spec",
+      "required": false,
+      "description": "Events, dispatch rules, webhook payloads, deduplication, retry logic."
+    },
+    {
+      "id": "ai_error_handling_and_diagnostics",
+      "path": "app-repo/specs/core/_AI_ERROR_HANDLING_AND_DIAGNOSTICS_SPEC.md",
+      "type": "core-spec",
+      "required": false,
+      "description": "Error classes, diagnostics, failure rules, reporting, recoverability."
+    },
+    {
+      "id": "ai_integration_and_extensibility",
+      "path": "app-repo/specs/core/_AI_INTEGRATION_AND_EXTENSIBILITY_SPEC.md",
+      "type": "core-spec",
+      "required": false,
+      "description": "External API integration, plugins, extension modules, interoperability rules."
+    },
+    {
+      "id": "ai_search_and_indexing",
+      "path": "app-repo/specs/core/_AI_SEARCH_AND_INDEXING_SPEC.md",
+      "type": "core-spec",
+      "required": false,
+      "description": "Search algorithms, indexing, caching, tokenization, ranking, query safety."
+    },
+    {
+      "id": "ai_network_and_api",
+      "path": "app-repo/specs/core/_AI_NETWORK_AND_API_SPEC.md",
+      "type": "core-spec",
+      "required": false,
+      "description": "HTTP/WS APIs, rate limits, schema validation, request safety, auth rules."
+    },
+    {
+      "id": "ai_user_preferences_and_personalization",
+      "path": "app-repo/specs/core/_AI_USER_PREFERENCES_AND_PERSONALIZATION_SPEC.md",
+      "type": "core-spec",
+      "required": false,
+      "description": "User settings, preference isolation, personalization rules, overrides."
     }
+
   ]
 }

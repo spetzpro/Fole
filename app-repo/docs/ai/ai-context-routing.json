@@ -1,7 +1,19 @@
 {
-  "version": "1.0.0",
+  "version": "1.1.0",
   "lastUpdated": "2025-11-23T00:00:00Z",
+
   "routingRules": [
+
+    {
+      "id": "ai_docs_any",
+      "pathPrefix": "app-repo/docs/ai/",
+      "requiredDocs": [
+        "app-repo/docs/ai/_AI_MASTER_RULES.md",
+        "app-repo/docs/ai/_AI_DOCS_OVERVIEW.md",
+        "app-repo/docs/ai/_AI_CONTEXT_MAP.md"
+      ]
+    },
+
     {
       "id": "core_specs_default",
       "pathPrefix": "app-repo/specs/core/",
@@ -9,17 +21,185 @@
         "app-repo/docs/ai/_AI_MASTER_RULES.md",
         "app-repo/docs/ai/_AI_DOCS_OVERVIEW.md",
         "app-repo/docs/ai/_AI_CONTEXT_MAP.md"
-      ],
-      "notes": "Generic core-spec task. Load AI governance + overview + context map, then the specific core spec requested."
+      ]
     },
+
     {
-      "id": "ai_docs_any",
-      "pathPrefix": "app-repo/docs/ai/",
-      "requiredDocs": [
-        "app-repo/docs/ai/_AI_MASTER_RULES.md",
-        "app-repo/docs/ai/_AI_DOCS_OVERVIEW.md"
-      ],
-      "notes": "When editing AI docs themselves, always load master rules + docs overview."
+      "id": "core_specs_detailed_routing",
+      "pathPrefix": "app-repo/specs/core/",
+      "detailedRules": [
+
+        {
+          "match": "_AI_STORAGE_ARCHITECTURE.md",
+          "loadAlso": [
+            "_AI_CONCURRENCY_AND_LOCKING_SPEC.md",
+            "_AI_BACKUP_AND_RECOVERY_SPEC.md",
+            "_AI_SECURITY_AND_COMPLIANCE_SPEC.md"
+          ]
+        },
+
+        {
+          "match": "_AI_TEMPLATES_AND_DEFAULTS.md",
+          "loadAlso": [
+            "_AI_ROLES_AND_PERMISSIONS.md",
+            "_AI_UI_SYSTEM_SPEC.md"
+          ]
+        },
+
+        {
+          "match": "_AI_ROLES_AND_PERMISSIONS.md",
+          "loadAlso": [
+            "_AI_MASTER_RULES.md",
+            "_AI_TEMPLATES_AND_DEFAULTS.md"
+          ]
+        },
+
+        {
+          "match": "_AI_UI_SYSTEM_SPEC.md",
+          "loadAlso": [
+            "_AI_FILE_AND_IMAGE_PIPELINE_SPEC.md",
+            "_AI_GEO_AND_CALIBRATION_SPEC.md"
+          ]
+        },
+
+        {
+          "match": "_AI_GEO_AND_CALIBRATION_SPEC.md",
+          "loadAlso": [
+            "_AI_FILE_AND_IMAGE_PIPELINE_SPEC.md",
+            "_AI_EXPORT_AND_IMPORT_SPEC.md"
+          ]
+        },
+
+        {
+          "match": "_AI_FILE_AND_IMAGE_PIPELINE_SPEC.md",
+          "loadAlso": [
+            "_AI_STORAGE_ARCHITECTURE.md",
+            "_AI_EXPORT_AND_IMPORT_SPEC.md"
+          ]
+        },
+
+        {
+          "match": "_AI_DB_AND_DATA_MODELS_SPEC.md",
+          "loadAlso": [
+            "_AI_STORAGE_ARCHITECTURE.md",
+            "_AI_EXPORT_AND_IMPORT_SPEC.md"
+          ]
+        },
+
+        {
+          "match": "_AI_AUTOMATION_ENGINE_SPEC.md",
+          "loadAlso": [
+            "_AI_ROLES_AND_PERMISSIONS.md",
+            "_AI_SECURITY_AND_COMPLIANCE_SPEC.md",
+            "_AI_STORAGE_ARCHITECTURE.md"
+          ]
+        },
+
+        {
+          "match": "_AI_TESTING_AND_VERIFICATION_SPEC.md",
+          "loadAlso": [
+            "_AI_STORAGE_ARCHITECTURE.md",
+            "_AI_DB_AND_DATA_MODELS_SPEC.md"
+          ]
+        },
+
+        {
+          "match": "_AI_EXPORT_AND_IMPORT_SPEC.md",
+          "loadAlso": [
+            "_AI_STORAGE_ARCHITECTURE.md",
+            "_AI_BACKUP_AND_RECOVERY_SPEC.md"
+          ]
+        },
+
+        {
+          "match": "_AI_MONITORING_AND_ALERTING_SPEC.md",
+          "loadAlso": [
+            "_AI_PERFORMANCE_AND_SCALING_SPEC.md",
+            "_AI_SECURITY_AND_COMPLIANCE_SPEC.md"
+          ]
+        },
+
+        {
+          "match": "_AI_SECURITY_AND_COMPLIANCE_SPEC.md",
+          "loadAlso": [
+            "_AI_ROLES_AND_PERMISSIONS.md",
+            "_AI_STORAGE_ARCHITECTURE.md"
+          ]
+        },
+
+        {
+          "match": "_AI_PERFORMANCE_AND_SCALING_SPEC.md",
+          "loadAlso": [
+            "_AI_MONITORING_AND_ALERTING_SPEC.md",
+            "_AI_CONCURRENCY_AND_LOCKING_SPEC.md"
+          ]
+        },
+
+        {
+          "match": "_AI_CONCURRENCY_AND_LOCKING_SPEC.md",
+          "loadAlso": [
+            "_AI_STORAGE_ARCHITECTURE.md",
+            "_AI_BACKUP_AND_RECOVERY_SPEC.md"
+          ]
+        },
+
+        {
+          "match": "_AI_BACKUP_AND_RECOVERY_SPEC.md",
+          "loadAlso": [
+            "_AI_STORAGE_ARCHITECTURE.md",
+            "_AI_EXPORT_AND_IMPORT_SPEC.md"
+          ]
+        },
+
+        {
+          "match": "_AI_EVENT_SYSTEM_AND_WEBHOOK_SPEC.md",
+          "loadAlso": [
+            "_AI_NETWORK_AND_API_SPEC.md",
+            "_AI_SECURITY_AND_COMPLIANCE_SPEC.md"
+          ]
+        },
+
+        {
+          "match": "_AI_ERROR_HANDLING_AND_DIAGNOSTICS_SPEC.md",
+          "loadAlso": [
+            "_AI_MONITORING_AND_ALERTING_SPEC.md",
+            "_AI_AUTOMATION_ENGINE_SPEC.md"
+          ]
+        },
+
+        {
+          "match": "_AI_INTEGRATION_AND_EXTENSIBILITY_SPEC.md",
+          "loadAlso": [
+            "_AI_NETWORK_AND_API_SPEC.md",
+            "_AI_SECURITY_AND_COMPLIANCE_SPEC.md"
+          ]
+        },
+
+        {
+          "match": "_AI_SEARCH_AND_INDEXING_SPEC.md",
+          "loadAlso": [
+            "_AI_DB_AND_DATA_MODELS_SPEC.md",
+            "_AI_PERFORMANCE_AND_SCALING_SPEC.md"
+          ]
+        },
+
+        {
+          "match": "_AI_NETWORK_AND_API_SPEC.md",
+          "loadAlso": [
+            "_AI_SECURITY_AND_COMPLIANCE_SPEC.md",
+            "_AI_EVENT_SYSTEM_AND_WEBHOOK_SPEC.md"
+          ]
+        },
+
+        {
+          "match": "_AI_USER_PREFERENCES_AND_PERSONALIZATION_SPEC.md",
+          "loadAlso": [
+            "_AI_UI_SYSTEM_SPEC.md",
+            "_AI_TEMPLATES_AND_DEFAULTS.md"
+          ]
+        }
+
+      ]
     }
   ]
 }

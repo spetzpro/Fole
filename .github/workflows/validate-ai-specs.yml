@@ -1,0 +1,49 @@
+name: Validate AI Specs & Routing
+
+on:
+  pull_request:
+    paths:
+      - 'app-repo/specs/core/**'
+      - 'app-repo/docs/ai/**'
+      - 'tools/ai/**'
+      - '.github/workflows/validate-ai-specs.yml'
+  push:
+    branches: [ main ]
+    paths:
+      - 'app-repo/specs/core/**'
+      - 'app-repo/docs/ai/**'
+      - 'tools/ai/**'
+      - '.github/workflows/validate-ai-specs.yml'
+
+jobs:
+  validate-ai-specs:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install
+          fi
+
+      - name: Validate ai-docs-index.json
+        run: |
+          npx ajv validate \
+            -s tools/ai/ai-docs-index-schema.json \
+            -d app-repo/docs/ai/ai-docs-index.json
+
+      - name: Validate ai-context-routing.json
+        run: |
+          npx ajv validate \
+            -s tools/ai/ai-context-routing-schema.json \
+            -d app-repo/docs/ai/ai-context-routing.json
