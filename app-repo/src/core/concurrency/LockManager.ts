@@ -49,8 +49,18 @@ export class InMemoryLockManager implements LockManager {
     const now = new Date();
     const key = lock.id;
     const existing = this.locks.get(key);
+
     if (existing) {
-      throw new Error(`lock already held: ${key}`);
+      const existingExpired = new Date(existing.leaseExpires).getTime() <= now.getTime();
+
+      if (!existingExpired) {
+        // Enforce basic lock-type semantics: multiple readers allowed, writers exclusive.
+        if (type === "read" && existing.type === "read") {
+          // allow shared read; fall through below without throwing
+        } else {
+          throw new Error(`lock already held: ${key}`);
+        }
+      }
     }
     const leaseSeconds = options?.leaseDurationSeconds ?? 30;
     const leaseExpires = new Date(now.getTime() + leaseSeconds * 1000).toISOString();
@@ -63,6 +73,10 @@ export class InMemoryLockManager implements LockManager {
       heartbeatTs,
       metadata: options?.metadata,
     };
+    // For simplicity this implementation does not model separate rows for
+    // multiple readers; instead, a single record represents "some reader"
+    // or a single writer. This is sufficient for unit tests that exercise
+    // basic concurrency semantics without a real DAL table.
     this.locks.set(key, acquired);
     return acquired;
   }

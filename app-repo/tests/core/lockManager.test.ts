@@ -30,5 +30,23 @@ function assert(condition: unknown, message: string): void {
   const lock2 = await mgr.acquire(lockId, owner, "write");
   assert(lock2.ownerId === owner.ownerId, "reacquire after release works");
 
+  // Shared read locks: multiple readers allowed.
+  const readLockId: LockId = { id: "project:proj-reads" };
+  const readOwner1: LockOwner = { ownerId: "reader-1" };
+  const readOwner2: LockOwner = { ownerId: "reader-2" };
+  const readLock1 = await mgr.acquire(readLockId, readOwner1, "read");
+  assert(readLock1.ownerId === readOwner1.ownerId, "first read lock acquired");
+  const readLock2 = await mgr.acquire(readLockId, readOwner2, "read");
+  assert(readLock2.ownerId === readOwner2.ownerId, "second read lock acquired concurrently");
+
+  // Writer should be blocked while readers are present.
+  let writeBlocked = false;
+  try {
+    await mgr.acquire(readLockId, { ownerId: "writer-while-reads" }, "write");
+  } catch {
+    writeBlocked = true;
+  }
+  assert(writeBlocked, "writer must be blocked when readers hold the lock");
+
   // If we reached here, basic lock semantics behave as expected.
 })();
