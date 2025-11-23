@@ -1,9 +1,7 @@
 {
   "documentVersion": "1.1.0",
   "lastUpdated": "2025-11-23T00:00:00Z",
-
   "documents": [
-
     {
       "id": "ai_master_rules",
       "path": "app-repo/docs/ai/_AI_MASTER_RULES.md",
@@ -69,14 +67,14 @@
       "description": "Window system, viewers, selection model, undo rules, layout, help modes."
     },
     {
-      "id": "geo_and_calibration_spec",
+      "id": "ai_geo_and_calibration_spec",
       "path": "app-repo/specs/core/_AI_GEO_AND_CALIBRATION_SPEC.md",
       "type": "core-spec",
       "required": false,
       "description": "Coordinate systems, conversions, projections, calibrations, global→local math."
     },
     {
-      "id": "file_and_image_pipeline",
+      "id": "ai_file_and_image_pipeline_spec",
       "path": "app-repo/specs/core/_AI_FILE_AND_IMAGE_PIPELINE_SPEC.md",
       "type": "core-spec",
       "required": false,
@@ -194,6 +192,5 @@
       "required": false,
       "description": "User settings, preference isolation, personalization rules, overrides."
     }
-
   ]
 }
