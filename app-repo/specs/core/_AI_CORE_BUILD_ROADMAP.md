@@ -54,9 +54,10 @@ Each phase ties directly to one or more core specs.
 - [~] Implement DAL abstraction for Core / Project / Map DBs per `_AI_DB_AND_DATA_MODELS_SPEC.md`.  
 - [ ] Enforce schema conventions (PKs, timestamps, soft delete, FKs).  
 - [~] Implement engine-specific mappings (SQLite + Postgres, if used) behind DAL.  
-- [ ] Implement migration runner consistent with DB spec & destructive-change governance.  
+- [~] Implement migration runner consistent with DB spec & destructive-change governance (planner, typed steps, and initial dry-run planning in TS only).  
 - [~] Add initial test suite for DAL + migrations.  
-- [~] Add shared DAL helper functions for read/write patterns (e.g. `executeWrite`, `executeReadOne`, `executeReadMany`) and cover them with tests.
+- [~] Add shared DAL helper functions for read/write patterns (e.g. `executeWrite`, `executeReadOne`, `executeReadMany`) and cover them with tests.  
+- [~] Define initial logical schemas (users, projects, maps) and corresponding typed migration descriptions for core and project DBs.
 
 ### 3.3 Concurrency & Locking
 
