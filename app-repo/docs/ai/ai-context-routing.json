@@ -1,7 +1,6 @@
 {
-  "version": "1.1.0",
+  "version": "1.2.0",
   "lastUpdated": "2025-11-23T00:00:00Z",
-
   "routingRules": [
 
     {
@@ -25,186 +24,195 @@
     },
 
     {
-      "id": "core_specs_detailed_routing",
-      "pathPrefix": "app-repo/specs/core/",
+      "id": "core_storage_architecture_extra",
+      "pathPrefix": "app-repo/specs/core/_AI_STORAGE_ARCHITECTURE.md",
+      "requiredDocs": [
+        "app-repo/specs/core/_AI_CONCURRENCY_AND_LOCKING_SPEC.md",
+        "app-repo/specs/core/_AI_BACKUP_AND_RECOVERY_SPEC.md",
+        "app-repo/specs/core/_AI_SECURITY_AND_COMPLIANCE_SPEC.md"
+      ]
+    },
+
+    {
+      "id": "core_templates_and_defaults_extra",
+      "pathPrefix": "app-repo/specs/core/_AI_TEMPLATES_AND_DEFAULTS.md",
+      "requiredDocs": [
+        "app-repo/specs/core/_AI_ROLES_AND_PERMISSIONS.md",
+        "app-repo/specs/core/_AI_UI_SYSTEM_SPEC.md"
+      ]
+    },
+
+    {
+      "id": "core_roles_permissions_extra",
+      "pathPrefix": "app-repo/specs/core/_AI_ROLES_AND_PERMISSIONS.md",
       "requiredDocs": [
         "app-repo/docs/ai/_AI_MASTER_RULES.md",
-        "app-repo/docs/ai/_AI_DOCS_OVERVIEW.md",
-        "app-repo/docs/ai/_AI_CONTEXT_MAP.md"
-      ],
-      "detailedRules": [
+        "app-repo/specs/core/_AI_TEMPLATES_AND_DEFAULTS.md"
+      ]
+    },
 
-        {
-          "match": "_AI_STORAGE_ARCHITECTURE.md",
-          "loadAlso": [
-            "_AI_CONCURRENCY_AND_LOCKING_SPEC.md",
-            "_AI_BACKUP_AND_RECOVERY_SPEC.md",
-            "_AI_SECURITY_AND_COMPLIANCE_SPEC.md"
-          ]
-        },
+    {
+      "id": "core_ui_system_extra",
+      "pathPrefix": "app-repo/specs/core/_AI_UI_SYSTEM_SPEC.md",
+      "requiredDocs": [
+        "app-repo/specs/core/_AI_FILE_AND_IMAGE_PIPELINE_SPEC.md",
+        "app-repo/specs/core/_AI_GEO_AND_CALIBRATION_SPEC.md"
+      ]
+    },
 
-        {
-          "match": "_AI_TEMPLATES_AND_DEFAULTS.md",
-          "loadAlso": [
-            "_AI_ROLES_AND_PERMISSIONS.md",
-            "_AI_UI_SYSTEM_SPEC.md"
-          ]
-        },
+    {
+      "id": "core_geo_calibration_extra",
+      "pathPrefix": "app-repo/specs/core/_AI_GEO_AND_CALIBRATION_SPEC.md",
+      "requiredDocs": [
+        "app-repo/specs/core/_AI_FILE_AND_IMAGE_PIPELINE_SPEC.md",
+        "app-repo/specs/core/_AI_EXPORT_AND_IMPORT_SPEC.md"
+      ]
+    },
 
-        {
-          "match": "_AI_ROLES_AND_PERMISSIONS.md",
-          "loadAlso": [
-            "_AI_MASTER_RULES.md",
-            "_AI_TEMPLATES_AND_DEFAULTS.md"
-          ]
-        },
+    {
+      "id": "core_file_image_extra",
+      "pathPrefix": "app-repo/specs/core/_AI_FILE_AND_IMAGE_PIPELINE_SPEC.md",
+      "requiredDocs": [
+        "app-repo/specs/core/_AI_STORAGE_ARCHITECTURE.md",
+        "app-repo/specs/core/_AI_EXPORT_AND_IMPORT_SPEC.md"
+      ]
+    },
 
-        {
-          "match": "_AI_UI_SYSTEM_SPEC.md",
-          "loadAlso": [
-            "_AI_FILE_AND_IMAGE_PIPELINE_SPEC.md",
-            "_AI_GEO_AND_CALIBRATION_SPEC.md"
-          ]
-        },
+    {
+      "id": "core_db_models_extra",
+      "pathPrefix": "app-repo/specs/core/_AI_DB_AND_DATA_MODELS_SPEC.md",
+      "requiredDocs": [
+        "app-repo/specs/core/_AI_STORAGE_ARCHITECTURE.md",
+        "app-repo/specs/core/_AI_EXPORT_AND_IMPORT_SPEC.md"
+      ]
+    },
 
-        {
-          "match": "_AI_GEO_AND_CALIBRATION_SPEC.md",
-          "loadAlso": [
-            "_AI_FILE_AND_IMAGE_PIPELINE_SPEC.md",
-            "_AI_EXPORT_AND_IMPORT_SPEC.md"
-          ]
-        },
+    {
+      "id": "core_automation_engine_extra",
+      "pathPrefix": "app-repo/specs/core/_AI_AUTOMATION_ENGINE_SPEC.md",
+      "requiredDocs": [
+        "app-repo/specs/core/_AI_ROLES_AND_PERMISSIONS.md",
+        "app-repo/specs/core/_AI_SECURITY_AND_COMPLIANCE_SPEC.md",
+        "app-repo/specs/core/_AI_STORAGE_ARCHITECTURE.md"
+      ]
+    },
 
-        {
-          "match": "_AI_FILE_AND_IMAGE_PIPELINE_SPEC.md",
-          "loadAlso": [
-            "_AI_STORAGE_ARCHITECTURE.md",
-            "_AI_EXPORT_AND_IMPORT_SPEC.md"
-          ]
-        },
+    {
+      "id": "core_testing_verification_extra",
+      "pathPrefix": "app-repo/specs/core/_AI_TESTING_AND_VERIFICATION_SPEC.md",
+      "requiredDocs": [
+        "app-repo/specs/core/_AI_STORAGE_ARCHITECTURE.md",
+        "app-repo/specs/core/_AI_DB_AND_DATA_MODELS_SPEC.md"
+      ]
+    },
 
-        {
-          "match": "_AI_DB_AND_DATA_MODELS_SPEC.md",
-          "loadAlso": [
-            "_AI_STORAGE_ARCHITECTURE.md",
-            "_AI_EXPORT_AND_IMPORT_SPEC.md"
-          ]
-        },
+    {
+      "id": "core_export_import_extra",
+      "pathPrefix": "app-repo/specs/core/_AI_EXPORT_AND_IMPORT_SPEC.md",
+      "requiredDocs": [
+        "app-repo/specs/core/_AI_STORAGE_ARCHITECTURE.md",
+        "app-repo/specs/core/_AI_BACKUP_AND_RECOVERY_SPEC.md"
+      ]
+    },
 
-        {
-          "match": "_AI_AUTOMATION_ENGINE_SPEC.md",
-          "loadAlso": [
-            "_AI_ROLES_AND_PERMISSIONS.md",
-            "_AI_SECURITY_AND_COMPLIANCE_SPEC.md",
-            "_AI_STORAGE_ARCHITECTURE.md"
-          ]
-        },
+    {
+      "id": "core_monitoring_alerting_extra",
+      "pathPrefix": "app-repo/specs/core/_AI_MONITORING_AND_ALERTING_SPEC.md",
+      "requiredDocs": [
+        "app-repo/specs/core/_AI_PERFORMANCE_AND_SCALING_SPEC.md",
+        "app-repo/specs/core/_AI_SECURITY_AND_COMPLIANCE_SPEC.md"
+      ]
+    },
 
-        {
-          "match": "_AI_TESTING_AND_VERIFICATION_SPEC.md",
-          "loadAlso": [
-            "_AI_STORAGE_ARCHITECTURE.md",
-            "_AI_DB_AND_DATA_MODELS_SPEC.md"
-          ]
-        },
+    {
+      "id": "core_security_compliance_extra",
+      "pathPrefix": "app-repo/specs/core/_AI_SECURITY_AND_COMPLIANCE_SPEC.md",
+      "requiredDocs": [
+        "app-repo/specs/core/_AI_ROLES_AND_PERMISSIONS.md",
+        "app-repo/specs/core/_AI_STORAGE_ARCHITECTURE.md"
+      ]
+    },
 
-        {
-          "match": "_AI_EXPORT_AND_IMPORT_SPEC.md",
-          "loadAlso": [
-            "_AI_STORAGE_ARCHITECTURE.md",
-            "_AI_BACKUP_AND_RECOVERY_SPEC.md"
-          ]
-        },
+    {
+      "id": "core_performance_scaling_extra",
+      "pathPrefix": "app-repo/specs/core/_AI_PERFORMANCE_AND_SCALING_SPEC.md",
+      "requiredDocs": [
+        "app-repo/specs/core/_AI_MONITORING_AND_ALERTING_SPEC.md",
+        "app-repo/specs/core/_AI_CONCURRENCY_AND_LOCKING_SPEC.md"
+      ]
+    },
 
-        {
-          "match": "_AI_MONITORING_AND_ALERTING_SPEC.md",
-          "loadAlso": [
-            "_AI_PERFORMANCE_AND_SCALING_SPEC.md",
-            "_AI_SECURITY_AND_COMPLIANCE_SPEC.md"
-          ]
-        },
+    {
+      "id": "core_concurrency_locking_extra",
+      "pathPrefix": "app-repo/specs/core/_AI_CONCURRENCY_AND_LOCKING_SPEC.md",
+      "requiredDocs": [
+        "app-repo/specs/core/_AI_STORAGE_ARCHITECTURE.md",
+        "app-repo/specs/core/_AI_BACKUP_AND_RECOVERY_SPEC.md"
+      ]
+    },
 
-        {
-          "match": "_AI_SECURITY_AND_COMPLIANCE_SPEC.md",
-          "loadAlso": [
-            "_AI_ROLES_AND_PERMISSIONS.md",
-            "_AI_STORAGE_ARCHITECTURE.md"
-          ]
-        },
+    {
+      "id": "core_backup_recovery_extra",
+      "pathPrefix": "app-repo/specs/core/_AI_BACKUP_AND_RECOVERY_SPEC.md",
+      "requiredDocs": [
+        "app-repo/specs/core/_AI_STORAGE_ARCHITECTURE.md",
+        "app-repo/specs/core/_AI_EXPORT_AND_IMPORT_SPEC.md"
+      ]
+    },
 
-        {
-          "match": "_AI_PERFORMANCE_AND_SCALING_SPEC.md",
-          "loadAlso": [
-            "_AI_MONITORING_AND_ALERTING_SPEC.md",
-            "_AI_CONCURRENCY_AND_LOCKING_SPEC.md"
-          ]
-        },
+    {
+      "id": "core_event_webhook_extra",
+      "pathPrefix": "app-repo/specs/core/_AI_EVENT_SYSTEM_AND_WEBHOOK_SPEC.md",
+      "requiredDocs": [
+        "app-repo/specs/core/_AI_NETWORK_AND_API_SPEC.md",
+        "app-repo/specs/core/_AI_SECURITY_AND_COMPLIANCE_SPEC.md"
+      ]
+    },
 
-        {
-          "match": "_AI_CONCURRENCY_AND_LOCKING_SPEC.md",
-          "loadAlso": [
-            "_AI_STORAGE_ARCHITECTURE.md",
-            "_AI_BACKUP_AND_RECOVERY_SPEC.md"
-          ]
-        },
+    {
+      "id": "core_error_diag_extra",
+      "pathPrefix": "app-repo/specs/core/_AI_ERROR_HANDLING_AND_DIAGNOSTICS_SPEC.md",
+      "requiredDocs": [
+        "app-repo/specs/core/_AI_MONITORING_AND_ALERTING_SPEC.md",
+        "app-repo/specs/core/_AI_AUTOMATION_ENGINE_SPEC.md"
+      ]
+    },
 
-        {
-          "match": "_AI_BACKUP_AND_RECOVERY_SPEC.md",
-          "loadAlso": [
-            "_AI_STORAGE_ARCHITECTURE.md",
-            "_AI_EXPORT_AND_IMPORT_SPEC.md"
-          ]
-        },
+    {
+      "id": "core_integration_extensibility_extra",
+      "pathPrefix": "app-repo/specs/core/_AI_INTEGRATION_AND_EXTENSIBILITY_SPEC.md",
+      "requiredDocs": [
+        "app-repo/specs/core/_AI_NETWORK_AND_API_SPEC.md",
+        "app-repo/specs/core/_AI_SECURITY_AND_COMPLIANCE_SPEC.md"
+      ]
+    },
 
-        {
-          "match": "_AI_EVENT_SYSTEM_AND_WEBHOOK_SPEC.md",
-          "loadAlso": [
-            "_AI_NETWORK_AND_API_SPEC.md",
-            "_AI_SECURITY_AND_COMPLIANCE_SPEC.md"
-          ]
-        },
+    {
+      "id": "core_search_indexing_extra",
+      "pathPrefix": "app-repo/specs/core/_AI_SEARCH_AND_INDEXING_SPEC.md",
+      "requiredDocs": [
+        "app-repo/specs/core/_AI_DB_AND_DATA_MODELS_SPEC.md",
+        "app-repo/specs/core/_AI_PERFORMANCE_AND_SCALING_SPEC.md"
+      ]
+    },
 
-        {
-          "match": "_AI_ERROR_HANDLING_AND_DIAGNOSTICS_SPEC.md",
-          "loadAlso": [
-            "_AI_MONITORING_AND_ALERTING_SPEC.md",
-            "_AI_AUTOMATION_ENGINE_SPEC.md"
-          ]
-        },
+    {
+      "id": "core_network_api_extra",
+      "pathPrefix": "app-repo/specs/core/_AI_NETWORK_AND_API_SPEC.md",
+      "requiredDocs": [
+        "app-repo/specs/core/_AI_SECURITY_AND_COMPLIANCE_SPEC.md",
+        "app-repo/specs/core/_AI_EVENT_SYSTEM_AND_WEBHOOK_SPEC.md"
+      ]
+    },
 
-        {
-          "match": "_AI_INTEGRATION_AND_EXTENSIBILITY_SPEC.md",
-          "loadAlso": [
-            "_AI_NETWORK_AND_API_SPEC.md",
-            "_AI_SECURITY_AND_COMPLIANCE_SPEC.md"
-          ]
-        },
-
-        {
-          "match": "_AI_SEARCH_AND_INDEXING_SPEC.md",
-          "loadAlso": [
-            "_AI_DB_AND_DATA_MODELS_SPEC.md",
-            "_AI_PERFORMANCE_AND_SCALING_SPEC.md"
-          ]
-        },
-
-        {
-          "match": "_AI_NETWORK_AND_API_SPEC.md",
-          "loadAlso": [
-            "_AI_SECURITY_AND_COMPLIANCE_SPEC.md",
-            "_AI_EVENT_SYSTEM_AND_WEBHOOK_SPEC.md"
-          ]
-        },
-
-        {
-          "match": "_AI_USER_PREFERENCES_AND_PERSONALIZATION_SPEC.md",
-          "loadAlso": [
-            "_AI_UI_SYSTEM_SPEC.md",
-            "_AI_TEMPLATES_AND_DEFAULTS.md"
-          ]
-        }
-
+    {
+      "id": "core_user_preferences_extra",
+      "pathPrefix": "app-repo/specs/core/_AI_USER_PREFERENCES_AND_PERSONALIZATION_SPEC.md",
+      "requiredDocs": [
+        "app-repo/specs/core/_AI_UI_SYSTEM_SPEC.md",
+        "app-repo/specs/core/_AI_TEMPLATES_AND_DEFAULTS.md"
       ]
     }
+
   ]
 }
