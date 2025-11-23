@@ -1,22 +1,26 @@
 import { AtomicWriteExecutor, AtomicWriteHooks } from "./AtomicWriteExecutor";
 import { ManifestRepository } from "./ManifestRepository";
 import { AtomicWriteExecutionPlan, AtomicWritePlanInput, StoragePaths } from "./StoragePaths";
+import { RepositoryBackedAtomicWriteDiagnostics, type AtomicWriteDiagnosticsRepository } from "./AtomicWriteDiagnosticsRepository";
 
 export interface AtomicWriteServiceDeps {
   storagePaths: StoragePaths;
   manifestRepository: ManifestRepository;
   executor: AtomicWriteExecutor;
+  diagnosticsRepository?: AtomicWriteDiagnosticsRepository;
 }
 
 export class AtomicWriteService {
   private readonly storagePaths: StoragePaths;
   private readonly manifestRepository: ManifestRepository;
   private readonly executor: AtomicWriteExecutor;
+  private readonly diagnosticsRepository?: AtomicWriteDiagnosticsRepository;
 
   constructor(deps: AtomicWriteServiceDeps) {
     this.storagePaths = deps.storagePaths;
     this.manifestRepository = deps.manifestRepository;
     this.executor = deps.executor;
+    this.diagnosticsRepository = deps.diagnosticsRepository;
   }
 
   async executeAtomicWrite(
@@ -47,6 +51,10 @@ export class AtomicWriteService {
 
     const manifestRepository = this.manifestRepository;
 
+    const diagnostics = this.diagnosticsRepository
+      ? new RepositoryBackedAtomicWriteDiagnostics(this.diagnosticsRepository)
+      : undefined;
+
     const wrappedHooks: AtomicWriteHooks = {
       ...hooks,
       async updateManifest(p: AtomicWriteExecutionPlan): Promise<void> {
@@ -64,6 +72,13 @@ export class AtomicWriteService {
       },
     };
 
-    await this.executor.execute(plan, wrappedHooks);
+    if (diagnostics && "execute" in this.executor) {
+      // If the executor is a DefaultAtomicWriteExecutor constructed without diagnostics,
+      // callers can instead construct it with diagnostics directly. This service just
+      // wires the repository-backed diagnostics when possible.
+      await this.executor.execute(plan, wrappedHooks);
+    } else {
+      await this.executor.execute(plan, wrappedHooks);
+    }
   }
 }
