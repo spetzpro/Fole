@@ -36,6 +36,42 @@ export interface LockManager {
   release(lock: AcquiredLock): Promise<void>;
 }
 
+export interface LockAcquireRetryOptions extends LockAcquireOptions {
+  maxAttempts?: number;
+  initialDelayMs?: number;
+  maxDelayMs?: number;
+}
+
+export async function acquireWithRetry(
+  manager: LockManager,
+  lock: LockId,
+  owner: LockOwner,
+  type: LockType,
+  options?: LockAcquireRetryOptions,
+): Promise<AcquiredLock> {
+  const maxAttempts = options?.maxAttempts ?? 5;
+  const initialDelayMs = options?.initialDelayMs ?? 25;
+  const maxDelayMs = options?.maxDelayMs ?? 500;
+
+  let attempt = 0;
+  let delay = initialDelayMs;
+
+  // Simple bounded exponential backoff loop.
+  for (;;) {
+    try {
+      return await manager.acquire(lock, owner, type, options);
+    } catch (err) {
+      attempt += 1;
+      if (attempt >= maxAttempts) {
+        throw err;
+      }
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, delay));
+    delay = Math.min(delay * 2, maxDelayMs);
+  }
+}
+
 /**
  * A simple in-memory LockManager implementation intended for tests and local
  * tooling only. This does NOT attempt to be distributed or durable; it

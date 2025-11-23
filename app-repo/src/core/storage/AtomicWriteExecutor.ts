@@ -1,5 +1,6 @@
 import type { AtomicWriteExecutionPlan } from "./StoragePaths";
 import type { AcquiredLock, LockId, LockManager, LockOwner } from "../concurrency/LockManager";
+import { acquireWithRetry } from "../concurrency/LockManager";
 
 export interface AtomicWriteHooks {
   writeFiles(plan: AtomicWriteExecutionPlan): Promise<void>;
@@ -39,7 +40,7 @@ export class DefaultAtomicWriteExecutor implements AtomicWriteExecutor {
 
     try {
       // acquire_lock
-      lock = await this.lockManager.acquire(lockId, owner, "write");
+      lock = await acquireWithRetry(this.lockManager, lockId, owner, "write");
       stepsExecuted.push("acquire_lock");
 
       // write_files
