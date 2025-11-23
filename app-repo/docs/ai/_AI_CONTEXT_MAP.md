@@ -1,3 +1,6 @@
+# Version: SPEC_V1.0  
+Last-Updated: 2025-11-23  
+
 # _AI_CONTEXT_MAP.md  
 **AI Context Routing & Loading Rules**
 
@@ -37,6 +40,9 @@ These are the **only** canonical locations for AI governance and routing docs:
 - AI automation pause flag (per server)  
   → `<STORAGE_ROOT>/AI_AUTOMATION_PAUSED`
 
+- `specs/libs/` — shared helper / library specifications.  
+  Contains promoted helpers used by multiple modules/blocks. Helpers start life as local (inside modules/blocks). They may be promoted into this folder **only** when shared usage is confirmed AND a human approves the promotion.
+
 If a future document moves, **this table MUST be updated** in the same PR.
 
 ---
@@ -53,6 +59,10 @@ It implements the **Minimal Context Principle** from `_AI_MASTER_RULES.md`:
 This document is the **authoritative routing spec**.  
 JSON helpers (like `ai-docs-index.json` and `ai-context-routing.json`) exist to speed things up, but **Markdown specs always win** if there is any conflict.
 
+All AI-governed specs and templates currently follow `SPEC_V1.x`. See `_AI_MASTER_RULES.md` for version precedence, STOP rules, and spec interpretation.
+
+See `_AI_MASTER_RULES.md` for the full spec precedence hierarchy (core specs → modules → libs → blocks).
+
 ---
 
 ## 1.2 Context Hierarchy (Load Order)
@@ -64,6 +74,7 @@ Agents **must** load files in this order:
 3. `_AI_CONTEXT_MAP.md` (this file – routing logic)  
 4. The specific specs listed for the current task (relevant `_AI_*.md` in `specs/core`, `specs/modules`, `specs/blocks`, etc.)  
 5. The relevant block/module crossref file(s), if the task touches a specific block.
+ 6. Any shared helper/library specifications under `specs/libs/` that are used by the code being modified (promoted shared helpers only; local helpers remain implementation details and are not spec'd).
 
 JSON files:
 

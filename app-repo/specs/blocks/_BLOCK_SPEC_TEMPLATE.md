@@ -1,5 +1,5 @@
-Version: 0.1.0  
-Last-Updated: YYYY-MM-DD  
+# Version: SPEC_V1.0  
+Last-Updated: 2025-11-23  
 Status: Draft / Active / Deprecated
 
 # <BLOCK_NAME> Block Specification
@@ -51,6 +51,11 @@ This document defines:
   - Emit events?
 
 All must follow the owning module + core specs; this block does not invent new patterns.
+This block MUST NOT define new DB tables or STORAGE_ROOT paths. It may only:
+- Call repositories/services defined in its owning module, or
+- Use shared infrastructure defined in core specs.
+
+Any referenced tables or paths must be defined and documented in the owning module’s spec. This block may refer to them only by name and ownership (for example: “uses `CommentsService`, which persists comments in the module’s `work_orders.comments` table as defined in the WorkOrders module spec”).
 
 ---
 
@@ -92,10 +97,13 @@ Which core specs constrain this block:
 4.2 Module Dependencies  
 - The owning module (from Section 1).
 - Any other modules whose services/APIs this block uses.
+This block depends on the owning module’s repositories/services for all DB and STORAGE_ROOT access, rather than talking directly to raw tables or file paths.
 
 4.3 Other Blocks  
 - Other blocks this block calls or composes.
 - Direction of dependency must be clear (to avoid cycles).
+
+- Shared helpers/libraries from `specs/libs` used by this block (if any). Helpers that are only used within this block are treated as implementation details and do not need their own specs.
 
 ---
 

@@ -1,5 +1,5 @@
-Version: 0.1.0  
-Last-Updated: YYYY-MM-DD  
+# Version: SPEC_V1.0  
+Last-Updated: 2025-11-23  
 Status: Draft / Active / Deprecated
 
 # <MODULE_NAME> Module Specification
@@ -90,11 +90,15 @@ For each DB table this module owns or uses:
   - Soft-delete rules:
   - Invariants (e.g., “rows must always have project_id not null”)
 
+Blocks within this module may read/write these tables only via module-defined services or repositories. This module spec is the single source of truth for table schemas; blocks and helpers must not define new tables or columns on their own.
+
 4.2 Files & Directories under STORAGE_ROOT  
 - Paths under `STORAGE_ROOT/projects/<projectUUID>/...` or others this module uses.
 - Who owns these paths (this module vs shared).
 - Rules for naming and lifecycle (creation, modification, deletion).
 - How atomic write and manifest rules apply (link to `_AI_STORAGE_ARCHITECTURE.md`).
+
+Blocks within this module may access these paths only through module-defined storage helpers/services. This module spec owns the definition of directory structure and naming rules under STORAGE_ROOT; blocks and helpers must not define new STORAGE_ROOT directories or naming schemes independently.
 
 4.3 External Systems (if any)  
 - External DBs, caches, or services this module talks to.
@@ -146,6 +150,8 @@ Modules this module depends on:
 
 - `<OtherModule>` – what it uses from it and why.
 - Any constraints to avoid circular dependencies.
+
+- Shared libraries from `specs/libs` that this module uses (if any). Helpers that are only used within this module are treated as local implementation details and do not need their own specs.
 
 6.3 Block Dependencies  
 Blocks (from `specs/blocks`) this module uses heavily.

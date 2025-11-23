@@ -1,3 +1,6 @@
+# Version: SPEC_V1.0
+Last-Updated: 2025-11-23
+
 # AI MASTER RULES  
 Authoritative Governance for All AI Agents Working on This Repository
 
@@ -39,6 +42,8 @@ If code and documentation conflict:
 Specs are binding.  
 AI must not reinterpret or bend rules.
 
+AI MUST treat all files labeled `Version: SPEC_V1.x` as following the governance rules in this document. If a file’s version is older or missing, AI must not assume behavioral correctness and must request human direction before making structural or behavioral changes.
+
 ## 2.3 Canonical documentation set
 The following files ALWAYS constitute the definitive system contract:
 
@@ -54,6 +59,19 @@ The following files ALWAYS constitute the definitive system contract:
 - `_HUMAN_BACKUP_INSTRUCTIONS.md` → `app-repo/specs/core/_HUMAN_BACKUP_INSTRUCTIONS.md`
 
 If these files conflict with any module/block spec, these files take precedence.
+
+## 2.4 Spec Precedence Order
+
+**Spec Precedence (highest  lowest):**
+1. `_AI_MASTER_RULES.md`
+2. Core specs (storage, DB, concurrency, auth, templates, etc.)
+3. Module specs
+4. Library specs (`specs/libs`)
+5. Block specs
+6. Implementation-level code
+
+When two specs conflict, the higher-level spec overrides the lower.  
+AI MUST STOP if encountering an unresolved conflict.
 
 ---
 
@@ -71,6 +89,11 @@ AI may:
 - Create temporary files inside allowed temp zones  
 - Interact with the job/operations system  
 - Request human approval when needed  
+
+- Local helpers (used only within one module or block) may be refactored for clarity, but:
+	- they must remain local,
+	- they must not be exposed as public APIs,
+	- they must not be moved into shared libs (`specs/libs`) unless explicitly approved by a human.
 
 ## 3.2 Conditionally Allowed (Requires Human Signoff or Metadata)
 - Schema changes  
@@ -172,6 +195,7 @@ Load only:
 - relevant block/module spec  
 - `_ROLES_AND_PERMISSIONS.md` (if permissions involved)  
 - `_UI_SYSTEM_SPEC.md` (if UI involved)
+ - Shared helper/library specifications under `specs/libs/` MUST be loaded when modifying any code that uses them. Helpers that are only used inside a single module or block remain implementation details and do NOT require a spec. Promoted shared helpers in `specs/libs` must be treated like mini-specs with STOP rules.
 
 ### Storage → must load  
 - `_STORAGE_ARCHITECTURE.md`
@@ -189,11 +213,21 @@ AI must not:
 - invent new docs  
 - rewrite global specs without permission  
 
+**STOP:** AI MUST NOT promote local helpers into `specs/libs` unless:
+- The helper is confirmed to be used across multiple modules/blocks, **and**
+- A human explicitly requests the promotion.
+
+AI may suggest promotion but MUST NOT perform it automatically.
+
+**STOP:** If a spec or template does not contain a `Version: SPEC_Vx.y` header, or if two files reference conflicting major versions, AI MUST STOP and request human review before modifying behavior or structure.
+
 ---
 
 # 6. DOCUMENTATION SYNCHRONIZATION REQUIREMENTS
 
 ## 6.1 Any code change affecting behavior MUST update its spec  
+
+Before modifying any spec or template, AI MUST perform a basic consistency check across relevant module, block, and library specs. If the AI detects contradictions or incompatible instructions across specs, it MUST STOP and request human resolution.
 If code is changed but relevant `.md` spec is not updated → **PR must fail**.
 
 ## 6.2 Specs must never diverge  
