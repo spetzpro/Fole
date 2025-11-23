@@ -43,7 +43,7 @@ Each phase ties directly to one or more core specs.
 
 ### 3.1 Storage Architecture
 
-- [ ] Implement `STORAGE_ROOT` folder structure as defined in `_AI_STORAGE_ARCHITECTURE.md`.  
+- [~] Implement `STORAGE_ROOT` folder structure as defined in `_AI_STORAGE_ARCHITECTURE.md`.  
 - [ ] Implement tmp-directory and atomic rename patterns for all write paths.  
 - [ ] Implement manifest table and state transitions (`pending` → `committed`/`aborted`).  
 - [ ] Implement orphan tmp cleanup respecting manifest rules.  
@@ -51,17 +51,17 @@ Each phase ties directly to one or more core specs.
 
 ### 3.2 DB & Data Models
 
-- [ ] Implement DAL abstraction for Core / Project / Map DBs per `_AI_DB_AND_DATA_MODELS_SPEC.md`.  
+- [~] Implement DAL abstraction for Core / Project / Map DBs per `_AI_DB_AND_DATA_MODELS_SPEC.md`.  
 - [ ] Enforce schema conventions (PKs, timestamps, soft delete, FKs).  
 - [ ] Implement engine-specific mappings (SQLite + Postgres, if used) behind DAL.  
 - [ ] Implement migration runner consistent with DB spec & destructive-change governance.  
-- [ ] Add initial test suite for DAL + migrations.
+- [~] Add initial test suite for DAL + migrations.
 
 ### 3.3 Concurrency & Locking
 
-- [ ] Implement advisory read/write locks per `_AI_CONCURRENCY_AND_LOCKING_SPEC.md`.  
+- [~] Implement advisory read/write locks per `_AI_CONCURRENCY_AND_LOCKING_SPEC.md`.  
 - [ ] Integrate locking with DAL operations and atomic write protocol.  
-- [ ] Add tests for lock contention, stale lock recovery, and concurrency limits.
+- [~] Add tests for lock contention, stale lock recovery, and concurrency limits.
 
 ---
 

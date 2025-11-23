@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "lint": "echo \"no lint yet\"",
-    "test": "npx ts-node app-repo/tests/core/storagePaths.test.ts && npx ts-node app-repo/tests/core/lockManager.test.ts && npx ts-node app-repo/tests/core/atomicWritePlan.test.ts"
+    "test": "npx ts-node app-repo/tests/core/storagePaths.test.ts && npx ts-node app-repo/tests/core/lockManager.test.ts && npx ts-node app-repo/tests/core/atomicWritePlan.test.ts && npx ts-node app-repo/tests/core/dalContext.test.ts"
   },
   "devDependencies": {
     "ajv-cli": "^5.0.0",
