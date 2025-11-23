@@ -123,6 +123,30 @@ Upgrade MUST be atomic within a DB transaction.
 
 ---
 
+### 3.5 Lock Manager Implementations (Core Adapters)
+
+The core runtime provides two primary implementations of the logical locking contract:
+
+- `InMemoryLockManager`  
+  - Purpose: tests, local tooling, and small-scale simulations.  
+  - Behavior: stores locks in process memory only; **not** durable or distributed.  
+  - Semantics: enforces the same basic rules as this spec (shared reads, exclusive writes, leases), but is explicitly non-authoritative and must not be used for multi-process coordination.
+
+- `DalLockManager`  
+  - Purpose: canonical, DAL-backed implementation of this spec for real operations.  
+  - Storage: reads/writes lock records through the DAL to the logical `dal_locks` table defined in Section 3.2.  
+  - Semantics:
+    - Enforces `read` / `write` / `upgradeable` semantics as defined in Sections 3.1–3.4.  
+    - Treats a missing or expired lock row as available; otherwise:  
+      - Allows additional `read` locks only when the existing lock type is `read`.  
+      - Rejects conflicting `write` (or incompatible `upgradeable`) acquisitions with a deterministic error.  
+    - Maintains `lease_expires` and `heartbeat_ts` via normal acquire/renew flows.  
+  - Location: implemented as a core adapter around `DalContext` (no direct DB connections).  
+
+Selection between these implementations is configuration-driven (e.g., via a factory that can construct either in-memory or DAL-backed managers).  Production systems and any multi-process workloads MUST use the DAL-backed implementation (or another implementation explicitly proven to satisfy this spec); the in-memory variant is for non-production/local-only use.
+
+---
+
 ## 4. LOCKING RULES PER RESOURCE TYPE
 
 ### 4.1 Project-Level Lock Rules
