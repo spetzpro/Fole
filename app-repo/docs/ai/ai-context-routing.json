@@ -27,6 +27,11 @@
     {
       "id": "core_specs_detailed_routing",
       "pathPrefix": "app-repo/specs/core/",
+      "requiredDocs": [
+        "app-repo/docs/ai/_AI_MASTER_RULES.md",
+        "app-repo/docs/ai/_AI_DOCS_OVERVIEW.md",
+        "app-repo/docs/ai/_AI_CONTEXT_MAP.md"
+      ],
       "detailedRules": [
 
         {
