@@ -191,6 +191,13 @@
       "type": "core-spec",
       "required": false,
       "description": "User settings, preference isolation, personalization rules, overrides."
-    }
+    },
+    {
+     "id": "ai_auth_and_identity",
+      "path": "app-repo/specs/core/_AI_AUTH_AND_IDENTITY_SPEC.md",
+      "type": "core-spec",
+      "required": false,
+      "description": "Authentication, identity, sessions, invites, and password rules."
+   }
   ]
 }
