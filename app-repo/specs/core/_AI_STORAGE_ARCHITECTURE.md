@@ -173,6 +173,20 @@ copy STORAGE_ROOT/projects/<projectUUID>/maps/<mapUUID>/
 
 All paths, schemas, manifests, tiles, files must remain valid.
 
+## 7.3 Project and Map Snapshots (Atomic Writes)
+
+Both project-level and map-level snapshot/metadata operations MUST use the atomic write protocol defined in section 6:
+
+- **Project metadata snapshots** write to paths of the form:
+  - `/projects/<projectUUID>/metadata.json`
+  - These operations MUST insert a manifest row with `op_type` such as `"project_metadata_write"`, `target_path` set to the final metadata path, and `tmp_path` under the corresponding project `tmp/` directory.
+
+- **Map-level snapshots** write to paths of the form:
+  - `/projects/<projectUUID>/maps/<mapUUID>/snapshot.json`
+  - These operations MUST insert a manifest row with `op_type` such as `"map_snapshot_write"`, `target_path` set to the final snapshot path, and `tmp_path` under the corresponding project or map `tmp/` directory on the same filesystem.
+
+In both cases, the DAL-backed write lock MUST cover the entire atomic sequence (files, fsyncs, rename, and manifest update), and the manifest state MUST transition from `pending` → `committed` only after the DB transaction successfully commits.
+
 ---
 
 # 8. BACKUP AND RESTORE

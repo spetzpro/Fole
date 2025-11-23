@@ -12,13 +12,14 @@ export class ProjectOperations {
     const { projectId, author } = options;
 
     const targetPath = `/projects/${projectId}/metadata.json`;
+    const projectPaths = this.runtime.storagePaths.getProjectPaths(projectId);
 
     await this.runtime.atomicWriteService.executeAtomicWrite(
       {
         opType: "project_metadata_write",
         author,
         targetPath,
-        tmpDir: `${this.runtime.storagePaths.root}/tmp/project-${projectId}`,
+        tmpDir: `${projectPaths.projectTmpRoot}/project-metadata`,
         expectedFiles: [],
       },
       {

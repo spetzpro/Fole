@@ -13,13 +13,14 @@ export class MapOperations {
     const { projectId, mapId, author } = options;
 
     const targetPath = `/projects/${projectId}/maps/${mapId}/snapshot.json`;
+    const mapPaths = this.runtime.storagePaths.getMapPaths(projectId, mapId);
 
     await this.runtime.atomicWriteService.executeAtomicWrite(
       {
         opType: "map_snapshot_write",
         author,
         targetPath,
-        tmpDir: `${this.runtime.storagePaths.root}/tmp/project-${projectId}-map-${mapId}`,
+        tmpDir: `${mapPaths.mapTmpRoot}/snapshot`,
         expectedFiles: [],
       },
       {
