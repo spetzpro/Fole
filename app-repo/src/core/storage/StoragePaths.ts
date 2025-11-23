@@ -85,6 +85,36 @@ export interface AtomicWriteExecutionPlan extends AtomicWritePlan {
   readonly steps: AtomicWriteStep[];
 }
 
+export interface TmpDirectoryInfo {
+  /** Absolute path to the tmp directory on disk. */
+  readonly path: string;
+  /** Manifest id associated with this tmp dir, if any. */
+  readonly manifestId?: number;
+  /** Parsed manifest state if known. */
+  readonly manifestState?: ManifestState;
+  /** ISO8601 timestamp when the tmp directory was created or last updated. */
+  readonly createdAt?: string;
+}
+
+export type CleanupActionType = "delete_tmp_dir" | "skip";
+
+export interface CleanupAction {
+  readonly type: CleanupActionType;
+  /** Absolute tmp directory path this action applies to. */
+  readonly tmpDir: string;
+  /** Human-readable reason explaining why this action was chosen. */
+  readonly reason: string;
+}
+
+export interface ManifestCleanupPlan {
+  /** All tmp directories considered during planning. */
+  readonly considered: TmpDirectoryInfo[];
+  /** Subset of tmp directories that are safe to delete now. */
+  readonly toDelete: CleanupAction[];
+  /** Subset of tmp directories that must be kept for now. */
+  readonly toKeep: CleanupAction[];
+}
+
 /**
  * StoragePaths encapsulates the canonical STORAGE_ROOT layout defined in
  * _AI_STORAGE_ARCHITECTURE.md (Section 2.1 Directory Structure).
@@ -131,6 +161,15 @@ export interface StoragePaths {
    * performing the actual filesystem / DB operations.
    */
   buildAtomicWriteExecutionPlan(input: AtomicWritePlanInput): AtomicWriteExecutionPlan;
+
+  /**
+   * Build a manifest-aware cleanup plan for tmp directories.
+   *
+   * This encodes the rules from _AI_STORAGE_ARCHITECTURE.md Section 5.3:
+   * - Only delete tmp directories older than a safety threshold.
+   * - Never delete tmp if its manifest state is still "pending".
+   */
+  buildManifestCleanupPlan(nowIso: string, safetyWindowMs: number, tmpDirs: TmpDirectoryInfo[]): ManifestCleanupPlan;
 }
 
 export function createStoragePaths(config: StorageRootConfig): StoragePaths {
@@ -227,6 +266,71 @@ export function createStoragePaths(config: StorageRootConfig): StoragePaths {
       return {
         ...base,
         steps,
+      };
+    },
+    buildManifestCleanupPlan(nowIso: string, safetyWindowMs: number, tmpDirs: TmpDirectoryInfo[]): ManifestCleanupPlan {
+      const now = Date.parse(nowIso);
+      if (Number.isNaN(now)) {
+        throw new Error("Invalid nowIso passed to buildManifestCleanupPlan");
+      }
+
+      const considered: TmpDirectoryInfo[] = [];
+      const toDelete: CleanupAction[] = [];
+      const toKeep: CleanupAction[] = [];
+
+      for (const info of tmpDirs) {
+        considered.push(info);
+
+        const state = info.manifestState;
+        if (state === "pending") {
+          toKeep.push({
+            type: "skip",
+            tmpDir: info.path,
+            reason: "Manifest state is pending; must not delete tmp dir",
+          });
+          continue;
+        }
+
+        if (!info.createdAt) {
+          toKeep.push({
+            type: "skip",
+            tmpDir: info.path,
+            reason: "Missing createdAt; cannot safely determine age",
+          });
+          continue;
+        }
+
+        const created = Date.parse(info.createdAt);
+        if (Number.isNaN(created)) {
+          toKeep.push({
+            type: "skip",
+            tmpDir: info.path,
+            reason: "Invalid createdAt timestamp; cannot safely determine age",
+          });
+          continue;
+        }
+
+        const ageMs = now - created;
+        if (ageMs <= safetyWindowMs) {
+          toKeep.push({
+            type: "skip",
+            tmpDir: info.path,
+            reason: "Tmp dir is newer than safety window",
+          });
+          continue;
+        }
+
+        toDelete.push({
+          type: "delete_tmp_dir",
+          tmpDir: info.path,
+          reason: "Tmp dir is older than safety window and manifest is not pending",
+        });
+      }
+
+      return {
+        considered,
+        toDelete,
+        toKeep,
       };
     },
   };

@@ -46,7 +46,7 @@ Each phase ties directly to one or more core specs.
 - [~] Implement `STORAGE_ROOT` folder structure as defined in `_AI_STORAGE_ARCHITECTURE.md`.  
 - [ ] Implement tmp-directory and atomic rename patterns for all write paths.  
 - [ ] Implement manifest table and state transitions (`pending` → `committed`/`aborted`).  
-- [ ] Implement orphan tmp cleanup respecting manifest rules.  
+- [~] Implement orphan tmp cleanup respecting manifest rules.  
 - [ ] Wire CI checks that block PRs touching storage without spec alignment, as per storage spec.
 
 ### 3.2 DB & Data Models
