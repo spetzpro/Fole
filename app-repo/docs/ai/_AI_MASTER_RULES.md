@@ -42,16 +42,16 @@ AI must not reinterpret or bend rules.
 ## 2.3 Canonical documentation set
 The following files ALWAYS constitute the definitive system contract:
 
-- `_AI_MASTER_RULES.md`  
-- `_AI_CONTEXT_MAP.md`  
-- `_MODULE_AND_BLOCK_STANDARD.md`  
-- `_AI_FOLDER_STRUCTURE.md`  
-- `_STORAGE_ARCHITECTURE.md`  
-- `_DB_AND_DATA_MODELS.md`  
-- `_TEMPLATES_AND_DEFAULTS.md`  
-- `_UI_SYSTEM_SPEC.md`  
-- `_ROLES_AND_PERMISSIONS.md`  
-- `_HUMAN_BACKUP_INSTRUCTIONS.md`
+- `_AI_MASTER_RULES.md` → `app-repo/docs/ai/_AI_MASTER_RULES.md`  
+- `_AI_CONTEXT_MAP.md` → `app-repo/docs/ai/_AI_CONTEXT_MAP.md`  
+- `_MODULE_AND_BLOCK_STANDARD.md` → `app-repo/specs/core/_AI_MODULE_SYSTEM_SPEC.md`  
+- `_AI_FOLDER_STRUCTURE.md` → `app-repo/specs/core/_AI_STORAGE_ARCHITECTURE.md`  
+- `_STORAGE_ARCHITECTURE.md` → `app-repo/specs/core/_AI_STORAGE_ARCHITECTURE.md`  
+- `_DB_AND_DATA_MODELS.md` → `app-repo/specs/core/_AI_DB_AND_DATA_MODELS_SPEC.md`  
+- `_TEMPLATES_AND_DEFAULTS.md` → `app-repo/specs/core/_AI_TEMPLATES_AND_DEFAULTS.md`  
+- `_UI_SYSTEM_SPEC.md` → `app-repo/specs/core/_AI_UI_SYSTEM_SPEC.md`  
+- `_ROLES_AND_PERMISSIONS.md` → `app-repo/specs/core/_AI_ROLES_AND_PERMISSIONS.md`  
+- `_HUMAN_BACKUP_INSTRUCTIONS.md` → `app-repo/specs/core/_HUMAN_BACKUP_INSTRUCTIONS.md`
 
 If these files conflict with any module/block spec, these files take precedence.
 
@@ -113,7 +113,7 @@ Examples:
 ## 4.1 Required metadata file (destructive-change.json)
 Any PR containing destructive changes must include **destructive-change.json** at repo root.
 
-It must conform to `tools/destructive-change-schema.json`.
+It must conform to `tools/ai/destructive-change-schema.json`.
 
 Required fields:
 - destructiveType  

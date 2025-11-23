@@ -29,7 +29,7 @@ These are the **only** canonical locations for AI governance and routing docs:
   → `app-repo/docs/ai/ai-context-routing.json`
 
 - Destructive change schema  
-  → `tools/destructive-change-schema.json`
+  → `tools/ai/destructive-change-schema.json`
 
 - Destructive change metadata (per PR)  
   → `destructive-change.json` at **repo root**
