@@ -269,3 +269,19 @@ export class DalLockManager implements LockManager {
     });
   }
 }
+
+export interface LockManagerFactoryOptions {
+  readonly useDal?: boolean;
+  readonly dal?: import("../db/DalContext").DalContext;
+  readonly tableName?: string;
+}
+
+export function createLockManager(options: LockManagerFactoryOptions = {}): LockManager {
+  if (options.useDal) {
+    if (!options.dal) {
+      throw new Error("DalContext is required when useDal is true");
+    }
+    return new DalLockManager({ dal: options.dal, tableName: options.tableName });
+  }
+  return new InMemoryLockManager();
+}
