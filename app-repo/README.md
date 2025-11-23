@@ -15,7 +15,7 @@ FOLE is designed for precision, collaboration, and extensibility — from simple
 ## Core concurrency
 
 FOLE’s core uses a lock manager abstraction to coordinate access to files and databases
-(including DAL-backed locks). For details, see:
+(including DAL-backed locks and optional in-memory lock diagnostics). For details, see:
 
 - `app-repo/specs/core/_AI_CONCURRENCY_AND_LOCKING_SPEC.md`
 - `app-repo/src/core/concurrency/LockManager.ts`

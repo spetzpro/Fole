@@ -141,6 +141,10 @@ The core runtime provides two primary implementations of the logical locking con
       - Allows additional `read` locks only when the existing lock type is `read`.  
       - Rejects conflicting `write` (or incompatible `upgradeable`) acquisitions with a deterministic error.  
     - Maintains `lease_expires` and `heartbeat_ts` via normal acquire/renew flows.  
+   - Diagnostics (optional):
+     - May emit in-memory lock diagnostics events (e.g., `acquire`, `acquire-failed`, `renew`, `release`) for observability and testing.  
+     - Diagnostics are **best-effort only**: failures in diagnostics handlers MUST NOT affect lock semantics or DB state.  
+     - No additional DB schema or tables may be added solely for diagnostics without following destructive-change governance in _AI_MASTER_RULES.md.  
   - Location: implemented as a core adapter around `DalContext` (no direct DB connections).  
 
 Selection between these implementations is configuration-driven (e.g., via a factory that can construct either in-memory or DAL-backed managers).  Production systems and any multi-process workloads MUST use the DAL-backed implementation (or another implementation explicitly proven to satisfy this spec); the in-memory variant is for non-production/local-only use.
