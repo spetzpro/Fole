@@ -142,3 +142,130 @@ export class InMemoryLockManager implements LockManager {
     this.locks.delete(lock.id);
   }
 }
+
+export interface DalLockManagerDeps {
+  readonly dal: import("../db/DalContext").DalContext;
+  readonly tableName?: string;
+}
+
+export class DalLockManager implements LockManager {
+  private readonly dal: import("../db/DalContext").DalContext;
+  private readonly tableName: string;
+
+  constructor(deps: DalLockManagerDeps) {
+    this.dal = deps.dal;
+    this.tableName = deps.tableName ?? "dal_locks";
+  }
+
+  async acquire(lock: LockId, owner: LockOwner, type: LockType, options?: LockAcquireOptions): Promise<AcquiredLock> {
+    const db = this.dal.getCoreDb();
+    const now = new Date();
+    const leaseSeconds = options?.leaseDurationSeconds ?? 30;
+    const leaseExpires = new Date(now.getTime() + leaseSeconds * 1000).toISOString();
+    const heartbeatTs = now.toISOString();
+
+    return db.runInTransaction(async (conn) => {
+      const rows = await conn.executeQuery<{ owner: string; lease_expires: string; type: string }>(
+        {
+          text: `SELECT owner, lease_expires, metadata, type FROM ${this.tableName} WHERE lock_id = ?`,
+          parameters: [lock.id],
+        },
+      );
+
+      if (rows.length > 0) {
+        const existing = rows[0];
+        const existingExpires = new Date(existing.lease_expires).getTime();
+        if (existingExpires > now.getTime()) {
+          if (type === "read" && (existing as any).type === "read") {
+            // allowed shared read; fall through and update row
+          } else {
+            throw new Error(`lock already held: ${lock.id}`);
+          }
+        }
+
+        await conn.executeCommand({
+          type: "update",
+          text: `UPDATE ${this.tableName} SET owner = ?, lease_expires = ?, heartbeat_ts = ?, metadata = ? WHERE lock_id = ?`,
+          parameters: [owner.ownerId, leaseExpires, heartbeatTs, JSON.stringify(options?.metadata ?? null), lock.id],
+        });
+      } else {
+        await conn.executeCommand({
+          type: "insert",
+          text: `INSERT INTO ${this.tableName} (lock_id, owner, lease_expires, heartbeat_ts, metadata, type) VALUES (?, ?, ?, ?, ?, ?)`,
+          parameters: [
+            lock.id,
+            owner.ownerId,
+            leaseExpires,
+            heartbeatTs,
+            JSON.stringify(options?.metadata ?? null),
+            type,
+          ],
+        });
+      }
+
+      return {
+        id: lock.id,
+        ownerId: owner.ownerId,
+        type,
+        leaseExpires,
+        heartbeatTs,
+        metadata: options?.metadata,
+      };
+    });
+  }
+
+  async renew(lock: AcquiredLock): Promise<AcquiredLock> {
+    const db = this.dal.getCoreDb();
+    const now = new Date();
+    const leaseSeconds = 30;
+    const leaseExpires = new Date(now.getTime() + leaseSeconds * 1000).toISOString();
+    const heartbeatTs = now.toISOString();
+
+    return db.runInTransaction(async (conn) => {
+      const rows = await conn.executeQuery<{ owner: string }>(
+        {
+          text: `SELECT owner FROM ${this.tableName} WHERE lock_id = ?`,
+          parameters: [lock.id],
+        },
+      );
+
+      if (rows.length === 0 || rows[0].owner !== lock.ownerId) {
+        throw new Error(`cannot renew lock not held by owner: ${lock.id}`);
+      }
+
+      await conn.executeCommand({
+        type: "update",
+        text: `UPDATE ${this.tableName} SET lease_expires = ?, heartbeat_ts = ? WHERE lock_id = ?`,
+        parameters: [leaseExpires, heartbeatTs, lock.id],
+      });
+
+      return {
+        ...lock,
+        leaseExpires,
+        heartbeatTs,
+      };
+    });
+  }
+
+  async release(lock: AcquiredLock): Promise<void> {
+    const db = this.dal.getCoreDb();
+    await db.runInTransaction(async (conn) => {
+      const rows = await conn.executeQuery<{ owner: string }>(
+        {
+          text: `SELECT owner FROM ${this.tableName} WHERE lock_id = ?`,
+          parameters: [lock.id],
+        },
+      );
+
+      if (rows.length === 0 || rows[0].owner !== lock.ownerId) {
+        throw new Error(`cannot release lock not held by owner: ${lock.id}`);
+      }
+
+      await conn.executeCommand({
+        type: "delete",
+        text: `DELETE FROM ${this.tableName} WHERE lock_id = ?`,
+        parameters: [lock.id],
+      });
+    });
+  }
+}
