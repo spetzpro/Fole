@@ -21,6 +21,23 @@ export interface AtomicWriteExecutor {
   execute(plan: AtomicWriteExecutionPlan, hooks: AtomicWriteHooks): Promise<AtomicWriteExecutorResult>;
 }
 
+export type AtomicWriteDiagnosticsStatus = "success" | "failure";
+
+export interface AtomicWriteDiagnosticsEvent {
+  readonly targetPath: string;
+  readonly author: string;
+  readonly startedAt: number;
+  readonly finishedAt: number;
+  readonly durationMs: number;
+  readonly stepsExecuted: readonly string[];
+  readonly status: AtomicWriteDiagnosticsStatus;
+  readonly errorMessage?: string;
+}
+
+export interface AtomicWriteDiagnostics {
+  onAtomicWriteComplete(event: AtomicWriteDiagnosticsEvent): void | Promise<void>;
+}
+
 function buildLockIdForPlan(plan: AtomicWriteExecutionPlan): string {
   return `atomic:${plan.manifest.targetPath}`;
 }
@@ -28,8 +45,11 @@ function buildLockIdForPlan(plan: AtomicWriteExecutionPlan): string {
 export class DefaultAtomicWriteExecutor implements AtomicWriteExecutor {
   private readonly lockManager: LockManager;
 
-  constructor(lockManager: LockManager) {
+  private readonly diagnostics?: AtomicWriteDiagnostics;
+
+  constructor(lockManager: LockManager, diagnostics?: AtomicWriteDiagnostics) {
     this.lockManager = lockManager;
+    this.diagnostics = diagnostics;
   }
 
   async execute(plan: AtomicWriteExecutionPlan, hooks: AtomicWriteHooks): Promise<AtomicWriteExecutorResult> {
@@ -38,6 +58,10 @@ export class DefaultAtomicWriteExecutor implements AtomicWriteExecutor {
     const owner: LockOwner = { ownerId: plan.manifest.author };
     const stepsExecuted: string[] = [];
     let lock: AcquiredLock | null = null;
+    let errorMessage: string | undefined;
+
+    let resultPlan: AtomicWriteExecutionPlan | null = null;
+    let resultSteps: readonly string[] | null = null;
 
     try {
       // acquire_lock
@@ -72,14 +96,47 @@ export class DefaultAtomicWriteExecutor implements AtomicWriteExecutor {
       await hooks.commitTransaction(plan);
       stepsExecuted.push("commit_tx");
 
+      resultPlan = plan;
+      resultSteps = stepsExecuted.slice();
+
       return {
         plan,
         stepsExecuted,
       };
+    } catch (err) {
+      if (err instanceof Error) {
+        errorMessage = err.message;
+      } else {
+        errorMessage = String(err);
+      }
+      throw err;
     } finally {
       if (lock) {
         await this.lockManager.release(lock);
         stepsExecuted.push("release_lock");
+      }
+
+      const finishedAt = Date.now();
+      const durationMs = finishedAt - startedAt;
+
+      if (this.diagnostics) {
+        const status: AtomicWriteDiagnosticsStatus = errorMessage ? "failure" : "success";
+        const event: AtomicWriteDiagnosticsEvent = {
+          targetPath: plan.manifest.targetPath,
+          author: plan.manifest.author,
+          startedAt,
+          finishedAt,
+          durationMs,
+          stepsExecuted: stepsExecuted.slice(),
+          status,
+          errorMessage,
+        };
+
+        try {
+          await this.diagnostics.onAtomicWriteComplete(event);
+        } catch {
+          // Diagnostics failures must never break atomic writes.
+        }
       }
     }
   }
