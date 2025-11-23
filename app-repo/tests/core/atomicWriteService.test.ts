@@ -91,6 +91,10 @@ async function testAtomicWriteServiceWithDiagnosticsRepository() {
   assert(event.targetPath === "/maps/1/tiles/2", "diagnostics event should include correct targetPath");
   assert(event.author === "test-diag", "diagnostics event should include correct author");
   assert(event.status === "success", "diagnostics event status should be success for happy path");
+    assert(typeof event.lockAttempts === "number", "lockAttempts is present");
+    assert(event.lockAttempts! >= 1, "lockAttempts is at least 1");
+    // In the uncontended case we expect lockContended to be false or undefined.
+    assert(event.lockContended === false || typeof event.lockContended === "undefined", "lockContended is not true in uncontended case");
 }
 
 (async () => {

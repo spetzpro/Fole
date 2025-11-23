@@ -32,6 +32,9 @@ export interface AtomicWriteDiagnosticsEvent {
   readonly stepsExecuted: readonly string[];
   readonly status: AtomicWriteDiagnosticsStatus;
   readonly errorMessage?: string;
+  readonly lockAttempts?: number;
+  readonly lockWaitMs?: number;
+  readonly lockContended?: boolean;
 }
 
 export interface AtomicWriteDiagnostics {
@@ -63,9 +66,18 @@ export class DefaultAtomicWriteExecutor implements AtomicWriteExecutor {
     let resultPlan: AtomicWriteExecutionPlan | null = null;
     let resultSteps: readonly string[] | null = null;
 
+    let lockAttempts = 0;
+    const lockStart = startedAt;
+
     try {
       // acquire_lock
-      lock = await acquireWithRetry(this.lockManager, lockId, owner, "write");
+      lockAttempts += 1;
+      lock = await acquireWithRetry(this.lockManager, lockId, owner, "write", {
+        // count attempts inside acquireWithRetry as well
+        async onAttempt() {
+          lockAttempts += 1;
+        },
+      } as any);
       stepsExecuted.push("acquire_lock");
 
       // write_files
@@ -118,6 +130,8 @@ export class DefaultAtomicWriteExecutor implements AtomicWriteExecutor {
 
       const finishedAt = Date.now();
       const durationMs = finishedAt - startedAt;
+      const lockWaitMs = lock ? lock.heartbeatTs ? finishedAt - lockStart : undefined : undefined;
+      const lockContended = typeof lockAttempts === "number" && lockAttempts > 1;
 
       if (this.diagnostics) {
         const status: AtomicWriteDiagnosticsStatus = errorMessage ? "failure" : "success";
@@ -130,6 +144,9 @@ export class DefaultAtomicWriteExecutor implements AtomicWriteExecutor {
           stepsExecuted: stepsExecuted.slice(),
           status,
           errorMessage,
+          lockAttempts,
+          lockWaitMs,
+          lockContended,
         };
 
         try {
