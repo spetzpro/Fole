@@ -1,9 +1,12 @@
 import type { ProjectUUID, MapUUID } from "../storage/StoragePaths";
 import type {
   CoreDbHandle,
+  DalContext,
+  DbCommand,
+  DbCommandResult,
   DbConnection,
   DbEngine,
-  DalContext,
+  DbQuery,
   MapDbHandle,
   ProjectDbHandle,
   TransactionOptions,
@@ -28,6 +31,16 @@ class SqliteConnectionImpl implements SqliteDbConnection {
 
   constructor(dbFilePath: string) {
     this.dbFilePath = dbFilePath;
+  }
+
+   async executeCommand(_command: DbCommand): Promise<DbCommandResult> {
+    // Placeholder for future sqlite command execution.
+    return {};
+  }
+
+  async executeQuery<TResult = unknown>(_query: DbQuery): Promise<ReadonlyArray<TResult>> {
+    // Placeholder for future sqlite query execution.
+    return [];
   }
 }
 

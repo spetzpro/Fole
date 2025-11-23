@@ -55,6 +55,18 @@ Minimal set:
 
 Engine-specific mapping is described in Section 3.
 
+### 1.3 DAL Helper Conventions
+
+The DAL exposes low-level `executeCommand` / `executeQuery` operations on `DbConnection` for engine-agnostic access.
+
+To keep calling code consistent and avoid ad-hoc SQL wrappers, higher-level code SHOULD prefer the following helpers (implemented in `src/core/db/DbHelpers.ts`):
+
+- `executeWrite(conn, text, parameters?)` → executes a write/command and returns a `DbCommandResult`.
+- `executeReadOne(conn, text, parameters?)` → executes a read query and returns the first row or `undefined`.
+- `executeReadMany(conn, text, parameters?)` → executes a read query and returns all rows as an array.
+
+These helpers are engine-agnostic and MUST NOT bypass any future transaction or permission checks layered on top of the DAL. They are intended as a thin, shared convenience layer, not a replacement for module-specific repositories or services.
+
 ---
 
 ## 2. RESPONSIBILITY SPLIT (CORE vs PROJECT vs MAP)

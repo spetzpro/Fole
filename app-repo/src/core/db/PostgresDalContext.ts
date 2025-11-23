@@ -1,9 +1,12 @@
 import type { ProjectUUID, MapUUID } from "../storage/StoragePaths";
 import type {
   CoreDbHandle,
+  DalContext,
+  DbCommand,
+  DbCommandResult,
   DbConnection,
   DbEngine,
-  DalContext,
+  DbQuery,
   MapDbHandle,
   ProjectDbHandle,
   TransactionOptions,
@@ -27,6 +30,16 @@ class PostgresConnectionImpl implements PostgresDbConnection {
 
   constructor(schema: string) {
     this.schema = schema;
+  }
+
+  async executeCommand(_command: DbCommand): Promise<DbCommandResult> {
+    // Placeholder for future postgres command execution.
+    return {};
+  }
+
+  async executeQuery<TResult = unknown>(_query: DbQuery): Promise<ReadonlyArray<TResult>> {
+    // Placeholder for future postgres query execution.
+    return [];
   }
 }
 

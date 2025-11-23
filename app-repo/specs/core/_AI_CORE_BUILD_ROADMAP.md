@@ -55,7 +55,8 @@ Each phase ties directly to one or more core specs.
 - [ ] Enforce schema conventions (PKs, timestamps, soft delete, FKs).  
 - [~] Implement engine-specific mappings (SQLite + Postgres, if used) behind DAL.  
 - [ ] Implement migration runner consistent with DB spec & destructive-change governance.  
-- [~] Add initial test suite for DAL + migrations.
+- [~] Add initial test suite for DAL + migrations.  
+- [~] Add shared DAL helper functions for read/write patterns (e.g. `executeWrite`, `executeReadOne`, `executeReadMany`) and cover them with tests.
 
 ### 3.3 Concurrency & Locking
 

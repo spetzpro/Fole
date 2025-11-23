@@ -1,9 +1,12 @@
 import type { ProjectUUID, MapUUID } from "../storage/StoragePaths";
 import type {
   CoreDbHandle,
+  DalContext,
+  DbCommand,
+  DbCommandResult,
   DbConnection,
   DbEngine,
-  DalContext,
+  DbQuery,
   MapDbHandle,
   ProjectDbHandle,
   TransactionOptions,
@@ -14,6 +17,16 @@ class InMemoryDbConnection implements DbConnection {
 
   constructor(engine: DbEngine) {
     this.engine = engine;
+  }
+
+  async executeCommand(_command: DbCommand): Promise<DbCommandResult> {
+    // In-memory/no-op implementation does not persist anything yet.
+    return {};
+  }
+
+  async executeQuery<TResult = unknown>(_query: DbQuery): Promise<ReadonlyArray<TResult>> {
+    // In-memory/no-op implementation always returns an empty result set.
+    return [];
   }
 }
 

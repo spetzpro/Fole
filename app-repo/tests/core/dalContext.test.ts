@@ -1,5 +1,5 @@
 import { InMemoryDalContext } from "../../src/core/db/InMemoryDalContext";
-import type { DbConnection } from "../../src/core/db/DalContext";
+import type { DbConnection, DbCommand, DbQuery } from "../../src/core/db/DalContext";
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) {
@@ -36,6 +36,15 @@ async function testInMemoryDalContextBasic() {
     return 42;
   });
   assert(result === 42, "runInTransaction should return callback result");
+
+  // executeCommand / executeQuery should be present and callable.
+  const command: DbCommand = { type: "custom", text: "NOOP" };
+  const commandResult = await coreConnSqlite.executeCommand(command);
+  assert(typeof commandResult === "object", "executeCommand should resolve to an object result");
+
+  const query: DbQuery = { text: "SELECT 1" };
+  const rows = await coreConnSqlite.executeQuery(query);
+  assert(Array.isArray(rows), "executeQuery should resolve to an array of rows");
 }
 
 (async () => {
