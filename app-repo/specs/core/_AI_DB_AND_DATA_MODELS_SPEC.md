@@ -309,7 +309,71 @@ Fields (abstract):
 
 ---
 
-## 6. NAMING & SCHEMA CONVENTIONS
+## 6. INITIAL LOGICAL TABLE SCHEMAS (PHASE 1)
+
+This section captures initial, engine-agnostic logical schemas for a minimal usable core. They do **not** mandate physical DDL yet; migrations and concrete DDL must be derived from these shapes.
+
+### 6.1 Core DB – `users`
+
+Table: `users` (core DB)
+
+- `id` (uuid, PK)
+- `username` (text, unique)
+- `display_name` (text)
+- `email` (text, nullable, unique when not null)
+- `is_active` (bool, default true)
+- `created_at` (timestamp)
+- `updated_at` (timestamp)
+- `deleted_at` (timestamp, nullable)
+
+Constraints:
+
+- `users_username_unique`
+- `users_email_unique_where_not_null` (Postgres partial index; in SQLite, enforced via app logic and checks)
+
+### 6.2 Core DB – `projects`
+
+Table: `projects` (core DB)
+
+- `id` (uuid, PK)
+- `slug` (text, unique)
+- `name` (text)
+- `category` (text)
+- `status` (text; enum-like: `active`, `archived`, `deleted`)
+- `owner_user_id` (uuid FK → `users.id`)
+- `created_at` (timestamp)
+- `updated_at` (timestamp)
+- `deleted_at` (timestamp, nullable)
+
+Constraints:
+
+- `projects_slug_unique`
+- FK `projects_owner_user_id_fkey` → `users(id)`
+
+### 6.3 Project DB – `maps`
+
+Table: `maps` (project DB)
+
+- `id` (uuid, PK)
+- `project_id` (uuid, FK → core `projects.id` or project-local mirror, per engine strategy)
+- `name` (text)
+- `type` (text; enum-like: `floorplan`, `terrain`, `globe`, ...)
+- `calibration_status` (text; enum-like: `uncalibrated`, `calibrated`, `deprecated`)
+- `source_file_id` (uuid, nullable)
+- `resolution_mm_per_pixel` (numeric, nullable)
+- `crs` (text, nullable)
+- `created_at` (timestamp)
+- `updated_at` (timestamp)
+- `deleted_at` (timestamp, nullable)
+
+Constraints:
+
+- FK `maps_project_id_fkey` → `projects(id)` according to engine-specific mapping rules.
+
+These tables are the **starting point** for migrations; additional tables and columns will be added as other specs (auth, roles, geo, modules) come online.
+
+---
+## 7. NAMING & SCHEMA CONVENTIONS
 
 ### 6.1 Table Names
 
@@ -334,7 +398,7 @@ Rules:
 
 ---
 
-## 7. MIGRATIONS
+## 8. MIGRATIONS
 
 Migrations are **versioned**, **reversible** operations on the logical schema.
 
@@ -383,7 +447,7 @@ Rules:
 
 ---
 
-## 8. DB ACCESS PATTERNS (DAL RULES)
+## 9. DB ACCESS PATTERNS (DAL RULES)
 
 All data access must:
 
@@ -404,7 +468,7 @@ AI must not bypass DAL even if “simpler” for a one-off.
 
 ---
 
-## 9. AUDIT & LOG TABLES
+## 10. AUDIT & LOG TABLES
 
 ### 9.1 Audit Log (Abstract)
 
@@ -432,7 +496,7 @@ Rules:
 
 ---
 
-## 10. AI RULES & STOP CONDITIONS
+## 11. AI RULES & STOP CONDITIONS
 
 AI agents **must**:
 
@@ -461,7 +525,7 @@ Forbidden for AI:
 
 ---
 
-## 11. RELATION TO OTHER SPECS
+## 12. RELATION TO OTHER SPECS
 
 - Storage layout and DB file behavior: `_AI_STORAGE_ARCHITECTURE.md`  
 - Roles & permissions: `_AI_ROLES_AND_PERMISSIONS.md`  
