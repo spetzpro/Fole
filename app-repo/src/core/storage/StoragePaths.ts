@@ -65,6 +65,26 @@ export interface AtomicWritePlanInput {
   expectedFiles: ExpectedFile[];
 }
 
+export type AtomicWriteStepType =
+  | "acquire_lock"
+  | "write_files"
+  | "fsync_files"
+  | "fsync_tmp_dir"
+  | "atomic_rename"
+  | "fsync_parent_dir"
+  | "update_manifest"
+  | "commit_tx"
+  | "release_lock";
+
+export interface AtomicWriteStep {
+  readonly step: AtomicWriteStepType;
+  readonly description: string;
+}
+
+export interface AtomicWriteExecutionPlan extends AtomicWritePlan {
+  readonly steps: AtomicWriteStep[];
+}
+
 /**
  * StoragePaths encapsulates the canonical STORAGE_ROOT layout defined in
  * _AI_STORAGE_ARCHITECTURE.md (Section 2.1 Directory Structure).
@@ -102,6 +122,15 @@ export interface StoragePaths {
    * any filesystem or DB operations.
    */
   buildAtomicWritePlan(input: AtomicWritePlanInput): AtomicWritePlan;
+
+  /**
+   * Build a fully ordered execution plan for the atomic write sequence
+   * defined in _AI_STORAGE_ARCHITECTURE.md Section 6.1.
+   *
+   * This API encodes intent only; callers are responsible for
+   * performing the actual filesystem / DB operations.
+   */
+  buildAtomicWriteExecutionPlan(input: AtomicWritePlanInput): AtomicWriteExecutionPlan;
 }
 
 export function createStoragePaths(config: StorageRootConfig): StoragePaths {
@@ -152,6 +181,52 @@ export function createStoragePaths(config: StorageRootConfig): StoragePaths {
         manifest,
         tmpDir: input.tmpDir,
         finalParentDir,
+      };
+    },
+    buildAtomicWriteExecutionPlan(input: AtomicWritePlanInput): AtomicWriteExecutionPlan {
+      const base = this.buildAtomicWritePlan(input);
+      const steps: AtomicWriteStep[] = [
+        {
+          step: "acquire_lock",
+          description: "Acquire write lock covering file + DB operations",
+        },
+        {
+          step: "write_files",
+          description: "Write all expected files into tmp directory",
+        },
+        {
+          step: "fsync_files",
+          description: "fsync each file written into tmp",
+        },
+        {
+          step: "fsync_tmp_dir",
+          description: "fsync the tmp directory itself",
+        },
+        {
+          step: "atomic_rename",
+          description: "Atomically rename tmp directory to final target path",
+        },
+        {
+          step: "fsync_parent_dir",
+          description: "fsync the final parent directory after rename",
+        },
+        {
+          step: "update_manifest",
+          description: "Update manifest row state inside DB transaction",
+        },
+        {
+          step: "commit_tx",
+          description: "Commit DB transaction with durable sync",
+        },
+        {
+          step: "release_lock",
+          description: "Release write lock after successful commit",
+        },
+      ];
+
+      return {
+        ...base,
+        steps,
       };
     },
   };
