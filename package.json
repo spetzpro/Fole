@@ -4,9 +4,11 @@
   "private": true,
   "scripts": {
     "lint": "echo \"no lint yet\"",
-    "test": "echo \"no tests yet\""
+    "test": "npx ts-node app-repo/tests/core/storagePaths.test.ts && npx ts-node app-repo/tests/core/lockManager.test.ts"
   },
   "devDependencies": {
-    "ajv-cli": "^5.0.0"
+    "ajv-cli": "^5.0.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.6.0"
   }
 }
