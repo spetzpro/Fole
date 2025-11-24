@@ -162,6 +162,12 @@ APPROVED_BY:
  - <username> <date>
 ```
 
+```
+APPROVED_BY:
+ - <username> <date>
+ - <username> <date>
+```
+
 ## 4.3 Required safety testing
 Before applying destructive changes:
 
