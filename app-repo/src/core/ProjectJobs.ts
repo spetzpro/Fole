@@ -9,7 +9,7 @@ import {
   type MapMetadataOptions,
   type MapSnapshotOptions,
 } from "./MapOperations";
-import type { JobDiagnosticsEvent, JobRecord, JobStatus } from "./JobQueue";
+import type { CoreJob, JobDiagnosticsEvent, JobRecord, JobStatus } from "./JobQueue";
 
 // Minimal job-shaped helpers for project/map metadata/config commits.
 // These are thin wrappers around core operations so they can later
@@ -98,54 +98,88 @@ export interface RunProjectConfigAndMetadataJobsResult {
   readonly metadataSummary: JobRunSummary;
 }
 
+export interface GenericJobOrchestrationResult {
+  readonly jobs: JobRecord[];
+  readonly diagnostics: ReadonlyArray<JobDiagnosticsEvent | undefined>;
+  readonly summaries: JobRunSummary[];
+}
+
+export async function runJobsViaInMemoryQueue(
+  runtime: CoreRuntime,
+  jobs: ReadonlyArray<CoreJob>,
+): Promise<GenericJobOrchestrationResult> {
+  const { queue, worker } = runtime.createInMemoryJobQueueAndWorker();
+
+  for (const job of jobs) {
+    queue.enqueue(job);
+  }
+
+  for (let i = 0; i < jobs.length; i += 1) {
+    // eslint-disable-next-line no-await-in-loop
+    await worker.runNext();
+  }
+
+  const jobRecords: JobRecord[] = [];
+  const diagnostics: Array<JobDiagnosticsEvent | undefined> = [];
+  const summaries: JobRunSummary[] = [];
+
+  for (const job of jobs) {
+    const record = queue.getRecord(job.id);
+    if (!record) {
+      throw new Error("Expected job record to exist after running jobs");
+    }
+    jobRecords.push(record);
+
+    const latestDiagnostics = runtime.getLatestJobDiagnostics(job.id);
+    diagnostics.push(latestDiagnostics);
+    summaries.push(toJobRunSummary(record, latestDiagnostics));
+  }
+
+  return {
+    jobs: jobRecords,
+    diagnostics,
+    summaries,
+  };
+}
+
 export async function runProjectConfigAndMetadataJobs(
   runtime: CoreRuntime,
   options: RunProjectConfigAndMetadataJobsOptions,
 ): Promise<RunProjectConfigAndMetadataJobsResult> {
-  const { queue, worker } = runtime.createInMemoryJobQueueAndWorker();
-
   const configJobId = `job-project-config-${options.projectId}`;
   const metadataJobId = `job-project-metadata-${options.projectId}`;
-
-  queue.enqueue({
-    id: configJobId,
-    type: "commit_project_config",
-    payload: {
-      projectId: options.projectId,
-      author: options.author,
-      jobId: configJobId,
+  const jobs: CoreJob[] = [
+    {
+      id: configJobId,
+      type: "commit_project_config",
+      payload: {
+        projectId: options.projectId,
+        author: options.author,
+        jobId: configJobId,
+      },
     },
-  });
-
-  queue.enqueue({
-    id: metadataJobId,
-    type: "commit_project_metadata_snapshot",
-    payload: {
-      projectId: options.projectId,
-      author: options.author,
-      jobId: metadataJobId,
+    {
+      id: metadataJobId,
+      type: "commit_project_metadata_snapshot",
+      payload: {
+        projectId: options.projectId,
+        author: options.author,
+        jobId: metadataJobId,
+      },
     },
-  });
+  ];
 
-  await worker.runNext();
-  await worker.runNext();
+  const result = await runJobsViaInMemoryQueue(runtime, jobs);
 
-  const configRecord = queue.getRecord(configJobId);
-  const metadataRecord = queue.getRecord(metadataJobId);
-
-  if (!configRecord || !metadataRecord) {
-    throw new Error("Expected job records to exist after running jobs");
-  }
-
-  const configDiagnostics = runtime.getLatestJobDiagnostics(configJobId);
-  const metadataDiagnostics = runtime.getLatestJobDiagnostics(metadataJobId);
+  const [configRecord, metadataRecord] = result.jobs;
+  const [configDiagnostics, metadataDiagnostics] = result.diagnostics;
 
   return {
     configJob: configRecord,
     metadataJob: metadataRecord,
     configJobDiagnostics: configDiagnostics,
     metadataJobDiagnostics: metadataDiagnostics,
-    configSummary: toJobRunSummary(configRecord, configDiagnostics),
-    metadataSummary: toJobRunSummary(metadataRecord, metadataDiagnostics),
+    configSummary: result.summaries[0],
+    metadataSummary: result.summaries[1],
   };
 }

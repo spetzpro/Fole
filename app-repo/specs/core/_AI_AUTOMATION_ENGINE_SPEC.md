@@ -301,6 +301,20 @@ This buffer:
 - MUST NOT bypass or replace the required persistent audit logs
   defined elsewhere in this document and in `_AI_MASTER_RULES.md`.
 
+The core runtime MAY also expose an internal, in-memory
+`AutomationRequest` + `AutomationRunSummary` helper that:
+- translates a single high-level request into one or more core jobs,  
+- executes those jobs via the in-memory job queue/worker, and  
+- returns a non-persistent summary of per-job outcomes.
+
+This helper is:
+- a convenience for tests, development tooling, and simple automations,  
+- not a replacement for the persisted automation job model defined in
+  `_AI_DB_AND_DATA_MODELS_SPEC.md`, and  
+- NOT an authoritative audit trail. All approval, logging, and
+  destructive-change rules in this spec and in `_AI_MASTER_RULES.md`
+  still apply regardless of how the helper is used.
+
 ---
 
 # 12. CANCELLATION & FAILURE POLICY
