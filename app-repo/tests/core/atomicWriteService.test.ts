@@ -95,6 +95,55 @@ async function testAtomicWriteServiceFailureDoesNotCommitManifest() {
   );
 }
 
+class FailingFsyncTmpDirHooks {
+  async writeFiles(): Promise<void> {}
+  async fsyncFiles(): Promise<void> {}
+  async fsyncTmpDir(): Promise<void> {
+    throw new Error("simulated failure during fsync tmp dir");
+  }
+  async atomicRename(): Promise<void> {}
+  async fsyncParentDir(): Promise<void> {}
+}
+
+async function testAtomicWriteServiceEarlyFailureDoesNotCommitManifest() {
+  const storagePaths = createStoragePaths({ storageRoot: "/storage" });
+  const manifestRepo = new InMemoryManifestRepository();
+  const lockManager = new InMemoryLockManager();
+  const executor = new DefaultAtomicWriteExecutor(lockManager);
+
+  const service = new AtomicWriteService({
+    storagePaths,
+    manifestRepository: manifestRepo,
+    executor,
+  });
+
+  const hooks = new FailingFsyncTmpDirHooks();
+
+  let threw = false;
+  try {
+    await service.executeAtomicWrite(
+      {
+        opType: "tile_write",
+        author: "test-early-failure",
+        targetPath: "/maps/1/tiles/4",
+        tmpDir: "/storage/tmp/op-early-fail",
+        expectedFiles: [],
+      },
+      hooks,
+    );
+  } catch (err) {
+    threw = true;
+  }
+
+  assert(threw, "atomic write service should surface early hook failure");
+
+  const committed = await manifestRepo.listByState("committed");
+  assert(
+    committed.length === 0,
+    "no manifest entry must be committed when atomic sequence fails before rename/manifest update",
+  );
+}
+
 async function testAtomicWriteServiceWithDiagnosticsRepository() {
   const storagePaths = createStoragePaths({ storageRoot: "/storage" });
   const manifestRepo = new InMemoryManifestRepository();
@@ -150,5 +199,6 @@ async function testAtomicWriteServiceWithDiagnosticsRepository() {
   await testAtomicWriteServiceHappyPath();
   await testAtomicWriteServiceWithDiagnosticsRepository();
   await testAtomicWriteServiceFailureDoesNotCommitManifest();
+   await testAtomicWriteServiceEarlyFailureDoesNotCommitManifest();
   console.log("atomicWriteService tests passed");
 })();

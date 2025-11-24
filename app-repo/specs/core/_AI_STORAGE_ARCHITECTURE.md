@@ -187,6 +187,8 @@ Both project-level and map-level snapshot/metadata operations MUST use the atomi
 
 In both cases, the DAL-backed write lock MUST cover the entire atomic sequence (files, fsyncs, rename, and manifest update), and the manifest state MUST transition from `pending` → `committed` only after the DB transaction successfully commits.
 
+If the atomic write sequence fails at any step before the atomic rename or manifest update (steps 60), implementations MUST surface the error and MUST NOT mark the manifest row as `committed`.
+
 ---
 
 # 8. BACKUP AND RESTORE
