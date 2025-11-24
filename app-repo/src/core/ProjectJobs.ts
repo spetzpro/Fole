@@ -9,7 +9,7 @@ import {
   type MapMetadataOptions,
   type MapSnapshotOptions,
 } from "./MapOperations";
-import type { JobRecord } from "./JobQueue";
+import type { JobDiagnosticsEvent, JobRecord } from "./JobQueue";
 
 // Minimal job-shaped helpers for project/map metadata/config commits.
 // These are thin wrappers around core operations so they can later
@@ -71,6 +71,8 @@ export interface RunProjectConfigAndMetadataJobsOptions {
 export interface RunProjectConfigAndMetadataJobsResult {
   readonly configJob: JobRecord;
   readonly metadataJob: JobRecord;
+  readonly configJobDiagnostics?: JobDiagnosticsEvent;
+  readonly metadataJobDiagnostics?: JobDiagnosticsEvent;
 }
 
 export async function runProjectConfigAndMetadataJobs(
@@ -115,5 +117,7 @@ export async function runProjectConfigAndMetadataJobs(
   return {
     configJob: configRecord,
     metadataJob: metadataRecord,
+    configJobDiagnostics: runtime.getLatestJobDiagnostics(configJobId),
+    metadataJobDiagnostics: runtime.getLatestJobDiagnostics(metadataJobId),
   };
 }

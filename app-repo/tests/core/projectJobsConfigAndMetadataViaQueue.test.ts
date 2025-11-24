@@ -27,6 +27,27 @@ async function testProjectConfigAndMetadataViaJobsMatchesDirectOperations() {
   assert(result.configJob.status === JobStatus.Completed, "config job must complete successfully");
   assert(result.metadataJob.status === JobStatus.Completed, "metadata job must complete successfully");
 
+  assert(result.configJobDiagnostics, "config job diagnostics must be present");
+  assert(result.metadataJobDiagnostics, "metadata job diagnostics must be present");
+
+  assert(
+    result.configJobDiagnostics!.jobId === result.configJob.job.id,
+    "config diagnostics must reference the config job id",
+  );
+  assert(
+    result.metadataJobDiagnostics!.jobId === result.metadataJob.job.id,
+    "metadata diagnostics must reference the metadata job id",
+  );
+
+  assert(
+    result.configJobDiagnostics!.status === JobStatus.Completed,
+    "config diagnostics status must be completed",
+  );
+  assert(
+    result.metadataJobDiagnostics!.status === JobStatus.Completed,
+    "metadata diagnostics status must be completed",
+  );
+
   const committedViaJobs = await runtime.manifestRepository.listByState("committed");
   assert(committedViaJobs.length === 2, "two committed entries expected via jobs");
 
