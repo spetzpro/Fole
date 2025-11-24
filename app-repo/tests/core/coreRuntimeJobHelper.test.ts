@@ -38,6 +38,14 @@ async function testCoreRuntimeJobHelperRunsProjectConfigJob() {
   assert(committedEntries.length === 1, "one committed manifest entry is expected");
   const entry = committedEntries[0];
   assert(entry.opType === "project_config_write", "opType must be project_config_write");
+
+  const diagnostics = runtime.jobDiagnosticsRepository.getAll();
+  assert(diagnostics.length === 1, "one job diagnostics event is expected");
+  const event = diagnostics[0];
+  assert(event.jobId === jobId, "diagnostics event must reference the job id");
+  assert(event.jobType === "commit_project_config", "diagnostics must include job type");
+  assert(event.status === JobStatus.Completed, "diagnostics status must reflect completed job");
+  assert(event.durationMs >= 0, "diagnostics must record non-negative duration");
 }
 
 (async () => {

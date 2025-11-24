@@ -10,7 +10,7 @@ import {
 } from "./concurrency/LockDiagnosticsRepository";
 import type { LockDiagnosticsRepository } from "./concurrency/LockDiagnosticsRepository";
 import type { AtomicWriteService } from "./storage/AtomicWriteService";
-import { InMemoryJobQueue, JobWorker } from "./JobQueue";
+import { InMemoryJobQueue, JobWorker, InMemoryJobDiagnosticsRepository } from "./JobQueue";
 
 export interface CoreRuntimeOptions {
   readonly storageRoot: string;
@@ -25,6 +25,7 @@ export class CoreRuntime {
   readonly manifestRepository: ManifestRepository;
   readonly atomicWriteService: AtomicWriteService;
   readonly lockDiagnosticsRepository?: LockDiagnosticsRepository;
+  readonly jobDiagnosticsRepository: InMemoryJobDiagnosticsRepository;
 
   constructor(private readonly options: CoreRuntimeOptions) {
     this.storagePaths = createStoragePaths({ storageRoot: options.storageRoot });
@@ -60,11 +61,13 @@ export class CoreRuntime {
         },
       },
     });
+
+    this.jobDiagnosticsRepository = new InMemoryJobDiagnosticsRepository();
   }
 
   createInMemoryJobQueueAndWorker(): { queue: InMemoryJobQueue; worker: JobWorker } {
     const queue = new InMemoryJobQueue();
-    const worker = new JobWorker(this, queue);
+    const worker = new JobWorker(this, queue, this.jobDiagnosticsRepository);
     return { queue, worker };
   }
 }

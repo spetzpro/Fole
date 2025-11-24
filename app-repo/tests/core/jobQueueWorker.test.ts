@@ -1,5 +1,10 @@
 import { CoreRuntime } from "../../src/core/CoreRuntime";
-import { InMemoryJobQueue, JobWorker, JobStatus } from "../../src/core/JobQueue";
+import {
+  InMemoryJobQueue,
+  JobWorker,
+  JobStatus,
+  InMemoryJobDiagnosticsRepository,
+} from "../../src/core/JobQueue";
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) {
@@ -15,7 +20,8 @@ async function testEnqueueAndRunProjectConfigJob() {
   });
 
   const queue = new InMemoryJobQueue();
-  const worker = new JobWorker(runtime, queue);
+  const diagnostics = new InMemoryJobDiagnosticsRepository();
+  const worker = new JobWorker(runtime, queue, diagnostics);
 
   const jobId = "job-queue-config-1";
 
@@ -35,6 +41,12 @@ async function testEnqueueAndRunProjectConfigJob() {
   assert(record, "job record must exist after running job");
   assert(record!.status === JobStatus.Completed, "job status must be completed");
 
+  const events = diagnostics.getAll();
+  assert(events.length === 1, "one diagnostics event is expected");
+  const event = events[0];
+  assert(event.jobId === jobId, "diagnostics event must reference job id");
+  assert(event.status === JobStatus.Completed, "diagnostics status must be completed");
+
   const committedEntries = await runtime.manifestRepository.listByState("committed");
   assert(committedEntries.length === 1, "one committed manifest entry is expected");
   const entry = committedEntries[0];
@@ -49,7 +61,8 @@ async function testEnqueueAndRunMapMetadataJob() {
   });
 
   const queue = new InMemoryJobQueue();
-  const worker = new JobWorker(runtime, queue);
+  const diagnostics = new InMemoryJobDiagnosticsRepository();
+  const worker = new JobWorker(runtime, queue, diagnostics);
 
   const jobId = "job-queue-map-meta-1";
 
@@ -70,6 +83,12 @@ async function testEnqueueAndRunMapMetadataJob() {
   assert(record, "job record must exist after running job");
   assert(record!.status === JobStatus.Completed, "job status must be completed");
 
+  const events = diagnostics.getAll();
+  assert(events.length === 1, "one diagnostics event is expected");
+  const event = events[0];
+  assert(event.jobId === jobId, "diagnostics event must reference job id");
+  assert(event.status === JobStatus.Completed, "diagnostics status must be completed");
+
   const committedEntries = await runtime.manifestRepository.listByState("committed");
   assert(committedEntries.length === 1, "one committed manifest entry is expected");
   const entry = committedEntries[0];
@@ -84,7 +103,8 @@ async function testJobFailureMarksRecordFailed() {
   });
 
   const queue = new InMemoryJobQueue();
-  const worker = new JobWorker(runtime, queue);
+  const diagnostics = new InMemoryJobDiagnosticsRepository();
+  const worker = new JobWorker(runtime, queue, diagnostics);
 
   const jobId = "job-queue-config-fail";
 
@@ -106,6 +126,12 @@ async function testJobFailureMarksRecordFailed() {
   assert(record, "job record must exist after running job");
   assert(record!.status === JobStatus.Failed, "job status must be failed when an error occurs");
   assert(record!.error, "failed job record must capture an error");
+
+  const events = diagnostics.getAll();
+  assert(events.length === 1, "one diagnostics event is expected");
+  const event = events[0];
+  assert(event.jobId === jobId, "diagnostics event must reference job id");
+  assert(event.status === JobStatus.Failed, "diagnostics status must be failed for error");
 }
 
 (async () => {

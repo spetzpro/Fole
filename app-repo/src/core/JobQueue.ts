@@ -72,6 +72,32 @@ export interface JobRecord {
   error?: unknown;
 }
 
+export interface JobDiagnosticsEvent {
+  readonly jobId: string;
+  readonly jobType: CoreJobType;
+  readonly status: JobStatus;
+  readonly startedAt: number;
+  readonly finishedAt: number;
+  readonly durationMs: number;
+  readonly errorMessage?: string;
+}
+
+export interface JobDiagnostics {
+  record(event: JobDiagnosticsEvent): void;
+}
+
+export class InMemoryJobDiagnosticsRepository implements JobDiagnostics {
+  private readonly events: JobDiagnosticsEvent[] = [];
+
+  record(event: JobDiagnosticsEvent): void {
+    this.events.push(event);
+  }
+
+  getAll(): ReadonlyArray<JobDiagnosticsEvent> {
+    return this.events;
+  }
+}
+
 export class InMemoryJobQueue {
   private readonly queue: CoreJob[] = [];
   private readonly records = new Map<string, JobRecord>();
@@ -100,10 +126,12 @@ export class InMemoryJobQueue {
 export class JobWorker {
   private readonly runtime: CoreRuntime;
   private readonly queue: InMemoryJobQueue;
+   private readonly diagnostics?: JobDiagnostics;
 
-  constructor(runtime: CoreRuntime, queue: InMemoryJobQueue) {
+  constructor(runtime: CoreRuntime, queue: InMemoryJobQueue, diagnostics?: JobDiagnostics) {
     this.runtime = runtime;
     this.queue = queue;
+    this.diagnostics = diagnostics;
   }
 
   async runNext(): Promise<void> {
@@ -117,6 +145,7 @@ export class JobWorker {
       throw new Error("Job record missing for dequeued job");
     }
 
+    const startedAt = Date.now();
     record.status = JobStatus.Running;
 
     try {
@@ -136,6 +165,24 @@ export class JobWorker {
     } catch (error) {
       record.status = JobStatus.Failed;
       record.error = error;
+    } finally {
+      const finishedAt = Date.now();
+      if (this.diagnostics) {
+        this.diagnostics.record({
+          jobId: job.id,
+          jobType: job.type,
+          status: record.status,
+          startedAt,
+          finishedAt,
+          durationMs: finishedAt - startedAt,
+          errorMessage:
+            record.error instanceof Error
+              ? record.error.message
+              : record.error
+              ? String(record.error)
+              : undefined,
+        });
+      }
     }
   }
 }
