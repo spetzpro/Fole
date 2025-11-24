@@ -10,6 +10,7 @@ import {
 } from "./concurrency/LockDiagnosticsRepository";
 import type { LockDiagnosticsRepository } from "./concurrency/LockDiagnosticsRepository";
 import type { AtomicWriteService } from "./storage/AtomicWriteService";
+import { InMemoryJobQueue, JobWorker } from "./JobQueue";
 
 export interface CoreRuntimeOptions {
   readonly storageRoot: string;
@@ -59,5 +60,11 @@ export class CoreRuntime {
         },
       },
     });
+  }
+
+  createInMemoryJobQueueAndWorker(): { queue: InMemoryJobQueue; worker: JobWorker } {
+    const queue = new InMemoryJobQueue();
+    const worker = new JobWorker(this, queue);
+    return { queue, worker };
   }
 }
