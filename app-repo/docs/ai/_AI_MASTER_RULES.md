@@ -153,18 +153,11 @@ Required fields:
 ## 4.2 Required human approval
 A destructive-change PR MUST have:
 
-1. **Two human reviewers approving via GitHub Review**, AND  
+1. **At least one human reviewer approving via GitHub Review**, AND  
 2. A block in PR body:
 
 ```
 APPROVED_BY:
- - <username> <date>
- - <username> <date>
-```
-
-```
-APPROVED_BY:
- - <username> <date>
  - <username> <date>
 ```
 
