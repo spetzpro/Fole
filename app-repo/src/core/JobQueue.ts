@@ -5,12 +5,16 @@
 import type { CoreRuntime } from "./CoreRuntime";
 import {
   runCommitProjectConfigJob,
+  runCommitProjectMetadataSnapshotJob,
   runCommitMapMetadataJob,
+  runCommitMapSnapshotJob,
 } from "./ProjectJobs";
 
 export type CoreJobType =
   | "commit_project_config"
-  | "commit_map_metadata";
+  | "commit_project_metadata_snapshot"
+  | "commit_map_metadata"
+  | "commit_map_snapshot";
 
 export interface CoreJobBase {
   readonly id: string;
@@ -22,12 +26,25 @@ export interface CommitProjectConfigCoreJob extends CoreJobBase {
   readonly payload: Parameters<typeof runCommitProjectConfigJob>[1];
 }
 
+export interface CommitProjectMetadataSnapshotCoreJob extends CoreJobBase {
+  readonly type: "commit_project_metadata_snapshot";
+  readonly payload: Parameters<typeof runCommitProjectMetadataSnapshotJob>[1];
+}
+
 export interface CommitMapMetadataCoreJob extends CoreJobBase {
   readonly type: "commit_map_metadata";
   readonly payload: Parameters<typeof runCommitMapMetadataJob>[1];
 }
+export interface CommitMapSnapshotCoreJob extends CoreJobBase {
+  readonly type: "commit_map_snapshot";
+  readonly payload: Parameters<typeof runCommitMapSnapshotJob>[1];
+}
 
-export type CoreJob = CommitProjectConfigCoreJob | CommitMapMetadataCoreJob;
+export type CoreJob =
+  | CommitProjectConfigCoreJob
+  | CommitProjectMetadataSnapshotCoreJob
+  | CommitMapMetadataCoreJob
+  | CommitMapSnapshotCoreJob;
 
 export type JobStatus = "pending" | "running" | "completed" | "failed";
 
@@ -87,8 +104,12 @@ export class JobWorker {
     try {
       if (job.type === "commit_project_config") {
         await runCommitProjectConfigJob(this.runtime, job.payload);
+      } else if (job.type === "commit_project_metadata_snapshot") {
+        await runCommitProjectMetadataSnapshotJob(this.runtime, job.payload);
       } else if (job.type === "commit_map_metadata") {
         await runCommitMapMetadataJob(this.runtime, job.payload);
+      } else if (job.type === "commit_map_snapshot") {
+        await runCommitMapSnapshotJob(this.runtime, job.payload);
       } else {
         const _exhaustiveCheck: never = job;
         throw new Error(`Unsupported job type: ${String((_exhaustiveCheck as any).type)}`);
