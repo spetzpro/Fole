@@ -45,6 +45,12 @@ export interface ManifestEntry {
   state: ManifestState;
   committedAt?: string;
   author: string;
+  /**
+   * Optional stable identifier for the lock owner used during atomic writes.
+   * When present, atomic write executors MUST use this value as the lock
+   * ownerId for acquire/renew/release to keep lock semantics consistent.
+   */
+  lockOwnerId?: string;
   commitTxId?: number;
 }
 
@@ -206,6 +212,7 @@ export function createStoragePaths(config: StorageRootConfig): StoragePaths {
     },
     buildAtomicWritePlan(input: AtomicWritePlanInput): AtomicWritePlan {
       const nowIso = new Date().toISOString();
+      const lockOwnerId = input.author;
       const finalParentDir = parentDir(input.targetPath);
       const manifest: ManifestEntry = {
         opType: input.opType,
@@ -215,6 +222,7 @@ export function createStoragePaths(config: StorageRootConfig): StoragePaths {
         createdAt: nowIso,
         state: "pending",
         author: input.author,
+        lockOwnerId,
       };
       return {
         manifest,

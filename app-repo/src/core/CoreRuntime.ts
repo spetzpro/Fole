@@ -15,7 +15,7 @@ export interface CoreRuntimeOptions {
   readonly storageRoot: string;
   readonly useInMemoryDal?: boolean;
   readonly useDalLocks?: boolean;
-   readonly lockDiagnosticsRepositoryCapacity?: number;
+  readonly lockDiagnosticsRepositoryCapacity?: number;
 }
 
 export class CoreRuntime {
@@ -28,9 +28,9 @@ export class CoreRuntime {
   constructor(private readonly options: CoreRuntimeOptions) {
     this.storagePaths = createStoragePaths({ storageRoot: options.storageRoot });
 
-    this.dal = options.useInMemoryDal
-      ? new InMemoryDalContext()
-      : new SqliteDalContext(this.storagePaths);
+    const useInMemoryDal = options.useInMemoryDal ?? false;
+
+    this.dal = useInMemoryDal ? new InMemoryDalContext() : new SqliteDalContext(this.storagePaths);
 
     this.manifestRepository = new InMemoryManifestRepository();
 
@@ -41,13 +41,20 @@ export class CoreRuntime {
 
     this.lockDiagnosticsRepository = diagnosticsRepo;
 
+    // DalLockManager requires a real DAL that persists tables. When using the
+    // in-memory DAL, we always fall back to the in-memory lock manager even if
+    // useDalLocks is requested, to avoid impossible owner checks against a
+    // no-op DAL.
+    const canUseDalLocks = !useInMemoryDal;
+    const useDalLocks = canUseDalLocks && (options.useDalLocks ?? true);
+
     this.atomicWriteService = createAtomicWriteService({
       storagePaths: this.storagePaths,
       manifestRepository: this.manifestRepository,
       dalContext: this.dal,
       options: {
         lockManager: {
-          useDal: options.useDalLocks ?? true,
+          useDal: useDalLocks,
           diagnostics: diagnosticsRepo ? new RepositoryBackedLockDiagnostics(diagnosticsRepo) : undefined,
         },
       },
