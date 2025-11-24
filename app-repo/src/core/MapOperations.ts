@@ -1,5 +1,8 @@
 import type { CoreRuntime } from "./CoreRuntime";
 
+// Map-level atomic write helpers.
+// See storage layout and atomic pattern in `specs/core/_AI_STORAGE_ARCHITECTURE.md`.
+
 export interface MapSnapshotOptions {
   readonly projectId: string;
   readonly mapId: string;

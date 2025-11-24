@@ -1,5 +1,8 @@
 import type { CoreRuntime } from "./CoreRuntime";
 
+// Project-level atomic write helpers.
+// See storage layout and atomic pattern in `specs/core/_AI_STORAGE_ARCHITECTURE.md`.
+
 export interface ProjectSnapshotOptions {
   readonly projectId: string;
   readonly author: string;
