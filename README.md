@@ -106,3 +106,8 @@ This repository is in the early scaffolding phase:
 - Core rules and AI governance: defined
 - Storage and structure specs: in progress
 - Modules and blocks: to be added step-by-step with accompanying specs
+
+For details on the application core, concurrency model, and developer-focused roadmap, see:
+
+- `app-repo/README.md`
+- `app-repo/specs/core/_AI_CORE_BUILD_ROADMAP.md`

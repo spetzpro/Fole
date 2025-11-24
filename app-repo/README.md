@@ -10,6 +10,8 @@ It provides:
 
 FOLE is designed for precision, collaboration, and extensibility — from simple markup to complex technical documentation.
 
+For overall repository layout, storage roots, and CI/tooling, see the top-level `README.md` at the repo root.
+
 ---
 
 ## Core concurrency
