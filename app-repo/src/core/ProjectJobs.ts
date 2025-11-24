@@ -9,7 +9,7 @@ import {
   type MapMetadataOptions,
   type MapSnapshotOptions,
 } from "./MapOperations";
-import type { JobDiagnosticsEvent, JobRecord } from "./JobQueue";
+import type { JobDiagnosticsEvent, JobRecord, JobStatus } from "./JobQueue";
 
 // Minimal job-shaped helpers for project/map metadata/config commits.
 // These are thin wrappers around core operations so they can later
@@ -68,11 +68,34 @@ export interface RunProjectConfigAndMetadataJobsOptions {
   readonly author: string;
 }
 
+export interface JobRunSummary {
+  readonly jobId: string;
+  readonly jobType: string;
+  readonly status: JobStatus;
+  readonly durationMs?: number;
+  readonly errorMessage?: string;
+}
+
+export function toJobRunSummary(
+  record: JobRecord,
+  diagnostics?: JobDiagnosticsEvent,
+): JobRunSummary {
+  return {
+    jobId: record.job.id,
+    jobType: record.job.type,
+    status: record.status,
+    durationMs: diagnostics?.durationMs,
+    errorMessage: diagnostics?.errorMessage,
+  };
+}
+
 export interface RunProjectConfigAndMetadataJobsResult {
   readonly configJob: JobRecord;
   readonly metadataJob: JobRecord;
   readonly configJobDiagnostics?: JobDiagnosticsEvent;
   readonly metadataJobDiagnostics?: JobDiagnosticsEvent;
+  readonly configSummary: JobRunSummary;
+  readonly metadataSummary: JobRunSummary;
 }
 
 export async function runProjectConfigAndMetadataJobs(
@@ -114,10 +137,15 @@ export async function runProjectConfigAndMetadataJobs(
     throw new Error("Expected job records to exist after running jobs");
   }
 
+  const configDiagnostics = runtime.getLatestJobDiagnostics(configJobId);
+  const metadataDiagnostics = runtime.getLatestJobDiagnostics(metadataJobId);
+
   return {
     configJob: configRecord,
     metadataJob: metadataRecord,
-    configJobDiagnostics: runtime.getLatestJobDiagnostics(configJobId),
-    metadataJobDiagnostics: runtime.getLatestJobDiagnostics(metadataJobId),
+    configJobDiagnostics: configDiagnostics,
+    metadataJobDiagnostics: metadataDiagnostics,
+    configSummary: toJobRunSummary(configRecord, configDiagnostics),
+    metadataSummary: toJobRunSummary(metadataRecord, metadataDiagnostics),
   };
 }

@@ -48,6 +48,12 @@ async function testProjectConfigAndMetadataViaJobsMatchesDirectOperations() {
     "metadata diagnostics status must be completed",
   );
 
+  assert(result.configSummary.status === JobStatus.Completed, "config summary status must be completed");
+  assert(
+    result.metadataSummary.status === JobStatus.Completed,
+    "metadata summary status must be completed",
+  );
+
   const committedViaJobs = await runtime.manifestRepository.listByState("committed");
   assert(committedViaJobs.length === 2, "two committed entries expected via jobs");
 
