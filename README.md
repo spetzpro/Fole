@@ -7,7 +7,7 @@ precision and strong AI-assisted development rules.
 This repository is split into two main concerns:
 
 - **Code & specs** (version controlled)  
-- **Runtime data** (outside the repo, under `STORAGE_ROOT`)
+- **Runtime data** (under `STORAGE_ROOT`, usually outside the repo or in a dedicated hidden folder)
 
 ---
 
@@ -30,9 +30,9 @@ Top-level structure:
 - `tools/`  
   Developer and CI tooling (Node-based validators, schemas, enforcement scripts).
 
-- `localstorage/` (ignored by Git)  
-  Default local runtime storage root (`STORAGE_ROOT` in development).  
-  Contains databases, tiles, uploads, logs, etc. **Never committed.**
+-- `localstorage/` (ignored by Git)  
+  Default local runtime storage root (`STORAGE_ROOT` in development runs and AI/VS Code automation).  
+  Contains databases, tiles, uploads, logs, etc. **Never committed. Not used as the app’s canonical STORAGE_ROOT.**
 
 - `node_modules/` (ignored by Git)  
   Local Node.js dependencies used **only for CI / validation tooling**, not for the
@@ -46,7 +46,7 @@ By default in development:
 
 - `STORAGE_ROOT = ./localstorage`
 
-This directory contains **all runtime data**:
+This directory contains **all runtime data for local dev and automation runs**:
 
 - Core DBs
 - Project DBs
@@ -55,6 +55,12 @@ This directory contains **all runtime data**:
 - Job/operation logs
 
 It is safe to back up or move `STORAGE_ROOT` independently from the code.
+
+When the application uses a storage directory **inside this repository**, the canonical in-repo storage root MUST be:
+
+- `STORAGE_ROOT = app-repo/.storage/`
+
+The `.storage/` directory is a hidden, non-source folder intended only for persistent runtime data and is ignored by Git.
 
 ---
 

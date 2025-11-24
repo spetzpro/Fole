@@ -3,15 +3,23 @@
 # Ensures repo contains ONLY source code + templates
 # -----------------------------------------------------
 
-# === Runtime Storage Root (localstorage) ===
+# === ChatGPT / AI / VS Code Agent Runtime ===
 /localstorage/
-/storage/
-/data/
+AI_AUTOMATION_PAUSED
+*.automation-state
+automation_tmp/
 
-# === Databases ===
+# === Local Persistent Storage Root for the Application ===
+# All application-level runtime storage must go under this directory
+# when STORAGE_ROOT is inside the repo.
+app-repo/.storage/
+
+# === Databases (future-safe) ===
 *.db
 *.sqlite
 *.sqlite3
+*.sqlite-wal
+*.sqlite-journal
 *.wal
 *.shm
 
@@ -24,33 +32,26 @@ cache/
 __cache__/
 *.pid
 
-# === Uploads / Exports / Tiles ===
-uploads/
-exports/
-tiles/
-generated/
-output/
-thumbnails/
-
-# === AI Tooling & Indexes ===
+# === AI Tooling & Vector Indexes ===
 ai-index/
 vectorstore/
 rag-cache/
 
 # === Environment Files ===
 .env
-*.env
-.env.*   
-
-# === Virtual Environments ===
-.venv/
-venv/
-ENV/
+.env.local
+.env.*.local
+!.env.example
 
 # === Node / Python Dependencies ===
 node_modules/
 __pycache__/
 *.pyc
+
+# === Virtual Environments ===
+.venv/
+venv/
+ENV/
 
 # === VSCode / Editor Settings ===
 .vscode/

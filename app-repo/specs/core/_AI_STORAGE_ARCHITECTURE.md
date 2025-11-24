@@ -29,6 +29,16 @@ STORAGE_ROOT/
 
 It must live on a **single filesystem** (to guarantee atomic rename).
 
+When `STORAGE_ROOT` lives **inside this repository**, it MUST be set to:
+
+```
+app-repo/.storage/
+```
+
+The leading dot on `.storage/` marks it as **runtime storage, not source code**. This directory is never committed to version control and is reserved exclusively for application-level persistent data (databases, manifests, tiles, attachments, exports, etc.).
+
+The `localstorage/` directory at the repo root is reserved for **development and automation runtime state** (e.g., ChatGPT / VS Code agents) and MUST NOT be used as the application’s canonical `STORAGE_ROOT`.
+
 ## 2.1 Directory Structure (Authoritative)
 ```
 STORAGE_ROOT/
