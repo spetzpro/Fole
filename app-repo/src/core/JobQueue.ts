@@ -96,6 +96,20 @@ export class InMemoryJobDiagnosticsRepository implements JobDiagnostics {
   getAll(): ReadonlyArray<JobDiagnosticsEvent> {
     return this.events;
   }
+
+  getByJobId(jobId: string): ReadonlyArray<JobDiagnosticsEvent> {
+    return this.events.filter((event) => event.jobId === jobId);
+  }
+
+  getLatestByJobId(jobId: string): JobDiagnosticsEvent | undefined {
+    for (let i = this.events.length - 1; i >= 0; i -= 1) {
+      const event = this.events[i];
+      if (event.jobId === jobId) {
+        return event;
+      }
+    }
+    return undefined;
+  }
 }
 
 export class InMemoryJobQueue {
