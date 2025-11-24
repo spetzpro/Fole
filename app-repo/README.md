@@ -12,6 +12,12 @@ FOLE is designed for precision, collaboration, and extensibility — from simple
 
 For overall repository layout, storage roots, and CI/tooling, see the top-level `README.md` at the repo root.
 
+When the application uses a storage directory **inside this repository**, the canonical storage root is:
+
+- `STORAGE_ROOT = app-repo/.storage/`
+
+The `.storage/` directory is a hidden, non-source folder intended only for persistent runtime data and is ignored by Git.
+
 ---
 
 ## Core concurrency
