@@ -290,6 +290,17 @@ Audit logs must be included in:
 - project export  
 - server export  
 
+In addition to persistent automation logs, the core runtime MAY maintain
+an **in-memory job diagnostics buffer** for low-level job execution
+details (job id, type, status transitions, duration, error message).
+
+This buffer:
+- is strictly non-persistent and may be cleared at any time,  
+- is intended for debugging and observability only,  
+- MUST NOT be treated as an authoritative audit trail, and  
+- MUST NOT bypass or replace the required persistent audit logs
+  defined elsewhere in this document and in `_AI_MASTER_RULES.md`.
+
 ---
 
 # 12. CANCELLATION & FAILURE POLICY
