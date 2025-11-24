@@ -55,6 +55,17 @@ export const JobStatus = {
 
 export type JobStatus = (typeof JobStatus)[keyof typeof JobStatus];
 
+export const JobStatusValues: ReadonlyArray<JobStatus> = [
+  JobStatus.Pending,
+  JobStatus.Running,
+  JobStatus.Completed,
+  JobStatus.Failed,
+];
+
+export function isTerminalStatus(status: JobStatus): boolean {
+  return status === JobStatus.Completed || status === JobStatus.Failed;
+}
+
 export interface JobRecord {
   readonly job: CoreJob;
   status: JobStatus;
