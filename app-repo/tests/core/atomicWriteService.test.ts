@@ -46,6 +46,55 @@ async function testAtomicWriteServiceHappyPath() {
   assert(committed.length === 1, "one manifest entry must be committed");
 }
 
+class FailingAtomicRenameHooks {
+  async writeFiles(): Promise<void> {}
+  async fsyncFiles(): Promise<void> {}
+  async fsyncTmpDir(): Promise<void> {}
+  async atomicRename(): Promise<void> {
+    throw new Error("simulated failure during atomic rename");
+  }
+  async fsyncParentDir(): Promise<void> {}
+}
+
+async function testAtomicWriteServiceFailureDoesNotCommitManifest() {
+  const storagePaths = createStoragePaths({ storageRoot: "/storage" });
+  const manifestRepo = new InMemoryManifestRepository();
+  const lockManager = new InMemoryLockManager();
+  const executor = new DefaultAtomicWriteExecutor(lockManager);
+
+  const service = new AtomicWriteService({
+    storagePaths,
+    manifestRepository: manifestRepo,
+    executor,
+  });
+
+  const hooks = new FailingAtomicRenameHooks();
+
+  let threw = false;
+  try {
+    await service.executeAtomicWrite(
+      {
+        opType: "tile_write",
+        author: "test-failure",
+        targetPath: "/maps/1/tiles/3",
+        tmpDir: "/storage/tmp/op-fail",
+        expectedFiles: [],
+      },
+      hooks,
+    );
+  } catch (err) {
+    threw = true;
+  }
+
+  assert(threw, "atomic write service should surface hook failure");
+
+  const committed = await manifestRepo.listByState("committed");
+  assert(
+    committed.length === 0,
+    "no manifest entry must be committed when atomic sequence fails before rename/commit",
+  );
+}
+
 async function testAtomicWriteServiceWithDiagnosticsRepository() {
   const storagePaths = createStoragePaths({ storageRoot: "/storage" });
   const manifestRepo = new InMemoryManifestRepository();
@@ -100,5 +149,6 @@ async function testAtomicWriteServiceWithDiagnosticsRepository() {
 (async () => {
   await testAtomicWriteServiceHappyPath();
   await testAtomicWriteServiceWithDiagnosticsRepository();
+  await testAtomicWriteServiceFailureDoesNotCommitManifest();
   console.log("atomicWriteService tests passed");
 })();
