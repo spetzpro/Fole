@@ -9,6 +9,7 @@ import {
   type MapMetadataOptions,
   type MapSnapshotOptions,
 } from "./MapOperations";
+import type { JobRecord } from "./JobQueue";
 
 // Minimal job-shaped helpers for project/map metadata/config commits.
 // These are thin wrappers around core operations so they can later
@@ -60,4 +61,59 @@ export async function runCommitMapSnapshotJob(
 ): Promise<void> {
   const operations = new MapOperations(runtime);
   await operations.commitMapSnapshot(payload);
+}
+
+export interface RunProjectConfigAndMetadataJobsOptions {
+  readonly projectId: string;
+  readonly author: string;
+}
+
+export interface RunProjectConfigAndMetadataJobsResult {
+  readonly configJob: JobRecord;
+  readonly metadataJob: JobRecord;
+}
+
+export async function runProjectConfigAndMetadataJobs(
+  runtime: CoreRuntime,
+  options: RunProjectConfigAndMetadataJobsOptions,
+): Promise<RunProjectConfigAndMetadataJobsResult> {
+  const { queue, worker } = runtime.createInMemoryJobQueueAndWorker();
+
+  const configJobId = `job-project-config-${options.projectId}`;
+  const metadataJobId = `job-project-metadata-${options.projectId}`;
+
+  queue.enqueue({
+    id: configJobId,
+    type: "commit_project_config",
+    payload: {
+      projectId: options.projectId,
+      author: options.author,
+      jobId: configJobId,
+    },
+  });
+
+  queue.enqueue({
+    id: metadataJobId,
+    type: "commit_project_metadata_snapshot",
+    payload: {
+      projectId: options.projectId,
+      author: options.author,
+      jobId: metadataJobId,
+    },
+  });
+
+  await worker.runNext();
+  await worker.runNext();
+
+  const configRecord = queue.getRecord(configJobId);
+  const metadataRecord = queue.getRecord(metadataJobId);
+
+  if (!configRecord || !metadataRecord) {
+    throw new Error("Expected job records to exist after running jobs");
+  }
+
+  return {
+    configJob: configRecord,
+    metadataJob: metadataRecord,
+  };
 }

@@ -1,0 +1,69 @@
+import { CoreRuntime } from "../../src/core/CoreRuntime";
+import { JobStatus } from "../../src/core/JobQueue";
+import { runProjectConfigAndMetadataJobs } from "../../src/core/ProjectJobs";
+import { ProjectOperations } from "../../src/core/ProjectOperations";
+
+function assert(condition: unknown, message: string): asserts condition {
+  if (!condition) {
+    throw new Error(message);
+  }
+}
+
+async function testProjectConfigAndMetadataViaJobsMatchesDirectOperations() {
+  const runtime = new CoreRuntime({
+    storageRoot: "/storage",
+    useInMemoryDal: true,
+    lockDiagnosticsRepositoryCapacity: 10,
+  });
+
+  const projectId = "proj-config-meta-via-jobs";
+  const author = "jobs-orchestration-tester";
+
+  const result = await runProjectConfigAndMetadataJobs(runtime, {
+    projectId,
+    author,
+  });
+
+  assert(result.configJob.status === JobStatus.Completed, "config job must complete successfully");
+  assert(result.metadataJob.status === JobStatus.Completed, "metadata job must complete successfully");
+
+  const committedViaJobs = await runtime.manifestRepository.listByState("committed");
+  assert(committedViaJobs.length === 2, "two committed entries expected via jobs");
+
+  const opTypesViaJobs = committedViaJobs.map((e) => e.opType).sort();
+  assert(
+    opTypesViaJobs[0] === "project_config_write" && opTypesViaJobs[1] === "project_metadata_write",
+    "via-jobs manifest must contain one config and one metadata write",
+  );
+
+  const directRuntime = new CoreRuntime({
+    storageRoot: "/storage-direct",
+    useInMemoryDal: true,
+    lockDiagnosticsRepositoryCapacity: 10,
+  });
+
+  const operations = new ProjectOperations(directRuntime);
+
+  await operations.commitProjectConfig({
+    projectId,
+    author,
+  });
+
+  await operations.commitProjectMetadataSnapshot({
+    projectId,
+    author,
+  });
+
+  const committedDirect = await directRuntime.manifestRepository.listByState("committed");
+  assert(committedDirect.length === 2, "two committed entries expected via direct ops");
+
+  const opTypesDirect = committedDirect.map((e) => e.opType).sort();
+  assert(
+    opTypesDirect[0] === "project_config_write" && opTypesDirect[1] === "project_metadata_write",
+    "direct manifest must contain one config and one metadata write",
+  );
+}
+
+(async () => {
+  await testProjectConfigAndMetadataViaJobsMatchesDirectOperations();
+})();

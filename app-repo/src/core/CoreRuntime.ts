@@ -10,7 +10,12 @@ import {
 } from "./concurrency/LockDiagnosticsRepository";
 import type { LockDiagnosticsRepository } from "./concurrency/LockDiagnosticsRepository";
 import type { AtomicWriteService } from "./storage/AtomicWriteService";
-import { InMemoryJobQueue, JobWorker, InMemoryJobDiagnosticsRepository } from "./JobQueue";
+import {
+  InMemoryJobQueue,
+  JobWorker,
+  InMemoryJobDiagnosticsRepository,
+  type JobDiagnosticsEvent,
+} from "./JobQueue";
 
 export interface CoreRuntimeOptions {
   readonly storageRoot: string;
@@ -69,5 +74,13 @@ export class CoreRuntime {
     const queue = new InMemoryJobQueue();
     const worker = new JobWorker(this, queue, this.jobDiagnosticsRepository);
     return { queue, worker };
+  }
+
+  getJobDiagnosticsByJobId(jobId: string): ReadonlyArray<JobDiagnosticsEvent> {
+    return this.jobDiagnosticsRepository.getByJobId(jobId);
+  }
+
+  getLatestJobDiagnostics(jobId: string): JobDiagnosticsEvent | undefined {
+    return this.jobDiagnosticsRepository.getLatestByJobId(jobId);
   }
 }
