@@ -46,7 +46,14 @@ export type CoreJob =
   | CommitMapMetadataCoreJob
   | CommitMapSnapshotCoreJob;
 
-export type JobStatus = "pending" | "running" | "completed" | "failed";
+export const JobStatus = {
+  Pending: "pending" as const,
+  Running: "running" as const,
+  Completed: "completed" as const,
+  Failed: "failed" as const,
+};
+
+export type JobStatus = (typeof JobStatus)[keyof typeof JobStatus];
 
 export interface JobRecord {
   readonly job: CoreJob;
@@ -64,7 +71,7 @@ export class InMemoryJobQueue {
     }
     const record: JobRecord = {
       job,
-      status: "pending",
+      status: JobStatus.Pending,
     };
     this.records.set(job.id, record);
     this.queue.push(job);
@@ -99,7 +106,7 @@ export class JobWorker {
       throw new Error("Job record missing for dequeued job");
     }
 
-    record.status = "running";
+    record.status = JobStatus.Running;
 
     try {
       if (job.type === "commit_project_config") {
@@ -114,9 +121,9 @@ export class JobWorker {
         const _exhaustiveCheck: never = job;
         throw new Error(`Unsupported job type: ${String((_exhaustiveCheck as any).type)}`);
       }
-      record.status = "completed";
+      record.status = JobStatus.Completed;
     } catch (error) {
-      record.status = "failed";
+      record.status = JobStatus.Failed;
       record.error = error;
     }
   }

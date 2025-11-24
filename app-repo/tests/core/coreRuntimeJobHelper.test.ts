@@ -1,4 +1,5 @@
 import { CoreRuntime } from "../../src/core/CoreRuntime";
+import { JobStatus } from "../../src/core/JobQueue";
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) {
@@ -31,7 +32,7 @@ async function testCoreRuntimeJobHelperRunsProjectConfigJob() {
 
   const record = queue.getRecord(jobId);
   assert(record, "job record must exist after running job");
-  assert(record!.status === "completed", "job status must be completed");
+  assert(record!.status === JobStatus.Completed, "job status must be completed");
 
   const committedEntries = await runtime.manifestRepository.listByState("committed");
   assert(committedEntries.length === 1, "one committed manifest entry is expected");

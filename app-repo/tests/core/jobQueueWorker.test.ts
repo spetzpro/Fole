@@ -1,5 +1,5 @@
 import { CoreRuntime } from "../../src/core/CoreRuntime";
-import { InMemoryJobQueue, JobWorker } from "../../src/core/JobQueue";
+import { InMemoryJobQueue, JobWorker, JobStatus } from "../../src/core/JobQueue";
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) {
@@ -33,7 +33,7 @@ async function testEnqueueAndRunProjectConfigJob() {
 
   const record = queue.getRecord(jobId);
   assert(record, "job record must exist after running job");
-  assert(record!.status === "completed", "job status must be completed");
+  assert(record!.status === JobStatus.Completed, "job status must be completed");
 
   const committedEntries = await runtime.manifestRepository.listByState("committed");
   assert(committedEntries.length === 1, "one committed manifest entry is expected");
@@ -68,7 +68,7 @@ async function testEnqueueAndRunMapMetadataJob() {
 
   const record = queue.getRecord(jobId);
   assert(record, "job record must exist after running job");
-  assert(record!.status === "completed", "job status must be completed");
+  assert(record!.status === JobStatus.Completed, "job status must be completed");
 
   const committedEntries = await runtime.manifestRepository.listByState("committed");
   assert(committedEntries.length === 1, "one committed manifest entry is expected");
@@ -104,7 +104,7 @@ async function testJobFailureMarksRecordFailed() {
 
   const record = queue.getRecord(jobId);
   assert(record, "job record must exist after running job");
-  assert(record!.status === "failed", "job status must be failed when an error occurs");
+  assert(record!.status === JobStatus.Failed, "job status must be failed when an error occurs");
   assert(record!.error, "failed job record must capture an error");
 }
 
