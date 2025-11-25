@@ -19,6 +19,10 @@ This file describes the *conceptual model*. The concrete list of modules lives i
 
 - `specs/modules/README.md`
 
+The authoritative lifecycle status for all blocks and modules (planned/specced/in implementation/implemented/stable) lives in:
+
+- `specs/Blocks_Modules_Inventory.md`
+
 ---
 
 ## 2. Core Concepts

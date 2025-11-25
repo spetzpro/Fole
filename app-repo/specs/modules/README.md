@@ -2,6 +2,10 @@
 
 This file is the canonical index of all blocks and modules in the system.
 
+Lifecycle status and block-level entries are maintained in:
+
+- `specs/Blocks_Modules_Inventory.md`
+
 It is meant to be read by:
 - humans (to understand the architecture)
 - AI agents (to know what modules exist and where their specs live)
