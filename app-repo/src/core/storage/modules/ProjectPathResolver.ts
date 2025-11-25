@@ -1,5 +1,4 @@
-import type { ProjectId } from "../db/ProjectTypes";
-import type { StoragePaths } from "../StoragePaths";
+import type { ProjectUUID, StoragePaths } from "../StoragePaths";
 
 export interface ProjectPaths {
   rootDir: string;
@@ -12,26 +11,26 @@ export interface ProjectPaths {
 }
 
 export interface ProjectPathResolver {
-  getProjectPaths(projectId: ProjectId): ProjectPaths;
+  getProjectPaths(projectId: ProjectUUID): ProjectPaths;
   getProjectsRoot(): string;
 }
 
 export function createProjectPathResolver(storagePaths: StoragePaths): ProjectPathResolver {
   return {
-    getProjectPaths(projectId: ProjectId): ProjectPaths {
+    getProjectPaths(projectId: ProjectUUID): ProjectPaths {
       const project = storagePaths.getProjectPaths(projectId);
       return {
-        rootDir: project.projectRootDir,
-        projectJsonPath: project.projectJsonPath,
+        rootDir: project.projectRoot,
+        projectJsonPath: `${project.projectRoot}/project.json`,
         dbPath: project.projectDbPath,
-        filesDir: project.filesDir,
-        logsDir: project.logsDir,
-        tmpDir: project.tmpDir,
-        cacheDir: project.cacheDir,
+        filesDir: `${project.projectRoot}/files`,
+        logsDir: `${project.projectRoot}/logs`,
+        tmpDir: project.projectTmpRoot,
+        cacheDir: `${project.projectRoot}/cache`,
       };
     },
     getProjectsRoot(): string {
-      return storagePaths.projectsRoot;
+      return `${storagePaths.storageRoot}/projects`;
     },
   };
 }

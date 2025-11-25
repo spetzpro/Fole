@@ -1,5 +1,6 @@
 import { createStoragePaths, type StoragePaths } from "./storage/StoragePaths";
 import type { ConfigService } from "./foundation/ConfigService";
+import { createConfigService } from "./foundation/ConfigBootstrap";
 import { SqliteDalContext } from "./db/SqliteDalContext";
 import { InMemoryDalContext } from "./db/InMemoryDalContext";
 import type { DalContext } from "./db/DalContext";
@@ -37,17 +38,9 @@ export class CoreRuntime {
   constructor(private readonly options: CoreRuntimeOptions) {
     this.storagePaths = createStoragePaths({ storageRoot: options.storageRoot });
 
-    this.configService = {
-      getAppConfig: () => ({
-        environment: "development",
-        apiBaseUrl: "",
-        auth: { apiBaseUrl: "" },
-        storage: { projectsRoot: this.storagePaths.storageRoot },
-      }),
-      getString: (_key: string, fallback?: string) => fallback ?? "",
-      getNumber: (_key: string, fallback?: number) => fallback ?? 0,
-      getBoolean: (_key: string, fallback?: boolean) => fallback ?? false,
-    };
+    this.configService = createConfigService({
+      storageRoot: this.storagePaths.storageRoot,
+    });
 
     const useInMemoryDal = options.useInMemoryDal ?? false;
 
