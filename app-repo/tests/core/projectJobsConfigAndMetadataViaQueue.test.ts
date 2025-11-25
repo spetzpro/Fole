@@ -63,6 +63,13 @@ async function testProjectConfigAndMetadataViaJobsMatchesDirectOperations() {
     "via-jobs manifest must contain one config and one metadata write",
   );
 
+  const targetPathsViaJobs = committedViaJobs.map((e) => e.targetPath).sort();
+  assert(
+    targetPathsViaJobs[0] === `/projects/${projectId}/config.json` &&
+      targetPathsViaJobs[1] === `/projects/${projectId}/metadata.json`,
+    "via-jobs manifest must target canonical project config and metadata paths",
+  );
+
   const directRuntime = new CoreRuntime({
     storageRoot: "/storage-direct",
     useInMemoryDal: true,
@@ -88,6 +95,13 @@ async function testProjectConfigAndMetadataViaJobsMatchesDirectOperations() {
   assert(
     opTypesDirect[0] === "project_config_write" && opTypesDirect[1] === "project_metadata_write",
     "direct manifest must contain one config and one metadata write",
+  );
+
+  const targetPathsDirect = committedDirect.map((e) => e.targetPath).sort();
+  assert(
+    targetPathsDirect[0] === `/projects/${projectId}/config.json` &&
+      targetPathsDirect[1] === `/projects/${projectId}/metadata.json`,
+    "direct manifest must target canonical project config and metadata paths",
   );
 }
 
