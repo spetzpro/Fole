@@ -34,6 +34,8 @@ export class CoreRuntime {
   readonly lockDiagnosticsRepository?: LockDiagnosticsRepository;
   readonly jobDiagnosticsRepository: InMemoryJobDiagnosticsRepository;
   readonly configService: ConfigService;
+  readonly projectPathResolver: import("./storage/modules/ProjectPathResolver").ProjectPathResolver;
+  readonly projectRegistry: import("./storage/modules/ProjectRegistry").ProjectRegistry;
 
   constructor(private readonly options: CoreRuntimeOptions) {
     this.storagePaths = createStoragePaths({ storageRoot: options.storageRoot });
@@ -41,6 +43,12 @@ export class CoreRuntime {
     this.configService = createConfigService({
       storageRoot: this.storagePaths.storageRoot,
     });
+
+    const { createProjectPathResolver } = require("./storage/modules/ProjectPathResolver") as typeof import("./storage/modules/ProjectPathResolver");
+    const { createProjectRegistry } = require("./storage/modules/ProjectRegistry") as typeof import("./storage/modules/ProjectRegistry");
+
+    this.projectPathResolver = createProjectPathResolver(this.storagePaths);
+    this.projectRegistry = createProjectRegistry(this.projectPathResolver);
 
     const useInMemoryDal = options.useInMemoryDal ?? false;
 
