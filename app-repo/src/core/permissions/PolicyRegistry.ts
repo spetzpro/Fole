@@ -122,4 +122,5 @@ export function initDefaultPolicies(): void {
   register("COMMENT_DELETE", "comment", "comments.delete");
   register("SKETCH_EDIT", "sketch", "sketch.edit");
   register("MAP_EDIT", "map", "map.edit");
+  register("MAP_CALIBRATE", "map", "map.calibrate");
 }

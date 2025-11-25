@@ -11,7 +11,8 @@ export type PermissionAction =
   | "COMMENT_EDIT"
   | "COMMENT_DELETE"
   | "SKETCH_EDIT"
-  | "MAP_EDIT";
+  | "MAP_EDIT"
+  | "MAP_CALIBRATE";
 
 export type ResourceType = "project" | "file" | "comment" | "sketch" | "map";
 
