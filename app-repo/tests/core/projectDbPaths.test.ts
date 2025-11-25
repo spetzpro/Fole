@@ -7,7 +7,7 @@ function assert(condition: unknown, message: string): asserts condition {
   }
 }
 
-async function testProjectDbPathMatchesSpecLayout() {
+async function testProjectDbPathMatchesSpecLayoutAndOpensConnection() {
   const runtime = new CoreRuntime({
     storageRoot: "/storage-project-db",
     useInMemoryDal: true,
@@ -24,8 +24,11 @@ async function testProjectDbPathMatchesSpecLayout() {
     paths.dbPath === `/projects/${projectId}/project.db`,
     "project.db path must match STORAGE_ROOT/projects/<projectId>/project.db",
   );
+
+  const conn = await projectDb.getConnection(projectId);
+  assert(conn.engine === "sqlite", "in-memory DAL must expose sqlite engine for project DB");
 }
 
 (async () => {
-  await testProjectDbPathMatchesSpecLayout();
+  await testProjectDbPathMatchesSpecLayoutAndOpensConnection();
 })();
