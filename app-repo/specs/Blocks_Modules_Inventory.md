@@ -28,7 +28,7 @@ Status legend:
 | core.permissions   | Block  | core  | Specced           | Roles, overrides, UX & behavior. |
 | core.permissions   | Module | core  | Implemented       | Permission model, policy registry, service, guards. |
 | core.ui            | Block  | core  | Specced           | App shell, navigation, workspace experience. |
-| core.ui            | Module | core  | Specced           | UI state, router, layout, error boundaries, project selector. |
+| core.ui            | Module | core  | In implementation | UI state, router, layout, error boundaries, project selector. |
 | core.runtime       | Module | core  | Planned           | Module lifetime, hooks, job scheduling, diagnostics integration. |
 
 ---
