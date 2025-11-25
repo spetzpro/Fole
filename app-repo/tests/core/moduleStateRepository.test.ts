@@ -24,7 +24,7 @@ async function testModuleStateRepositoryWritesViaAtomicServiceWithCanonicalPaths
   });
 
   assert(
-    descriptor.targetPath === "/modules/example-module/state/test-state.json",
+    descriptor.targetPath === "/storage-mod-state/modules/example-module/state/test-state.json",
     "Module state targetPath must be STORAGE_ROOT/modules/<moduleName>/state/<stateId>.json",
   );
 

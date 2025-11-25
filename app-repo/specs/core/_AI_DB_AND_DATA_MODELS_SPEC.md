@@ -122,10 +122,10 @@ Map-local settings MUST be treated as a **logical cache** of higher-level config
   - `STORAGE_ROOT/core/core.db`
 
 - Project DB:  
-  - `STORAGE_ROOT/modules/projects/<projectId>/project.db`
+  - `STORAGE_ROOT/projects/<projectId>/project.db`
 
 - Map DB:  
-  - `STORAGE_ROOT/modules/projects/<projectId>/maps/<mapId>/map.db`
+  - `STORAGE_ROOT/projects/<projectId>/maps/<mapId>/map.db`
 
 SQLite Rules:
 

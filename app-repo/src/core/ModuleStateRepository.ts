@@ -31,6 +31,7 @@ export class ModuleStateRepository {
   async writeState(options: ModuleStateWriteOptions): Promise<ModuleStateDescriptor> {
     const { moduleName, stateId, author, contentJson } = options;
     const descriptor = this.getStateDescriptor(moduleName, stateId);
+    const modulePaths = this.runtime.storagePaths.getModuleRuntimePaths(moduleName);
 
     const expectedFiles: ExpectedFile[] = [
       {
@@ -39,17 +40,23 @@ export class ModuleStateRepository {
       },
     ];
 
-    const tmpDir = `${descriptor.targetPath}.tmp`;
+    const tmpDir = `${modulePaths.moduleRoot}/tmp/${stateId}.tmp`;
 
-    const plan = this.runtime.storagePaths.buildAtomicWriteExecutionPlan({
-      opType: "module_state_write",
+    const input = {
+      opType: "module_state_write" as const,
       author,
       targetPath: descriptor.targetPath,
       tmpDir,
       expectedFiles,
-    });
+    };
 
-    await this.runtime.atomicWriteService.executeJson(plan, contentJson);
+    await this.runtime.atomicWriteService.executeAtomicWrite(input, {
+      async writeFiles() {},
+      async fsyncFiles() {},
+      async fsyncTmpDir() {},
+      async atomicRename() {},
+      async fsyncParentDir() {},
+    });
 
     return descriptor;
   }

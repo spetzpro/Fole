@@ -7,14 +7,15 @@ function assert(condition: unknown, message: string): asserts condition {
 }
 
 async function testModuleRuntimePathsMatchSpecLayout() {
-  const storagePaths = createStoragePaths({ storageRoot: "/storage-modules" });
+  const STORAGE_ROOT = "/storage-modules";
+  const storagePaths = createStoragePaths({ storageRoot: STORAGE_ROOT });
 
   const moduleName = "example-module";
   const paths = storagePaths.getModuleRuntimePaths(moduleName);
 
   assert(paths.moduleName === moduleName, "moduleName must round-trip in ModuleRuntimePaths");
   assert(
-    paths.moduleRoot === `/modules/${moduleName}`,
+    paths.moduleRoot === `${STORAGE_ROOT}/modules/${moduleName}`,
     "moduleRoot must be STORAGE_ROOT/modules/<moduleName>/",
   );
 }
