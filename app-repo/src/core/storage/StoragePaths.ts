@@ -1,5 +1,6 @@
 export type ProjectUUID = string;
 export type MapUUID = string;
+export type ModuleName = string;
 
 export interface StorageRootConfig {
   /** Absolute path to STORAGE_ROOT (single filesystem). */
@@ -24,6 +25,15 @@ export interface MapPaths extends ProjectPaths {
   mapTilesRoot: string;
   mapFilesRoot: string;
   mapTmpRoot: string;
+}
+
+export interface ModuleRuntimePaths {
+  moduleName: ModuleName;
+  moduleRoot: string;
+  /**
+   * Root directory for all module-level runtime state under:
+   *   STORAGE_ROOT/modules/<moduleName>/
+   */
 }
 
 export interface ExpectedFile {
@@ -151,6 +161,16 @@ export interface StoragePaths {
   getMapPaths(projectId: ProjectUUID, mapId: MapUUID): MapPaths;
 
   /**
+   * Compute canonical module runtime paths under:
+   *   STORAGE_ROOT/modules/<moduleName>/...
+   *
+   * This is intentionally minimal and does not prescribe per-project
+   * layout; individual modules may define more detailed structures in
+   * their own specs while still using this root.
+   */
+  getModuleRuntimePaths(moduleName: ModuleName): ModuleRuntimePaths;
+
+  /**
    * Construct an atomic write plan for a given target path and tmp dir.
    *
    * This encodes the manifest structure required by _AI_STORAGE_ARCHITECTURE.md
@@ -208,6 +228,13 @@ export function createStoragePaths(config: StorageRootConfig): StoragePaths {
         mapTilesRoot: joinPaths(mapRoot, "tiles"),
         mapFilesRoot: joinPaths(mapRoot, "files"),
         mapTmpRoot: joinPaths(mapRoot, "tmp"),
+      };
+    },
+    getModuleRuntimePaths(moduleName: ModuleName): ModuleRuntimePaths {
+      const moduleRoot = joinPaths(root, "modules", moduleName);
+      return {
+        moduleName,
+        moduleRoot,
       };
     },
     buildAtomicWritePlan(input: AtomicWritePlanInput): AtomicWritePlan {
