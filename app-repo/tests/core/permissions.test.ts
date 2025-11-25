@@ -17,20 +17,34 @@ function makeProjectResource(projectId: string): ResourceDescriptor {
   return { type: "project", id: projectId, projectId };
 }
 
-describe("core.permissions", () => {
-  beforeAll(() => {
-    initDefaultPolicies();
-  });
+function assert(condition: unknown, message: string): void {
+  if (!condition) {
+    throw new Error(message);
+  }
+}
 
-  it("denies when unauthenticated and no permissions", () => {
+function runPermissionsTests(): void {
+  initDefaultPolicies();
+
+  const service = getPermissionService();
+
+  // denies when unauthenticated and no permissions
+  {
     const ctx = makeCtx({ user: null });
-    const service = getPermissionService();
-    const decision = service.canWithReason(ctx, "PROJECT_READ", makeProjectResource("p1"));
-    expect(decision.allowed).toBe(false);
-    expect(decision.reasonCode).toBe("NOT_AUTHENTICATED");
-  });
+    const decision = service.canWithReason(
+      ctx,
+      "PROJECT_READ",
+      makeProjectResource("p1")
+    );
+    assert(!decision.allowed, "Expected unauthenticated user to be denied");
+    assert(
+      decision.reasonCode === "NOT_AUTHENTICATED",
+      `Expected reason NOT_AUTHENTICATED, got ${decision.reasonCode}`
+    );
+  }
 
-  it("grants via project membership", () => {
+  // grants via project membership
+  {
     const ctx = makeCtx({
       user: { id: "u1", displayName: "User", roles: [] },
       projectMembership: {
@@ -39,35 +53,59 @@ describe("core.permissions", () => {
         permissions: ["projects.read"],
       },
     });
-    const service = getPermissionService();
-    const decision = service.canWithReason(ctx, "PROJECT_READ", makeProjectResource("p1"));
-    expect(decision.allowed).toBe(true);
-    expect(decision.grantSource).toBe("project_membership");
-  });
 
-  it("grants via global permission", () => {
+    const decision = service.canWithReason(
+      ctx,
+      "PROJECT_READ",
+      makeProjectResource("p1")
+    );
+    assert(decision.allowed, "Expected project membership to allow access");
+    assert(
+      decision.grantSource === "project_membership",
+      `Expected grantSource project_membership, got ${decision.grantSource}`
+    );
+  }
+
+  // grants via global permission
+  {
     const ctx = makeCtx({
       user: { id: "u1", displayName: "User", roles: [] },
       globalPermissions: ["projects.read"],
     });
-    const service = getPermissionService();
-    const decision = service.canWithReason(ctx, "PROJECT_READ", makeProjectResource("p1"));
-    expect(decision.allowed).toBe(true);
-    expect(decision.grantSource).toBe("global_permission");
-  });
 
-  it("grants via override permission", () => {
+    const decision = service.canWithReason(
+      ctx,
+      "PROJECT_READ",
+      makeProjectResource("p1")
+    );
+    assert(decision.allowed, "Expected global permission to allow access");
+    assert(
+      decision.grantSource === "global_permission",
+      `Expected grantSource global_permission, got ${decision.grantSource}`
+    );
+  }
+
+  // grants via override permission
+  {
     const ctx = makeCtx({
       user: { id: "u1", displayName: "User", roles: [] },
       globalPermissions: ["projects.read.override"],
     });
-    const service = getPermissionService();
-    const decision = service.canWithReason(ctx, "PROJECT_READ", makeProjectResource("p2"));
-    expect(decision.allowed).toBe(true);
-    expect(decision.grantSource).toBe("override_permission");
-  });
 
-  it("denies when resource not in membership project", () => {
+    const decision = service.canWithReason(
+      ctx,
+      "PROJECT_READ",
+      makeProjectResource("p2")
+    );
+    assert(decision.allowed, "Expected override permission to allow access");
+    assert(
+      decision.grantSource === "override_permission",
+      `Expected grantSource override_permission, got ${decision.grantSource}`
+    );
+  }
+
+  // denies when resource not in membership project
+  {
     const ctx = makeCtx({
       user: { id: "u1", displayName: "User", roles: [] },
       projectMembership: {
@@ -76,9 +114,22 @@ describe("core.permissions", () => {
         permissions: ["projects.read"],
       },
     });
-    const service = getPermissionService();
-    const decision = service.canWithReason(ctx, "PROJECT_READ", makeProjectResource("other"));
-    expect(decision.allowed).toBe(false);
-    expect(decision.reasonCode).toBe("RESOURCE_NOT_IN_PROJECT");
-  });
-});
+
+    const decision = service.canWithReason(
+      ctx,
+      "PROJECT_READ",
+      makeProjectResource("other")
+    );
+    assert(
+      !decision.allowed,
+      "Expected access to be denied for mismatched projectId"
+    );
+    assert(
+      decision.reasonCode === "RESOURCE_NOT_IN_PROJECT",
+      `Expected reason RESOURCE_NOT_IN_PROJECT, got ${decision.reasonCode}`
+    );
+  }
+}
+
+runPermissionsTests();
+
