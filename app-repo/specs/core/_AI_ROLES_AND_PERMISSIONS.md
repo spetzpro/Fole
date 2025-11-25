@@ -50,6 +50,14 @@ Internally, a role resolves to a set of **effective permissions**, which are str
 - `comments.create`
 - `sketch.edit`
 
+For maps and geo-calibration, project-level permissions include:
+
+- `map.read` – view maps and their calibration state.
+- `map.manage` – manage map metadata, visibility, and non-calibration settings.
+- `map.calibrate` – create new calibration versions and activate or replace the
+  active calibration for any map in the project. **Not** granted implicitly by
+  `map.manage`.
+
 There may also be special *override* permissions (see below):
 
 - `projects.read.override`
@@ -71,6 +79,9 @@ The core system uses a typed action model (`PermissionAction`) combined with a `
 - `ResourceDescriptor` – describes the resource being accessed (project, file, sketch, comment, etc.).
 
 The mapping from actions + resources to literal permission strings (e.g. `"projects.read"`) is an internal implementation detail of the policy layer.
+
+`map.calibrate` is modeled as a normal permission string and participates in the
+same evaluation pipeline as other project-scoped permissions.
 
 ---
 
@@ -97,6 +108,15 @@ Concrete shape (see `PermissionModel` spec for exact types):
   - `permissions: string[]` – effective per-project permissions.
 
 The permission system does **not** hard-code roles; it works off effective permissions. Roles are just one way to define those permissions.
+
+`map.calibrate` is a **project-scoped permission**:
+
+- It applies to **all maps within a project**; it is not scoped to a single
+  map instance.
+- Read-only users with `map.read` may view calibration data and derived
+  metadata but **may not** create, modify, or activate calibrations.
+- `map.calibrate` is **not** implicitly granted by `map.manage` or by any other
+  map-level permission; it must be included explicitly in a role or grant.
 
 ---
 
@@ -157,6 +177,11 @@ Example logic inside a policy handler (conceptually):
    `allowed = false`, `reasonCode = "INSUFFICIENT_ROLE"` (or more specific)
 
 This means the system always knows **how** access was granted.
+
+When a module requests `map.calibrate`, the `core.permissions` engine must
+evaluate the user’s project-level grants using the same unified `grantSource`
+model (`"project_membership"`, `"global_permission"`, `"override_permission"`),
+so that calibration-related access is fully auditable and visible in UX.
 
 ---
 
