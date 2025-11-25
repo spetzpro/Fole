@@ -41,9 +41,11 @@ export interface FeatureMapService {
   updateMapStatus(input: UpdateMapStatusInput, ctx: WriteContext): Promise<MapMetadata>;
 }
 
+
 interface FeatureMapServiceDeps {
   projectDb: ProjectDb;
   permissionService: PermissionService;
+  getPermissionContext?: () => PermissionContext;
   // Optional diagnostics/logger dependency; kept minimal for now.
   logger?: { debug(message: string, meta?: unknown): void };
 }
@@ -59,7 +61,10 @@ export class DefaultFeatureMapService implements FeatureMapService {
   }
 
   async listMaps(projectId: ProjectId, options?: ListMapsOptions): Promise<MapMetadata[]> {
-    await this.ensureReadPermission(projectId);
+    const permissionContext = this.deps.getPermissionContext
+      ? this.deps.getPermissionContext()
+      : ({} as PermissionContext);
+    await this.ensureReadPermission(projectId, permissionContext);
 
     const conn = await this.deps.projectDb.getConnection(projectId);
     // NOTE: SQL shape is based on _AI_DB_AND_DATA_MODELS_SPEC.md
@@ -113,7 +118,10 @@ export class DefaultFeatureMapService implements FeatureMapService {
   }
 
   async getMap(projectId: ProjectId, mapId: MapId): Promise<MapMetadata | null> {
-    await this.ensureReadPermission(projectId);
+    const permissionContext = this.deps.getPermissionContext
+      ? this.deps.getPermissionContext()
+      : ({} as PermissionContext);
+    await this.ensureReadPermission(projectId, permissionContext);
 
     const conn = await this.deps.projectDb.getConnection(projectId);
     const rows = await conn.executeQuery<any>({
@@ -160,11 +168,7 @@ export class DefaultFeatureMapService implements FeatureMapService {
     throw new Error("NotImplemented: updateMapStatus");
   }
 
-  private async ensureReadPermission(projectId: ProjectId): Promise<void> {
-    // TODO: derive PermissionContext from WriteContext / current user once wired.
-    // For now we assume a PermissionContext is available via deps or global state.
-    // This placeholder uses an empty context and relies on higher layers to wrap.
-    const ctx: PermissionContext = {} as PermissionContext;
+  private async ensureReadPermission(projectId: ProjectId, ctx: PermissionContext): Promise<void> {
     const resource: ResourceDescriptor = { type: "project", id: projectId, projectId };
     const allowed = this.deps.permissionService.can(ctx, "PROJECT_READ", resource);
     if (!allowed) {
