@@ -30,6 +30,9 @@ Status legend:
 | core.ui            | Block  | core  | Specced           | App shell, navigation, workspace experience. |
 | core.ui            | Module | core  | Implemented       | UI state, router, layout, error boundaries, project selector. |
 | core.runtime       | Module | core  | Planned           | Module lifetime, hooks, job scheduling, diagnostics integration. |
+| core.moduleStateRepository | Module | core  | Specced          | Versioned module-state storage with atomic writes & schemaVersion rules. |
+| core.accessControl        | Module | core  | Specced          | Authentication, sessions, PermissionContext, roles→permissions mapping. |
+
 
 ---
 
