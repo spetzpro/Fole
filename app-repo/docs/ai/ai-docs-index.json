@@ -37,7 +37,6 @@
       "required": false,
       "description": "Checklist for AI agent first-run initialization and document loading."
     },
-
     {
       "id": "ai_storage_architecture",
       "path": "app-repo/specs/core/_AI_STORAGE_ARCHITECTURE.md",
@@ -50,7 +49,7 @@
       "path": "app-repo/specs/core/_AI_TEMPLATES_AND_DEFAULTS.md",
       "type": "core-spec",
       "required": false,
-      "description": "Template hierarchy: Factory → Server → Project. Overrides, versioning, safety."
+      "description": "Template hierarchy: Factory \u2192 Server \u2192 Project. Overrides, versioning, safety."
     },
     {
       "id": "ai_roles_and_permissions",
@@ -71,7 +70,7 @@
       "path": "app-repo/specs/core/_AI_GEO_AND_CALIBRATION_SPEC.md",
       "type": "core-spec",
       "required": false,
-      "description": "Coordinate systems, conversions, projections, calibrations, global→local math."
+      "description": "Coordinate systems, conversions, projections, calibrations, global\u2192local math."
     },
     {
       "id": "ai_file_and_image_pipeline_spec",
@@ -193,11 +192,39 @@
       "description": "User settings, preference isolation, personalization rules, overrides."
     },
     {
-     "id": "ai_auth_and_identity",
+      "id": "ai_auth_and_identity",
       "path": "app-repo/specs/core/_AI_AUTH_AND_IDENTITY_SPEC.md",
       "type": "core-spec",
       "required": false,
       "description": "Authentication, identity, sessions, invites, and password rules."
-   }
+    },
+    {
+      "id": "core_module_state_repository_spec",
+      "path": "app-repo/specs/modules/Core_ModuleStateRepository.md",
+      "type": "module-spec",
+      "required": false,
+      "description": "Spec for the core module state repository: versioned module state, atomic writes, schemaVersion rules."
+    },
+    {
+      "id": "core_access_control_module_spec",
+      "path": "app-repo/specs/modules/Core_AccessControl_Module.md",
+      "type": "module-spec",
+      "required": false,
+      "description": "Spec for core access control: authentication, sessions, PermissionContext and roles\u2192permissions wiring."
+    },
+    {
+      "id": "core_ui_module_spec",
+      "path": "app-repo/specs/modules/Core_UI_Module.md",
+      "type": "module-spec",
+      "required": false,
+      "description": "Spec for core UI contracts: AsyncState, UiError, notifications, and capability patterns."
+    },
+    {
+      "id": "blocks_modules_inventory",
+      "path": "app-repo/specs/Blocks_Modules_Inventory.md",
+      "type": "ai-inventory",
+      "required": false,
+      "description": "High-level inventory of all blocks and modules, including kind, layer, and lifecycle status."
+    }
   ]
 }

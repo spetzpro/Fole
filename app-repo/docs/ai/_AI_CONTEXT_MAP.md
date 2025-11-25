@@ -267,6 +267,13 @@ Rasterization and tile generation must respect the **sandboxing and atomic write
 
 ### 4.7 Modules & Blocks (Implementation-Level Work)
 
+**Core references for any module/block work:**
+
+- Use `specs/Blocks_Modules_Inventory.md` to see which modules/blocks already exist and their lifecycle state.
+- When touching **module state**, also load `specs/modules/Core_ModuleStateRepository.md`.
+- When touching **permissions/roles**, also load `specs/modules/Core_AccessControl_Module.md` in addition to `_AI_ROLES_AND_PERMISSIONS.md`.
+- When touching **view-models or UI contracts**, also load `specs/modules/Core_UI_Module.md` in addition to `_AI_UI_SYSTEM_SPEC.md`.
+
 **When:**
 
 - You modify or create code inside `modules/` or `app-repo/specs/blocks/`.
