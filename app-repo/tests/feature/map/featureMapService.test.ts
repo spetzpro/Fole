@@ -1,7 +1,7 @@
 import { CoreRuntime } from "../../../src/core/CoreRuntime";
 import { ProjectDb } from "../../../src/core/ProjectDb";
-import { DefaultFeatureMapService } from "../../../src/feature/map/FeatureMapService";
-import { MapMetadata, ProjectId, MapId } from "../../../src/feature/map/FeatureMapTypes";
+import { DefaultFeatureMapService, ListMapsOptions } from "../../../src/feature/map/FeatureMapService";
+import { ProjectId, MapId, MapStatus, MapType } from "../../../src/feature/map/FeatureMapTypes";
 import type { PermissionService } from "../../../src/core/permissions/PermissionService";
 
 function assert(condition: unknown, message: string): void {
@@ -107,6 +107,23 @@ async function createRuntimeAndSeedProject(projectId: ProjectId) {
     ],
   });
 
+  // Seed one archived map of a different type with shared tags.
+  await conn.executeCommand({
+    text:
+      "INSERT INTO maps (project_id, map_id, name, description, map_type, tags_json, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    parameters: [
+      projectId,
+      "map-archived",
+      "Archived Map",
+      "An archived site plan",
+      "site_plan",
+      JSON.stringify(["tag-c", "shared"]),
+      "archived",
+      "2025-01-03T00:00:00Z",
+      "2025-01-03T00:00:00Z",
+    ],
+  });
+
   return { runtime, projectDb };
 }
 
@@ -118,13 +135,15 @@ async function runFeatureMapServiceReadTests(): Promise<void> {
 
   // When permissions allow, both maps should be visible with correct calibration summary.
   const maps = await service.listMaps(projectId);
-  assert(maps.length === 2, "expected two maps from listMaps");
+  assert(maps.length === 3, "expected three maps from listMaps (including archived)");
 
   const uncalibrated = maps.find((m) => m.id === "map-uncalibrated");
   const calibrated = maps.find((m) => m.id === "map-calibrated");
+  const archived = maps.find((m) => m.id === "map-archived");
 
   assert(!!uncalibrated, "uncalibrated map should be present");
   assert(!!calibrated, "calibrated map should be present");
+  assert(!!archived, "archived map should be present");
 
   assert(uncalibrated!.isCalibrated === false, "uncalibrated map should report isCalibrated=false");
   assert(
@@ -144,6 +163,28 @@ async function runFeatureMapServiceReadTests(): Promise<void> {
   assert(
     calibrated!.calibrationErrorRms === 0.5,
     "calibrated map should expose calibrationErrorRms from active calibration",
+  );
+
+  // listMaps filtering: status, types, tagsAny, includeArchived.
+  const activeOnly = await service.listMaps(projectId, { status: ["active" as MapStatus] });
+  assert(activeOnly.every((m) => m.status === "active"), "status filter should return only active maps");
+
+  const sitePlanOnly = await service.listMaps(projectId, { types: ["site_plan" as MapType] });
+  assert(
+    sitePlanOnly.length === 1 && sitePlanOnly[0].id === "map-archived",
+    "types filter should return only site_plan map",
+  );
+
+  const sharedTag = await service.listMaps(projectId, { tagsAny: ["shared"] });
+  assert(
+    sharedTag.length === 1 && sharedTag[0].id === "map-archived",
+    "tagsAny filter should match maps with shared tag",
+  );
+
+  const excludeArchived = await service.listMaps(projectId, { includeArchived: false });
+  assert(
+    !excludeArchived.some((m) => m.id === "map-archived"),
+    "includeArchived=false should exclude archived maps",
   );
 
   // getMap should return the same metadata for each map.
