@@ -1,373 +1,245 @@
-# _AI_MODULE_SYSTEM_SPEC.md  
-**Version:** 1.0.0  
-**Last Updated:** 2025-11-23  
-**Status:** Authoritative Specification (SSOT)
+# AI Guidance: Module & Block System
 
-# AI Module System Specification  
-How modules are defined, enabled, disabled, validated, loaded, and constrained.
-
-This document defines the **complete ruleset** governing FOLE modules:
-- directory layout  
-- lifecycle  
-- activation & deactivation  
-- dependencies  
-- capabilities  
-- crossref requirements  
-- strict rules for AI agents  
-
-It is binding for **all AI agents**, **backend services**, and **module developers**.
+File: `specs/core/_AI_MODULE_SYSTEM_SPEC.md`  
+Scope: How the AI should think about *blocks*, *modules*, and their relationships in this codebase.
 
 ---
 
-# 1. PURPOSE OF THE MODULE SYSTEM
+## 1. Goals
 
 The module system exists to:
 
-1. Ensure **deterministic, isolated, predictable behavior** across all modules.  
-2. Provide explicit **enable/disable** controls.  
-3. Define **dependencies**, **capabilities**, and **required specs**.  
-4. Ensure modules do not break core invariants.  
-5. Prevent AI from creating “partial” or inconsistent module structures.  
-6. Support versioning, migration, and safe runtime updates.  
-7. Ensure module code cannot silently violate `_AI_MASTER_RULES.md`.
+- Keep the architecture **explicit and navigable** for both humans and AI.
+- Make it easy to see **what exists**, **where it lives**, and **how it depends on other parts**.
+- Avoid “spaghetti” dependencies by enforcing simple, stable layering rules.
+- Give AI agents a deterministic way to answer:  
+  > “What should I work on next, and where is the spec for it?”
+
+This file describes the *conceptual model*. The concrete list of modules lives in:
+
+- `specs/modules/README.md`
 
 ---
 
-# 2. MODULE DIRECTORY LAYOUT
+## 2. Core Concepts
 
-Each module lives under exactly two locations:
+### 2.1 Blocks
 
-### 2.1 Repository-Side (Immutable)
-Path (required):
-```
-app-repo/specs/modules/<moduleName>/
-```
+A **Block** is a logical grouping of modules that belong together. Blocks are named with prefixes:
 
-Must contain:
-- `<moduleName>_SPEC.md` (the human-readable authoritative spec)
-- `crossref/ai-library-index.json` (machine-readable metadata)
-- Optional:
-  - schema definitions  
-  - validation scripts  
-  - migration documents  
-  - module diagrams  
-
-Repository rules:
-- **Immutable at runtime**
-- Version-controlled
-- Only modified through human-approved PRs
-
----
-
-### 2.2 Runtime-Side (Mutable)
-Path:
-```
-STORAGE_ROOT/modules/<moduleName>/
-```
-
-May contain:
-- runtime-generated data  
-- module-level caches  
-- module state files  
-- per-project module data  
-
-Runtime rules:
-- **Never** contains specs  
-- **Never** contains authoritative definitions  
-- AI MUST NOT write or modify anything under `app-repo/specs/modules/...` during runtime  
-- AI may modify runtime data *only according to this spec*
-
----
-
-# 3. MODULE STANDARD SPEC FILE (AUTHORITATIVE)
-
-Each module must include a single canonical markdown file:
-
-```
-app-repo/specs/modules/<moduleName>/<moduleName>_SPEC.md
-```
-
-This file defines:
-
-1. **Purpose & Scope**  
-2. **Interfaces**  
-3. **Commands & Tools**  
-4. **Storage Requirements**  
-5. **Capabilities**  
-6. **Dependencies**  
-7. **Security Constraints**  
-8. **Version & Migration Rules**  
-9. **AI Safety Boundaries**  
-10. **STOP conditions**  
-
-AI must treat this file as **law** when interacting with the module.
-
----
-
-# 4. MODULE METADATA (MACHINE-READABLE)
-
-Each module must include:
-
-```
-app-repo/specs/modules/<moduleName>/crossref/ai-library-index.json
-```
-
-Required fields:
-```json
-{
-  "name": "moduleName",
-  "version": "1.0.0",
-  "schemaVersion": "1.0.0",
-  "dependencies": ["otherModuleA", "otherModuleB"],
-  "capabilities": ["map-tools", "sketch-tools"],
-  "entrypoints": {
-    "api": "./api",
-    "ui": "./ui",
-    "migrations": "./migrations"
-  },
-  "dangerous": false
-}
-```
-
-Rules:
-- No circular dependencies.  
-- Dependencies must exist and be loadable.  
-- Capabilities must be listed in `_AI_MASTER_RULES.md` if they affect global invariants.  
-- Version must follow semantic versioning.  
-- `dangerous: true` flags modules requiring two-human approval for activation.
-
----
-
-# 5. MODULE ENABLE/DISABLE RULES
-
-Modules may be:
-- **factory-enabled**  
-- **server-enabled**  
-- **project-enabled**  
-
-Enable flow (all must be satisfied):
-```
-1. Exists in repo
-2. Valid metadata
-3. Dependencies enabled
-4. Migrations applied
-5. Security rules passed
-```
-
-Disable rules:
-- A module may be disabled only if no other enabled modules depend on it.  
-- Disabling a module must not delete user data unless explicitly approved and migration exists.
-
-AI may propose enable/disable operations **but never execute without user confirmation**.
-
----
-
-# 6. DEPENDENCY RULES
-
-### 6.1 Hard Dependencies
-A module cannot function without its dependencies.
-
-Example:
-```
-CAD-Tools depends on Geometry
-```
-
-### 6.2 Soft Dependencies
-Optional performance or UI enhancements.
-
-Example:
-```
-Sketch-Annotations optionally integrates with File-Upload
-```
-
-### 6.3 Forbidden Dependencies
-If defined in `_AI_MASTER_RULES.md`.
-
-### 6.4 Cycles
-Strictly forbidden.
-
-AI must STOP if it detects or would create a dependency cycle.
-
----
-
-# 7. MODULE CAPABILITIES
-
-Capabilities describe “what this module can do”.
+- `core.*` – foundational building blocks used across the app.
+- `feature.*` – user-facing features (maps, sketches, files, comments, etc.).
+- `lib.*` – shared low-level libraries (math, geometry, image tools, etc.).
 
 Examples:
-- `map-editing`  
-- `sketch-editing`  
-- `routing-services`  
-- `ocr-processing`  
-- `ai-automation`  
-- `file-ingestion`  
-- `gps-calibration`  
 
-Every module’s capabilities must:
-- Be explicitly declared  
-- Not overlap contradictorily  
-- Be validated against backend code  
+- `core.foundation`
+- `core.storage`
+- `core.auth`
+- `core.permissions`
+- `core.ui`
+- (future) `feature.map`, `feature.sketch`, `feature.files`, `feature.comments`, …
+- (future) `lib.geo`, `lib.image`, …
 
-AI must not infer capabilities that are missing in metadata.
+Each block has a **block spec** that describes its purpose, responsibilities, and dependencies:
 
----
+- `specs/blocks/core.foundation.md`
+- `specs/blocks/core.storage.md`
+- `specs/blocks/core.auth.md`
+- `specs/blocks/core.permissions.md`
+- `specs/blocks/core.ui.md`
+- (future) `specs/blocks/feature.map.md`, etc.
 
-# 8. MIGRATION RULES
+### 2.2 Modules
 
-When a module changes version:
-- Migrations must live under:
-```
-app-repo/specs/modules/<moduleName>/migrations/
-```
-- Each migration must declare:
-  - From version  
-  - To version  
-  - Required DB changes  
-  - Required file changes  
-  - Rollback rules  
+A **Module** is a concrete unit of functionality inside a block, usually corresponding to a small TS module or cluster of files in `src/`.
 
-AI must not perform migrations without:
-1. A migration file  
-2. User approval  
-3. Snapshot of affected data  
-4. Crossref consistency validation  
+Naming convention:
 
----
+- `<block>.<Name>`
 
-# 9. MODULE VALIDATION RULES
+Examples:
 
-Before enabling a module, backend must verify:
+- `core.foundation.ConfigService`
+- `core.foundation.Logger`
+- `core.storage.ProjectRegistry`
+- `core.auth.AuthSessionManager`
+- `core.permissions.PermissionService`
+- `core.ui.NavigationRouter`
 
-1. Spec file exists and passes lint  
-2. Metadata validates against schema  
-3. Dependencies satisfied  
-4. Storage-safe (follows `_AI_STORAGE_ARCHITECTURE.md`)  
-5. No conflicts with:
-   - UI system spec  
-   - Master rules  
-   - Templates & defaults  
+Each module has its own **module spec**:
 
-Static validation failures must block enablement.
+- `specs/modules/<block>/<moduleName>.md`
 
----
+For example:
 
-# 10. AI AGENT BOUNDARIES (EXTREMELY STRICT)
+- `specs/modules/core.storage/core.storage.ProjectRegistry.md`
+- `specs/modules/core.ui/core.ui.NavigationRouter.md`
 
-AI agents must **never**:
+These specs define:
 
-- Create a module without:
-  - spec  
-  - metadata  
-  - directory structure
+- Purpose & responsibilities
+- Public API (types/interfaces)
+- Behavior notes & constraints
+- Dependencies (what this module is allowed to touch)
 
-- Delete modules  
-- Modify repository modules at runtime  
-- Bypass validation  
-- Add capabilities not defined in metadata  
-- Add dependencies implicitly  
-- Touch migrations without human approval  
-- Modify module specs unless explicitly instructed through:
-  - PR flow  
-  - human request  
-  - destructive-change.json (when needed)
+### 2.3 Modules Overview (Inventory)
+
+There is a single canonical index of all blocks and modules:
+
+- `specs/modules/README.md`
+
+This file is the **machine-friendly inventory** and should be consulted by AI agents before attempting to:
+
+- add new modules
+- change existing ones
+- generate core/feature implementations
+
+It answers:
+
+- which blocks exist
+- which modules exist in each block
+- where the spec file for each module lives
+- what the spec-level status is (`SPEC_READY`, etc.)
 
 ---
 
-# 11. STOP CONDITIONS
+## 3. Layering & Dependency Rules
 
-AI MUST STOP if:
+The system follows simple layering rules:
 
-- Metadata missing or malformed  
-- Spec missing  
-- Capability undefined  
-- Dependency unclear  
-- Module referring to unknown capability  
-- User request ambiguous about:
-  - enabling  
-  - disabling  
-  - modifying  
-- Operation would break dependency graph  
-- Operation requires a migration but none exists  
-- Operation touches a “dangerous module” without approvals  
-- Module requires global invariants that are not present  
+### 3.1 Layer Ordering
 
-STOP means:
-- Do nothing  
-- Ask for clarification  
-- NEVER guess  
+From lowest level to highest:
 
----
+1. `lib.*` – shared, low-level utilities (geometry, image processing, etc.).  
+2. `core.*` – foundation for the entire app (auth, permissions, storage, UI shell, etc.).  
+3. `feature.*` – concrete product features (map workspace, sketching, file management, comments, etc.).  
+4. `ux/` & high-level specs – user experience descriptions and product behavior.  
+5. Application wiring & bootstrapping code.
 
-# 12. VERSIONING RULES
+### 3.2 Allowed Dependencies
 
-Follow semantic versioning:
-- **MAJOR** = breaking changes  
-- **MINOR** = new safe features  
-- **PATCH** = backward-compatible fixes  
+- `lib.*` may only depend on:
+  - other `lib.*` blocks (carefully)
+  - external libraries
+- `core.*` may depend on:
+  - `lib.*`
+  - other `core.*` blocks (respecting architectural intent)
+- `feature.*` may depend on:
+  - `core.*`
+  - `lib.*`
+- `ux/` and AI core specs (`specs/core/_AI_*.md`) may reference anything, but are not imported by code.
 
-AI must not bump versions unless:
-- A human approves  
-- A migration file exists (if needed)  
-- Changes are consistent with all specs  
+**Forbidden** examples:
 
----
+- `core.*` depending on `feature.*`
+- `lib.*` depending on `core.*` or `feature.*`
+- Feature modules jumping across layers in a way that breaks the above rules.
 
-# 13. MODULE LIFECYCLE
+When in doubt, favor:
 
-States:
-- `unavailable` (repo missing)  
-- `available`  
-- `validated`  
-- `enabled`  
-- `active`  
-- `error`  
-
-AI may request:
-- transitions between states  
-- re-validation  
-- dependency checks  
-
-AI must never force state changes.
+- shared logic → `lib.*`
+- cross-feature product logic → `core.*`
+- workflow-specific UI / behavior → `feature.*`
 
 ---
 
-# 14. SECURITY AND SANDBOXING
+## 4. Filesystem Layout for Specs
 
-Modules may not:
-- access out-of-scope storage  
-- modify files outside allowed runtime folder  
-- override global roles  
-- bypass UI security  
-- introduce unsafe migrations  
+### 4.1 Block Specs
 
-Modules running custom code must run in:
-- sandbox  
-- isolated worker  
-- restricted environment  
+All block-level specs live under:
+
+- `specs/blocks/`
+
+Examples:
+
+- `specs/blocks/core.foundation.md`
+- `specs/blocks/core.storage.md`
+- `specs/blocks/core.auth.md`
+- `specs/blocks/core.permissions.md`
+- `specs/blocks/core.ui.md`
+
+Future blocks (e.g. `feature.map`, `lib.geo`) will get their own `specs/blocks/<block>.md` file.
+
+### 4.2 Module Specs
+
+All module-level specs live under:
+
+- `specs/modules/<block>/<moduleName>.md`
+
+Examples:
+
+- `specs/modules/core.foundation/core.foundation.ConfigService.md`
+- `specs/modules/core.foundation/core.foundation.Logger.md`
+- `specs/modules/core.storage/core.storage.ProjectRegistry.md`
+- `specs/modules/core.auth/core.auth.AuthSessionManager.md`
+- `specs/modules/core.permissions/core.permissions.PermissionService.md`
+- `specs/modules/core.ui/core.ui.AppShell.md`
+
+### 4.3 Modules Inventory
+
+The global index is:
+
+- `specs/modules/README.md`
+
+This file is maintained manually (with AI assistance) and should always reflect the current set of modules and their spec status.
 
 ---
 
-# 15. RELATION TO OTHER SPECS
+## 5. Relationship to `_AI_*` Specs
 
-This document is bound by:
+The `_AI_*.md` docs under `specs/core/` are **high-level, AI-facing architecture documents**. They:
 
-- `_AI_MASTER_RULES.md`  
-- `_AI_STORAGE_ARCHITECTURE.md`  
-- `_AI_ROLES_AND_PERMISSIONS.md`  
-- `_AI_UI_SYSTEM_SPEC.md`  
-- `_AI_TEMPLATES_AND_DEFAULTS.md`  
-- `_AI_FILE_AND_IMAGE_PIPELINE_SPEC.md`  
+- describe domain areas (roles/permissions, UI system, storage, etc.)
+- define design principles and constraints
+- set expectations for behavior across blocks/modules
 
-In case of conflict:
-1. `_AI_MASTER_RULES.md` wins  
-2. `_AI_STORAGE_ARCHITECTURE.md`  
-3. Role & Permission spec  
-4. Module spec  
+The module system sits **in between** these and the actual code:
+
+- `_AI_*.md` → high-level design and behavior expectations
+- `specs/blocks/*.md` → block-level design
+- `specs/modules/**/*.md` → concrete contracts for implementation
+- `src/**` → actual code
+
+AI agents should:
+
+1. Read relevant `_AI_*.md` docs for context.
+2. Read the block spec for the block they are working in.
+3. Read the module spec(s) they need to touch.
+4. Only then modify or generate code.
 
 ---
 
-# 16. END OF DOCUMENT
+## 6. How AI Agents Should Use the Module System
 
-This document is authoritative.  
-All agents and backend code MUST follow it exactly.
+When doing **any non-trivial work**, AI agents should:
 
+1. **Start from the inventory:**
+   - Open `specs/modules/README.md`.
+   - Identify the relevant block(s) and module(s).
+2. **Read block spec:**
+   - For the chosen block, read `specs/blocks/<block>.md`.
+3. **Read module spec(s):**
+   - For each module to touch, read `specs/modules/<block>/<moduleName>.md`.
+4. **Check higher-level `_AI_*` specs if needed:**
+   - e.g. for permissions, see `_AI_ROLES_AND_PERMISSIONS.md`
+   - e.g. for UI shell, see `_AI_UI_SYSTEM_SPEC.md`
+5. **Respect layering rules:**
+   - Do not introduce dependencies that violate the allowed directions.
+6. **Keep the inventory up to date:**
+   - When adding a new module spec, register it in `specs/modules/README.md`.
+   - Mark status as `SPEC_DRAFT`, `SPEC_READY`, etc.
+
+This ensures the architecture remains stable, comprehensible, and maintainable as the system grows.
+
+---
+
+## 7. Future Work
+
+- Introduce and spec `lib.*` blocks for shared concerns (geo, image processing, etc.).
+- Introduce and spec `feature.*` blocks (map, sketch, files, comments, geo, imagePipeline).
+- Extend `specs/modules/README.md` with:
+  - simple dependency annotations per module
+  - implementation status (e.g. `IMPL_WIP`, `IMPL_DONE`).

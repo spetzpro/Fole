@@ -1,333 +1,238 @@
-# _AI_ROLES_AND_PERMISSIONS.md
-**Version:** 1.1.0  
-**Last-Updated:** 2025-11-23  
-**Status:** Authoritative Specification (SSOT)
+# AI Guidance: Roles & Permissions
 
-This file defines the complete, deterministic permissions model for FOLE.
-All AI agents, backend logic, and modules MUST follow this document exactly.
+File: `specs/core/_AI_ROLES_AND_PERMISSIONS.md`  
+Scope: How the AI should think about roles, permissions, overrides, and how they connect to the core.permissions modules.
 
 ---
 
-# 1. PRINCIPLES
+## 1. Goals
 
-1. **Least Privilege**  
-   No implicit powers. A user only has permissions explicitly granted via their role.
+The permission system must:
 
-2. **Deterministic Enforcement**  
-   When checking permissions: same inputs → same result. No heuristics. No guesses.
+- Be **flexible**: roles are configurable, not hard-coded forever.
+- Be **transparent**: users (especially admin-type users) should always understand *why* they have access.
+- Be **consistent**: the logic in code, specs, and UX behavior must align.
+- Make override behavior **explicit and visible**, never accidental or “magic admin.”
 
-3. **Deny-By-Default**  
-   If a permission is missing, unclear, or unspecified → the result is **DENY**.
+This document describes the high-level model. Concrete types and APIs live in:
 
-4. **One Role Per Project**  
-   A user may have multiple system roles, but only one project role per project.
+- `specs/modules/core.permissions/core.permissions.PermissionModel.md`
+- `specs/modules/core.permissions/core.permissions.PolicyRegistry.md`
+- `specs/modules/core.permissions/core.permissions.PermissionService.md`
+- `specs/modules/core.permissions/core.permissions.PermissionGuards.md`
 
-5. **No Guessing (AI Rule)**  
-   If an AI agent is unsure whether an action is allowed → it MUST STOP and ask.
+UX behavior for override visibility is detailed in:
 
-6. **System Roles are Immutable**  
-   System-level roles cannot be removed or altered.
-
----
-
-# 2. ROLE CATEGORIES
-
-FOLE defines three categories:
-
-### 2.1 System Roles (Global Scope)
-- SysAdmin
-
-### 2.2 Project Roles (Per-Project Scope)
-- ProjectOwner  
-- ProjectAdmin  
-- Custom roles (defined inside a project)
-
-### 2.3 Transient Roles
-- Guest (read-only minimal role)
+- `specs/ux/Project_Workspace_Experience.md` (Admin Override section)
 
 ---
 
-# 3. CORE ROLE DEFINITIONS (IMMUTABLE)
+## 2. Roles vs Permissions
 
-## 3.1 SysAdmin (System)
-**Scope:** Global  
-**Inheritance:** Inherits from ProjectOwner  
-**Immutable:** Yes
+### 2.1 Roles
 
-Capabilities:
-- Full authority over **system-wide** operations  
-- Manage global configuration  
-- Enable/disable modules globally  
-- Inspect system status  
-- Manage users platform-wide
+Roles are **human-friendly bundles** of permissions. Examples:
 
-Limitations:
-- SysAdmin **does NOT automatically gain control over projects**  
-- For project-scoped actions, SysAdmin is treated like having **no project role**  
-- Project access still requires:
-  - Being added to a project **OR**
-  - Having an explicit override for that project
+- System roles: `SysAdmin`, `ProjectOwner`, `ProjectAdmin`, `Viewer`
+- Custom roles: `FieldEngineer`, `QualityInspector`, etc.
 
-SysAdmin may execute:
-- System-scoped actions unconditionally  
-- Project-scoped actions only if granted or member of that project
+Roles may exist at different scopes:
 
----
+- **Global / system-level** roles (e.g. SysAdmin)
+- **Project-level** roles (e.g. ProjectOwner, ProjectAdmin, Viewer on a specific project)
 
-## 3.2 ProjectOwner
-**Scope:** Single project  
-**Inheritance:** Inherits from ProjectAdmin  
-**Immutable:** Yes
+Internally, a role resolves to a set of **effective permissions**, which are strings like:
 
-Capabilities:
-- Full control of the project  
-- Assign roles  
-- Delete the project  
-- Approve templates  
-- Change project modules/settings
+- `projects.read`
+- `projects.write`
+- `projects.manage`
+- `files.read`
+- `comments.create`
+- `sketch.edit`
 
-Cannot:
-- Change system configuration  
-- Perform system-scoped operations
+There may also be special *override* permissions (see below):
 
----
+- `projects.read.override`
+- `projects.write.override`
+- `projects.manage.override`
 
-## 3.3 ProjectAdmin
-**Scope:** Single project  
-**Inheritance:** None  
-**Immutable:** Yes
+### 2.2 Permissions
 
-Capabilities:
-- Full creation/editing power in the project  
-- Manage maps, sketches, files, comments  
-- Configure sketch features & tool behavior  
-- Create custom project roles
+A permission is the **atomic capability**. Examples:
 
-Cannot:
-- Delete project  
-- Promote/demote ProjectOwner  
-- Perform system-scoped operations
+- Read a project’s data
+- Edit a sketch
+- Delete a file
+- Manage roles for a project
+
+The core system uses a typed action model (`PermissionAction`) combined with a `ResourceDescriptor` for concrete checks:
+
+- `PermissionAction` – a finite set of actions such as `PROJECT_READ`, `PROJECT_WRITE`, `FILE_READ`, `FILE_WRITE`, `COMMENT_CREATE`, `SKETCH_EDIT`, etc.
+- `ResourceDescriptor` – describes the resource being accessed (project, file, sketch, comment, etc.).
+
+The mapping from actions + resources to literal permission strings (e.g. `"projects.read"`) is an internal implementation detail of the policy layer.
 
 ---
 
-## 3.4 Custom Role
-**Scope:** Project  
-**Inheritance:** Must inherit from **ProjectAdmin**  
-**Immutable:** No (created and managed by project admins)
+## 3. Effective Permissions & Context
 
-Limitations:
-- Cannot grant permissions exceeding ProjectOwner  
-- Cannot grant system-level powers  
-- Cannot violate deny-by-default rules  
-- Must follow inheritance tree
+The system evaluates permissions using a `PermissionContext`, which combines:
 
----
+- The **current user** (id, displayName, roles)
+- **Global permissions** (from system roles, org settings, etc.)
+- Optional **per-project membership** info, when relevant
 
-## 3.5 Guest
-**Scope:** Project  
-**Inheritance:** None  
-**Capabilities:** View-only  
-**Cannot:** Modify or delete anything
+Conceptually:
 
----
+- User → has global roles → yields global permissions
+- User + project membership → yields per-project permissions
 
-# 4. PERMISSION DOMAINS
+Concrete shape (see `PermissionModel` spec for exact types):
 
-Permissions are simple boolean flags: **allow** or **deny**.
+- `PermissionContext.user` – current user (or null).
+- `PermissionContext.globalPermissions: string[]` – e.g. `["projects.read.override", "projects.manage"]`.
+- `PermissionContext.projectMembership` – if applicable:
+  - `projectId`
+  - `roleId` (e.g. `"OWNER"`, `"VIEWER"`, `"CUSTOM_FIELD_ENGINEER"`)
+  - `permissions: string[]` – effective per-project permissions.
 
-## 4.1 Project Structure
-- project.view
-- project.edit.settings
-- project.delete
-- project.invite
-- project.manage.roles
-
-## 4.2 Maps
-- map.create
-- map.view
-- map.edit
-- map.delete
-- map.calibrate
-- map.import.image
-- map.export
-
-## 4.3 Sketches
-- sketch.create  
-- sketch.view  
-- sketch.edit  
-- sketch.delete  
-- sketch.feature.config  
-- sketch.tools.use  
-- sketch.tools.configure  
-
-## 4.4 Files / Assets
-- file.upload  
-- file.view  
-- file.delete  
-- file.insert.into.map  
-- file.insert.into.sketch  
-
-## 4.5 Comments
-- comment.create  
-- comment.edit  
-- comment.delete  
-- comment.attach.image  
-
-## 4.6 Admin & Configuration
-- module.enable  
-- module.configure  
-- template.edit  
-- template.apply  
-
-## 4.7 Dangerous Operations (require destructive-change.json)
-- storage.migrate  
-- storage.modify.schema  
-- storage.destroy.project  
+The permission system does **not** hard-code roles; it works off effective permissions. Roles are just one way to define those permissions.
 
 ---
 
-# 5. ROLE INHERITANCE (DETERMINISTIC)
+## 4. Override as a Permission (Not a Magic Role)
 
-### 5.1 Chain (top → bottom)
-- SysAdmin  
-- ProjectOwner  
-- ProjectAdmin  
-- CustomRole  
-- Guest  
+A key design decision:
 
-### 5.2 Inheritance Direction
-Higher roles inherit everything from the role **below** them.
+> Override is modeled as a **permission**, not as a special hard-coded role.
 
-### 5.3 Override Rules
-- Explicit **deny** always wins  
-- If a parent allows but child denies → deny  
-- If parent denies but child allows → allow (child explicitly overrides)  
+That means:
 
----
+- Being “an admin” is **not enough** by itself.
+- A user needs explicit override permissions like:
+  - `projects.read.override`
+  - `projects.write.override`
+  - `projects.manage.override`
 
-# 6. ENFORCEMENT LOGIC (SIMPLE, DETERMINISTIC)
+These permissions may be granted by:
 
-### 6.1 Rules
-1. If the permission is system-scoped → SysAdmin is always allowed  
-2. For project-scoped actions:
-   - If user is NOT a project member  
-     → DENY  
-3. Use role inheritance to resolve permissions  
-4. Explicit deny wins  
-5. Missing permission = deny  
-6. AI must STOP if:
-   - Role undefined  
-   - Permission undefined  
-   - Context unclear  
+- System roles (e.g. `SysAdmin` → includes override perms)
+- Custom admin-type roles
+- Direct per-user assignment (less common, but possible)
+
+The important part: **override is always explicit** and traceable.
 
 ---
 
-# 7. PERMISSION CHECK ALGORITHM (AUTHORITATIVE)
+## 5. Permission Decisions & Grant Source
 
-This replaces all weight tables, heuristics, and legacy ambiguity.
+Every permission check returns a `PermissionDecision` that includes:
 
-### Pseudocode
+- `allowed: boolean`
+- `reasonCode?: PermissionDeniedReason`
+- `grantSource?: GrantSource`
 
-```python
-def can(user, permission, projectId):
-    # 1. System-scoped operations
-    if permission.isSystemScoped():
-        if user.hasRole("SysAdmin"):
-            return True
-        else:
-            return False
+The `grantSource` field is crucial for admin/override transparency.
 
-    # 2. Project membership rule
-    if projectId is not None:
-        if not user.isMemberOf(projectId):
-            return False
+### 5.1 GrantSource
 
-    # 3. Resolve project role
-    role = user.getProjectRole(projectId)  # may be None
+Possible values:
 
-    # If no role → deny
-    if role is None:
-        return False
+- `"project_membership"`  
+  Access is granted via **normal project membership** permissions.
+- `"global_permission"`  
+  Access is granted via **global/system-level permissions** that are not override-specific.
+- `"override_permission"`  
+  Access is granted via **explicit override permissions**.
 
-    # 4. Check explicit rule on role
-    val = role.permission.get(permission)
-    if val == "deny":
-        return False
-    if val == "allow":
-        return True
+Example logic inside a policy handler (conceptually):
 
-    # 5. Walk inheritance chain downward
-    parent = role.inherits
-    while parent is not None:
-        v = parent.permission.get(permission)
-        if v == "deny":
-            return False
-        if v == "allow":
-            return True
-        parent = parent.inherits
+1. If the user has the needed permission in `projectMembership.permissions` →  
+   `allowed = true`, `grantSource = "project_membership"`
+2. Else if the user has a matching global permission (non-override) →  
+   `allowed = true`, `grantSource = "global_permission"`
+3. Else if the user has a matching override permission →  
+   `allowed = true`, `grantSource = "override_permission"`
+4. Else →  
+   `allowed = false`, `reasonCode = "INSUFFICIENT_ROLE"` (or more specific)
 
-    # 6. Nothing explicit found → deny
-    return False
-```
+This means the system always knows **how** access was granted.
 
 ---
 
-# 8. CUSTOM ROLE RULES
+## 6. Admin Override Visibility in UX
 
-Custom roles MUST follow:
+Admin-type users often have override permissions. It is critical they do **not** mistakenly believe:
 
-- Must inherit from ProjectAdmin  
-- May override specific permissions  
-- Cannot override system-level invariants  
-- Cannot exceed ProjectOwner authority  
-- Cannot implicitly allow undefined permissions  
+- “I’m seeing this because the project owner added me”  
+when in reality:
+- “I’m seeing this because I have override permissions.”
 
----
+The UX uses `PermissionDecision.grantSource` to make this visible.
 
-# 9. AI-SPECIFIC RULES
+### 6.1 Project List
 
-AI agents MUST:
+For project-level read access:
 
-- STOP on missing/ambiguous permissions  
-- NEVER assume upgrading a user role is allowed  
-- NEVER bypass the inheritance chain  
-- REQUIRE destructive-change.json for dangerous ops  
-- ALWAYS check whether a permission is project-scoped or system-scoped  
+- If `grantSource = "project_membership"`:
+  - Show the project as “normal” access (Owner/Viewer/etc.).
+- If `grantSource = "override_permission"` for a PROJECT_READ check:
+  - Show a label such as “Admin Access” / “Override Access”.
 
----
+### 6.2 Inside Workspace
 
-# 10. MACHINE-READABLE ROLE DEFINITIONS (APPENDIX)
+When a user opens a project workspace via override:
 
-```
-{
-  "systemRoles": {
-    "SysAdmin": {
-      "inherits": "ProjectOwner",
-      "immutable": true
-    }
-  },
-  "projectRoles": {
-    "ProjectOwner": {
-      "inherits": "ProjectAdmin",
-      "immutable": true
-    },
-    "ProjectAdmin": {
-      "inherits": null,
-      "immutable": true
-    },
-    "CustomRole": {
-      "inherits": "ProjectAdmin",
-      "immutable": false
-    },
-    "Guest": {
-      "inherits": null,
-      "immutable": false
-    }
-  }
-}
-```
+- Header shows a badge, e.g. **“Admin Override Enabled”**.
+- Tooltip explains:
+  > “You are seeing this project because you have override permissions.”
+
+### 6.3 Actions
+
+When a user performs actions allowed via override permissions (delete, edit, manage):
+
+- Buttons/controls may visually indicate override.
+- Hover tooltip might say:
+  > “This action is permitted because you have override permissions.”
+
+The contract is:
+
+- The **engine** sets `grantSource = "override_permission"` whenever override is used.
+- The **UI** is responsible for rendering that fact clearly.
+- Admin-type users should **always** know when they are overriding.
+
+This matches what is described in:
+
+- `specs/ux/Project_Workspace_Experience.md` (Admin Override section).
 
 ---
 
-**End of Document**  
-This file is the Single Source of Truth (SSOT) for all permission enforcement.
+## 7. Connection to the `core.permissions` Modules
+
+The high-level model in this file is implemented concretely by:
+
+- `core.permissions.PermissionModel`
+  - Defines `PermissionAction`, `ResourceDescriptor`, `PermissionContext`, `PermissionDecision`, `GrantSource`, etc.
+- `core.permissions.PolicyRegistry`
+  - Registers policy handlers for (action, resourceType) pairs.
+- `core.permissions.PermissionService`
+  - Looks up and executes the relevant policy, returns `PermissionDecision`.
+- `core.permissions.PermissionGuards`
+  - Convenience layer for services/UI (boolean checks, Result-returning guards, throwing guards).
+
+AI agents working on permissions should:
+
+1. Read this `_AI_ROLES_AND_PERMISSIONS.md` for the conceptual model.
+2. Read `PermissionModel` for the concrete types.
+3. Read `PolicyRegistry` + `PermissionService` for the wiring.
+4. Read UX specs when implementing behaviors that should show override visibility.
+
+---
+
+## 8. Future Directions
+
+- Add more fine-grained permission actions for future features (e.g. measurement tools, geo tasks, exports).
+- Add a dedicated “Role/Permission Management” UI (later feature block).
+- Add audit logging for override actions (especially destructive ones).
+
+The core model here (permissions + grantSource + override as explicit permission) should remain stable even as new features and roles are introduced.
