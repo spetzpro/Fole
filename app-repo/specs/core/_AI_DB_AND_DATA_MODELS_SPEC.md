@@ -106,8 +106,11 @@ Each map DB stores:
 - Tile index & tile metadata  
 - Optional performance caches (e.g., precomputed layers)  
 - Map-level analytics or statistics  
+- Map-local settings cache (non-authoritative, derived from project-level definitions)  
 
 **Rule:** business-critical entities (sketches, cabinets, tasks, etc.) **must not live only in map DBs**; they belong in project DB and may link to map DBs.
+
+Map-local settings MUST be treated as a **logical cache** of higher-level configuration, not as the only source of truth. Any authoritative, user-facing configuration that controls behavior across maps or projects MUST have a representation in the project DB or core DB.
 
 ---
 
