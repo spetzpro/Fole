@@ -1,310 +1,191 @@
-Version: 1.0.0  
-Last-Updated: 2025-11-23  
-Status: Authoritative Specification (SSOT)
+# AI Guidance: File & Image Pipeline
 
-# _AI_FILE_AND_IMAGE_PIPELINE_SPEC.md
-File, image, raster, vector, ICC, metadata, tile, and normalization rules.
-
-This document defines:
-- how FOLE ingests, parses, normalizes, converts, tiles, and stores all files & images,
-- how metadata is handled,
-- how ICC profiles and color spaces are processed,
-- how EXIF orientation is applied,
-- how multi-page formats behave,
-- rules for PSD/AI/SVG,
-- tile pyramid generation and cache behavior,
-- and which operations AI agents are allowed or forbidden to perform.
-
-This spec is binding for all backend logic, renderers, importers, exporters, and AI agents.
+File: `specs/core/_AI_FILE_AND_IMAGE_PIPELINE_SPEC.md`  
+Scope: How the AI should think about the end-to-end file/image pipeline: uploads, normalization, tiling, storage, and how this integrates with workspace features.
 
 ---
 
-# 1. PURPOSE & GOALS
+## 1. Goals
 
-1. Provide a deterministic, safe, platform-wide file & image pipeline.
-2. Define exact behavior for:
-   - EXIF orientation
-   - ICC profiles
-   - color spaces
-   - normalization
-   - raster/vector ingestion
-   - multi-page files
-   - PSD composite extraction
-3. Guarantee pixel-perfect reproducibility across systems.
-4. Enforce a single canonical output format.
-5. Prevent AI agents from bypassing or altering pipeline safety rules.
+The file and image pipeline must:
 
----
+- Handle **user-supplied images** (floorplans, photos, scans) safely and predictably.
+- Normalize images into a **canonical internal format** where possible.
+- Support **zoomable map viewing** via tiles or multi-resolution images.
+- Maintain **color correctness** and orientation.
+- Be compatible with the storage architecture and geo/calibration system.
 
-# 2. SUPPORTED INPUT FORMATS
+This document is conceptual; concrete behavior will be specified in feature and module specs such as:
 
-## 2.1 Raster Formats
-- JPEG (.jpg, .jpeg)
-- PNG (.png)
-- TIFF (.tif, .tiff)  
-  Supports:
-  - multi-page
-  - tiled TIFF
-  - LZW/ZIP/Deflate
-  - 8/16-bit grayscale
-  - 8/16-bit RGB
-  - CMYK (converted)
-  - alpha (straight/premultiplied)
-- WebP (.webp)
-- AVIF (.avif)
-- BMP (.bmp)
-
-## 2.2 Vector & Hybrid Formats
-- PDF — page 1 default
-- SVG — sanitized
-- AI — PDF stream extracted
-- PSD — composite only
-
-## 2.3 Forbidden Formats
-Reject:
-- RAW formats (CR2/NEF/ARW/etc.)
-- HEIC/HEIF (unless explicitly supported later)
-- EPS (unless manually preflighted)
-- Executable formats
-
-AI MUST NOT bypass these rules.
+- `feature.map.*` (future)
+- `lib.image.*` (future)
+- `core.storage.FileStorage`
+- `core.storage.ProjectModel` (for map/file metadata)
 
 ---
 
-# 3. CANONICAL NORMALIZATION PIPELINE
+## 2. File Types and Scope (MVP)
 
-All images MUST be converted into the FOLE Canonical Format.
+MVP focus:
 
-## FOLE Canonical Format
-- Pixel format: 16-bit per-channel
-- Color space: **linear sRGB**
-- Alpha: **straight alpha**
-- Orientation: EXIF normalized
-- ICC: stripped and replaced with canonical sRGB profile
-- Container: **TIFF**
-- Compression: Deflate
-- Internal tile size: 256×256 or 512×512
+- Input types:
+  - Common image formats: PNG, JPEG, TIFF (including large scans).
+  - Possibly PDF (first page as a rendered image) – can be added later.
+- Primary use case:
+  - A single floorplan or map image per project (MVP).
+- Other files:
+  - Reference photos, documents – stored and previewed with a simpler path.
 
-Canonically normalized TIFF is the only long-term storage format.
+We will gradually generalize, but the core pipeline design assumes:
 
-Everything else is transient.
+> “User uploads a floorplan-like image → we normalize → we store → we serve it as a zoomable map.”
 
 ---
 
-# 4. EXIF & METADATA RULES
+## 3. Canonical Image Format & Normalization
 
-## 4.1 EXIF Orientation
-On ingestion:
-- read EXIF orientation,
-- rotate/flip pixel data,
-- bake orientation,
-- remove EXIF orientation tag,
-- record original orientation in metadata.
+The pipeline should convert images into a **canonical internal representation** suitable for:
 
-Orientation MUST NEVER remain as EXIF metadata.
+- tiling
+- zooming
+- calibration
+- consistent rendering
 
-## 4.2 Original Metadata Recording
-Store JSON in project.db:
-- filename
-- format
-- width/height
-- ICC profile name
-- EXIF data (safe subset)
-- normalization timestamp
+Guidelines:
 
-## 4.3 Strip Unsafe Metadata
-Remove:
-- GPS
-- creator info
-- software versions
-- camera serial numbers
-- any XMP block containing identity information
+- Choose a canonical working format that is:
+  - lossless or visually stable (e.g. PNG, or a visually lossless TIFF/PNG pipeline).
+  - widely supported by tooling.
+- Always respect:
+  - EXIF orientation (normalize pixels accordingly).
+  - Color profiles (ICC), converting to a canonical working color space (e.g. sRGB) for display.
 
----
+Normalization steps (conceptual):
 
-# 5. ICC & COLOR SPACE RULES
+1. **Decode** input image from its original format.
+2. **Apply EXIF orientation** so the image pixels are in “upright” orientation.
+3. **Handle color profiles**:
+   - If an embedded ICC profile exists, convert to the canonical working space.
+4. **Re-encode** (if necessary) into the canonical internal format to be used for tiling and storage.
 
-## 5.1 If ICC profile present
-- Read ICC
-- Convert to **linear sRGB**
-- Replace ICC with canonical sRGB profile
+Original file:
 
-## 5.2 If no ICC
-- Assume sRGB
-- Convert to linear sRGB
-
-## 5.3 CMYK
-- Convert CMYK → sRGB using relative colorimetric intent with black-point compensation.
-
-## 5.4 Legal/Illegal Color Behaviors
-Legal:
-- convert → linear sRGB
-- replace ICC with canonical profile
-
-Illegal:
-- preserve CMYK
-- output CMYK/Lab
-- embed noncanonical ICC in normalized output
-
-AI MUST NOT violate these.
+- May be preserved as a “raw upload” for future export if storage allows.
+- Or we may choose to only keep the processed version (tradeoff decision, project-level).
 
 ---
 
-# 6. MULTI-PAGE FORMAT BEHAVIOR
+## 4. Tiling and Multi-Resolution Representation
 
-## 6.1 TIFF
-- import page 1 by default
-- allow user to pick other pages
+To support smooth zooming and panning in the workspace, the system should support a tiling or multi-resolution strategy for map images.
 
-## 6.2 PDF
-- import page 1 unless explicitly chosen otherwise
+Conceptual options:
 
-## 6.3 PSD
-- extract composite only
-- ignore layers
+- Pyramidal tiling (e.g. similar to Deep Zoom / XYZ tiles).
+- Multi-resolution single-file formats (less likely for web, more for internal processing).
 
----
+MVP direction:
 
-# 7. VECTOR RULES
+- For simplicity and compatibility, design around **2D image tiles**:
+  - e.g. 256x256 or 512x512 tiles at multiple zoom levels.
 
-## 7.1 SVG
-Sanitize:
-- remove JS
-- remove external references
-- remove embedded fonts
-- flatten transforms
-- rasterize at import DPI
+Requirements:
 
-## 7.2 AI/EPS
-- AI → use internal PDF stream
-- EPS → reject unless manually trusted
+- Tiles should be derived from the **normalized canonical image**, not the raw upload.
+- Tile generation can be:
+  - synchronous for small images,
+  - asynchronous (background job) for large images.
+- Tiles are stored under the project’s storage hierarchy, e.g.:
 
----
+  ```text
+  STORAGE_ROOT/projects/<projectId>/files/maps/<mapId>/tiles/z/x_y.png
+  ```
 
-# 8. RASTERIZATION RULES
+Exact path layout may be implemented in:
 
-## 8.1 DPI Handling
-If DPI known:
-- use provided DPI
-
-If unknown:
-- assume 96 DPI
-
-Maps with real units:
-- DPI = pixels / physical_size
-
-AI MUST NOT hallucinate DPI.
-
-## 8.2 Alpha
-- convert premultiplied alpha → straight alpha
-
-## 8.3 Bit Depth
-- convert all input to 16-bit per channel
+- `lib.image.*` (tile generation helpers, future)
+- `feature.map.*` (map-specific behavior)
+- `FileStorage` (binary IO)
 
 ---
 
-# 9. TILE PYRAMID (GLOBAL)
+## 5. Integration with Storage
 
-After normalization, system generates tile pyramid:
+All file operations must go through:
 
-## 9.1 Levels
-L0 = full resolution  
-L1 = 50%  
-L2 = 25%  
-continue until <1 tile
+- `core.storage.FileStorage` (for binary data / file paths)
+- `core.storage.ProjectPathResolver` (for folder layout)
 
-## 9.2 Tile Format
-- PNG ONLY
-- 512×512
+Map images:
 
-Path:
-/tiles/<imageId>/L<level>/<x>_<y>.png
+- Should be referenced in DB (e.g. `maps` table) with:
+  - `id`
+  - `file_key` or `file_id` (to locate the normalized image)
+  - width, height (normalized pixel dimensions)
+  - possibly DPI or scale metadata for calibration.
 
+Other files:
 
-## 9.3 Cache Invalidations
-Any change to canonical TIFF:
-- clear tile directory
-- regenerate tiles lazily
+- Are stored and tracked similarly, but without the tiling/geo requirements.
 
----
+Temporary data:
 
-# 10. ATOMIC STORAGE RULES
-
-All writes MUST follow `_AI_STORAGE_ARCHITECTURE.md`:
-
-1. write to tmp on same filesystem  
-2. fsync files  
-3. atomic rename  
-4. fsync parent  
-5. update DB manifest  
-
-AI MUST NOT bypass tmp → rename pipeline.
+- Intermediate and partial outputs (e.g. partially generated tiles) are written to the project’s `tmp/` folder before being promoted into final locations.
 
 ---
 
-# 11. PREVIEW RULES
+## 6. Security & Safety Considerations
 
-## 11.1 Thumbnails
-- rendered only from canonical TIFF  
-- max dimension 512px  
+The pipeline should be robust against:
 
-## 11.2 Vector Previews
-- sanitize → rasterize → preview  
+- Malicious files:
+  - suspicious formats masquerading as images
+  - extremely large resolution or file size
+- Resource exhaustion:
+  - memory usage when decoding large images
+  - CPU and IO usage during tiling
 
----
+Guidelines:
 
-# 12. ERROR HANDLING (STRICT)
-
-Reject on:
-- corrupt ICC
-- corrupt EXIF
-- unreadable orientation
-- unsupported color space
-- unsupported format
-- resolution too large
-- invalid multi-page index
-
-AI MUST STOP and ask user in these cases.
+- Enforce:
+  - maximum dimensions (e.g. reject images beyond some width/height).
+  - maximum file sizes.
+- Use safe decoders from reputable libraries.
+- Consider a time/size guardrail for processing pipelines.
 
 ---
 
-# 13. AI OPERATIONAL RULES
+## 7. Relationship to Geo & Calibration
 
-AI MUST:
-- load this spec before any file/image action
-- never bypass normalization
-- never request or generate noncanonical stored formats
-- always use DAL/storage API
+Geo/calibration is described in:
 
-AI MUST STOP if:
-- file type cannot be determined
-- DPI unclear
-- ICC missing and user did not confirm assumption
-- multi-page request ambiguous
-
-AI MUST NOT:
-- manipulate ICC manually
-- skip sanitization
-- write directly to tile directories
-- create multi-layer TIFFs
-- store WebP/AVIF as canonical format
-- alter pyramid level geometry
-
----
-
-# 14. RELATION TO OTHER SPECS
-
-This spec works with:
-- `_AI_STORAGE_ARCHITECTURE.md`
 - `_AI_GEO_AND_CALIBRATION_SPEC.md`
-- `_AI_TEMPLATES_AND_DEFAULTS.md`
-- `_AI_MASTER_RULES.md`
 
-If conflict occurs:  
-**This document wins for all file/image behavior paths.**
+The image pipeline must:
+
+- Preserve stable pixel coordinates in the normalized image.
+- Ensure that calibration data (mapping pixel → world coordinates) remains valid as long as the underlying normalized image is unchanged.
+- When reprocessing or replacing a map image:
+  - be clear about whether calibration remains valid or must be recomputed.
+
+Map and calibration modules should always use:
+
+- the normalized canonical image dimensions
+- not the original input image dimensions
+
+for all pixel-based calculations.
 
 ---
 
-# END OF DOCUMENT
-This spec is authoritative.  
-All agents and backend services MUST follow it exactly.
+## 8. Future Directions
+
+Future enhancements may include:
+
+- PDF ingestion:
+  - render page 1 or selected pages to canonical images.
+- Vector-based floorplans:
+  - process and rasterize into maps, while preserving vector data for other uses.
+- More advanced color management for print workflows.
+- Dedicated `feature.imagePipeline` and `lib.image` blocks with fine-grained modules.
+
+This spec should be revisited as soon as we start designing the `feature.map` and `feature.imagePipeline` module specs.

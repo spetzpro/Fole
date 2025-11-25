@@ -1,324 +1,236 @@
+# AI Guidance: Error Handling & Diagnostics
 
-# _AI_ERROR_HANDLING_AND_DIAGNOSTICS_SPEC.md
-Version: 1.0.0  
-Last-Updated: 2025-11-23  
-Status: Authoritative Specification (SSOT)
-
-# AI Error Handling & Diagnostics Specification  
-Defines how FOLE detects, classifies, reports, logs, and recovers from errors — for both backend services and AI agents.
-
-This document standardizes:
-- Error classes  
-- Diagnostic reporting  
-- Recovery behavior  
-- AI STOP rules  
-- Structured error envelopes  
-- Logging and traceability  
-- How modules must surface errors  
-- How AI must respond to them  
-
-This spec is **binding** for backend services, all modules, all AI agents, and the automation engine.
+File: `specs/core/_AI_ERROR_HANDLING_AND_DIAGNOSTICS_SPEC.md`  
+Scope: How the AI should think about errors, logging, diagnostics, and their relationship to `core.foundation` and other blocks.
 
 ---
 
-# 1. PURPOSE
+## 1. Goals
 
-The error‑handling system must ensure:
+Error handling and diagnostics must:
 
-1. **Safety** — errors never lead to silent corruption.  
-2. **Determinism** — errors are classified the same way everywhere.  
-3. **Observability** — diagnostics always expose enough context.  
-4. **AI correctness** — AI must not guess around failures.  
-5. **Structured output** — errors must always follow the same schema.  
-6. **Recoverability** — all recoverable errors must be recoverable.  
-7. **Isolation** — module-specific failures must not cascade.  
+- Provide **clear, consistent error information** to users and developers.
+- Use a common **AppError** shape and `Result<T, AppError>` for recoverable failures.
+- Ensure all layers have access to a **Logger** and a **DiagnosticsHub** for deeper visibility.
+- Avoid crashing the app for non-fatal issues, while still surfacing problems.
 
----
+This doc is conceptual. Concrete contracts are defined in:
 
-# 2. ERROR CLASSES (MANDATORY)
-
-All errors MUST be assigned one and only one of these classes:
-
-## 2.1 `VALIDATION_ERROR`
-- Invalid user input  
-- Schema mismatch  
-- Missing required fields  
-- Bad JSON  
-- Invalid file type  
-
-AI RULE: **STOP** and request user correction.
-
-## 2.2 `PERMISSION_DENIED`
-- User lacks required permission per `_AI_ROLES_AND_PERMISSIONS.md`
-
-AI RULE:  
-**Do not retry.  
-Do not suggest bypassing.  
-Tell user they lack permissions.**
-
-## 2.3 `NOT_FOUND`
-- Project/map/file/DB row does not exist.  
-
-AI RULE: STOP and ask for clarification.
-
-## 2.4 `CONFLICT`
-- Race condition  
-- Edit collision  
-- Version mismatch  
-- Overlapping writes  
-
-AI RULE:  
-Attempt a **safe retry** only if the spec allows.  
-Otherwise STOP.
-
-## 2.5 `RATE_LIMITED`
-- Too many operations  
-- Project exceeded quotas  
-- Module-specific throttling  
-
-AI RULE:  
-Inform user.  
-DO NOT retry automatically.
-
-## 2.6 `RESOURCE_EXCEEDED`
-- CPU, memory, disk limits exceeded  
-- Automation exceeded quota  
-- Tile generation overrun  
-
-AI RULE:  
-STOP. Ask user whether to attempt again with different parameters.
-
-## 2.7 `STORAGE_ERROR`
-Defined by `_AI_STORAGE_ARCHITECTURE.md`:
-- Fsync failure  
-- Rename failure  
-- WAL checkpoint failure  
-- DB locked  
-- Filesystem full  
-
-AI RULE:  
-STOP.  
-Never continue after a storage error.  
-Ask user to resolve disk/permission issues.
-
-## 2.8 `NETWORK_ERROR`
-For deployments using remote object stores:
-- S3/GCS failures  
-- Timeout  
-- TLS error  
-
-AI RULE:  
-Retry **only** if the backend indicates retryable via error field.
-
-## 2.9 `MODULE_ERROR`
-A module surfaced an internal error.  
-Modules MUST expose:
-
-```
-code
-module
-message
-diagnostic
-recoverable: true/false
-```
-
-AI RULE:  
-If recoverable: attempt safe retry.  
-If not recoverable: STOP.
-
-## 2.10 `FATAL`
-- Corruption  
-- Internal invariants violated  
-- Impossible states  
-- Recursive automation detected  
-- Unauthorized privilege escalation attempt  
-
-AI RULE:  
-STOP immediately.  
-Do not retry.  
-Inform user.
+- `specs/modules/core.foundation/core.foundation.CoreTypes.md`
+- `specs/modules/core.foundation/core.foundation.Logger.md`
+- `specs/modules/core.foundation/core.foundation.DiagnosticsHub.md`
+- `specs/modules/core.ui/core.ui.ErrorBoundary.md`
 
 ---
 
-# 3. ERROR ENVELOPE FORMAT (REQUIRED)
+## 2. AppError and Result
 
-Every error returned by backend MUST follow:
+Central error types come from `core.foundation.CoreTypes`:
 
-```json
-{
-  "error": true,
-  "class": "VALIDATION_ERROR",
-  "code": "PROJECT_NAME_INVALID",
-  "message": "Project name cannot contain special characters.",
-  "context": {
-    "projectId": "abc123"
-  },
-  "recoverable": false,
-  "retry": false,
-  "traceId": "uuid",
-  "timestamp": "2025-11-23T12:30:00Z"
-}
-```
+- `AppError`
+- `Result<T, AppError>`
 
-Fields:
-- `class` — one of Section 2  
-- `code` — stable machine-readable string  
-- `message` — human explanation  
-- `context` — structured metadata  
-- `recoverable` — can user retry?  
-- `retry` — may backend safely retry?  
-- `traceId` — links to logs  
+Principles:
 
----
+- Prefer returning `Result<T, AppError>` from:
+  - service functions
+  - DAL operations
+  - permission checks
+  - other core logic.
+- Reserve throwing for:
+  - unexpected programming errors
+  - framework-level issues
+  - React boundaries (`ErrorBoundary`) that catch and report.
 
-# 4. AI AGENT RULES
+`AppError` structure:
 
-AI MUST:
+- `code: string` – machine-readable identifier (e.g. `PERMISSION_DENIED`, `NOT_FOUND`, `DB_ERROR`).
+- `message: string` – human-readable.
+- `details?: unknown` – extra data for debugging.
+- `cause?: unknown` – underlying error.
 
-1. Load this spec before interpreting any error.  
-2. Use `class` to decide behavior — never infer from wording.  
-3. STOP if:  
-   - class is unknown  
-   - retry semantics unclear  
-   - permissions insufficient  
-   - storage error occurred  
-   - fatal error occurred  
-4. Never generate made‑up recovery steps.  
-5. Never bypass permission-denied errors.  
-6. If the error refers to a spec area (storage, roles, templates, geo, image pipeline):  
-   Load that spec and apply rules.  
+Codes should be:
 
-AI MAY:
-- Offer corrected input for validation errors.  
-- Propose non-destructive recoverable operations.  
-
-AI MUST NOT:
-- Auto-create missing resources unless user asked.  
-- Retry destructive operations.  
-- Retry after storage errors.  
+- short
+- stable
+- centrally documented (this spec + future error catalog).
 
 ---
 
-# 5. DIAGNOSTIC CONTEXT RULES
+## 3. Logger
 
-Every backend operation MUST produce diagnostics containing:
+`core.foundation.Logger` provides a scoped logging API:
 
-- operation name  
-- target resource  
-- duration  
-- parameters  
-- db queries executed  
-- file operations executed  
-- module invoked  
-- success/failure  
-- traceId  
+- `getLogger(scope: string)` → `Logger`
+- Levels: `debug`, `info`, `warn`, `error`
 
-Diagnostics must be stored in:
-- automation logs  
-- per-project logs  
-- server audit logs  
+Guidelines:
 
----
+- Each module/block should use a **descriptive scope**:
+  - `"core.storage.ProjectRegistry"`
+  - `"feature.map.MapViewport"`
+  - `"core.permissions.PermissionService"`, etc.
+- Logging must never throw.
+- Log calls should be meaningful:
+  - include relevant context in `meta`.
+  - avoid spamming with unstructured noise.
 
-# 6. LOGGING REQUIREMENTS
+In tests:
 
-Logs MUST contain:
-- timestamp  
-- severity  
-- module  
-- action  
-- message  
-- traceId  
-- userId (nullable)  
-
-Logs MUST be:
-- immutable  
-- append-only  
-- included in server exports  
-
-Logs MUST NOT contain:
-- passwords  
-- tokens  
-- raw OAuth secrets  
-- binary blobs  
+- Logs may be:
+  - silenced, or
+  - captured for assertions.
 
 ---
 
-# 7. DEBUG & VERBOSE MODES
+## 4. DiagnosticsHub
 
-Two modes:
+`core.foundation.DiagnosticsHub` aggregates diagnostics events:
 
-## 7.1 Debug Mode
-Includes:
-- SQL statements  
-- file paths  
-- module diagnostics  
+- non-fatal errors
+- warnings
+- performance signals (later)
+- permission denials (optional, aggregated)
 
-NEVER enabled in production unless explicitly turned on by sysadmin.
+Use cases:
 
-## 7.2 Verbose Mode
-Includes:
-- high-level events  
-- performance metrics  
-- module summaries  
+- capturing structured diagnostic events in one place
+- feeding data to:
+  - dev console
+  - logs
+  - future monitoring/alerting systems
 
-Safe for production.
+Modules may:
 
----
-
-# 8. RECOVERY RULES
-
-8.1 Recoverable Errors
-- module recoverable error  
-- retryable network error  
-- conflict retry  
-AI may assist user.
-
-8.2 Non‑Recoverable Errors
-- storage error  
-- fatal error  
-- permission denied  
-- corrupted DB  
-
-AI must STOP.
+- emit events to DiagnosticsHub when:
+  - migrations fail
+  - unexpected DB/state inconsistencies occur
+  - repeated permission denials might indicate a misconfiguration.
 
 ---
 
-# 9. STOP CONDITIONS
+## 5. UI Error Boundaries
 
-AI MUST STOP when:
+`core.ui.ErrorBoundary` wraps key UI surfaces:
 
-- error class unknown  
-- retry allowed? unclear  
-- operation ambiguous  
-- missing required approvals  
-- spec conflict  
-- destructive recovery step needed  
-- storage invariant violated  
+- Catches thrown errors in React components.
+- Renders:
+  - a safe fallback UI
+  - user-friendly messaging
+- Logs details via Logger/DiagnosticsHub.
 
-STOP means:
-- Do not retry  
-- Do not guess  
-- Ask user  
+Guidelines:
 
----
-
-# 10. RELATION TO OTHER SPECS
-
-This spec relies on:
-
-- `_AI_STORAGE_ARCHITECTURE.md`  
-- `_AI_ROLES_AND_PERMISSIONS.md`  
-- `_AI_GEO_AND_CALIBRATION_SPEC.md`  
-- `_AI_TEMPLATES_AND_DEFAULTS.md`  
-- `_AI_MODULE_SYSTEM_SPEC.md`  
-
-If conflict:
-1. `_AI_MASTER_RULES.md` overrides  
-2. Storage spec overrides this  
-3. Permissions spec overrides module errors  
+- Error boundaries should not expose sensitive details to end-users.
+- They should provide:
+  - a way to retry
+  - navigation back to a safe screen (e.g. Project List).
+- Under the hood, they can:
+  - log full stack traces
+  - include route and state info in diagnostics (careful with PII).
 
 ---
 
-END OF DOCUMENT  
-_AI_ERROR_HANDLING_AND_DIAGNOSTICS_SPEC.md
+## 6. Permission & Override Diagnostics
+
+For permission checks (`core.permissions`):
+
+- Permission failures should usually **not** be treated as errors:
+  - they are expected outcomes in many workflows.
+- However, repeated or unexpected permission denials may indicate:
+  - misconfigured roles
+  - bugs in policy logic
+  - misuse of APIs
+
+Guidelines:
+
+- PermissionService returns a `PermissionDecision` with:
+  - `allowed`
+  - `reasonCode`
+  - `grantSource` (for allowed decisions)
+- Consumers may:
+  - log unusual patterns (e.g. frequent `UNKNOWN` or `NOT_AUTHENTICATED` reasons).
+  - pass selected events to DiagnosticsHub for analysis.
+
+Override-specific behavior:
+
+- When `grantSource = "override_permission"`, it’s not an error *per se*, but:
+  - some actions (especially destructive ones) may warrant extra audit/diagnostic events later.
+
+---
+
+## 7. Storage & DB Error Handling
+
+Storage and DB operations (FileStorage, DAL, migrations) should:
+
+- return `Result<T, AppError>` when failures are expected/possible.
+- use error codes such as:
+  - `STORAGE_NOT_FOUND`
+  - `STORAGE_IO_ERROR`
+  - `DB_CONNECTION_FAILED`
+  - `DB_MIGRATION_FAILED`
+
+On serious failures:
+
+- log via Logger with scope (e.g. `"core.storage.MigrationRunner"`).
+- emit diagnostic events with:
+  - projectId
+  - operation
+  - high-level outcome.
+
+Certain failures may be considered **fatal for a given project** (e.g. migration failure), but the app as a whole should still run and show a clear error.
+
+---
+
+## 8. Image/Geo Pipeline Errors
+
+Image pipeline and geo/calibration modules should:
+
+- **validate inputs** (dimensions, file types, coordinate ranges).
+- fail fast with clear errors when inputs are invalid.
+- prefer not to store partially-processed data.
+
+Examples:
+
+- If a floorplan image is too large → `IMAGE_TOO_LARGE`.
+- If calibration points are inconsistent → `CALIBRATION_INVALID`.
+
+Such errors:
+
+- should be surfaced to the user with helpful hints.
+- should be logged with enough context for debugging (without leaking sensitive coordinates in logs if that’s a concern).
+
+---
+
+## 9. Monitoring & Alerting (Future)
+
+This spec is primarily about **local** error handling and diagnostics.
+
+Future work (`_AI_MONITORING_AND_ALERTING_SPEC.md`) will describe:
+
+- shipping logs and diagnostics to a central system
+- setting up alerts for:
+  - repeated DB migration failures
+  - storage errors
+  - high rates of unexpected AppError codes
+
+---
+
+## 10. How AI Agents Should Behave
+
+When generating or modifying code:
+
+- Prefer `Result<T, AppError>` for operations that can fail in normal ways.
+- Use `AppError` codes that are:
+  - meaningful
+  - re-usable
+  - consistent with other modules.
+- Ensure all unexpected branches:
+  - either throw (to be caught at a boundary) or
+  - return a failure Result with an appropriate code.
+- Add logging and/or diagnostics at:
+  - error paths
+  - important state transitions
+  - rare but significant events.
+
+This spec should be consulted together with the relevant module specs for `core.foundation` and the `_AI_*` docs for specific domains (storage, image pipeline, geo, etc.).

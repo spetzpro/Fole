@@ -1,346 +1,246 @@
-# _AI_STORAGE_ARCHITECTURE.md
-Document-Version: 1.1.0  
-Last-Updated: 2025-11-23T00:00:00Z
+# AI Guidance: Storage Architecture
 
-# AI STORAGE ARCHITECTURE SPEC  
-Authoritative specification for all storage behavior, rules, atomicity guarantees, DB handling, and AI constraints.
+File: `specs/core/_AI_STORAGE_ARCHITECTURE.md`  
+Scope: How the AI should think about filesystem layout, STORAGE_ROOT, project folders, and how this ties into the `core.storage` modules.
 
 ---
 
-# 1. PURPOSE
-This file defines:
-- How all storage is structured.
-- How files, database operations, manifests, and atomic writes must occur.
-- What AI agents are allowed to do, forbidden to do, and required to do in storage-related tasks.
-- Required safety patterns to prevent corruption, partial writes, or invalid migrations.
+## 1. Goals
 
-This document is binding.  
-If any behavior or code conflicts with this file → the spec wins.
+The storage architecture must:
+
+- Be **predictable** and **inspectable** on disk (easy to debug).
+- Keep **project data isolated** from each other.
+- Support **safe concurrent access** and **atomic writes**.
+- Work well with both local development and future remote/hosted scenarios.
+- Integrate cleanly with the module system (`core.storage.*`).
+
+This document is *conceptual*. Concrete contracts live in:
+
+- `specs/modules/core.storage/core.storage.ProjectModel.md`
+- `specs/modules/core.storage/core.storage.ProjectPathResolver.md`
+- `specs/modules/core.storage/core.storage.FileStorage.md`
+- `specs/modules/core.storage/core.storage.ProjectRegistry.md`
+- `specs/modules/core.storage/core.storage.DalContextFactory.md`
+- `specs/modules/core.storage/core.storage.MigrationRunner.md`
+- `specs/modules/core.foundation/core.foundation.ConfigService.md`
 
 ---
 
-# 2. STORAGE_ROOT STRUCTURE
+## 2. STORAGE_ROOT and High-Level Layout
 
-All runtime and persistent data exist under a single root directory named:
+All application data lives under a **single root directory**, called `STORAGE_ROOT`.
 
-```
+In dev this might be:
+
+- `./.storage/` inside the repo  
+In production it might be:
+
+- `/var/fole-data/`  
+- or any admin-configured path.
+
+`STORAGE_ROOT` is configured via:
+
+- `ConfigService.getAppConfig().storage.projectsRoot` (or similar).
+
+### 2.1 Project-Oriented Layout
+
+Within `STORAGE_ROOT`, projects are stored under a `projects/` folder:
+
+```text
 STORAGE_ROOT/
+  projects/
+    <projectId>/
+      project.json
+      project.db
+      files/
+        ...
+      tmp/
+        ...
 ```
 
-It must live on a **single filesystem** (to guarantee atomic rename).
+Key points:
 
-When `STORAGE_ROOT` lives **inside this repository**, it MUST be set to:
+- `projectId` is a **stable identifier** (string/UUID).
+- Each project gets its **own folder**, with:
+  - Metadata/config in `project.json` (shape defined in `ProjectModel`).
+  - A SQLite DB in `project.db` (schema managed by `MigrationRunner`).
+  - Binary files in `files/`.
+  - Temporary files in `tmp/`.
 
-```
-app-repo/.storage/
-```
+No other code should construct paths by hand; instead, it uses:
 
-The leading dot on `.storage/` marks it as **runtime storage, not source code**. This directory is never committed to version control and is reserved exclusively for application-level persistent data (databases, manifests, tiles, attachments, exports, etc.).
-
-The `localstorage/` directory at the repo root is reserved for **development and automation runtime state** (e.g., ChatGPT / VS Code agents) and MUST NOT be used as the application’s canonical `STORAGE_ROOT`.
-
-## 2.1 Directory Structure (Authoritative)
-```
-STORAGE_ROOT/
-├── core/
-│   └── core.db
-│
-├── projects/
-│   └── <projectUUID>/
-│       ├── config.json
-│       ├── project.db
-│       ├── assets/
-│       ├── maps/
-│       │   └── <mapUUID>/
-│       │       ├── map.db
-│       │       ├── tiles/
-│       │       ├── files/
-│       │       └── tmp/
-│       ├── files/
-│       └── tmp/
-│
-├── modules/
-│   └── <moduleName>/
-│       ├── state/
-│       │   └── <stateId>.json
-│       └── tmp/
-│
-└── tmp/ (global tmp)
-```
-
-## 2.2 Required Characteristics
-- **All tmp directories MUST be subdirectories of their corresponding target directories**.  
-  This guarantees atomic rename via same-filesystem constraints.
-- `core.db` MUST exist only under `core/`.
-- `project.db` MUST exist only under `<project>/`.
-- `map.db` MUST exist only under `<map>/`.
+- `core.storage.ProjectPathResolver`.
 
 ---
 
-# 3. DATABASE RULES
+## 3. ProjectPathResolver & ProjectRegistry
 
-All databases use SQLite with **mandatory** settings:
+### 3.1 ProjectPathResolver
 
-## 3.1 SQLite Defaults
-```
-PRAGMA journal_mode = WAL;
-PRAGMA synchronous = NORMAL;
-```
+Responsibility:
 
-## 3.2 Allowed Variants
-- `synchronous = FULL` allowed only in production or critical workflows requiring power-loss durability.
-- DB tuning MUST be documented in `_AI_STORAGE_ARCHITECTURE.md` if changed.
+- Map a `projectId` → canonical filesystem paths.
 
-## 3.3 Concurrency
-- SQLite supports **multiple readers, one writer**.
-- The DAL (Data Access Layer) MUST provide:
-  - Advisory write locks
-  - Safe retry semantics
-  - Safe WAL checkpoint procedures
+Examples:
 
----
+- `getProjectRoot(projectId)` → `STORAGE_ROOT/projects/<projectId>/`
+- `getProjectDbPath(projectId)` → `.../project.db`
+- `getProjectFilesRoot(projectId)` → `.../files/`
+- `getProjectTmpRoot(projectId)` → `.../tmp/`
 
-# 4. LOCKING & ACCESS
+All code that needs paths should **go through** `ProjectPathResolver`, ensuring:
 
-## 4.1 Advisory Lock Types
-- `read_lock` — shared, unlimited.
-- `write_lock` — exclusive, one writer at a time.
+- consistent layout
+- easier refactors later (e.g. moving project DBs elsewhere).
 
-## 4.2 DAL Guarantees
-- No direct SQLite writes outside the DAL.
-- No AI agent may bypass the DAL.
-- Locks MUST cover both file + DB operations during atomic sequences.
+### 3.2 ProjectRegistry
 
----
+Responsibility:
 
-# 5. MANIFEST SYSTEM (REQUIRED)
+- Track **which projects exist**.
+- Provide APIs to:
+  - list projects
+  - create new projects
+  - delete/soft-delete projects (later)
 
-Every atomic file operation MUST correspond to a row in the manifest table.
+Implementation details:
 
-## 5.1 Manifest Schema (Authoritative)
-```
-manifest:
-  id INTEGER PRIMARY KEY
-  op_type TEXT            -- e.g., "tile_write", "map_import", "attachment_add"
-  target_path TEXT        -- final target path
-  tmp_path TEXT           -- tmp write directory
-  expected_files JSON     -- [{ relative_path, sha256 }]
-  created_at TEXT
-  state TEXT CHECK (state IN ("pending","committed","aborted"))
-  committed_at TEXT
-  author TEXT
-  commit_txid INTEGER
-```
-
-## 5.2 State Transitions
-- `pending` → initial
-- `committed` → after DB COMMIT completes
-- `aborted` → cleanup or failed op
-
-State transitions MUST occur in a DB transaction.
-
-## 5.3 Orphan Tmp Cleanup
-- Only delete `tmp_*` directories **older than 1 hour**.
-- MUST verify manifest state is not `pending` first.
+- New project creation:
+  - generate `projectId`
+  - create project folder using `ProjectPathResolver`
+  - create/initialize `project.json`
+  - trigger DB migrations via `MigrationRunner` → `project.db`.
 
 ---
 
-# 6. ATOMIC WRITE PROTOCOL (MANDATORY)
+## 4. Database Files per Project
 
-This is the **only accepted sequence** for safe file+DB write operations.
+Each project has a single primary SQLite DB file:
 
-## 6.1 REQUIRED SEQUENCE
+- `project.db` under the project root.
 
-1. Acquire **write lock** (DAL controls this).
-2. Create `target/tmp/<uuid>/`.
-3. Write all files into tmp.
-4. **fsync every file**.
-5. **fsync the tmp directory**.
-6. Atomic rename: `rename(tmp → final)`  
-   This requires same-filesystem constraints.
-7. **fsync the parent directory**.
-8. Update manifest row inside DB transaction.
-9. `COMMIT` with durable sync.
-10. Release lock.
+This DB contains:
 
-AI agents MUST use this sequence.  
-Human code MUST use this sequence.  
-Nothing else is allowed.
+- project-local data such as:
+  - maps
+  - sketches
+  - comments
+  - files metadata
+  - calibration metadata
+  - etc. (as the schema evolves)
+
+Rules:
+
+- Code must not assume one global DB for all projects.
+- DAL (Data Access Layer) usage should be **per-project** via:
+  - `core.storage.DalContextFactory` (which uses `ProjectPathResolver` and `project.db`).
 
 ---
 
-# 7. PORTABILITY RULES
+## 5. File Storage
 
-## 7.1 Project Portability
-A project is portable if:
+Binary/project files (images, PDFs, photos, etc.) live under:
 
-```
-copy STORAGE_ROOT/projects/<projectUUID>/
+```text
+STORAGE_ROOT/projects/<projectId>/files/
 ```
 
-This MUST be sufficient to transfer the project between servers.
+File layout is managed by:
 
-## 7.2 Map Portability
-Same rule:
+- `core.storage.FileStorage`.
 
+Key rules:
+
+- Only `FileStorage` and `ProjectPathResolver` know exact file layout.
+- Higher-level code uses **logical identifiers** rather than raw paths.
+- Writes should be **atomic** as much as practical:
+  - write to `tmp/` then move into `files/` when complete.
+- File naming should be:
+  - stable (so paths can be referenced later)
+  - non-leaky (avoid including user secrets in filenames).
+
+---
+
+## 6. Temporary Files and Atomic Writes
+
+`tmp/` exists per project:
+
+```text
+STORAGE_ROOT/projects/<projectId>/tmp/
 ```
-copy STORAGE_ROOT/projects/<projectUUID>/maps/<mapUUID>/
-```
 
-All paths, schemas, manifests, tiles, files must remain valid.
+Usage:
 
-## 7.3 Project and Map Snapshots (Atomic Writes)
+- Staging area for partial writes:
+  - asynchronous processing
+  - image transformations
+  - tile generation
+  - exports before finalization
+- Helps guarantee:
+  - no half-written files in `files/`
+  - safe rollbacks on failure
 
-Both project-level and map-level snapshot/metadata operations MUST use the atomic write protocol defined in section 6:
+Pattern for atomic writes:
 
-- **Project metadata snapshots** write to paths of the form:
-  - `/projects/<projectUUID>/metadata.json`
-  - These operations MUST insert a manifest row with `op_type` such as `"project_metadata_write"`, `target_path` set to the final metadata path, and `tmp_path` under the corresponding project `tmp/` directory.
+1. Write the resulting file to `tmp/` (e.g. `tmp/<uuid>.part`).
+2. Validate/check file (size, checksum, etc.).
+3. Move/rename into `files/` (or wherever the final path is).
+4. Clean up old temp files periodically.
 
-- **Map-level snapshots** write to paths of the form:
-  - `/projects/<projectUUID>/maps/<mapUUID>/snapshot.json`
-  - These operations MUST insert a manifest row with `op_type` such as `"map_snapshot_write"`, `target_path` set to the final snapshot path, and `tmp_path` under the corresponding project or map `tmp/` directory on the same filesystem.
-
-In both cases, the DAL-backed write lock MUST cover the entire atomic sequence (files, fsyncs, rename, and manifest update), and the manifest state MUST transition from `pending` 0 `committed` only after the DB transaction successfully commits.
-
-If the atomic write sequence fails at any step before the atomic rename or manifest update, implementations MUST surface the error and MUST NOT mark the manifest row as `committed`.
-
-## 7.4 Module Runtime State (Atomic Writes)
-
-Module runtime state files MUST also use the atomic write protocol defined in section 6.
-
-- **Module runtime state files** write to paths of the form:
-  - `/modules/<moduleName>/state/<stateId>.json`
-- These operations MUST:
-  - insert a manifest row with `op_type` such as `"module_state_write"`,
-  - set `target_path` to the final JSON state file path,
-  - write into a module-local tmp directory under `/modules/<moduleName>/tmp/` on the same filesystem,
-  - follow the full lock + fsync + rename + manifest commit sequence.
-
-DAL-backed write locks MUST cover the entire sequence. A module runtime state write MUST NOT mark its manifest row as `committed` unless the DB transaction and file system operations have both succeeded.
+The exact temp naming and cleanup strategy can be implemented inside `FileStorage` and pipeline-specific modules.
 
 ---
 
-# 8. BACKUP AND RESTORE
+## 7. Migrations and Schema Evolution
 
-## 8.1 SQLite Official Backup Procedure
-Backups MUST follow:
+Database schema is managed by:
 
-1. Acquire write lock.
-2. `PRAGMA wal_checkpoint(TRUNCATE);`
-3. Use SQLite Online Backup API to copy DB.
-4. Compute SHA-256 of backup file.
-5. Release lock.
+- `core.storage.MigrationRunner`.
+- `core.storage.DalContextFactory` ensures `MigrationRunner` has the correct DB path.
 
-## 8.2 Never copy live DB files directly
-You MUST NOT:
-- copy a DB file while WAL is active
-- copy DB without checkpoint
-- copy DB and WAL at different times
+Responsibilities:
 
-## 8.3 Backup Security
-- DB backups MUST be encrypted at rest.
-- DB files MUST be chmod 600 (or equivalent).
-- Only the application user may read backups.
+- On project creation:
+  - Create fresh schema at latest version.
+- On project open:
+  - Detect current schema version.
+  - Run required migrations in order.
+- Handle failures gracefully:
+  - bubble up a clear `AppError` if migration fails.
+  - do not run the app against a partially-migrated DB.
 
----
+Migrations themselves:
 
-# 9. MIGRATIONS
-
-## 9.1 Schema changes require human approval
-AI MUST NOT:
-- migrate schema automatically
-- run destructive migrations
-
-Schema changes require:
-- `destructive-change.json` at repo root
-- human approval (2 maintainers)
-- CI validation
-
-## 9.2 Migration Steps
-1. DAL acquires write lock.
-2. Run migration on a copy, not live DB.
-3. Run **canary test** (sample queries).
-4. Run **checksum verification**.
-5. Swap final DB using atomic write sequence.
-6. Keep original DB in read-only mode until validated.
+- Live in a structured place (e.g. `src/core/storage/migrations`).
+- Are **repeatable** and **idempotent** at the step level.
 
 ---
 
-# 10. REMOTE STORAGE ANNEX (Light)
+## 8. Concurrency Considerations (High-Level)
 
-If using S3/GCS later:
+Concurrency on storage is covered in more detail in:
 
-- No rename atomicity exists.
-- Use:
-  - multipart upload to tmp key
-  - compute checksums
-  - commit manifest
-  - server-side copy to final key
-- Locking MUST occur through DB or distributed lock.
+- `_AI_CONCURRENCY_AND_LOCKING_SPEC.md`
 
-(This annex may expand later.)
+But in short:
 
----
-
-# 11. MONITORING & ALERTING
-
-## 11.1 Thresholds (Hard Rules)
-- Disk free < 20% → warn
-- Disk free < 10% → critical, stop AI writes
-- project.db > 1.6 GB → warn
-- map.db > 3.2 GB → warn
-- WAL > 500 MB → warning
-- failed WAL checkpoints ≥ 3 → critical
-
-AI MUST stop if thresholds exceeded.
+- SQLite access per project is serialized logically via DAL-level locks.
+- File writes:
+  - should use atomic patterns (tmp → move).
+  - should not be performed concurrently to the same logical file without coordination.
 
 ---
 
-# 12. AI SAFETY RULES (Storage-Specific)
+## 9. Relationship to Other Specs
 
-## 12.1 AI MUST STOP if:
-- destructive-change.json is required but missing
-- DB exceeds critical size
-- tmp directories are not on same filesystem
-- manifest missing for the operation
-- locks cannot be acquired
-- required specs not loaded
-- any ambiguity exists in file paths
+- `_AI_DB_AND_DATA_MODELS_SPEC.md`
+  - describes logical DB schemas and relations.
+- `_AI_FILE_AND_IMAGE_PIPELINE_SPEC.md`
+  - describes how image data flows into storage and how tiles/derivatives are stored.
+- `_AI_GEO_AND_CALIBRATION_SPEC.md`
+  - describes how calibration and geo transforms are stored (often in `project.db`).
+- `_AI_ERROR_HANDLING_AND_DIAGNOSTICS_SPEC.md`
+  - describes how storage errors should be surfaced and logged.
 
-## 12.2 AI MUST NEVER:
-- bypass DAL
-- write DB files directly
-- modify schema without approval
-- delete arbitrary files
-- guess missing paths
-- skip fsync steps
-- skip manifest creation
-- skip advisory locks
-
-## 12.3 AI MUST ALWAYS:
-- verify free disk space
-- verify same-FS constraints
-- compute SHA-256 for expected_files
-- ensure manifest entry is correct
-- request human confirmation before destructive ops
-
----
-
-# 13. CI REQUIREMENTS
-
-This spec requires CI to:
-- Verify ai-docs-index.json paths exist.
-- Validate destructive-change.json when present.
-- Reject PRs touching storage logic unless this file is updated if needed.
-- Reject PRs if STORAGE_ROOT/AI_AUTOMATION_PAUSED exists.
-- Optionally validate manifest schemas (future).
-
----
-
-# 14. FINAL RULE
-
-If code, AI actions, or other docs conflict with this file →  
-**THIS FILE IS AUTHORITATIVE.**  
-Code must change, not the spec.
-
+Together with this file, they form the storage & data backbone of the system.

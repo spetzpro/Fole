@@ -1,334 +1,190 @@
-Version: 1.0.0
-Last-Updated: 2025-11-23
-Status: Authoritative Specification (SSOT)
+# AI Guidance: Geo & Calibration
 
-# _AI_GEO_AND_CALIBRATION_SPEC.md
-Global → Local Geospatial System, Calibration Rules, and Map Math
+File: `specs/core/_AI_GEO_AND_CALIBRATION_SPEC.md`  
+Scope: How the AI should think about coordinates, calibration, and mapping between world space and image/map space.
 
-This document defines how the FOLE platform handles:
-- global Earth coordinates (GPS / WGS84),
-- local engineering coordinates,
-- multi-floor buildings,
-- calibration of maps and drawings,
-- transforms between all coordinate spaces,
-- geometric accuracy to millimeter level.
+---
 
-Binding for:
-- all AI agents,
-- all backend modules,
-- all rendering engines,
-- all import/export operations,
-- all map, floor, and sketch features.
+## 1. Goals
 
---------------------------------------------------------------------
+The geo and calibration system must:
 
-1. PURPOSE
+- Support **global positioning** (Earth scale) where needed.
+- Support **local project coordinate systems** for maps and measurements.
+- Allow mapping between:
+  - world coordinates (e.g. WGS84-based)
+  - local coordinates (e.g. ENU/local tangent plane)
+  - pixel coordinates (map image)
+- Be **invertible** and **numerically stable** for typical building/site scales.
+- Integrate with storage, map, and measurement features.
 
-This spec ensures:
-- deterministic math,
-- consistent coordinates across modules,
-- reproducible calibrations,
-- mm-accurate spatial alignment,
-- safe, reversible transformations.
+This document is conceptual; concrete implementations will live in:
 
-It is the authoritative document for all geospatial behavior.
+- `lib.geo.*` (future) – coordinate math, projections, transforms
+- `feature.map.*` (future) – map UI and calibration tools
+- `core.storage.ProjectModel` – persistent representation of calibration data
 
---------------------------------------------------------------------
+---
 
-2. COORDINATE SYSTEM OVERVIEW
+## 2. Coordinate Systems Overview
 
-FOLE uses a **tiered coordinate model**:
+We conceptually use:
 
-2.1 Global: WGS84 Geodetic  
-(lat, lon, height) in degrees/meters  
-Used for:
-- GPS input
-- Global project placement
-- Importing external surveying data
+1. **Global geodetic coordinates (WGS84)**  
+   - Latitude, longitude, height.
+2. **Earth-Centered, Earth-Fixed (ECEF)**  
+   - Cartesian 3D representation tied to the Earth.
+3. **Local project coordinates (local ENU / tangent plane)**  
+   - A 2D or 3D local coordinate system anchored near the project.
+4. **Map pixel coordinates**  
+   - Coordinates in the normalized map image (x, y in pixels).
 
-2.2 Global: WGS84 ECEF  
-(x, y, z) center-of-earth cartesian  
-Used for:
-- stable math
-- distance/slope/azimuth between far points
-- transforming global → local reference frames
+Mapping chain (conceptually):
 
-2.3 Local Engineering System (LES)  
-Right-handed XY plane, units in meters (mm allowed)  
-LES is defined per project or per building root.
+- WGS84 ↔ ECEF ↔ Local (ENU) ↔ Pixel
 
-2.4 Floor Plan Pixel Coordinates  
-2D pixel space of an imported image/drawing.
+Not every project will use all levels; some may only use local + pixel.
 
-2.5 Tile Coordinates  
-Used by the raster-pyramid engine.
+---
 
-At runtime, all geometry eventually reduces to:
-- **LES meters** for math
-- **Pixel space** for rendering
-- **ECEF/LLH** only for import/export
+## 3. Local Project Coordinate System
 
---------------------------------------------------------------------
+Each project may define a **local coordinate system**:
 
-3. FORMAL TRANSFORM CHAIN
+- Origin chosen near the site (e.g. a known point on the ground).
+- Axes:
+  - x → east, y → north, z → up (standard ENU), or a similar convention.
+- Units:
+  - meters (recommended).
 
-Every map object supports the following transforms:
+The project’s local frame is stored in project-level metadata (e.g. in `project.db` and/or `project.json`), including:
 
-Global LLH (φ,λ,h)
-→ ECEF (X,Y,Z)
-→ Local Engineering System (x_m, y_m, z_m)
-→ Map Pixel Coordinates (u, v)
-→ Tile Coordinates (tX, tY, zoom)
+- reference geodetic point (lat, lon, h)
+- orientation of axes
+- any additional local reference info
 
-All transforms must be **invertible**.
+If the project never uses global coordinates, the local frame may still exist purely as a convenient geometric basis for measurements.
 
-3.1 LLH → ECEF  
-Use the official WGS84 ellipsoid constants:
-- a = 6378137.0
-- e² = 6.69437999014e−3
+---
 
-Standard N, X, Y, Z equations REQUIRED.
+## 4. Map Pixel Coordinate System
 
-3.2 ECEF → Local  
-LES is defined using:
-- Origin ECEF point
-- Orientation (yaw rotation)
-- Optional pitch/roll if using slope-sensitive modes
+Each map (floorplan image) defines its own pixel coordinate system:
 
-Default orientation:  
-- LES X points East  
-- LES Y points North  
-- LES Z points Up  
+- (0, 0) at top-left of the **normalized** image.
+- x increases to the right.
+- y increases downward.
+- Pixel dimensions:
+  - width, height (stored with the map).
 
-3.3 Local → Pixels  
-Defined by calibration matrix M (see section 6).
+All map-based operations (sketch, comments, measurements, calibration) refer to:
 
-3.4 Pixels → Tiles  
-Tile system is always square-power-of-2 hierarchy.  
-Exactly defined in _AI_FILE_AND_IMAGE_PIPELINE_SPEC.md.
+- the normalized image pixels (post-orientation, post-normalization per the image pipeline spec).
 
---------------------------------------------------------------------
+---
 
-4. LOCAL ENGINEERING SYSTEM DETAILS
+## 5. Calibration: Pixel ↔ Local World
 
-LES is a 3D right-handed system with:
-- Units: meters (float64)
-- Precision: at least ±0.1 mm within ±100m domain
-- Numeric requirement: all transforms must use double precision
+Calibration ties a map’s pixel coordinates to the project’s local coordinate system.
 
-LES is stable for buildings, large rooms, outdoor areas.
+MVP approach:
 
-No slopes or curvature unless explicitly defined.
+- Each map stores one or more **calibration sets**, each consisting of:
+  - a small set of **control points**:
+    - `(pixel_x, pixel_y)` in image space
+    - `(local_x, local_y, [local_z])` in project local coordinates
+- From these points, we derive a transform:
 
---------------------------------------------------------------------
+  - simplest case: 2D similarity transform (scale + rotation + translation)
+  - more advanced: affine or higher-order transforms if necessary (later)
 
-5. MAP CALIBRATION MODES (MANDATORY)
+Requirements:
 
-All maps must be calibrated using one of the supported modes:
+- Transform must be:
+  - forward: pixel → local
+  - inverse: local → pixel
+- Transform parameters are stored in a stable, well-defined form:
+  - e.g. matrix coefficients, scale/rotation/translation, etc.
 
-5.1 Two-Point Calibration  
-Inputs:
-- Pixel A, Pixel B
-- Real-world coords A', B' (LES or LLH → converted)
-Solves scale + rotation + translation.
+Storage:
 
-5.2 Three-Point Calibration  
-Adds shear correction capability.
+- Calibration metadata is stored in `project.db` under tables like:
+  - `calibration_sets`
+  - `calibration_points`
+- The exact schema will be defined as we spec `feature.map` and `lib.geo`.
 
-5.3 Four-Point / Full Affine  
-Allows:
-- non-uniform scale
-- shear
-- skew
+---
 
-Recommended for scanned drawings.
+## 6. Global Coordinates (Optional for MVP, but Supported)
 
-5.4 Known-Scale Calibration  
-Drawing already specifies scale.  
-User only anchors a reference origin on pixel space.
+Some projects may need to tie the site to real-world coordinates:
 
-5.5 Georeferenced Calibration  
-External survey or CAD with embedded CRS:
-- LLH coordinates per anchor
-- Direct transform to LES
+- For that, we use WGS84 (lat, lon, height) as the **global base**.
+- Conversion to/from ECEF and then to/from local ENU is handled in `lib.geo`.
 
---------------------------------------------------------------------
+Typical flow:
 
-6. CALIBRATION MATH
+1. Pick an anchor point:  
+   - WGS84 (lat0, lon0, h0) for a known point on the site.
+2. Define local ENU frame:
+   - origin at that anchor.
+3. All site coordinates (local_x, local_y, local_z) are expressed relative to that local frame.
+4. Conversion to global WGS84 is done *via* ECEF + ENU math when needed.
 
-Each calibration yields a **2D affine transform**:
+This allows:
 
-[u; v; 1] = M * [x; y; 1]
+- optionally georeferencing the project for external systems
+- showing approximate lat/lon when useful (not necessarily exposed in UI for safety)
+- keeping the internal system local and precise.
 
-M structure:
-M = [ a  b  tx
-      c  d  ty
-      0  0   1 ]
+---
 
-Where:
-- a,d represent scaling with rotation components
-- b,c represent shear/skew if present
-- tx,ty represent pixel translation
+## 7. Integration with Workspace & Features
 
-Calibration MUST:
-- Be stored in the project DB
-- Be invertible
-- Include numerical stability metadata
-- Include RMS error between calibration points
+Map workspace behavior (see `Project_Workspace_Experience.md`):
 
-6.1 Inverse Transform  
-(x, y, 1) = M⁻¹ (u, v, 1)
+- When the user views a map, they interact in **pixel space**.
+- Calibration is applied when:
+  - measuring distances/areas (convert pixel → local)
+  - exporting geo-referenced data
+  - synchronizing multiple maps for the same project.
 
-M⁻¹ must be precomputed and stored to avoid float accumulation errors.
+Sketches and comments:
 
---------------------------------------------------------------------
+- Store their anchoring in pixel space (with references to map + optional calibration).
+- When needed, they can be projected into local/world coordinates using the same transforms.
 
-7. MULTI-FLOOR STRUCTURE
+---
 
-Each floor has:
-- FloorId
-- Calibration matrix M
-- Elevation offset in LES (z floor)
-- Optional vertical scale (for section drawings)
-- Optional rotation offset relative to building root
+## 8. Storage & Data Flow
 
-Rules:
-- Floors share same LES orientation
-- Floors differ only by Z + optional in-floor rotation
-- Vertical alignment must be exact (LES z)
+Calibration data is part of the project’s persisted state:
 
---------------------------------------------------------------------
+- It lives in `project.db` (tables owned by a `feature.geo` or similar future block).
+- Map records hold:
+  - a reference to one or more calibration sets
+  - image dimensions
+- The calibration engine uses:
+  - the stored parameters
+  - the known image dimensions
+  - local frame metadata
 
-8. LINEAR UNITS, SCALE & RESOLUTION
+The image pipeline must:
 
-8.1 Internal math always uses:
-- meters (LES)
-- double precision
+- Preserve image dimensions and pixel geometry of the normalized map.
+- Ensure that replacing or reprocessing the normalized image is coordinated with calibration (either preserved or explicitly invalidated).
 
-8.2 Pixel resolution for each map:
-- stored in metadata
-- derived from calibration scaling factors
-- must remain constant after calibration
+---
 
-8.3 No hidden scaling anywhere.
-Only matrix M may define scale.
+## 9. Future Directions
 
---------------------------------------------------------------------
+Future enhancements may include:
 
-9. IMAGE / TILE GEOMETRY
+- Multi-map calibration:
+  - alignment of several maps within the same project.
+- Cross-project alignment:
+  - multiple projects sharing a common global frame.
+- 3D calibration and height modeling.
+- Integration with external GIS data.
 
-9.1 Pixel origin = upper-left (0,0)
-9.2 LES origin = arbitrary global anchor (usually first calibration anchor)
-9.3 Tiles follow:
-- size = 256 × 256 px
-- zoom levels are powers of two
-- tile coordinate rounding rules defined in image pipeline spec
-
-9.4 Sub-pixel accuracy supported:
-- double precision pixel coordinates
-- mm accuracy in LES
-
---------------------------------------------------------------------
-
-10. IMPORTING MAPS / DRAWINGS
-
-Supported sources:
-- raster images
-- PDFs converted to image
-- CAD (DXF, DWG) via vector-to-pixel pipeline
-
-Import procedure:
-1. Normalize image (color, ICC)
-2. Extract metadata (DPI, extents)
-3. User performs calibration
-4. Engine stores calibration matrix
-5. Tiles are generated (atomic write protocol)
-
---------------------------------------------------------------------
-
-11. EXPORTING GEOMETRY
-
-When exporting:
-- Always convert LES → ECEF → LLH when needed
-- Include calibration metadata
-- Include RMS error
-- Include schemaVersion
-
---------------------------------------------------------------------
-
-12. AI RULES
-
-AI agents must:
-- NEVER guess calibration
-- ALWAYS load this file before doing geo tasks
-- REFUSE operations when:
-  - calibration missing
-  - calibration ambiguous
-  - multiple transforms exist but precedence unclear
-  - map has conflicting pixel resolutions
-  - user requests impossible geometry
-
-AI must:
-- Use LES for all math
-- Use double precision
-- Use provided transform chain, not ad-hoc math
-- Stop if WGS84 constants missing or incorrect
-
-Forbidden:
-- Creating a new calibration without user-provided anchors
-- Replacing calibration without destructive-change governance
-- Inventing or inferring scale
-
---------------------------------------------------------------------
-
-13. STORAGE RULES (LINK TO STORAGE SPEC)
-
-All calibration matrices MUST be stored in:
-project.db → table: map_calibration
-
-Fields:
-- mapId
-- matrixJSON
-- inverseMatrixJSON
-- rmsError
-- calibrationMode
-- version
-- createdAt
-- createdBy
-
-Atomic write protocols from _AI_STORAGE_ARCHITECTURE.md apply.
-
---------------------------------------------------------------------
-
-14. NUMERICAL SAFETY RULES
-
-14.1 Use double precision everywhere.  
-14.2 Perform validation:
-- determinant(M) ≠ 0
-- RMS < threshold (default 0.5% of map size)
-- No extreme skew unless user confirms
-
-14.3 Round-trips must satisfy:
-- |p − untransform(transform(p))| < 0.001 m
-
---------------------------------------------------------------------
-
-15. LINKED SPECS
-
-This document depends on:
-- _AI_MASTER_RULES.md
-- _AI_STORAGE_ARCHITECTURE.md
-- _AI_TEMPLATES_AND_DEFAULTS.md
-- _AI_UI_SYSTEM_SPEC.md
-- _AI_FILE_AND_IMAGE_PIPELINE_SPEC.md
-
-Conflicts:
-- Calibration math defined here overrides any UI interpretation
-- Storage rules override where calibration is saved
-- UI spec governs how calibration tools behave
-
---------------------------------------------------------------------
-
-End of document.
-_AI_GEO_AND_CALIBRATION_SPEC.md  
-Authoritative.
+This spec should be revisited when designing `lib.geo` and `feature.map` module specs.
