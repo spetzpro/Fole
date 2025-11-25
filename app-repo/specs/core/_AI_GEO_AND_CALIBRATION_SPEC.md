@@ -113,6 +113,36 @@ Storage:
   - `calibration_points`
 - The exact schema will be defined as we spec `feature.map` and `lib.geo`.
 
+### 5.1 Calibration Versioning
+
+Calibration must be explicitly versioned so that changes are auditable and reversible:
+
+- Calibration records are stored in a dedicated table (e.g. `map_calibrations`).
+- Each row represents one **calibration version** for a given map.
+- Exactly **one** calibration per map may be marked `isActive = true` at any time.
+- Older calibration versions **must not** be deleted; they remain stored for:
+  - audit and traceability
+  - rollback / comparison
+- Switching to a new calibration version updates the `isActive` flag but does **not**
+  rewrite or discard historical versions.
+
+### 5.2 Transform Types & Minimum Control Points
+
+The calibration engine supports a small, explicit set of transform types:
+
+- `transformType ∈ { "similarity", "affine", "projective" (future) }`.
+- **Similarity** transforms (scale + rotation + translation) require **≥ 2** well-separated
+  control points; degenerate configurations must be rejected.
+- **Affine** transforms require **≥ 3** control points; **4+** well-distributed points are
+  recommended for robustness.
+- Future **projective** support may require additional points and validation rules.
+- For every calibration fit, the system must record basic quality metrics:
+  - RMS (root mean square) residual error across control points.
+  - Maximum residual error across control points.
+
+These metrics are stored alongside the transform parameters for diagnostics and tooling
+in `feature.map`, `lib.geo`, and `feature.measure`.
+
 ---
 
 ## 6. Global Coordinates (Optional for MVP, but Supported)
@@ -149,10 +179,38 @@ Map workspace behavior (see `Project_Workspace_Experience.md`):
   - exporting geo-referenced data
   - synchronizing multiple maps for the same project.
 
+### 7.1 Pixel Coordinates as Canonical Annotation Space
+
+To keep annotations stable across calibration changes:
+
+- All user-created content anchored to a map stores its positions in **canonical pixel
+  space**, including:
+  - sketches and drawing primitives
+  - comments and markers
+  - measurements
+  - files or other entities anchored to coordinates.
+- Recalibrating a map must **never** move, warp, or otherwise rewrite annotation
+  geometry in storage.
+- When calibration is updated, only the **pixel → world** (and world → pixel) mapping
+  changes; annotation records continue to refer to the same pixel coordinates.
+
 Sketches and comments:
 
 - Store their anchoring in pixel space (with references to map + optional calibration).
 - When needed, they can be projected into local/world coordinates using the same transforms.
+
+### 7.2 Viewport Rotation vs Calibration Rotation
+
+The visual viewport and the calibration transform must remain clearly separated:
+
+- Calibration rotation is intrinsic to the **pixel → world** transform and is part of the
+  stored calibration parameters.
+- Viewport rotation is a **purely visual** concern (e.g. rotating the map view for the
+  user) and must be implemented independently of calibration.
+- Viewport rotation must **not** modify, replace, or silently rewrite calibration
+  parameters.
+- Any UI-level rotation or flipping is applied on top of the calibrated pixel space
+  without changing the underlying calibration records.
 
 ---
 
@@ -173,6 +231,19 @@ The image pipeline must:
 
 - Preserve image dimensions and pixel geometry of the normalized map.
 - Ensure that replacing or reprocessing the normalized image is coordinated with calibration (either preserved or explicitly invalidated).
+
+### 8.1 Calibration Permissions
+
+Calibration operations have dedicated permissions separate from general map management:
+
+- `map.calibrate` is a distinct permission from `map.manage`.
+- Only principals with `map.calibrate` may:
+  - create new calibration versions
+  - activate or replace the active calibration for a map.
+- `map.manage` may cover other map-level operations (naming, visibility, metadata)
+  but does **not** implicitly grant calibration rights.
+- Read-only access (`map.read`) always includes the ability to read calibration
+  state and derived metadata needed to interpret map content.
 
 ---
 
