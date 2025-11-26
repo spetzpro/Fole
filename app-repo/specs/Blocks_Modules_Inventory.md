@@ -18,55 +18,49 @@ Status legend:
 
 ## Core Layer
 
-| Name               | Kind   | Layer | Status            | Notes |
-|--------------------|--------|-------|-------------------|-------|
-| core.foundation    | Module | core  | In implementation  | Basic app/runtime primitives, env, logging hooks, etc. |
-| core.storage       | Block  | core  | Specced           | Overall storage behavior across modules. |
-| core.storage       | Module | core  | Stable            | StoragePaths, atomic write services, manifests; implementation aligned with specs. |
-| core.auth          | Block  | core  | Specced           | Auth flows and UX. |
-| core.auth          | Module | core  | Implemented       | Auth engine, session management, identity. |
-| core.permissions   | Block  | core  | Specced           | Roles, overrides, UX & behavior. |
-| core.permissions   | Module | core  | Implemented       | Permission model, policy registry, service, guards. |
-| core.ui            | Block  | core  | Specced           | App shell, navigation, workspace experience. |
-| core.ui            | Module | core  | Implemented       | UI state, router, layout, error boundaries, project selector. |
-| core.runtime       | Module | core  | Planned           | Module lifetime, hooks, job scheduling, diagnostics integration. |
-| core.moduleStateRepository | Module | core  | Specced          | Versioned module-state storage with atomic writes & schemaVersion rules. |
-| core.accessControl        | Module | core  | Specced          | Authentication, sessions, PermissionContext, roles→permissions mapping. |
+| Name | Kind | Layer | Status | Notes | Spec Path |
+| -------------------- | -------- | ------- | ------------------- | ------- | ------------ |
+| core.foundation | Module | core | In implementation | Basic app/runtime primitives, env, logging hooks, etc. | specs/modules/core.foundation |
+| core.storage | Block | core | Specced | Overall storage behavior across modules. | specs/blocks/core.storage.md |
+| core.storage | Module | core | Stable | StoragePaths, atomic write services, manifests; implementation aligned with specs. | specs/modules/core.storage |
+| core.auth | Block | core | Specced | Auth flows and UX. | specs/blocks/core.auth.md |
+| core.auth | Module | core | Implemented | Auth engine, session management, identity. | specs/modules/core.auth |
+| core.permissions | Block | core | Specced | Roles, overrides, UX & behavior. | specs/blocks/core.permissions.md |
+| core.permissions | Module | core | Implemented | Permission model, policy registry, service, guards. | specs/modules/core.permissions |
+| core.ui | Block | core | Specced | App shell, navigation, workspace experience. | specs/blocks/core.ui.md |
+| core.ui | Module | core | Implemented | UI state, router, layout, error boundaries, project selector. | specs/modules/core.ui |
+| core.runtime | Module | core | Planned | Module lifetime, hooks, job scheduling, diagnostics integration. |  |
+| core.moduleStateRepository | Module | core | Specced | Versioned module-state storage with atomic writes & schemaVersion rules. |  |
+| core.accessControl | Module | core | Specced | Authentication, sessions, PermissionContext, roles→permissions mapping. |  |
 
 
 ---
 
 ## Feature Layer
 
-| feature.map      | Block   | feature | Specced   | Map viewing, registry, calibration hooks, viewport, imagery. |
-| feature.map      | Module  | feature | Specced   | Owns map registry, default map, calibration integration. |
-| feature.map.FeatureMapService        | Module | feature | Specced | Registry: list/get/create/update/status; permissions: map.read/map.manage. |
-| feature.map.ActiveMapService         | Module | feature | Specced | Project default map; permissions: map.read/map.manage. |
-| feature.map.CalibrationService       | Module | feature | Specced | Calibration history, active calibration; permissions: map.read(map.calibrate for full). |
-| feature.map.ViewportImageryService   | Module | feature | Specced | Viewport helpers & imagery resolution; permissions: map.read. |
-
-
-| Name             | Kind   | Layer   | Status    | Notes |
-|------------------|--------|---------|-----------|-------|
-| feature.sketch   | Block  | feature | Planned   | Sketching tools UI & interactions. |
-| feature.sketch   | Module | feature | Planned   | Sketch data model & persistence. |
-| feature.files    | Block  | feature | Planned   | File browser UX, upload, links. |
-| feature.files    | Module | feature | Planned   | File metadata, storage integration. |
-| feature.comments | Block  | feature | Planned   | Comment UI, side panels, activity. |
-| feature.comments | Module | feature | Planned   | Comment persistence, threading, permissions. |
-| feature.measure  | Block  | feature | Planned   | Measurement tools on maps/sketches. |
-| feature.measure  | Module | feature | Planned   | Measurement math, snapping, tolerances. |
+| Name | Kind | Layer | Status | Notes | Spec Path |
+| ------------------ | -------- | --------- | ----------- | ------- | ------------ |
+| feature.map | Block | feature | Planned | Map viewing, map selection, link to geo + image pipeline. | specs/blocks/feature.map.block.md |
+| feature.map | Module | feature | Planned | Map registry, active map state, hooks to map DBs. | specs/modules/feature.map/feature.map.module.md |
+| feature.sketch | Block | feature | Planned | Sketching tools UI & interactions. |  |
+| feature.sketch | Module | feature | Planned | Sketch data model & persistence. |  |
+| feature.files | Block | feature | Planned | File browser UX, upload, links. |  |
+| feature.files | Module | feature | Planned | File metadata, storage integration. |  |
+| feature.comments | Block | feature | Planned | Comment UI, side panels, activity. |  |
+| feature.comments | Module | feature | Planned | Comment persistence, threading, permissions. |  |
+| feature.measure | Block | feature | Planned | Measurement tools on maps/sketches. |  |
+| feature.measure | Module | feature | Planned | Measurement math, snapping, tolerances. |  |
 
 ---
 
 ## Library / Technical Modules
 
-| Name        | Kind | Layer | Status  | Notes  |
-|-------------|------|-------|---------|--------|
-| lib.image   | Lib  | lib   | Planned | Image normalization, formats, tile handling, ICC, EXIF, etc. |
-| lib.geo     | Lib  | lib   | Planned | Global→local transform, calibration, coordinate math. |
-| lib.jobs    | Lib  | lib   | Planned | Background jobs, queueing, progress reporting. |
-| lib.diagnostics | Lib | lib | Planned | Logging, traces, error reporting helpers shared across modules. |
+| Name | Kind | Layer | Status | Notes | Spec Path |
+| ------------- | ------ | ------- | --------- | -------- | ------------ |
+| lib.image | Lib | lib | Planned | Image normalization, formats, tile handling, ICC, EXIF, etc. |  |
+| lib.geo | Lib | lib | Planned | Global→local transform, calibration, coordinate math. |  |
+| lib.jobs | Lib | lib | Planned | Background jobs, queueing, progress reporting. |  |
+| lib.diagnostics | Lib | lib | Planned | Logging, traces, error reporting helpers shared across modules. |  |
 
 ---
 
