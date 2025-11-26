@@ -102,6 +102,43 @@ Spec files under: `specs/modules/core.ui/`
 
 ---
 
+### 2.6 core.runtime
+
+Spec files under: `specs/modules/`
+
+| Module       | Status     | Notes                                                              |
+|--------------|-----------|--------------------------------------------------------------------|
+| core.runtime | SPEC_READY | Runtime bootstrap, composition of core/feature modules, lifecycle |
+
+---
+
+### 2.7 feature.* modules
+
+Spec files under: `specs/modules/`
+
+| Module            | Status     | Notes                                                          |
+|-------------------|-----------|----------------------------------------------------------------|
+| feature.map       | SPEC_READY | Map registry, calibration summary, imagery & viewport helpers  |
+| feature.sketch    | SPEC_READY | Vector sketches attached to projects/maps                       |
+| feature.files     | SPEC_READY | Project file library and attachment system                      |
+| feature.comments  | SPEC_READY | Generic comment threads for any resource                        |
+| feature.measure   | SPEC_READY | Saved measurements and measurement helpers over maps/coords     |
+
+---
+
+### 2.8 lib.* modules
+
+Spec files under: `specs/lib/`
+
+| Module          | Status     | Notes                                                        |
+|-----------------|-----------|--------------------------------------------------------------|
+| lib.image       | SPEC_READY | Image normalization, metadata, thumbnails per pipeline spec  |
+| lib.geo         | SPEC_READY | Geo & calibration math per geo spec                          |
+| lib.jobs        | SPEC_READY | Job/automation runtime (queues, workers, retries)           |
+| lib.diagnostics | SPEC_READY | Low-level logging/metrics/tracing primitives                 |
+
+---
+
 ## 3. How AI Agents Should Use This File
 
 - Always read this file before:
