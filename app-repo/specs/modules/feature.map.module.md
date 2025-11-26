@@ -73,59 +73,6 @@ interface FeatureMapService {
 
   getMap(projectId: ProjectId, mapId: MapId): Promise<MapMetadata | null>;
 }
-
-#### 2.1.1 `listMaps` semantics
-
-- **Default filter**  
-  - If `options` is omitted, `listMaps` returns all maps in the project whose `status` is `"active"` or `"draft"`.  
-  - `"archived"` maps are **excluded by default**.
-
-- **`includeArchived`**  
-  - If `includeArchived === true` and no explicit `status` array is provided, `listMaps` returns maps with status in `{"active", "draft", "archived"}`.  
-  - If `status` **is** provided, it takes precedence over `includeArchived`.
-
-- **`status`**  
-  - When `options.status` is provided, only maps with a status in that list are returned.  
-  - This is the most specific control; use it for explicit status filtering.
-
-- **`types`**  
-  - When `options.types` is provided, only maps whose `mapType` is in that list are returned.
-
-- **`tagsAny`**  
-  - When `options.tagsAny` is provided, a map is included if it has **at least one** tag in common with `tagsAny`.  
-  - Tag comparison is case-sensitive unless otherwise specified by `_AI_DB_AND_DATA_MODELS_SPEC.md`.
-
-- **Permissions**  
-  - Callers must have `map.read` for the project (or a broader permission that implies it, such as `PROJECT_READ` as defined in `_AI_ROLES_AND_PERMISSIONS.md`).  
-  - Implementations may internally check both `PROJECT_READ` and `map.read` during an interim migration phase, but the long-term contract is expressed in terms of `map.read`.
-
-#### 2.1.2 Write operation semantics (high level)
-
-- **`createMap`**
-  - Creates a new map in `maps` with:
-    - A new `mapId` (stable, immutable).
-    - `status = "draft"` or `"active"` as defined by implementation rules (must be documented in tests).
-    - `createdAt` and `updatedAt` set to the current time.
-  - Immutable fields after creation:
-    - `mapId`, `projectId`, `createdAt`.
-  - Requires `map.manage` for the project.
-
-- **`updateMapMetadata`**
-  - Allows updating:
-    - `name`, `description`, `mapType` (if permitted by product rules), `tags`.
-  - Must **not** change `projectId`, `mapId`, or `createdAt`.
-  - Must update `updatedAt` on successful write.
-  - Requires `map.manage`.
-
-- **`updateMapStatus`**
-  - Changes only the `status` field, according to allowed transitions, e.g.:
-    - `draft → active`
-    - `active → archived`
-    - `archived → active` (if un-archive is supported)
-  - The exact allowed transitions must be captured in tests.
-  - Requires `map.manage`.
-
-All write operations must use atomic write patterns defined in `Core_ModuleStateRepository` / `_AI_CONCURRENCY_AND_LOCKING_SPEC.md` and must enforce permissions before committing.
 ```
 
 All writes go through AtomicWriteService and enforce permissions:
@@ -331,14 +278,3 @@ All mutations go through AtomicWriteService with clearly named operations (map_c
 - Never bypass FeatureMapService to touch DB directly.  
 - Check calibration state before suggesting geo-sensitive actions.  
 - Check permissions before suggesting destructive operations.
-
-
-Additional expectations:
-
-- Permission tests:
-  - Ensure `map.read`, `map.manage`, and `map.calibrate` are enforced where required.
-- Concurrency tests:
-  - Verify that concurrent updates to map registry and calibration state respect atomic write rules.
-- Active map tests:
-  - Ensure exactly one active map per project.
-  - Ensure permission checks apply when setting and reading active map.
