@@ -261,3 +261,88 @@ AI agents working on permissions should:
 - Add audit logging for override actions (especially destructive ones).
 
 The core model here (permissions + grantSource + override as explicit permission) should remain stable even as new features and roles are introduced.
+
+
+## Feature Map module permissions
+
+### 1. Resource type: `map`
+
+The `feature.map` module introduces a concrete `map` resource type with three primary actions:
+
+- `map.read`
+- `map.manage`
+- `map.calibrate`
+
+These integrate with the existing project-level permissions (e.g. `PROJECT_READ`, `PROJECT_EDIT`, `PROJECT_ADMIN`) as follows.
+
+### 1.1 Actions
+
+**`map.read`**
+
+- **Intent:** Read-only access to a map and its basic metadata.
+- **Allows:**
+  - Calling `FeatureMapService.listMaps` and `FeatureMapService.getMap`.
+  - Viewing map metadata (name, description, type, tags, status).
+  - Seeing **calibration summary** fields surfaced on `MapMetadata`:
+    - `isCalibrated`
+    - `calibrationTransformType`
+    - `calibrationErrorRms`
+  - Resolving imagery handles for display (`FeatureMapImageryService.resolveImageHandle`).
+  - Reading the project default map via `FeatureMapActiveService.getActiveMap`.
+- **Does *not* allow:**
+  - Creating, updating, or deleting maps.
+  - Creating or modifying calibrations.
+
+**`map.manage`**
+
+- **Intent:** Manage map registry state and default map selection.
+- **Allows:**
+  - Creating maps (`FeatureMapService.createMap`).
+  - Updating map metadata (`FeatureMapService.updateMapMetadata`).
+  - Changing map status (`FeatureMapService.updateMapStatus`).
+  - Setting / clearing the project default map (`FeatureMapActiveService.setActiveMap`).
+- **Requires:** `map.read` implicitly (anyone who can manage maps can also read them).
+
+**`map.calibrate`**
+
+- **Intent:** Manage calibration internals for a map.
+- **Allows:**
+  - Listing calibrations with full details (`FeatureMapCalibrationService.listCalibrations`).
+  - Reading the active calibration with full control-point data (`FeatureMapCalibrationService.getActiveCalibration`).
+  - Creating, updating, and activating calibrations (`createCalibration`, `updateCalibration`, `setActiveCalibration`).
+- **Requires:** `map.read` implicitly.
+- **Note:** Basic calibration *summary* stays available via `map.read` on `MapMetadata`; full control-point details require `map.calibrate`.
+
+### 1.2 Relationship to project-level permissions
+
+The following default relationships apply unless overridden by deployment-specific policy configuration:
+
+- `PROJECT_READ` **implies** `map.read` for all maps in that project.
+- `PROJECT_EDIT` (or equivalent, if defined) **implies**:
+  - `map.read`
+  - `map.manage`
+- `PROJECT_ADMIN` (or equivalent) **implies**:
+  - `map.read`
+  - `map.manage`
+  - `map.calibrate`
+
+Implementations may choose different project-level role names (e.g. `PROJECT_OWNER`, `PROJECT_MAINTAINER`) but SHOULD preserve these implication semantics.
+
+### 1.3 Multi-tenant and cross-project behavior
+
+- All `map.*` actions are **project-scoped**:
+  - There is no global `map.read` that bypasses project boundary checks.
+  - The `PermissionContext` for any `FeatureMap*Service` call MUST include the current `projectId` and actor identity.
+- Cross-project operations (e.g. copying a map from Project A to Project B) MUST:
+  - Re-check permissions independently for each project.
+  - Never assume that `map.read` in one project implies anything in another.
+
+### 1.4 UI / Core integration expectations
+
+- Core UI and clients MUST:
+  - Use `map.read` to decide if maps should be listed or displayed.
+  - Use `map.manage` to decide if registry edit controls (create, rename, archive, set default) are visible.
+  - Use `map.calibrate` to decide if calibration tooling UI should be enabled.
+- When a caller lacks the necessary permission for an operation:
+  - Backend SHOULD return a typed access error (e.g. `AccessDeniedError` with `code = "FORBIDDEN"`).
+  - Core UI SHOULD map this to a user-friendly `UiError` that can be surfaced in dialogs, toasts, or inline messages.
