@@ -26,6 +26,35 @@ This document is conceptual; concrete implementations will live in:
 
 ---
 
+## 1.5 Implementation Modules and Responsibilities
+
+This spec defines the **policy and mathematical rules** for coordinate systems and calibration. The concrete implementation is split across a few modules:
+
+- `lib.geo` (library module)
+  - Implements the core geo and calibration math:
+    - WGS84, ECEF, and local tangent plane (ENU) conversions
+    - pixel ↔ local/world transforms
+    - calibration transform fitting from control points
+    - distance/area/angle computations
+  - Exposes stateless functions/services that operate on inputs provided by feature modules.
+  - Does **not** own persistent entities; it only computes results.
+
+- `feature.map` (feature module)
+  - Owns **map entities**, calibration records, and control points in `project.db`.
+  - Calls `lib.geo` to:
+    - compute calibration transforms and error metrics
+    - project between pixel and local/world coordinates for maps.
+  - Ensures that only one calibration per map is active at a time, and that historical calibrations remain for audit and rollback.
+
+- `feature.measure` (feature module)
+  - Uses `lib.geo` to compute distances, areas, and related metrics from stored geometries.
+  - Stores measurement entities that may be anchored to maps and/or local/world coordinates.
+  - Does **not** implement its own coordinate math; it relies on `lib.geo` and the calibration data owned by `feature.map`.
+
+The **behavioral rules live here** (in this `_AI_GEO_AND_CALIBRATION_SPEC.md` document).  
+The module specs (`lib.geo.md`, `feature.map.module.md`, `feature.measure.module.md`) describe how each module applies these rules in its own context. This `_AI_*` spec remains the authoritative source of behavior when there is any disagreement.
+
+
 ## 2. Coordinate Systems Overview
 
 We conceptually use:
