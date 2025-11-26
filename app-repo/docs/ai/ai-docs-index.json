@@ -225,6 +225,76 @@
       "type": "ai-inventory",
       "required": false,
       "description": "High-level inventory of all blocks and modules, including kind, layer, and lifecycle status."
+    },
+    {
+      "id": "core_runtime_module_spec",
+      "path": "app-repo/specs/modules/Core_Runtime_Module.md",
+      "type": "module-spec",
+      "required": false,
+      "description": "Spec for core runtime: composition of core/feature modules, startup/shutdown, migrations orchestration."
+    },
+    {
+      "id": "feature_map_module_spec",
+      "path": "app-repo/specs/modules/feature.map.module.md",
+      "type": "module-spec",
+      "required": false,
+      "description": "Spec for feature.map: map registry, calibration summary, imagery and viewport helpers."
+    },
+    {
+      "id": "feature_sketch_module_spec",
+      "path": "app-repo/specs/modules/feature.sketch.module.md",
+      "type": "module-spec",
+      "required": false,
+      "description": "Spec for feature.sketch: vector sketches attached to projects/maps."
+    },
+    {
+      "id": "feature_files_module_spec",
+      "path": "app-repo/specs/modules/feature.files.module.md",
+      "type": "module-spec",
+      "required": false,
+      "description": "Spec for feature.files: project file library and attachment system."
+    },
+    {
+      "id": "feature_comments_module_spec",
+      "path": "app-repo/specs/modules/feature.comments.module.md",
+      "type": "module-spec",
+      "required": false,
+      "description": "Spec for feature.comments: generic comment threads on arbitrary resources."
+    },
+    {
+      "id": "feature_measure_module_spec",
+      "path": "app-repo/specs/modules/feature.measure.module.md",
+      "type": "module-spec",
+      "required": false,
+      "description": "Spec for feature.measure: saved measurements and measurement helpers over maps/coords."
+    },
+    {
+      "id": "lib_image_spec",
+      "path": "app-repo/specs/lib/lib.image.md",
+      "type": "lib-spec",
+      "required": false,
+      "description": "Spec for lib.image: image normalization, metadata, thumbnails implementing the file/image pipeline."
+    },
+    {
+      "id": "lib_geo_spec",
+      "path": "app-repo/specs/lib/lib.geo.md",
+      "type": "lib-spec",
+      "required": false,
+      "description": "Spec for lib.geo: geo and calibration math implementing the geo/calibration core spec."
+    },
+    {
+      "id": "lib_jobs_spec",
+      "path": "app-repo/specs/lib/lib.jobs.md",
+      "type": "lib-spec",
+      "required": false,
+      "description": "Spec for lib.jobs: job/automation runtime, queues, workers, retries."
+    },
+    {
+      "id": "lib_diagnostics_spec",
+      "path": "app-repo/specs/lib/lib.diagnostics.md",
+      "type": "lib-spec",
+      "required": false,
+      "description": "Spec for lib.diagnostics: low-level logging, metrics, and tracing primitives."
     }
   ]
 }

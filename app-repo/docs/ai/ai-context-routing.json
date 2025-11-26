@@ -222,6 +222,80 @@
       "requiredDocs": [
         "app-repo/specs/core/_AI_UI_SYSTEM_SPEC.md"
       ]
+    },
+    {
+      "id": "feature_map_module_extra",
+      "pathPrefix": "app-repo/specs/modules/feature.map.module.md",
+      "requiredDocs": [
+        "app-repo/specs/core/_AI_GEO_AND_CALIBRATION_SPEC.md",
+        "app-repo/specs/core/_AI_FILE_AND_IMAGE_PIPELINE_SPEC.md",
+        "app-repo/specs/core/_AI_ROLES_AND_PERMISSIONS.md"
+      ]
+    },
+    {
+      "id": "feature_files_module_extra",
+      "pathPrefix": "app-repo/specs/modules/feature.files.module.md",
+      "requiredDocs": [
+        "app-repo/specs/core/_AI_FILE_AND_IMAGE_PIPELINE_SPEC.md",
+        "app-repo/specs/core/_AI_STORAGE_ARCHITECTURE.md",
+        "app-repo/specs/core/_AI_ROLES_AND_PERMISSIONS.md"
+      ]
+    },
+    {
+      "id": "feature_sketch_module_extra",
+      "pathPrefix": "app-repo/specs/modules/feature.sketch.module.md",
+      "requiredDocs": [
+        "app-repo/specs/core/_AI_UI_SYSTEM_SPEC.md",
+        "app-repo/specs/core/_AI_ROLES_AND_PERMISSIONS.md"
+      ]
+    },
+    {
+      "id": "feature_comments_module_extra",
+      "pathPrefix": "app-repo/specs/modules/feature.comments.module.md",
+      "requiredDocs": [
+        "app-repo/specs/core/_AI_ROLES_AND_PERMISSIONS.md"
+      ]
+    },
+    {
+      "id": "feature_measure_module_extra",
+      "pathPrefix": "app-repo/specs/modules/feature.measure.module.md",
+      "requiredDocs": [
+        "app-repo/specs/core/_AI_GEO_AND_CALIBRATION_SPEC.md",
+        "app-repo/specs/core/_AI_ROLES_AND_PERMISSIONS.md"
+      ]
+    },
+    {
+      "id": "lib_image_extra",
+      "pathPrefix": "app-repo/specs/lib/lib.image.md",
+      "requiredDocs": [
+        "app-repo/specs/core/_AI_FILE_AND_IMAGE_PIPELINE_SPEC.md",
+        "app-repo/specs/core/_AI_STORAGE_ARCHITECTURE.md",
+        "app-repo/specs/core/_AI_AUTOMATION_ENGINE_SPEC.md"
+      ]
+    },
+    {
+      "id": "lib_geo_extra",
+      "pathPrefix": "app-repo/specs/lib/lib.geo.md",
+      "requiredDocs": [
+        "app-repo/specs/core/_AI_GEO_AND_CALIBRATION_SPEC.md"
+      ]
+    },
+    {
+      "id": "lib_jobs_extra",
+      "pathPrefix": "app-repo/specs/lib/lib.jobs.md",
+      "requiredDocs": [
+        "app-repo/specs/core/_AI_AUTOMATION_ENGINE_SPEC.md",
+        "app-repo/specs/core/_AI_MONITORING_AND_ALERTING_SPEC.md",
+        "app-repo/specs/core/_AI_SECURITY_AND_COMPLIANCE_SPEC.md"
+      ]
+    },
+    {
+      "id": "lib_diagnostics_extra",
+      "pathPrefix": "app-repo/specs/lib/lib.diagnostics.md",
+      "requiredDocs": [
+        "app-repo/specs/core/_AI_ERROR_HANDLING_AND_DIAGNOSTICS_SPEC.md",
+        "app-repo/specs/core/_AI_MONITORING_AND_ALERTING_SPEC.md"
+      ]
     }
   ]
 }
