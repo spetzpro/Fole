@@ -38,10 +38,16 @@ Status legend:
 
 ## Feature Layer
 
+| feature.map      | Block   | feature | Specced   | Map viewing, registry, calibration hooks, viewport, imagery. |
+| feature.map      | Module  | feature | Specced   | Owns map registry, default map, calibration integration. |
+| feature.map.FeatureMapService        | Module | feature | Specced | Registry: list/get/create/update/status; permissions: map.read/map.manage. |
+| feature.map.ActiveMapService         | Module | feature | Specced | Project default map; permissions: map.read/map.manage. |
+| feature.map.CalibrationService       | Module | feature | Specced | Calibration history, active calibration; permissions: map.read(map.calibrate for full). |
+| feature.map.ViewportImageryService   | Module | feature | Specced | Viewport helpers & imagery resolution; permissions: map.read. |
+
+
 | Name             | Kind   | Layer   | Status    | Notes |
 |------------------|--------|---------|-----------|-------|
-| feature.map      | Block  | feature | Planned   | Map viewing, map selection, link to geo + image pipeline. |
-| feature.map      | Module | feature | Planned   | Map registry, active map state, hooks to map DBs. |
 | feature.sketch   | Block  | feature | Planned   | Sketching tools UI & interactions. |
 | feature.sketch   | Module | feature | Planned   | Sketch data model & persistence. |
 | feature.files    | Block  | feature | Planned   | File browser UX, upload, links. |
