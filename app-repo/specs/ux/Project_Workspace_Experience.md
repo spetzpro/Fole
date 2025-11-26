@@ -78,3 +78,36 @@ It will be implemented later as:
 - Sketch requires map for MVP; show disabled state otherwise.
 - Admin override uses PermissionDecision.grantSource to show badges/indicators.
 - Shareable “snapshot links” will use a secure encoded token (future feature).
+
+
+---
+
+## 5. Permission‑Aware UI Behavior (NEW)
+
+The workspace reflects user permissions defined in `_AI_ROLES_AND_PERMISSIONS.md`:
+
+### 5.1 Sketch Tools (`sketch.view` / `sketch.edit`)
+- `sketch.view` → Sketch panel is visible; user can view layers & shapes.
+- `sketch.edit` → Editing tools (draw, erase, layers, styles) enabled.
+- If user has only `sketch.view`:  
+  - Tools appear disabled or hidden.
+  - Existing sketches are view‑only.
+
+### 5.2 Measurement Tools (`measure.read` / `measure.edit`)
+- `measure.read` → Measurements visible; values shown.
+- `measure.edit` → User can create, modify, and delete measurements.
+- Measurement tools also require `map.read` for map‑anchored geometry.
+
+### 5.3 Comments (`comments.read` / `comments.create` / `comments.manage`)
+- `comments.read` → Comments visible.
+- `comments.create` → User can write new comments, start threads.
+- `comments.manage` → Moderation controls shown:
+  - Edit/delete comments
+  - Lock or archive threads
+
+### 5.4 File Attachments (`files.read` / `files.manage`)
+- `files.read` → File list and previews available.
+- `files.manage` → Upload, rename, tagging, attach/detach available.
+
+The workspace must dynamically reconfigure toolbars and panels based on the current user's permission context.
+
