@@ -3,6 +3,13 @@
 ## Module ID
 feature.files
 
+## Related Specs
+
+- `specs/core/_AI_FILE_AND_IMAGE_PIPELINE_SPEC.md` – defines canonical image normalization, EXIF and color-profile handling, and rules for map imagery tiling.
+- `specs/core/_AI_STORAGE_ARCHITECTURE.md` – defines storage roots, folder layout, and atomic write patterns for file binaries and derived assets.
+- `specs/core/_AI_DB_AND_DATA_MODELS_SPEC.md` – defines the project.db tables and columns used to persist file metadata and relationships.
+- `specs/core/_AI_ROLES_AND_PERMISSIONS.md` – defines project-scoped permissions such as `files.read` and `files.manage` that guard file operations.
+
 ## Purpose
 Provides a project-centric file library and attachment system, delegating binary storage to core.storage and image processing to lib.image.
 
@@ -37,10 +44,15 @@ Provides a project-centric file library and attachment system, delegating binary
 - FilePermissionsBlock: enforce project-level file read/manage actions derived from core.permissions.
 
 ## Lifecycle
+
 - Upload: files are uploaded via a controlled API, which allocates a storageKey using core.storage.FileStorage and records metadata in project.db.
 - Use: domain features attach fileIds to their entities as needed (maps, sketches, comments, etc.).
 - Retention: soft-delete hides files from normal queries but keeps metadata and binaries until a retention policy process (job) performs hard deletion.
 - Migration: changes to file metadata schema are handled via project.db migrations and optional backfill jobs.
+
+
+Image-specific flows:
+- For uploads that are images participating in the map/image pipeline (e.g. floorplans), feature.files cooperates with lib.image and feature.map to trigger normalization and tiling behavior defined in `_AI_FILE_AND_IMAGE_PIPELINE_SPEC.md`. The concrete pipeline rules live in lib.image and the core specs; feature.files does not duplicate or override them.
 
 ## Dependencies
 - core.storage (FileStorage, ProjectModel, DAL)
