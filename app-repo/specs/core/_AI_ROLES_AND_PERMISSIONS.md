@@ -263,9 +263,11 @@ AI agents working on permissions should:
 The core model here (permissions + grantSource + override as explicit permission) should remain stable even as new features and roles are introduced.
 
 
-## Feature Map module permissions
+## 9. Feature Module Permissions
 
-### 1. Resource type: `map`
+This section defines **default** permission semantics for feature modules. Concrete deployments MAY adjust mappings via policy configuration, but SHOULD keep the intent of each permission.
+
+### 9.1 Resource type: `map` (feature.map)
 
 The `feature.map` module introduces a concrete `map` resource type with three primary actions:
 
@@ -273,9 +275,9 @@ The `feature.map` module introduces a concrete `map` resource type with three pr
 - `map.manage`
 - `map.calibrate`
 
-These integrate with the existing project-level permissions (e.g. `PROJECT_READ`, `PROJECT_EDIT`, `PROJECT_ADMIN`) as follows.
+These integrate with project-level permissions as follows.
 
-### 1.1 Actions
+#### 9.1.1 Actions
 
 **`map.read`**
 
@@ -287,8 +289,8 @@ These integrate with the existing project-level permissions (e.g. `PROJECT_READ`
     - `isCalibrated`
     - `calibrationTransformType`
     - `calibrationErrorRms`
-  - Resolving imagery handles for display (`FeatureMapImageryService.resolveImageHandle`).
-  - Reading the project default map via `FeatureMapActiveService.getActiveMap`.
+  - Resolving imagery handles for display (e.g. a `FeatureMapImageryService.resolveImageHandle` call).
+  - Reading the project default map (e.g. `FeatureMapActiveService.getActiveMap`).
 - **Does *not* allow:**
   - Creating, updating, or deleting maps.
   - Creating or modifying calibrations.
@@ -297,28 +299,28 @@ These integrate with the existing project-level permissions (e.g. `PROJECT_READ`
 
 - **Intent:** Manage map registry state and default map selection.
 - **Allows:**
-  - Creating maps (`FeatureMapService.createMap`).
-  - Updating map metadata (`FeatureMapService.updateMapMetadata`).
-  - Changing map status (`FeatureMapService.updateMapStatus`).
-  - Setting / clearing the project default map (`FeatureMapActiveService.setActiveMap`).
+  - Creating maps.
+  - Updating map metadata (display name, description, tags, type when allowed).
+  - Changing map status (e.g. active ↔ archived) within the rules defined in the module spec.
+  - Setting / clearing the project default map.
 - **Requires:** `map.read` implicitly (anyone who can manage maps can also read them).
 
 **`map.calibrate`**
 
 - **Intent:** Manage calibration internals for a map.
 - **Allows:**
-  - Listing calibrations with full details (`FeatureMapCalibrationService.listCalibrations`).
-  - Reading the active calibration with full control-point data (`FeatureMapCalibrationService.getActiveCalibration`).
-  - Creating, updating, and activating calibrations (`createCalibration`, `updateCalibration`, `setActiveCalibration`).
+  - Listing calibrations with full details (control points, transforms, error metrics).
+  - Reading the active calibration with full control-point data.
+  - Creating, updating, and activating calibrations.
 - **Requires:** `map.read` implicitly.
 - **Note:** Basic calibration *summary* stays available via `map.read` on `MapMetadata`; full control-point details require `map.calibrate`.
 
-### 1.2 Relationship to project-level permissions
+#### 9.1.2 Relationship to project-level permissions
 
-The following default relationships apply unless overridden by deployment-specific policy configuration:
+Default relationships (unless overridden by policy configuration):
 
 - `PROJECT_READ` **implies** `map.read` for all maps in that project.
-- `PROJECT_EDIT` (or equivalent, if defined) **implies**:
+- `PROJECT_EDIT` (or equivalent) **implies**:
   - `map.read`
   - `map.manage`
 - `PROJECT_ADMIN` (or equivalent) **implies**:
@@ -326,23 +328,186 @@ The following default relationships apply unless overridden by deployment-specif
   - `map.manage`
   - `map.calibrate`
 
-Implementations may choose different project-level role names (e.g. `PROJECT_OWNER`, `PROJECT_MAINTAINER`) but SHOULD preserve these implication semantics.
+All `map.*` actions are **project-scoped**. The `PermissionContext` for any map operation MUST include the current `projectId`.
 
-### 1.3 Multi-tenant and cross-project behavior
+---
 
-- All `map.*` actions are **project-scoped**:
-  - There is no global `map.read` that bypasses project boundary checks.
-  - The `PermissionContext` for any `FeatureMap*Service` call MUST include the current `projectId` and actor identity.
-- Cross-project operations (e.g. copying a map from Project A to Project B) MUST:
-  - Re-check permissions independently for each project.
-  - Never assume that `map.read` in one project implies anything in another.
+### 9.2 Resource type: `file` (feature.files)
 
-### 1.4 UI / Core integration expectations
+The `feature.files` module introduces a `file` resource type with two primary permission strings:
 
-- Core UI and clients MUST:
-  - Use `map.read` to decide if maps should be listed or displayed.
-  - Use `map.manage` to decide if registry edit controls (create, rename, archive, set default) are visible.
-  - Use `map.calibrate` to decide if calibration tooling UI should be enabled.
-- When a caller lacks the necessary permission for an operation:
-  - Backend SHOULD return a typed access error (e.g. `AccessDeniedError` with `code = "FORBIDDEN"`).
-  - Core UI SHOULD map this to a user-friendly `UiError` that can be surfaced in dialogs, toasts, or inline messages.
+- `files.read`
+- `files.manage`
+
+These govern project-level file library behavior.
+
+#### 9.2.1 Actions
+
+**`files.read`**
+
+- **Intent:** Read-only access to the project’s file library.
+- **Allows:**
+  - Listing files for a project (e.g. `FileLibraryService.listFiles`).
+  - Reading file metadata (name, contentType, size, tags, attachment relationships).
+  - Downloading file content via approved APIs when the caller also has access to the owning project/resource.
+- **Does *not* allow:**
+  - Uploading new files.
+  - Editing metadata (name, tags, attachments).
+  - Deleting or soft-deleting files.
+
+**`files.manage`**
+
+- **Intent:** Manage files and attachments within a project.
+- **Allows:**
+  - Uploading new files into the project library.
+  - Editing file metadata (name, tags).
+  - Attaching/detaching files to/from domain resources (maps, sketches, comments, etc.).
+  - Soft-deleting files (subject to retention rules).
+- **Requires:** `files.read` implicitly.
+
+#### 9.2.2 Relationship to project-level permissions
+
+Default relationships:
+
+- `PROJECT_READ` **implies** `files.read` for that project.
+- `PROJECT_EDIT` (or equivalent) **implies**:
+  - `files.read`
+  - `files.manage`
+- `PROJECT_ADMIN` (or equivalent) **implies**:
+  - `files.read`
+  - `files.manage`
+
+All `files.*` actions are **project-scoped** and must respect both project membership and the permissions of any resource a file is attached to.
+
+---
+
+### 9.3 Resource type: `sketch` (feature.sketch)
+
+The `feature.sketch` module introduces a `sketch` resource type with permissions:
+
+- `sketch.view`
+- `sketch.edit`
+
+#### 9.3.1 Actions
+
+**`sketch.view`**
+
+- **Intent:** View sketches attached to a project or map.
+- **Allows:**
+  - Listing sketches for a project/map.
+  - Reading sketch structure (layers, shapes, styles).
+- **Does *not* allow:**
+  - Editing shapes, layers, or styles.
+
+**`sketch.edit`**
+
+- **Intent:** Create and edit sketches.
+- **Allows:**
+  - Creating and deleting sketches.
+  - Editing shapes, layers, and styles.
+- **Requires:** `sketch.view` implicitly.
+
+#### 9.3.2 Relationship to project-level permissions
+
+Default relationships:
+
+- `PROJECT_READ` **implies** `sketch.view`.
+- `PROJECT_EDIT` (or equivalent) **implies**:
+  - `sketch.view`
+  - `sketch.edit`
+- `PROJECT_ADMIN` (or equivalent) **implies**:
+  - `sketch.view`
+  - `sketch.edit`
+
+Sketch data is always project-scoped and, when attached to a map, also subject to `map.read` for that map.
+
+---
+
+### 9.4 Resource type: `comment` (feature.comments)
+
+The `feature.comments` module manages comment threads attached to arbitrary resources. Permissions are:
+
+- `comments.read`
+- `comments.create`
+- `comments.manage`
+
+#### 9.4.1 Actions
+
+**`comments.read`**
+
+- **Intent:** Read comment threads and comments on resources the user can see.
+- **Allows:**
+  - Listing threads for a resource.
+  - Reading comments in those threads.
+
+**`comments.create`**
+
+- **Intent:** Add new comments to threads.
+- **Allows:**
+  - Creating new threads (when allowed by policy).
+  - Adding comments to existing threads.
+- **Requires:** `comments.read` implicitly.
+
+**`comments.manage`**
+
+- **Intent:** Moderate comments.
+- **Allows:**
+  - Editing or soft-deleting comments (e.g. for moderation).
+  - Locking or archiving threads.
+- **Requires:** `comments.read` implicitly.
+
+#### 9.4.2 Relationship to project-level permissions
+
+Default relationships:
+
+- `PROJECT_READ` **implies** `comments.read` for resources the user can already view.
+- `PROJECT_EDIT` (or equivalent) **implies**:
+  - `comments.read`
+  - `comments.create`
+- `PROJECT_ADMIN` (or equivalent) **implies**:
+  - `comments.read`
+  - `comments.create`
+  - `comments.manage`
+
+All comment operations are project-scoped and must also respect the underlying resource’s permissions (e.g. a user cannot comment on a map they cannot read).
+
+---
+
+### 9.5 Resource type: `measurement` (feature.measure)
+
+The `feature.measure` module introduces a `measurement` resource type with:
+
+- `measure.read`
+- `measure.edit`
+
+#### 9.5.1 Actions
+
+**`measure.read`**
+
+- **Intent:** View saved measurements and their computed values.
+- **Allows:**
+  - Listing measurements for a project/map/sketch.
+  - Reading stored geometry and last computed value.
+
+**`measure.edit`**
+
+- **Intent:** Create and edit measurements.
+- **Allows:**
+  - Creating new measurements.
+  - Editing or deleting existing measurements.
+  - Triggering recomputation when calibration changes (indirectly via services).
+- **Requires:** `measure.read` implicitly.
+
+#### 9.5.2 Relationship to project-level permissions
+
+Default relationships:
+
+- `PROJECT_READ` **implies** `measure.read` for projects/maps the user can view.
+- `PROJECT_EDIT` (or equivalent) **implies**:
+  - `measure.read`
+  - `measure.edit`
+- `PROJECT_ADMIN` (or equivalent) **implies**:
+  - `measure.read`
+  - `measure.edit`
+
+Measurement operations are project-scoped and must respect both map permissions (for map-anchored measurements) and any calibration rules defined in `_AI_GEO_AND_CALIBRATION_SPEC.md`.
