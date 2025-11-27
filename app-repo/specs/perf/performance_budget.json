@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "notes": "Initial performance budget skeleton. Numbers are placeholders; tune once you have real measurements.",
+  "globalBudgets": {
+    "appShellInteractiveP95Ms": 1200,
+    "projectSwitchP95Ms": 1500
+  },
+  "moduleBudgets": [
+    {
+      "name": "core.ui",
+      "layer": "core",
+      "budgets": {
+        "routeChangeP95Ms": 250,
+        "errorBoundaryRenderP95Ms": 200
+      },
+      "notes": "UI shell responsiveness; adjust after first real profiling run."
+    },
+    {
+      "name": "core.storage",
+      "layer": "core",
+      "budgets": {
+        "atomicWriteP95Ms": 150,
+        "readStateP95Ms": 100
+      },
+      "notes": "Logical budgets for storage operations; refine per backing store."
+    },
+    {
+      "name": "feature.map",
+      "layer": "feature",
+      "budgets": {
+        "initialMapLoadP95Ms": 1500,
+        "tileFetchP95Ms": 300
+      },
+      "notes": "Serving map views; depends on lib.image/lib.geo later."
+    }
+  ]
+}
