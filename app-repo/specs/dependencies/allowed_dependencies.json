@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "description": "Layered dependency rules for modules/blocks/libs. This is enforced via CI.",
+  "rules": [
+    {
+      "fromLayer": "core",
+      "allowedLayers": [
+        "core",
+        "lib"
+      ],
+      "notes": "Core code can depend on other core modules and shared libs, but not on feature modules."
+    },
+    {
+      "fromLayer": "feature",
+      "allowedLayers": [
+        "feature",
+        "core",
+        "lib"
+      ],
+      "notes": "Feature code can depend on its own feature slice plus core and libs."
+    },
+    {
+      "fromLayer": "lib",
+      "allowedLayers": [
+        "lib"
+      ],
+      "notes": "Low-level libs should not depend on core or feature modules."
+    }
+  ],
+  "overrides": [
+    {
+      "fromName": "core.ui",
+      "toName": "feature.map",
+      "reason": "Temporary spike: UI shell directly references feature.map during early implementation."
+    }
+  ]
+}
