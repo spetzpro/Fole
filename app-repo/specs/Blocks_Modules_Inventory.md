@@ -1,6 +1,7 @@
 # Blocks & Modules Inventory
 
 This file is the *single source of truth* for all blocks and modules in the system, plus their current lifecycle state.
+It MUST remain consistent with the future canonical JSON inventory (`specs/inventory/inventory.json`) once that file is introduced.
 
 - **Block** = Higher-level feature slice (UX + behavior) that may span multiple modules.
 - **Module** = Concrete, code-level unit with a spec in `specs/modules/**` and implementation under `src/**`.
