@@ -1,0 +1,69 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "App Specs Inventory",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "name",
+          "kind",
+          "layer",
+          "status"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "Block",
+              "Module",
+              "Lib"
+            ]
+          },
+          "layer": {
+            "type": "string",
+            "enum": [
+              "core",
+              "feature",
+              "lib"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "Planned",
+              "Specced",
+              "In implementation",
+              "Implemented",
+              "Stable"
+            ]
+          },
+          "specPath": {
+            "type": "string"
+          },
+          "notes": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "version",
+    "items"
+  ],
+  "additionalProperties": false
+}

@@ -1,0 +1,214 @@
+{
+  "$schema": "./inventory.schema.json",
+  "version": 1,
+  "items": [
+    {
+      "name": "core.foundation",
+      "kind": "Module",
+      "layer": "core",
+      "status": "In implementation",
+      "specPath": "specs/modules/core.foundation",
+      "notes": "Basic app/runtime primitives, env, logging hooks, etc."
+    },
+    {
+      "name": "core.storage",
+      "kind": "Block",
+      "layer": "core",
+      "status": "Specced",
+      "specPath": "specs/blocks/core.storage.md",
+      "notes": "Overall storage behavior across modules."
+    },
+    {
+      "name": "core.storage",
+      "kind": "Module",
+      "layer": "core",
+      "status": "Stable",
+      "specPath": "specs/modules/core.storage",
+      "notes": "StoragePaths, atomic write services, manifests; implementation aligned with specs."
+    },
+    {
+      "name": "core.auth",
+      "kind": "Block",
+      "layer": "core",
+      "status": "Specced",
+      "specPath": "specs/blocks/core.auth.md",
+      "notes": "Auth flows and UX."
+    },
+    {
+      "name": "core.auth",
+      "kind": "Module",
+      "layer": "core",
+      "status": "Implemented",
+      "specPath": "specs/modules/core.auth",
+      "notes": "Auth engine, session management, identity."
+    },
+    {
+      "name": "core.permissions",
+      "kind": "Block",
+      "layer": "core",
+      "status": "Specced",
+      "specPath": "specs/blocks/core.permissions.md",
+      "notes": "Roles, overrides, UX & behavior."
+    },
+    {
+      "name": "core.permissions",
+      "kind": "Module",
+      "layer": "core",
+      "status": "Implemented",
+      "specPath": "specs/modules/core.permissions",
+      "notes": "Permission model, policy registry, service, guards."
+    },
+    {
+      "name": "core.ui",
+      "kind": "Block",
+      "layer": "core",
+      "status": "Specced",
+      "specPath": "specs/blocks/core.ui.md",
+      "notes": "App shell, navigation, workspace experience."
+    },
+    {
+      "name": "core.ui",
+      "kind": "Module",
+      "layer": "core",
+      "status": "Implemented",
+      "specPath": "specs/modules/core.ui",
+      "notes": "UI state, router, layout, error boundaries, project selector."
+    },
+    {
+      "name": "core.runtime",
+      "kind": "Module",
+      "layer": "core",
+      "status": "Planned",
+      "specPath": "",
+      "notes": "Module lifetime, hooks, job scheduling, diagnostics integration."
+    },
+    {
+      "name": "core.moduleStateRepository",
+      "kind": "Module",
+      "layer": "core",
+      "status": "Specced",
+      "specPath": "",
+      "notes": "Versioned module-state storage with atomic writes & schemaVersion rules."
+    },
+    {
+      "name": "core.accessControl",
+      "kind": "Module",
+      "layer": "core",
+      "status": "Specced",
+      "specPath": "",
+      "notes": "Authentication, sessions, PermissionContext, roles→permissions mapping."
+    },
+    {
+      "name": "feature.map",
+      "kind": "Block",
+      "layer": "feature",
+      "status": "Planned",
+      "specPath": "specs/blocks/feature.map.block.md",
+      "notes": "Map viewing, map selection, link to geo + image pipeline."
+    },
+    {
+      "name": "feature.map",
+      "kind": "Module",
+      "layer": "feature",
+      "status": "Planned",
+      "specPath": "specs/modules/feature.map/feature.map.module.md",
+      "notes": "Map registry, active map state, hooks to map DBs."
+    },
+    {
+      "name": "feature.sketch",
+      "kind": "Block",
+      "layer": "feature",
+      "status": "Planned",
+      "specPath": "",
+      "notes": "Sketching tools UI & interactions."
+    },
+    {
+      "name": "feature.sketch",
+      "kind": "Module",
+      "layer": "feature",
+      "status": "Planned",
+      "specPath": "",
+      "notes": "Sketch data model & persistence."
+    },
+    {
+      "name": "feature.files",
+      "kind": "Block",
+      "layer": "feature",
+      "status": "Planned",
+      "specPath": "",
+      "notes": "File browser UX, upload, links."
+    },
+    {
+      "name": "feature.files",
+      "kind": "Module",
+      "layer": "feature",
+      "status": "Planned",
+      "specPath": "",
+      "notes": "File metadata, storage integration."
+    },
+    {
+      "name": "feature.comments",
+      "kind": "Block",
+      "layer": "feature",
+      "status": "Planned",
+      "specPath": "",
+      "notes": "Comment UI, side panels, activity."
+    },
+    {
+      "name": "feature.comments",
+      "kind": "Module",
+      "layer": "feature",
+      "status": "Planned",
+      "specPath": "",
+      "notes": "Comment persistence, threading, permissions."
+    },
+    {
+      "name": "feature.measure",
+      "kind": "Block",
+      "layer": "feature",
+      "status": "Planned",
+      "specPath": "",
+      "notes": "Measurement tools on maps/sketches."
+    },
+    {
+      "name": "feature.measure",
+      "kind": "Module",
+      "layer": "feature",
+      "status": "Planned",
+      "specPath": "",
+      "notes": "Measurement math, snapping, tolerances."
+    },
+    {
+      "name": "lib.image",
+      "kind": "Lib",
+      "layer": "lib",
+      "status": "Planned",
+      "specPath": "",
+      "notes": "Image normalization, formats, tile handling, ICC, EXIF, etc."
+    },
+    {
+      "name": "lib.geo",
+      "kind": "Lib",
+      "layer": "lib",
+      "status": "Planned",
+      "specPath": "",
+      "notes": "Global→local transform, calibration, coordinate math."
+    },
+    {
+      "name": "lib.jobs",
+      "kind": "Lib",
+      "layer": "lib",
+      "status": "Planned",
+      "specPath": "",
+      "notes": "Background jobs, queueing, progress reporting."
+    },
+    {
+      "name": "lib.diagnostics",
+      "kind": "Lib",
+      "layer": "lib",
+      "status": "Planned",
+      "specPath": "",
+      "notes": "Logging, traces, error reporting helpers shared across modules."
+    }
+  ]
+}
