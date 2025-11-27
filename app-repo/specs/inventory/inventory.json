@@ -22,9 +22,9 @@
       "name": "core.storage",
       "kind": "Module",
       "layer": "core",
-      "status": "Stable",
+      "status": "Implemented",
       "specPath": "specs/modules/core.storage",
-      "notes": "StoragePaths, atomic write services, manifests; implementation aligned with specs."
+      "notes": "Storage stack mature overall; ProjectModel/PathResolver behave as Stable, ProjectRegistry/FileStorage/DalContextFactory implemented and used; MigrationRunner currently specced-only."
     },
     {
       "name": "core.auth",
