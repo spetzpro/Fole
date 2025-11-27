@@ -334,5 +334,38 @@ AI must:
 - use centralized ACL rules  
 - follow `_ROLES_AND_PERMISSIONS.md`  
 - never bypass permission checks  
-- not grant new permissions implicitly 
+- not grant new permissions implicitly
 
+## 6.4 Mandatory spec governance command
+
+All AI agents and automation working on this repository MUST ensure that the spec governance checks pass
+before completing any change that touches:
+
+- Specs (any `specs/**` .md or .json),
+- The canonical inventory (`specs/Blocks_Modules_Inventory.md`, `specs/inventory/inventory.json`),
+- Dependency governance (`specs/dependencies/allowed_dependencies.json`),
+- Performance budgets (`specs/perf/performance_budget.json`),
+- Or code that depends directly on those specs.
+
+**Canonical command:**
+
+- The required governance command is:
+
+  ```bash
+  npm run spec:check
+  ```
+
+  This MUST be run from the repository root (the directory that contains `package.json`).
+
+**AI agent requirements:**
+
+- Before creating or finalizing any PR or patch that falls under the scope above, an AI agent MUST:
+  - Run `npm run spec:check`.
+  - If the command fails, STOP, surface the errors, and update specs / inventory / dependencies / perf configuration
+    so that `npm run spec:check` passes as part of the same change set.
+- AI MUST NOT ignore or bypass failures from `npm run spec:check`.
+
+**CI requirements:**
+
+- CI MUST run `npm run spec:check` as part of at least one required workflow (for example the
+  `Validate Spec Governance` GitHub Actions workflow) and treat any failures as blocking for merge.
