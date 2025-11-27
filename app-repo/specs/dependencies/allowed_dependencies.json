@@ -27,11 +27,5 @@
       "notes": "Low-level libs should not depend on core or feature modules."
     }
   ],
-  "overrides": [
-    {
-      "fromName": "core.ui",
-      "toName": "feature.map",
-      "reason": "Temporary spike: UI shell directly references feature.map during early implementation."
-    }
-  ]
+  "overrides": []
 }

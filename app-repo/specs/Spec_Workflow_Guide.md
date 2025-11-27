@@ -41,7 +41,7 @@ If any other document contradicts this workflow, **this guide wins**, unless `_A
      - All blocks/modules/libs.
      - Their **status** (Planned / Specced / In implementation / Implemented / Stable).
      - Where their specs live.
-   - Once introduced, a **canonical JSON inventory** (see §4.3) is treated as the machine-readable equivalent of this file.
+   - Once introduced, a **canonical JSON inventory** (see §6) is treated as the machine-readable equivalent of this file.
 
 4. **Planned vs Implemented must be explicit in specs**
 
@@ -61,7 +61,7 @@ If any other document contradicts this workflow, **this guide wins**, unless `_A
      - <bullets>
    ```
 
-   > Templates **must** support this – see next steps after this guide.
+   > Templates **must** support this – see updated templates in `specs/templates`.
 
 5. **Strict spec–inventory–code alignment**
 
@@ -322,7 +322,7 @@ Applies to: Type D changes (urgent fixes).
 
 1. You may patch code directly to address the emergency **if**:
    - You log a **Hotfix Debt artifact** (see next section).
-   - You do NOT widen the change beyond what’s necessary.
+     - You do NOT widen the change beyond what’s necessary.
 
 2. Ideally:
    - Patch branch is clearly named: `hotfix/<issue-id>`.
@@ -357,16 +357,10 @@ Within the next planned work cycle:
 
 We currently have `Blocks_Modules_Inventory.md` as the human-readable source of truth.
 
-We will introduce a **canonical machine-readable inventory** to enable CI and tooling.
+We also introduce a **canonical machine-readable inventory** to enable CI and tooling:
 
-### 6.1 Canonical JSON Inventory
-
-Planned structure (to be implemented as a next step):
-
-- File: e.g. `specs/inventory/inventory.json`
-- Contains:
-  - All entries from `Blocks_Modules_Inventory.md`.
-  - Normalized fields (name, kind, layer, status, specPath, notes).
+- File: `specs/inventory/inventory.json`
+- Schema: `specs/inventory/inventory.schema.json`
 
 **Rules:**
 
@@ -376,20 +370,24 @@ Planned structure (to be implemented as a next step):
   - JSON schema.
   - Cross-links between spec paths and actual files.
 
-### 6.2 Per-Module Inventories (Optional Evolution)
-
-Later we may introduce per-module inventory fragments:
-
-- e.g. `specs/modules/feature.map/inventory.json`
-- Aggregated into the canonical inventory via tooling.
-
-This guide remains valid; it simply defines how these artifacts relate.
+Later we may introduce per-module inventory fragments, aggregated into the canonical inventory via tooling. This guide remains valid; it simply defines how these artifacts relate.
 
 ---
 
 ## 7. CI-Enforceable Artifacts & Checks
 
 The spec-first governance is enforced by CI where possible.
+
+Concrete artifacts:
+
+- **Inventory (machine-readable)**  
+  - File: `specs/inventory/inventory.json`  
+  - Schema: `specs/inventory/inventory.schema.json`  
+  - Validator script: `scripts/specs/validateInventory.js`
+
+- **Dependency governance**  
+  - Rules: `specs/dependencies/allowed_dependencies.json`  
+  - Validator script: `scripts/specs/validateDependencies.js`
 
 Future (and partly existing) checks include:
 
@@ -460,7 +458,7 @@ Output a short sitrep document per audit:
 AI copilots (VS Code agents, ChatGPT, etc.) must follow these rules:
 
 1. **Always start at inventory**
-   - Locate block/module/lib and its spec path via `Blocks_Modules_Inventory.md` (and later `inventory.json`).
+   - Locate block/module/lib and its spec path via `Blocks_Modules_Inventory.md` (and `specs/inventory/inventory.json`).
 
 2. **Never edit code without checking specs**
    - Read relevant specs before applying changes.

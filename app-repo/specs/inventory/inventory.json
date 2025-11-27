@@ -86,7 +86,7 @@
       "name": "core.moduleStateRepository",
       "kind": "Module",
       "layer": "core",
-      "status": "Specced",
+      "status": "Planned",
       "specPath": "",
       "notes": "Versioned module-state storage with atomic writes & schemaVersion rules."
     },
@@ -94,7 +94,7 @@
       "name": "core.accessControl",
       "kind": "Module",
       "layer": "core",
-      "status": "Specced",
+      "status": "Planned",
       "specPath": "",
       "notes": "Authentication, sessions, PermissionContext, roles→permissions mapping."
     },
