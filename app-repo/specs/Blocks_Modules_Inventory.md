@@ -22,14 +22,14 @@ Status legend:
 | Name | Kind | Layer | Status | Notes | Spec Path |
 | -------------------- | -------- | ------- | ------------------- | ------- | ------------ |
 | core.foundation | Module | core | In implementation | Basic app/runtime primitives, env, logging hooks, etc. | specs/modules/core.foundation |
-| core.storage | Block | core | Specced | Overall storage behavior across modules. | specs/blocks/core.storage.md |
+| core.storage | Block | core | Implemented | Overall storage behavior across modules; StoragePaths + atomic write stack stable; MigrationRunner specced-only; FileStorage atomic pipeline still evolving. | specs/blocks/core.storage.md |
 | core.storage | Module | core | Implemented | Storage stack mature overall; ProjectModel/PathResolver behave as Stable, ProjectRegistry/FileStorage/DalContextFactory implemented and used; MigrationRunner currently specced-only. | specs/modules/core.storage |
 | core.auth | Block | core | Specced | Auth flows and UX. | specs/blocks/core.auth.md |
 | core.auth | Module | core | Implemented | Auth engine, session management, identity. | specs/modules/core.auth |
 | core.permissions | Block | core | Specced | Roles, overrides, UX & behavior. | specs/blocks/core.permissions.md |
 | core.permissions | Module | core | Implemented | Permission model, policy registry, service, guards. | specs/modules/core.permissions |
-| core.ui | Block | core | Implemented | App shell + workspace UX; UiStateStore + ErrorBoundary/ErrorSurface implemented; AppShell/NavigationRouter/ProjectSelector specced-only. | specs/blocks/core.ui.md |
-| core.ui | Module | core | Implemented | UiStateStore + ErrorBoundary/ErrorSurface implemented; AppShell/NavigationRouter/ProjectSelector specced-only. | specs/modules/core.ui |
+| core.ui | Block | core | Specced | App shell, navigation, workspace experience. | specs/blocks/core.ui.md |
+| core.ui | Module | core | Implemented | UI state, router, layout, error boundaries, project selector. | specs/modules/core.ui |
 | core.runtime | Module | core | Planned | Module lifetime, hooks, job scheduling, diagnostics integration. |  |
 | core.moduleStateRepository | Module | core | Planned | Versioned module-state storage with atomic writes & schemaVersion rules. |  |
 | core.accessControl | Module | core | Planned | Authentication, sessions, PermissionContext, roles→permissions mapping. |  |
