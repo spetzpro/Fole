@@ -62,9 +62,9 @@
       "name": "core.ui",
       "kind": "Block",
       "layer": "core",
-      "status": "Specced",
+      "status": "Implemented",
       "specPath": "specs/blocks/core.ui.md",
-      "notes": "App shell, navigation, workspace experience."
+      "notes": "App shell + workspace UX; UiStateStore + ErrorBoundary/ErrorSurface implemented; AppShell/NavigationRouter/ProjectSelector specced-only."
     },
     {
       "name": "core.ui",
@@ -72,7 +72,7 @@
       "layer": "core",
       "status": "Implemented",
       "specPath": "specs/modules/core.ui",
-      "notes": "UI state, router, layout, error boundaries, project selector."
+      "notes": "UiStateStore + ErrorBoundary/ErrorSurface implemented; AppShell/NavigationRouter/ProjectSelector specced-only."
     },
     {
       "name": "core.runtime",
@@ -96,7 +96,7 @@
       "layer": "core",
       "status": "Planned",
       "specPath": "",
-      "notes": "Authentication, sessions, PermissionContext, roles→permissions mapping."
+      "notes": "Authentication, sessions, PermissionContext, roles\u2192permissions mapping."
     },
     {
       "name": "feature.map",
@@ -192,7 +192,7 @@
       "layer": "lib",
       "status": "Planned",
       "specPath": "",
-      "notes": "Global→local transform, calibration, coordinate math."
+      "notes": "Global\u2192local transform, calibration, coordinate math."
     },
     {
       "name": "lib.jobs",
