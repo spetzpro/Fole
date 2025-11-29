@@ -14,9 +14,9 @@
       "name": "core.storage",
       "kind": "Block",
       "layer": "core",
-      "status": "Specced",
+      "status": "Implemented",
       "specPath": "specs/blocks/core.storage.md",
-      "notes": "Overall storage behavior across modules."
+      "notes": "Overall storage behavior across modules; StoragePaths + atomic write stack stable; MigrationRunner specced-only; FileStorage atomic pipeline still evolving."
     },
     {
       "name": "core.storage",
@@ -46,9 +46,9 @@
       "name": "core.permissions",
       "kind": "Block",
       "layer": "core",
-      "status": "Specced",
+      "status": "Implemented",
       "specPath": "specs/blocks/core.permissions.md",
-      "notes": "Roles, overrides, UX & behavior."
+      "notes": "Roles and policy engine; PermissionModel/PolicyRegistry/PermissionService stable; PermissionGuards implemented and maturing."
     },
     {
       "name": "core.permissions",
@@ -56,15 +56,15 @@
       "layer": "core",
       "status": "Implemented",
       "specPath": "specs/modules/core.permissions",
-      "notes": "Permission model, policy registry, service, guards."
+      "notes": "Permission model and engine stable; guards implemented but not yet stable."
     },
     {
       "name": "core.ui",
       "kind": "Block",
       "layer": "core",
-      "status": "Specced",
+      "status": "Implemented",
       "specPath": "specs/blocks/core.ui.md",
-      "notes": "App shell, navigation, workspace experience."
+      "notes": "App shell + workspace UX; UiStateStore + ErrorBoundary/ErrorSurface implemented; AppShell/NavigationRouter/ProjectSelector specced-only."
     },
     {
       "name": "core.ui",
@@ -72,7 +72,7 @@
       "layer": "core",
       "status": "Implemented",
       "specPath": "specs/modules/core.ui",
-      "notes": "UI state, router, layout, error boundaries, project selector."
+      "notes": "UiStateStore + ErrorBoundary/ErrorSurface implemented; AppShell/NavigationRouter/ProjectSelector specced-only."
     },
     {
       "name": "core.runtime",
