@@ -22,10 +22,10 @@ Status legend:
 | Name | Kind | Layer | Status | Notes | Spec Path |
 | -------------------- | -------- | ------- | ------------------- | ------- | ------------ |
 | core.foundation | Module | core | In implementation | Basic app/runtime primitives, env, logging hooks, etc. | specs/modules/core.foundation |
-| core.storage | Block | core | Implemented | Overall storage behavior across modules; StoragePaths + atomic write stack stable; MigrationRunner specced-only; FileStorage atomic pipeline still evolving. | specs/blocks/core.storage.md |
+| core.storage | Block | core | Specced | Overall storage behavior across modules. | specs/blocks/core.storage.md |
 | core.storage | Module | core | Implemented | Storage stack mature overall; ProjectModel/PathResolver behave as Stable, ProjectRegistry/FileStorage/DalContextFactory implemented and used; MigrationRunner currently specced-only. | specs/modules/core.storage |
-| core.auth | Block | core | Specced | Auth flows and UX. | specs/blocks/core.auth.md |
-| core.auth | Module | core | Implemented | Auth engine, session management, identity. | specs/modules/core.auth |
+| core.auth | Block | core | Implemented | Auth flows; AuthApiClient/AuthSessionManager implemented; AuthStateStore/CurrentUserProvider stable; sessions currently in-memory only. | specs/blocks/core.auth.md |
+| core.auth | Module | core | Implemented | Auth engine; in-memory session manager + reactive auth state + current user provider. | specs/modules/core.auth |
 | core.permissions | Block | core | Specced | Roles, overrides, UX & behavior. | specs/blocks/core.permissions.md |
 | core.permissions | Module | core | Implemented | Permission model, policy registry, service, guards. | specs/modules/core.permissions |
 | core.ui | Block | core | Specced | App shell, navigation, workspace experience. | specs/blocks/core.ui.md |
