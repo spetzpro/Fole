@@ -1,107 +1,165 @@
 # Block: core.permissions
 
-## 1. Purpose / Responsibility
+## Block ID
+core.permissions
 
-Centralize access control logic:
+## 1. Purpose
 
-- Define permission model (roles, capabilities)
-- Evaluate whether a user can perform an action on a resource
-- Provide simple, composable permission APIs to UI and backend layers
+The `core.permissions` block is the central **policy engine** for determining whether a user may perform an action on a resource. It defines the permission vocabulary, evaluation rules, default policies, and convenience guards used across the application.
 
-### Not Responsible For
+It is responsible for:
 
-- Storing users or roles (delegated to `core.auth` / backend)
-- UI rendering of “forbidden” screens (delegated to `core.ui`)
+- Defining the **permission model**: actions, resources, contexts, decisions.
+- Providing a **policy registry** for mapping (action, resourceType) → policy handlers.
+- Implementing the **permission evaluation engine**.
+- Providing **guards** for UI and service-level authorization decisions.
+- Integrating project membership, global permissions, and override permissions into consistent decision logic.
 
----
+It is not responsible for:
 
-## 2. High-Level Summary
+- Authentication (handled by `core.auth`).
+- UI rendering of allowed/denied states (`core.ui`).
+- Storing users/roles/permissions in a backend.
+- Feature-specific business logic.
 
-`core.permissions` is the **policy brain** of the app.  
-It understands:
+## 2. Scope and Non-Scope
 
-- What actions exist (read/write project, manage comments, etc.)
-- What resource types exist
-- How user identity + claims map to allowed actions
+### In scope
 
-Other blocks should **never** hardcode permission rules; they call into this block.
+- Permission actions and types (including MAP_CALIBRATE).
+- Resource descriptors for project/file/comment/sketch/map resources.
+- PermissionContext derived from user identity and membership.
+- Decision logic (allowed/reasonCode/grantSource).
+- Policy registration and default policies.
+- Permission guards for boolean, Result, and exception-based enforcement.
 
----
+### Out of scope
 
-## 3. Modules in This Block
+- Identity, session, and roles (core.auth).
+- UI behavior for permission failures (core.ui).
+- Feature-specific side-effects or workflows.
 
-| Module                | Responsibility                                      | Status  |
-|-----------------------|-----------------------------------------------------|---------|
-| PermissionModel       | Types/enums for actions, resources, roles           | planned |
-| PermissionService     | Core `can(user, action, resource)` engine           | planned |
-| PolicyRegistry        | Registry of policies per resource type              | planned |
-| PermissionGuards      | Convenience helpers for UI and routing              | planned |
+## 3. Block Decomposition
 
----
+| Module ID                                 | Responsibility                                            | Status       |
+|-------------------------------------------|-----------------------------------------------------------|--------------|
+| `core.permissions.PermissionModel`        | Permission vocabulary and core types                      | Stable       |
+| `core.permissions.PolicyRegistry`         | Registration and lookup of policy handlers                | Stable       |
+| `core.permissions.PermissionService`      | Evaluation engine (`can` / `canWithReason`)               | Stable       |
+| `core.permissions.PermissionGuards`       | Convenience enforcement helpers for UI/services           | Implemented  |
 
-## 4. Data Model
+### Block lifecycle status: **Implemented**
 
-In-memory definitions:
+- Engine modules (Model, Registry, Service) are implemented and well tested.
+- Guards are implemented, but under-tested and will be improved as projectMembership and roles→permissions mapping are refined.
 
-- `Role` (e.g., OWNER, EDITOR, VIEWER)
-- `Action` (PROJECT_READ, PROJECT_WRITE, FILE_UPLOAD, COMMENT_EDIT, etc.)
-- `ResourceDescriptor`:
-  - `type` (project, file, comment…)
-  - `id`
-  - `ownerId` / `projectId` etc.
+## 4. Responsibilities per Module
 
-Mappings between roles and capabilities are configuration-driven (from `core.foundation` config).
+### 4.1 PermissionModel (Stable)
 
----
+Defines:
 
-## 5. Interactions
+- `PermissionAction` union including PROJECT_READ/WRITE, FILE_READ/WRITE, COMMENT_*, SKETCH_EDIT, MAP_EDIT, **MAP_CALIBRATE**.
+- `ResourceType` and `ResourceDescriptor`.
+- `PermissionContext` (CurrentUser, globalPermissions, projectMembership).
+- `PermissionDecision` (allowed, reasonCode, grantSource).
+- `PermissionDeniedReason` and `GrantSource`.
 
-**Called By**
+Highly stable and tested indirectly through policy and service tests.
 
-- `core.ui` when deciding which buttons/menus to show
-- `core.storage` or backend layers when enforcing write access
-- Feature blocks (sketch, map, comments, etc.)
+### 4.2 PolicyRegistry (Stable)
 
-**Depends On**
+- Stores policy handlers in an in-memory registry.
+- Keyed by `(action, resourceType)`.
+- Default policies include:
+  - PROJECT_READ/WRITE
+  - FILE_READ/WRITE
+  - COMMENT_CREATE/EDIT/DELETE
+  - SKETCH_EDIT
+  - MAP_EDIT
+  - **MAP_CALIBRATE**
+- Enforces NOT_AUTHENTICATED, RESOURCE_NOT_IN_PROJECT, and grantSource semantics.
 
-- `core.foundation` for config and logging
-- `core.auth` for current user identity/roles
+### 4.3 PermissionService (Stable)
 
-Example API:
+- Implements:
+  - `can(ctx, action, resource)` → boolean
+  - `canWithReason(ctx, action, resource)` → PermissionDecision
+- Delegates to PolicyRegistry.
+- Returns UNKNOWN for unregistered policies.
+- Used across core and feature modules.
 
-```ts
-import { can } from '@/core/permissions/PermissionService';
+### 4.4 PermissionGuards (Implemented)
 
-if (can(currentUser, 'PROJECT_WRITE', { type: 'project', id })) {
-  // allow editing
-}
-```
+- Implements:
+  - `createPermissionContextFromCurrentUser`
+  - `canPerform`
+  - `ensureCanPerform`
+  - `assertCanPerform`
+- Uses CurrentUserProvider and PermissionService.
+- Current limitations:
+  - Assumes presence of a `permissions` field in CurrentUser (not in core.auth).
+  - Does not derive projectMembership.
+  - Lacks dedicated tests.
 
----
+Will be upgraded during future iterations.
 
-## 6. Events & Side Effects
+## 5. Invariants and Guarantees
 
-- None for MVP beyond logging decisions (optional)
-- Future: audit log events could be emitted here
+- Permission checks are deterministic: decision = f(ctx, action, resource).
+- Policies must set reasonCode and grantSource.
+- Default policies enforce authentication and scope rules.
+- `MAP_CALIBRATE` follows calibration-specific override behavior per `_AI_ROLES_AND_PERMISSIONS.md`.
 
----
+## 6. Dependencies
 
-## 7. External Dependencies
+### Allowed dependencies
 
-- None beyond internal blocks and runtime
+- `core.auth` for CurrentUser identity.
+- `core.foundation` for Result/AppError/diagnostics.
+- Config for roles→permissions mapping (from `_AI_ROLES_AND_PERMISSIONS.md` or similar).
 
----
+### Prohibited
 
-## 8. MVP Scope
+- `core.ui`
+- `core.storage` / DB
+- `feature.*` (permissions must be feature-agnostic)
 
-- Define core actions:
-  - PROJECT_READ, PROJECT_WRITE
-  - FILE_READ, FILE_WRITE
-  - COMMENT_CREATE, COMMENT_EDIT, COMMENT_DELETE
-- Implement simple role model (OWNER, EDITOR, VIEWER)
-- Implement `can(user, action, resource)` with:
-  - Role-based rules
-  - Ownership check for some resources
-- Provide minimal UI helpers:
-  - `canProjectWrite(projectId)`
-  - `useCan(action, resource)`
+### Downstream consumers
+
+- `core.ui` (guards)
+- `feature.map`, `feature.files`, etc.
+- Any service requiring authorization.
+
+## 7. Performance Considerations
+
+- All operations are pure and O(1) / O(n) in small arrays.
+- No IO.
+- No dedicated performance budget required.
+
+## 8. Testing Strategy
+
+- Default policies tested in:
+  - `permissions.test.ts`
+  - `mapCalibratePermission.test.ts`
+- PermissionService tested via default policies.
+- Guards require dedicated test coverage in future.
+- Future tests will validate identity→permissions mapping when added.
+
+## 9. CI and Governance Integration
+
+Changes to:
+
+- PermissionAction or ResourceType.
+- PolicyRegistry default policies.
+- PermissionContext structure.
+- PermissionDecision semantics.
+
+MUST:
+
+1. Update this block spec.
+2. Update module specs.
+3. Update implementation + tests.
+4. Update inventory entries.
+5. Ensure `npm run spec:check` passes.
+
