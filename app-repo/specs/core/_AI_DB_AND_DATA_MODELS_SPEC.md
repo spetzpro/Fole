@@ -55,25 +55,32 @@ Higher-level modules use a per-project DAL context provided by:
 
 ---
 
-## 3. Core Entities (Conceptual)
+## 3. Core Entities (Conceptual + MVP fields)
 
 Exact schemas live alongside migrations, but conceptually each project DB will handle:
 
 - `project_metadata`
   - one row per project (or a small metadata table)
   - may be mirrored in `project.json` for quick file-based introspection
-- `maps`
+-- `maps`
   - each floorplan / base image
   - fields like: `id`, `project_id`, `name`, `file_id`, `width`, `height`, `created_at`, etc.
-- `map_calibrations` (MVP)
-  - calibration sets for maps, tying pixel coordinates to world coordinates
-  - fields like:
-    - `id`
+  - **Implementation status:** present in `project.db` migrations and covered by tests.
+-- `map_calibrations` (MVP)
+  - calibration sets for maps, tying pixel coordinates to world coordinates.
+  - **Implementation status (Phase 1):** table is present in `project.db` migrations and exercised by
+    FeatureMapService and CalibrationService tests.
+  - In the current MVP, migrations and code persist at least the following fields:
+    - `id` / `calibration_id`
+    - `project_id`
     - `map_id`
     - `is_active` (0/1)
     - `transform_type` (e.g. similarity/affine/other in MVP; may expand later)
     - `rms_error`
     - `created_at`
+  - Additional conceptual fields (transform blobs/parameters, `maxResidualError`, `createdByUserId`, and
+    separate `calibration_points` tables) are **not yet stored** in `project.db` in this phase and will
+    be added when the full calibration lifecycle is implemented.
 - `sketch_layers`
   - sketch overlays linked to a map
   - fields like: `id`, `map_id`, `data_blob` (vector data, possibly as JSON or binary), etc.

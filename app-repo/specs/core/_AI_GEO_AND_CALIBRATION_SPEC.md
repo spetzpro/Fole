@@ -32,12 +32,13 @@ As of the current `app-repo` codebase:
 - There is **no implementation** of `lib.geo` under `src/lib/**`; all coordinate math described here is Specced-only.
 - `feature.map`:
   - persists calibration-related metadata in `map_calibrations` and reads an active calibration summary (isCalibrated, transform_type, rms_error) for each map.
-  - does **not** implement a full calibration lifecycle service (no list/create/update/setActive flows at the feature layer yet).
+  - exposes a **read-only CalibrationService** that can list calibrations for a map and return the active calibration based on `map_calibrations` rows.
+  - does **not** implement a full calibration lifecycle service (no create/update/activate flows at the feature layer yet).
   - does **not** call a `lib.geo` API for fitting/calculating transforms; transform semantics are implied but not implemented.
 - `feature.measure` is defined only in `feature.measure.module.md` and has no implementation.
 - All WGS84/ECEF/local ENU math referred to in this document is **target behavior** for future `lib.geo` and feature implementations.
 
-AI agents must treat this document as the **authoritative design** for geo/calibration, but not assume that any of the described math exists in this repo today beyond the minimal `map_calibrations` schema and FeatureMapService’s read-only calibration summary.
+AI agents must treat this document as the **authoritative design** for geo/calibration, but not assume that any of the described math exists in this repo today beyond the minimal `map_calibrations` schema, FeatureMapService’s read-only calibration summary, and the read-only CalibrationService.
 
 ---
 

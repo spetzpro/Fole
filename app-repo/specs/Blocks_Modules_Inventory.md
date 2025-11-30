@@ -26,8 +26,8 @@ Status legend:
 | core.storage | Module | core | Stable | StoragePaths, atomic write services, manifests; implementation aligned with specs. | specs/modules/core.storage |
 | core.auth | Block | core | Specced | Auth flows and UX. | specs/blocks/core.auth.md |
 | core.auth | Module | core | Implemented | Auth engine, session management, identity. | specs/modules/core.auth |
-| core.permissions | Block | core | Specced | Roles, overrides, UX & behavior. | specs/blocks/core.permissions.md |
-| core.permissions | Module | core | Implemented | Permission model, policy registry, service, guards. | specs/modules/core.permissions |
+| core.permissions | Block | core | Stable | Roles, overrides, UX & behavior; engine and guards implemented with static canonical role→permission mapping. | specs/blocks/core.permissions.md |
+| core.permissions | Module | core | Stable | Permission model, policy registry, service, guards; static canonical role→permission mapping and PermissionContext from CurrentUser.roles implemented and tested. | specs/modules/core.permissions |
 | core.ui | Block | core | Specced | App shell, navigation, workspace experience. | specs/blocks/core.ui.md |
 | core.ui | Module | core | Implemented | UI state, router, layout, error boundaries, project selector. | specs/modules/core.ui |
 | core.runtime | Module | core | Planned | Module lifetime, hooks, job scheduling, diagnostics integration. |  |
@@ -41,8 +41,8 @@ Status legend:
 
 | Name | Kind | Layer | Status | Notes | Spec Path |
 | ------------------ | -------- | --------- | ----------- | ------- | ------------ |
-| feature.map | Block | feature | Specced | Block specced; FeatureMapTypes + read-only FeatureMapService implemented; active map, calibration, viewport, imagery services planned. | specs/blocks/feature.map.block.md |
-| feature.map | Module | feature | Planned | Map registry, active map state, hooks to map DBs. | specs/modules/feature.map/feature.map.module.md |
+| feature.map | Block | feature | Implemented | Read-side map registry and read-only calibration slice implemented; ActiveMapService, write flows, and full calibration lifecycle planned. | specs/blocks/feature.map.block.md |
+| feature.map | Module | feature | In implementation | Map registry and read-only CalibrationService implemented; ActiveMapService, viewport, and write/calibration lifecycle APIs planned. | specs/modules/feature.map/feature.map.module.md |
 | feature.sketch | Block | feature | Planned | Sketching tools UI & interactions. |  |
 | feature.sketch | Module | feature | Planned | Sketch data model & persistence. |  |
 | feature.files | Block | feature | Planned | File browser UX, upload, links. |  |

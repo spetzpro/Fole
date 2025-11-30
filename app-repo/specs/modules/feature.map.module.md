@@ -19,7 +19,7 @@ This module spec is split across several submodule specs:
 - `feature.map.CalibrationService`
 - `feature.map.ViewportImageryService`
 
-At present, only the **types and read-only registry APIs** are implemented (FeatureMapTypes + read-side FeatureMapService). Other services remain Specced-only.
+At present, the **types, read-only registry APIs, and a read-only CalibrationService** are implemented (FeatureMapTypes + read-side FeatureMapService + CalibrationService). Other services remain Specced-only.
 
 ## 2. Responsibilities
 
@@ -33,14 +33,14 @@ At present, only the **types and read-only registry APIs** are implemented (Feat
 
 ## 3. Status
 
-- **Block status**: Specced (see Block spec).
+- **Block status**: Implemented (read-only slice; see Block spec).
 - **Module status**: Specced, with a partial implementation:
   - Implemented:
     - FeatureMapTypes (types).
-    - Read-only FeatureMapService (list/get).
+    - Read-only FeatureMapService (list/get with calibration summary from `map_calibrations`).
+    - Read-only CalibrationService (listCalibrations/getActiveCalibration from `map_calibrations`).
   - Specced-only:
     - ActiveMapService.
-    - CalibrationService.
     - ViewportImageryService.
 
 Any consumer relying on `feature.map` should treat only the list/get registry APIs as currently available; all write and management operations are planned.

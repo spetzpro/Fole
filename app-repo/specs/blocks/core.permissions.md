@@ -46,12 +46,13 @@ It is not responsible for:
 | `core.permissions.PermissionModel`        | Permission vocabulary and core types                      | Stable       |
 | `core.permissions.PolicyRegistry`         | Registration and lookup of policy handlers                | Stable       |
 | `core.permissions.PermissionService`      | Evaluation engine (`can` / `canWithReason`)               | Stable       |
-| `core.permissions.PermissionGuards`       | Convenience enforcement helpers for UI/services           | Implemented  |
+| `core.permissions.PermissionGuards`       | Convenience enforcement helpers for UI/services           | Stable       |
 
-### Block lifecycle status: **Implemented**
+### Block lifecycle status: **Stable**
 
 - Engine modules (Model, Registry, Service) are implemented and well tested.
-- Guards are implemented, but under-tested and will be improved as projectMembership and roles→permissions mapping are refined.
+- Guards are implemented, tested, and use the canonical roles→permissions mapping via `deriveGlobalPermissionsForUser` when building `PermissionContext` from `CurrentUser.roles`.
+- ProjectMembership- and tenant-configuration-driven permissions remain future work and will be added in a later phase.
 
 ## 4. Responsibilities per Module
 

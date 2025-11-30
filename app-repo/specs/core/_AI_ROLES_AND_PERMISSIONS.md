@@ -27,25 +27,25 @@ UX behavior for override visibility is detailed in:
 
 ---
 
-## 1.5 Current Implementation Status (MVP)
+### 1.5 Current Implementation Status (Phase 1)
 
 The model in this document describes the **target** roles/permissions system. The current implementation
-in this repo is an MVP slice:
+in this repo has a completed Phase 1 slice:
 
-- `core.auth` exposes `CurrentUser` with `roles: string[]`; effective permissions are derived via
-  configuration and passed into `PermissionContext.globalPermissions` and `PermissionContext.projectMembership.permissions`
-  where that mapping is wired.
+- `core.auth` exposes `CurrentUser` with `roles: string[]`.
 - `core.permissions` implements the **engine** (PermissionModel, PolicyRegistry, PermissionService) and
   uses `PermissionContext` as described here.
-- `core.permissions.PermissionGuards` currently build a **partial** `PermissionContext` directly from
-  `CurrentUser` (and do not yet incorporate full roles→permissions mapping or projectMembership); they
-  will be evolved to match this document.
+- `core.permissions.PermissionModel` defines a static canonical role → permission mapping
+  (`CANONICAL_ROLE_PERMISSIONS`) and a helper (`deriveGlobalPermissionsForUser`) which derive
+  `PermissionContext.globalPermissions` from `CurrentUser.roles`.
+- `core.permissions.PermissionGuards` use this mapping to build a `PermissionContext` from the current
+  user for simple flows (no projectMembership yet).
 - Feature-module permissions (Section 9) describe the default/target semantics. Today, only the
-  `map.*` actions are partially implemented in the engine and exercised via `feature.map`'s read-only
-  map registry; other feature module permissions are future work.
+  `map.*`-related actions are partially implemented in the engine and exercised via `feature.map`'s
+  read-only map registry and permissions tests; other feature module permissions are future work.
 
-All statements below should be read with this MVP status in mind: the engine matches the model, some
-guard/wiring layers are simplified, and several feature-level permissions are not yet wired.
+Tenant/dynamic configuration of roles and full project-membership-driven permissions (including
+`PermissionContext.projectMembership.permissions`) remain planned and are not yet wired end-to-end.
 
 
 ## 2. Roles vs Permissions

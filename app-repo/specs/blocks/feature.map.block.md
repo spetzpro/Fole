@@ -47,15 +47,15 @@ At present, only the **read-side map registry slice** is implemented. The rest o
 |--------------------------------------------|--------------------------------------------------------|-------------|
 | `feature.map.FeatureMapTypes`              | Shared map & calibration types                         | Implemented |
 | `feature.map.FeatureMapService`            | Map registry (READ) and calibration summary            | Implemented |
+| `feature.map.CalibrationService`           | Calibration records read APIs (list/getActive)         | Implemented |
 | `feature.map.ActiveMapService`             | Default/active map per project                         | Specced     |
-| `feature.map.CalibrationService`           | Calibration records lifecycle (list/create/update/activate) | Specced |
 | `feature.map.ViewportImageryService`       | Viewport helpers and map imagery resolution            | Specced     |
 
-### Block lifecycle status: **Specced**
+### Block lifecycle status: **Implemented (read-only slice)**
 
-- Types and read-only registry slice are implemented and used in tests.
-- Active/default map, calibration lifecycle management, viewport helpers, imagery resolution, and write flows are **not yet implemented**.
-- The block remains Specced as a whole until those responsibilities are wired and tested.
+- Types, read-only registry slice, and a read-only CalibrationService are implemented and covered by tests.
+- Active/default map, calibration lifecycle **writes** (create/update/activate), viewport helpers, imagery resolution, and write flows for maps are **not yet implemented**.
+- The block will be promoted toward Stable once those responsibilities are wired and tested.
 
 Any new `feature.map.*` module must be added to this table and tracked in the inventories.
 
@@ -93,17 +93,18 @@ Write operations (`createMap`, `updateMapMetadata`, `updateMapStatus`) are curre
 
 There is currently **no implementation** for this module.
 
-### 4.4 CalibrationService (Specced-only)
+### 4.4 CalibrationService (Implemented, read-only)
 
-- Planned responsibilities:
-  - Manage calibration records for maps:
-    - List calibrations for a map.
-    - Create/update calibration records.
-    - Set active calibration for a map.
-  - Enforce single active calibration per map.
+- Implemented responsibilities (Phase 1):
+  - List calibrations for a map from `map_calibrations` in project.db.
+  - Return the active calibration for a map based on `is_active`.
+  - Enforce the "single active calibration" rule at read time by selecting the active row.
+
+- Planned responsibilities (future phases):
+  - Create/update calibration records.
+  - Set active calibration for a map.
+  - Persist full transform parameters and control points (once `calibration_points` and related schema are in place).
   - Integrate with `lib.geo` to represent calibration transforms.
-
-Currently, calibration is represented only via the summary fields read by FeatureMapService; there is no dedicated calibration management service.
 
 ### 4.5 ViewportImageryService (Specced-only)
 

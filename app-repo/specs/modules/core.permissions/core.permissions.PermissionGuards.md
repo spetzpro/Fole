@@ -56,19 +56,15 @@ function ensureCanPerform(
 function assertCanPerform(action: PermissionAction, resource: ResourceDescriptor): void;
 ```
 
-## 4. Current Behavior (MVP)
+## 4. Current Behavior (Phase 1)
 
 - `createPermissionContextFromCurrentUser`:
   - Calls `getCurrentUserProvider().getCurrentUser()`.
+  - Uses `deriveGlobalPermissionsForUser(user)` from `PermissionModel`, which applies the static `CANONICAL_ROLE_PERMISSIONS` mapping to `CurrentUser.roles`.
   - Builds a `PermissionContext` with:
     - `user` = CurrentUser | null.
-    - `globalPermissions` = **currently** derived as `user?.permissions ?? []` (this assumes a `permissions` array on CurrentUser).
-    - `projectMembership` = `undefined`.
-
-> ⚠ **Important:** `core.auth.CurrentUser` today only defines `roles: string[]`, not `permissions: string[]`.
-> This means the current Guards implementation is **not fully aligned** with the auth model and relies on either:
-> - an extended CurrentUser that includes `permissions`, or
-> - future wiring that maps roles → permission strings.
+    - `globalPermissions` = effective global permission strings derived from canonical roles.
+    - `projectMembership` = `undefined` (project-scoped membership wiring is deferred to a later phase).
 
 - `canPerform`:
   - Calls `createPermissionContextFromCurrentUser` and then `getPermissionService().can(ctx, action, resource)`.
@@ -88,29 +84,17 @@ function assertCanPerform(action: PermissionAction, resource: ResourceDescriptor
 
 ### Current status
 
-- **Lifecycle status**: Implemented
+- **Lifecycle status**: Stable
   - Implementation exists at `src/core/permissions/PermissionGuards.ts`.
-  - No dedicated tests exist yet for Guards.
-  - The implementation is used lightly today; most critical flows build `PermissionContext` manually and call `PermissionService` directly.
+  - Guards are covered by dedicated tests that exercise `canPerform`, `ensureCanPerform`, `assertCanPerform`, and `createPermissionContextFromCurrentUser`.
+  - The implementation is used by features that want a simple, roles-driven way to build `PermissionContext` from the current user.
 
 ### Planned improvements
-
-- **Align identity wiring**:
-  - Replace the `user.permissions` assumption with a clear roles→permissions pipeline:
-    - Use `CurrentUser.roles` from `core.auth`.
-    - Map roles→permission strings via config described in `_AI_ROLES_AND_PERMISSIONS.md`.
-    - Populate `globalPermissions` accordingly.
 
 - **Project membership wiring**:
   - Extend Guards (or higher-level helpers) to derive `projectMembership` when a project context is available (e.g., active project from core.ui).
 
-- **Tests**:
-  - Add dedicated tests for:
-    - `canPerform` returning correct booleans.
-    - `ensureCanPerform` returning Result with rich error details.
-    - `assertCanPerform` throwing AppError with expected details.
-
-Once these improvements and tests are in place, `PermissionGuards` may be considered for promotion toward Stable.
+ProjectMembership- and tenant-configuration-driven permissions remain planned work and will be added in a subsequent phase.
 
 ## 6. Dependencies
 
