@@ -182,33 +182,33 @@
       "name": "lib.image",
       "kind": "Lib",
       "layer": "lib",
-      "status": "Planned",
-      "specPath": "",
-      "notes": "Image normalization, formats, tile handling, ICC, EXIF, etc."
+      "status": "Specced",
+      "specPath": "specs/blocks/lib/lib.image.md",
+      "notes": "Block specced; no implementation in src/lib/** yet."
     },
     {
       "name": "lib.geo",
       "kind": "Lib",
       "layer": "lib",
-      "status": "Planned",
-      "specPath": "",
-      "notes": "Global→local transform, calibration, coordinate math."
+      "status": "Specced",
+      "specPath": "specs/blocks/lib/lib.geo.md",
+      "notes": "Block specced; no implementation in src/lib/** yet."
     },
     {
       "name": "lib.jobs",
       "kind": "Lib",
       "layer": "lib",
-      "status": "Planned",
-      "specPath": "",
-      "notes": "Background jobs, queueing, progress reporting."
+      "status": "Specced",
+      "specPath": "specs/blocks/lib/lib.jobs.md",
+      "notes": "Block specced; no implementation in src/lib/** yet."
     },
     {
       "name": "lib.diagnostics",
       "kind": "Lib",
       "layer": "lib",
-      "status": "Planned",
-      "specPath": "",
-      "notes": "Logging, traces, error reporting helpers shared across modules."
+      "status": "Specced",
+      "specPath": "specs/blocks/lib/lib.diagnostics.md",
+      "notes": "Block specced; no implementation in src/lib/** yet."
     }
   ]
 }

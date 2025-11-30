@@ -58,10 +58,10 @@ Status legend:
 
 | Name | Kind | Layer | Status | Notes | Spec Path |
 | ------------- | ------ | ------- | --------- | -------- | ------------ |
-| lib.image | Lib | lib | Planned | Image normalization, formats, tile handling, ICC, EXIF, etc. |  |
-| lib.geo | Lib | lib | Planned | Global→local transform, calibration, coordinate math. |  |
-| lib.jobs | Lib | lib | Planned | Background jobs, queueing, progress reporting. |  |
-| lib.diagnostics | Lib | lib | Planned | Logging, traces, error reporting helpers shared across modules. |  |
+| lib.image | Lib | lib | Specced | Block specced; no implementation in src/lib/** yet. | specs/blocks/lib/lib.image.md |
+| lib.geo | Lib | lib | Specced | Block specced; no implementation in src/lib/** yet. | specs/blocks/lib/lib.geo.md |
+| lib.jobs | Lib | lib | Specced | Block specced; no implementation in src/lib/** yet. | specs/blocks/lib/lib.jobs.md |
+| lib.diagnostics | Lib | lib | Specced | Block specced; no implementation in src/lib/** yet. | specs/blocks/lib/lib.diagnostics.md |
 
 ---
 
