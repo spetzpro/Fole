@@ -1,43 +1,102 @@
-# Module Specification: lib.geo
+# Block: lib.geo
 
-## Module ID
+## Block ID
 lib.geo
 
-## Purpose
-Implements the geo and calibration math from _AI_GEO_AND_CALIBRATION_SPEC.md for coordinate transforms and measurement calculations.
+## 1. Purpose
 
-## State Shape
-```ts
-{
-  // lib.geo maintains no long-lived state; operations are stateless given inputs.
-}
-```
+The `lib.geo` block provides **geospatial and calibration math** used across the system.
 
-## Blocks
-- CoordinateTransformService: WGS84 ↔ ECEF ↔ local tangent plane conversions.
-- CalibrationFittingService: compute map calibration transforms from control points.
-- GeoMeasurementService: compute distances, areas, and angles from coordinates.
-- GeoValidationService: validate control points and calibration inputs before fitting.
+It is responsible for:
 
-## Lifecycle
-- Stateless operations: given inputs, lib.geo computes outputs deterministically without hidden state.
-- Calibration lifecycle: higher-level modules (feature.map) own calibration entities; lib.geo only computes transforms and errors from provided control points.
-- Versioning: functions evolved over time are versioned in code/API but not persisted as state within lib.geo itself.
+- Coordinate transforms between global and local coordinate systems.
+- Map calibration fitting from control points.
+- Geometric measurements (distances, areas, angles).
+- Validation of calibration inputs and numeric safety.
 
-## Dependencies
-- feature.map (calibration and map/world coordinate transforms)
-- feature.measure (measurement calculations)
-- core.foundation/CoreTypes for shared math/precision types
-- lib.diagnostics for logging and metrics in error or edge cases
+It implements (conceptually) the math and rules defined in `_AI_GEO_AND_CALIBRATION_SPEC.md`.
 
-## Error Model
-- GeoInputValidationError: malformed or inconsistent input sets (e.g., too few control points, degenerate geometries).
-- CalibrationFitError: inability to compute a stable transform with acceptable error.
-- GeoComputationError: numeric failures or unsupported coordinate systems.
-- GeoConfigError: misconfiguration of global geo parameters (e.g., Earth model constants), typically detected during startup.
+Currently, `lib.geo` is **Specced only**: there is no implementation under `src/lib/**` in this repo.
 
-## Test Matrix
-- Reference cases: known coordinate pairs must round-trip correctly across transforms within tolerance from _AI_GEO_AND_CALIBRATION_SPEC.md.
-- Calibration accuracy: calibration fit results must meet or report specified error thresholds.
-- Stress tests: large input sets or edge-case geometries must not crash or hang.
-- Backwards compatibility: changes to algorithms must be tested against representative stored data to avoid breaking existing maps and measurements.
+## 2. Scope and Non-Scope
+
+### In scope
+
+- Stateless, deterministic computations for:
+  - WGS84 ↔ ECEF ↔ local tangent plane conversions.
+  - Calibration transforms fitting for maps.
+  - Geo measurements on coordinates (distances, areas, angles).
+  - Validation of control points and calibration inputs.
+
+### Out of scope
+
+- Persisting calibration entities (owned by `feature.map`).
+- UI-level projection controls or visualization.
+- DB schema definitions for geo data.
+
+## 3. Block Decomposition
+
+`lib.geo` is conceptually decomposed into:
+
+| Module ID                             | Responsibility                                       | Status  |
+|---------------------------------------|------------------------------------------------------|---------|
+| `lib.geo.CoordinateTransformService`  | Coordinate transforms between reference frames       | Specced |
+| `lib.geo.CalibrationFittingService`   | Compute calibration transforms from control points   | Specced |
+| `lib.geo.GeoMeasurementService`       | Distances, areas, angles                             | Specced |
+| `lib.geo.GeoValidationService`        | Validate control points and calibration inputs       | Specced |
+
+### Block lifecycle status: **Specced**
+
+- All modules are conceptual only.
+- No code or tests exist under `src/lib/**` in this repo.
+
+## 4. Responsibilities per Module (High-Level)
+
+### 4.1 CoordinateTransformService (Specced)
+
+- Implements WGS84 ↔ ECEF ↔ local tangent plane transforms.
+- Ensures numeric stability and tolerances as per `_AI_GEO_AND_CALIBRATION_SPEC.md`.
+
+### 4.2 CalibrationFittingService (Specced)
+
+- Fits calibration transforms (e.g., similarity, affine, projective) from control points.
+- Reports RMS errors and fit diagnostics.
+
+### 4.3 GeoMeasurementService (Specced)
+
+- Computes distances, areas, and angles over geo coordinates.
+- Handles Earth curvature as specified in the core geo spec.
+
+### 4.4 GeoValidationService (Specced)
+
+- Validates that control point sets are sufficient and non-degenerate.
+- Reports validation errors when calibrations cannot be safely computed.
+
+## 5. Dependencies
+
+### Allowed dependencies
+
+`lib.geo` may depend on:
+
+- `core.foundation.CoreTypes` for representing errors/results.
+- Mathematical primitives or libraries.
+
+It MUST NOT depend on:
+
+- `feature.map` or `feature.measure` directly; instead, they depend on lib.geo.
+
+### Downstream dependents
+
+- `feature.map` (calibration and map/world coordinate transforms).
+- `feature.measure` (distance/area/angle calculations).
+- Any other module needing geo math.
+
+## 6. Testing and CI (Planned)
+
+When implemented, tests MUST:
+
+- Include reference cases from `_AI_GEO_AND_CALIBRATION_SPEC.md`.
+- Cover calibration accuracy thresholds and error reporting.
+- Include stress tests and backward compatibility tests for changes in algorithms.
+
+Specs and inventories must be updated as implementations stabilize.

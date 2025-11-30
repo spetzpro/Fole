@@ -1,46 +1,99 @@
-# Module Specification: lib.jobs
+# Block: lib.jobs
 
-## Module ID
+## Block ID
 lib.jobs
 
-## Purpose
-Implements the job and automation runtime described in _AI_AUTOMATION_ENGINE_SPEC.md, providing queues, dispatch, and retry behavior.
+## 1. Purpose
 
-## State Shape
-```ts
-{
-  // Job definitions and runtime configuration live in storage or config,
-  // not as persistent module state.
-}
-```
+The `lib.jobs` block provides the **job and automation runtime** described in `_AI_AUTOMATION_ENGINE_SPEC.md`.
 
-## Blocks
-- JobQueueService: enqueue jobs with payloads and metadata.
-- JobWorkerService: dispatch jobs to handlers with controlled concurrency and retry policies.
-- JobScheduler: optional scheduling for recurring jobs or delayed execution.
-- JobMonitoringService: expose status and metrics for job throughput, failures, and latency.
+It is responsible for:
 
-## Lifecycle
-- Enqueue: callers submit jobs with type, payload, and optional scheduling information.
-- Execute: workers poll queues, run registered handlers, and record success/failure outcomes.
-- Retry: failed jobs are retried according to policies defined in _AI_AUTOMATION_ENGINE_SPEC.md.
-- Dead-letter: repeatedly failing jobs move to a dead-letter queue for inspection and manual handling.
-- Migration: job schema and handler evolution is coordinated with feature modules; lib.jobs focuses on infrastructure-level compatibility.
+- Defining job queues and enqueue APIs.
+- Running job workers with controlled concurrency and retry policies.
+- Optional scheduling for recurring or delayed jobs.
+- Exposing job status/metrics for monitoring.
 
-## Dependencies
-- core.storage (for durable job queues, if implemented via DB or files)
-- lib.diagnostics (for structured logging and metrics)
-- core.runtime (to start and manage workers at application startup)
-- Any feature/core module that defines job handlers (image processing, map tiling, imports, exports, etc.)
+It is **Specced only** in this repo; no implementation exists under `src/lib/**` yet.
 
-## Error Model
-- JobEnqueueError: failure to enqueue jobs due to storage or validation issues.
-- JobDispatchError: infrastructure-level failure dispatching jobs to handlers.
-- JobHandlerError: exceptions from job handlers, surfaced with metadata but controlled by retry policy.
-- JobConfigurationError: misconfigured queues, missing handlers, or invalid retry rules.
+## 2. Scope and Non-Scope
 
-## Test Matrix
-- Enqueue/execute flows: ensure jobs are enqueued, executed, and marked completed as expected.
-- Retry semantics: verify backoff and limits for transient vs. permanent failures.
-- Dead-letter behavior: confirm that repeated failures lead to dead-letter state with accessible diagnostics.
-- Integration tests: ensure feature modules can register handlers and that their jobs run end-to-end under production-like conditions.
+### In scope
+
+- Infrastructure-level job queueing and dispatch.
+- Retry and backoff policies for transient failures.
+- Dead-letter handling for repeatedly failing jobs.
+- Basic monitoring hooks for job throughput, failure rates, and latency.
+
+### Out of scope
+
+- Business-specific job handlers (those live in feature/core modules).
+- Persisting job payloads in a specific schema (DB/storage specs cover that).
+
+## 3. Block Decomposition
+
+`lib.jobs` is conceptually decomposed into:
+
+| Module ID                              | Responsibility                                        | Status  |
+|----------------------------------------|-------------------------------------------------------|---------|
+| `lib.jobs.JobQueueService`            | Enqueue jobs with payloads and metadata               | Specced |
+| `lib.jobs.JobWorkerService`           | Dispatch jobs to handlers with concurrency + retries  | Specced |
+| `lib.jobs.JobScheduler`               | Optional scheduling for recurring/delayed jobs        | Specced |
+| `lib.jobs.JobMonitoringService`       | Status/metrics for job throughput and failures        | Specced |
+
+### Block lifecycle status: **Specced**
+
+- All modules are conceptual only.
+- No job runtime implementation exists in this repo.
+
+## 4. Responsibilities per Module (High-Level)
+
+### 4.1 JobQueueService (Specced)
+
+- Provides an API to enqueue jobs with:
+  - Type.
+  - Payload.
+  - Optional scheduling metadata.
+
+### 4.2 JobWorkerService (Specced)
+
+- Polls queues.
+- Dispatches jobs to handlers.
+- Applies retry/backoff policies based on `_AI_AUTOMATION_ENGINE_SPEC.md`.
+
+### 4.3 JobScheduler (Specced)
+
+- Schedules recurring or delayed jobs.
+- Integrates with JobQueueService for actual enqueue.
+
+### 4.4 JobMonitoringService (Specced)
+
+- Exposes status and metrics:
+  - Completed/failed jobs.
+  - Latency distributions.
+  - Current backlog.
+
+## 5. Dependencies
+
+### Allowed dependencies
+
+- `core.storage` (for queues implemented via DB/files).
+- `lib.diagnostics` for logging/metrics.
+- `core.runtime` for wiring workers at startup.
+
+### Downstream dependents
+
+- `lib.image` (image processing jobs).
+- `feature.*` modules that define job handlers (imports/exports, long-running tasks).
+
+## 6. Testing and CI (Planned)
+
+When implemented:
+
+- Tests MUST validate:
+  - Enqueue/execute flows.
+  - Retry semantics.
+  - Dead-letter behavior.
+  - Integration with feature-defined job handlers.
+
+As implementation appears, specs and inventories must be updated to reflect actual maturity (Implemented vs Stable).
