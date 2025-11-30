@@ -4,19 +4,11 @@
   "items": [
     {
       "name": "core.foundation",
-      "kind": "Block",
-      "layer": "core",
-      "status": "Implemented",
-      "specPath": "specs/blocks/core.foundation.md",
-      "notes": "Base primitives (Logger, DiagnosticsHub, FeatureFlags, ConfigService, CoreTypes)."
-    },
-    {
-      "name": "core.foundation",
       "kind": "Module",
       "layer": "core",
-      "status": "Implemented",
+      "status": "In implementation",
       "specPath": "specs/modules/core.foundation",
-      "notes": "Logging, feature flags, diagnostics, typed AppConfig, and core Result/AppError types."
+      "notes": "Basic app/runtime primitives, env, logging hooks, etc."
     },
     {
       "name": "core.storage",
@@ -104,23 +96,23 @@
       "layer": "core",
       "status": "Planned",
       "specPath": "",
-      "notes": "Authentication, sessions, PermissionContext, roles\u2192permissions mapping."
+      "notes": "Authentication, sessions, PermissionContext, roles→permissions mapping."
     },
     {
       "name": "feature.map",
       "kind": "Block",
       "layer": "feature",
-      "status": "Planned",
+      "status": "Specced",
       "specPath": "specs/blocks/feature.map.block.md",
-      "notes": "Map viewing, map selection, link to geo + image pipeline."
+      "notes": "Block specced; FeatureMapTypes + read-only FeatureMapService implemented; active map, calibration, viewport, imagery services planned."
     },
     {
       "name": "feature.map",
       "kind": "Module",
       "layer": "feature",
-      "status": "Planned",
+      "status": "Specced",
       "specPath": "specs/modules/feature.map/feature.map.module.md",
-      "notes": "Map registry, active map state, hooks to map DBs."
+      "notes": "Map registry read-only slice implemented; active map/calibration/imagery services not yet implemented."
     },
     {
       "name": "feature.sketch",
@@ -200,7 +192,7 @@
       "layer": "lib",
       "status": "Planned",
       "specPath": "",
-      "notes": "Global\u2192local transform, calibration, coordinate math."
+      "notes": "Global→local transform, calibration, coordinate math."
     },
     {
       "name": "lib.jobs",

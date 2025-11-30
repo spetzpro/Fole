@@ -21,8 +21,7 @@ Status legend:
 
 | Name | Kind | Layer | Status | Notes | Spec Path |
 | -------------------- | -------- | ------- | ------------------- | ------- | ------------ |
-| core.foundation | Block | core | Implemented | Base primitives (Logger, DiagnosticsHub, FeatureFlags, ConfigService, CoreTypes). | specs/blocks/core.foundation.md |
-| core.foundation | Module | core | Implemented | Logging, feature flags, diagnostics, typed AppConfig, and core Result/AppError types. | specs/modules/core.foundation |
+| core.foundation | Module | core | In implementation | Basic app/runtime primitives, env, logging hooks, etc. | specs/modules/core.foundation |
 | core.storage | Block | core | Specced | Overall storage behavior across modules. | specs/blocks/core.storage.md |
 | core.storage | Module | core | Stable | StoragePaths, atomic write services, manifests; implementation aligned with specs. | specs/modules/core.storage |
 | core.auth | Block | core | Specced | Auth flows and UX. | specs/blocks/core.auth.md |
@@ -42,7 +41,7 @@ Status legend:
 
 | Name | Kind | Layer | Status | Notes | Spec Path |
 | ------------------ | -------- | --------- | ----------- | ------- | ------------ |
-| feature.map | Block | feature | Planned | Map viewing, map selection, link to geo + image pipeline. | specs/blocks/feature.map.block.md |
+| feature.map | Block | feature | Specced | Block specced; FeatureMapTypes + read-only FeatureMapService implemented; active map, calibration, viewport, imagery services planned. | specs/blocks/feature.map.block.md |
 | feature.map | Module | feature | Planned | Map registry, active map state, hooks to map DBs. | specs/modules/feature.map/feature.map.module.md |
 | feature.sketch | Block | feature | Planned | Sketching tools UI & interactions. |  |
 | feature.sketch | Module | feature | Planned | Sketch data model & persistence. |  |
