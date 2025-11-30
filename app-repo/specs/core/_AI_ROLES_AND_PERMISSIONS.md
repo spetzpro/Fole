@@ -27,6 +27,27 @@ UX behavior for override visibility is detailed in:
 
 ---
 
+## 1.5 Current Implementation Status (MVP)
+
+The model in this document describes the **target** roles/permissions system. The current implementation
+in this repo is an MVP slice:
+
+- `core.auth` exposes `CurrentUser` with `roles: string[]`; effective permissions are derived via
+  configuration and passed into `PermissionContext.globalPermissions` and `PermissionContext.projectMembership.permissions`
+  where that mapping is wired.
+- `core.permissions` implements the **engine** (PermissionModel, PolicyRegistry, PermissionService) and
+  uses `PermissionContext` as described here.
+- `core.permissions.PermissionGuards` currently build a **partial** `PermissionContext` directly from
+  `CurrentUser` (and do not yet incorporate full roles→permissions mapping or projectMembership); they
+  will be evolved to match this document.
+- Feature-module permissions (Section 9) describe the default/target semantics. Today, only the
+  `map.*` actions are partially implemented in the engine and exercised via `feature.map`'s read-only
+  map registry; other feature module permissions are future work.
+
+All statements below should be read with this MVP status in mind: the engine matches the model, some
+guard/wiring layers are simplified, and several feature-level permissions are not yet wired.
+
+
 ## 2. Roles vs Permissions
 
 ### 2.1 Roles
@@ -108,6 +129,13 @@ Concrete shape (see `PermissionModel` spec for exact types):
   - `permissions: string[]` – effective per-project permissions.
 
 The permission system does **not** hard-code roles; it works off effective permissions. Roles are just one way to define those permissions.
+
+> **Implementation note (MVP):** Some call sites (such as the current
+> `PermissionGuards.createPermissionContextFromCurrentUser`) construct a simplified `PermissionContext`
+> directly from `CurrentUser`. Over time, these will be replaced or extended to use the full
+> roles→permissions mapping described here, so that `globalPermissions` and `projectMembership.permissions`
+> are always derived from roles + configuration rather than ad-hoc fields on `CurrentUser`.
+
 
 `map.calibrate` is a **project-scoped permission**:
 
@@ -263,7 +291,22 @@ AI agents working on permissions should:
 The core model here (permissions + grantSource + override as explicit permission) should remain stable even as new features and roles are introduced.
 
 
-## 9. Feature Module Permissions
+## 9. Feature Module Permissions (default / future semantics)
+These sections describe the **default/target semantics** for feature modules such as
+`feature.map`, `feature.files`, `feature.sketch`, `feature.comments`, and `feature.measure`.
+
+In the current MVP implementation:
+
+- Only the `map.*` actions are partially wired:
+  - MAP_CALIBRATE policies exist in `core.permissions` and are tested.
+  - `feature.map` uses PROJECT_READ and exposes calibration summary in read-only APIs; full map.manage
+    and map.calibrate flows are not implemented yet.
+- Other feature modules (files, sketch, comments, measurement) do **not** yet exist as runtime code in
+  this repo; their permissions are forward-looking design and must be implemented later.
+
+The semantics below should therefore be treated as **default/future behavior**, not as statements about
+current code.
+
 
 This section defines **default** permission semantics for feature modules. Concrete deployments MAY adjust mappings via policy configuration, but SHOULD keep the intent of each permission.
 
