@@ -2,7 +2,9 @@ import type {
   PermissionAction,
   ResourceDescriptor,
   PermissionContext,
+  CurrentUser,
 } from "./PermissionModel";
+import { deriveGlobalPermissionsForUser } from "./PermissionModel";
 import type { Result, AppError } from "@/core/foundation/CoreTypes";
 import { err, ok } from "@/core/foundation/CoreTypes";
 import { getCurrentUserProvider } from "@/core/auth/CurrentUserProvider";
@@ -10,12 +12,13 @@ import { getPermissionService } from "./PermissionService";
 
 export function createPermissionContextFromCurrentUser(): PermissionContext {
   const currentUserProvider = getCurrentUserProvider();
-  const user = currentUserProvider.getCurrentUser();
+  const user = currentUserProvider.getCurrentUser() as CurrentUser | null;
 
   const ctx: PermissionContext = {
     user,
-    globalPermissions: user?.permissions ?? [],
-  } as PermissionContext;
+    globalPermissions: deriveGlobalPermissionsForUser(user),
+    // TODO: populate projectMembership when project-scoped membership wiring is implemented
+  };
 
   return ctx;
 }

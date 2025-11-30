@@ -61,9 +61,12 @@ export class DefaultFeatureMapService implements FeatureMapService {
   }
 
   async listMaps(projectId: ProjectId, options?: ListMapsOptions): Promise<MapMetadata[]> {
-    const permissionContext = this.deps.getPermissionContext
+    const permissionContext: PermissionContext = this.deps.getPermissionContext
       ? this.deps.getPermissionContext()
-      : ({} as PermissionContext);
+      : {
+          user: null,
+          globalPermissions: [],
+        };
     await this.ensureReadPermission(projectId, permissionContext);
 
     const conn = await this.deps.projectDb.getConnection(projectId);
@@ -118,9 +121,12 @@ export class DefaultFeatureMapService implements FeatureMapService {
   }
 
   async getMap(projectId: ProjectId, mapId: MapId): Promise<MapMetadata | null> {
-    const permissionContext = this.deps.getPermissionContext
+    const permissionContext: PermissionContext = this.deps.getPermissionContext
       ? this.deps.getPermissionContext()
-      : ({} as PermissionContext);
+      : {
+          user: null,
+          globalPermissions: [],
+        };
     await this.ensureReadPermission(projectId, permissionContext);
 
     const conn = await this.deps.projectDb.getConnection(projectId);

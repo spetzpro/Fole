@@ -40,4 +40,16 @@ export const PROJECT_DB_INITIAL_MIGRATIONS: readonly MigrationDefinition[] = [
       { kind: "drop_table", tableName: "maps", ifExists: true },
     ],
   },
+  {
+    id: "20251201-201-create-map-calibrations",
+    title: "Create map_calibrations table (project DB)",
+    engine: "any",
+    safety: "non_destructive",
+    up: [
+      { kind: "create_table", tableName: "map_calibrations", ifNotExists: true },
+    ],
+    down: [
+      { kind: "drop_table", tableName: "map_calibrations", ifExists: true },
+    ],
+  },
 ];

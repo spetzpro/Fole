@@ -59,3 +59,60 @@ export interface PermissionDecision {
   reasonCode?: PermissionDeniedReason;
   grantSource?: GrantSource;
 }
+
+// Canonical role-to-permissions mapping for MVP.
+// This covers only CanonicalRole values and uses existing PolicyRegistry base strings.
+const CANONICAL_ROLE_PERMISSIONS: Record<CanonicalRole, readonly string[]> = {
+  VIEWER: ["projects.read", "files.read"],
+  EDITOR: [
+    "projects.read",
+    "projects.write",
+    "files.read",
+    "files.write",
+    "comments.create",
+    "comments.edit",
+    "comments.delete",
+    "sketch.edit",
+    "map.edit",
+  ],
+  OWNER: [
+    "projects.read",
+    "projects.write",
+    "files.read",
+    "files.write",
+    "comments.create",
+    "comments.edit",
+    "comments.delete",
+    "sketch.edit",
+    "map.edit",
+    "map.calibrate",
+  ],
+  ADMIN: [
+    "projects.read",
+    "projects.write",
+    "files.read",
+    "files.write",
+    "comments.create",
+    "comments.edit",
+    "comments.delete",
+    "sketch.edit",
+    "map.edit",
+    "map.calibrate",
+  ],
+};
+
+export function deriveGlobalPermissionsForUser(user: CurrentUser | null): string[] {
+  if (!user) return [];
+
+  const perms = new Set<string>();
+
+  for (const role of user.roles) {
+    if ((CANONICAL_ROLE_PERMISSIONS as Record<string, readonly string[]>)[role]) {
+      for (const p of (CANONICAL_ROLE_PERMISSIONS as Record<string, readonly string[]>)[role]) {
+        perms.add(p);
+      }
+    }
+  }
+
+  return Array.from(perms);
+}
