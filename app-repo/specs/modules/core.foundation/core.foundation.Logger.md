@@ -1,29 +1,66 @@
 # Module: core.foundation.Logger
 
+## Module ID
+core.foundation.Logger
+
 ## 1. Purpose
 
-Provide a simple, centralized logging API for the entire application.
+The `core.foundation.Logger` module provides a **central, leveled logging API** for the entire application.
 
-Logger wraps whatever logging implementation is used under the hood
-(console.log, file logging, remote logging, etc.) so the rest of the codebase
-does not depend on specific logging libraries or side effects.
+It is responsible for:
 
-## 2. Responsibilities
+- Exposing a simple, scoped logger interface (`debug`, `info`, `warn`, `error`).
+- Supporting leveled logging via a global log level.
+- Ensuring logging calls are **non-throwing** and safe to use from any layer.
+- Allowing the underlying logging sink (console/file/remote service) to evolve without changing call sites.
 
-- Provide leveled logging: debug, info, warn, error.
-- Allow namespacing / scoping (e.g. `core.storage.ProjectRegistry`).
-- Be safe to call from any layer (core, feature, UI, background jobs).
-- Be no-op or minimal in tests unless explicitly configured.
+It is not responsible for:
 
-Not responsible for:
-
-- Structured telemetry/metrics (can be a separate module later).
 - End-user notifications.
+- Structured telemetry/metrics (which may be built on top later).
 - UI error display.
 
-## 3. Types (MVP)
+## 2. Responsibilities and Non-Responsibilities
 
-~~~ts
+### Responsibilities
+
+- Define the `LogLevel` and `Logger` interfaces:
+
+  ```ts
+  export type LogLevel = "debug" | "info" | "warn" | "error";
+
+  export interface Logger {
+    debug(message: string, meta?: unknown): void;
+    info(message: string, meta?: unknown): void;
+    warn(message: string, meta?: unknown): void;
+    error(message: string, meta?: unknown): void;
+  }
+  ```
+
+- Provide:
+
+  ```ts
+  export function getLogger(scope: string): Logger;
+  export function setGlobalLogLevel(level: LogLevel): void;
+  ```
+
+- Implement a default logger that:
+
+  - Prefixes messages with the given scope (e.g. `[core.storage.ProjectRegistry]`).
+  - Uses a global log level to drop logs below the configured severity.
+  - Logs via `console` in a way that never throws (using try/catch).
+
+### Non-Responsibilities
+
+- Does **not** decide where logs are ultimately written beyond the current sinks (console).
+- Does **not** manage log rotation, persistence, or remote shipping.
+- Does **not** integrate with DiagnosticsHub by default (this is a future enhancement).
+
+## 3. Public API
+
+> Conceptual API; implementation lives in `src/core/foundation/Logger.ts`.
+
+```ts
 export type LogLevel = "debug" | "info" | "warn" | "error";
 
 export interface Logger {
@@ -32,42 +69,89 @@ export interface Logger {
   warn(message: string, meta?: unknown): void;
   error(message: string, meta?: unknown): void;
 }
-~~~
 
-## 4. Public API (MVP)
-
-~~~ts
-/**
- * Get a logger instance for a given scope.
- * Example scopes:
- * - "core.storage.ProjectRegistry"
- * - "feature.map.MapViewport"
- */
 export function getLogger(scope: string): Logger;
-
-/**
- * Optional: set a global log level at runtime.
- * Logs below this level may be dropped.
- */
 export function setGlobalLogLevel(level: LogLevel): void;
-~~~
+```
 
-## 5. Behavior (MVP)
+Behavior:
 
-- `getLogger(scope)` returns a lightweight wrapper that tags all log messages with the given scope.
-- Under the hood, logging can use:
-  - `console` in development
-  - more advanced sinks in production (files, remote services, etc.).
-- Logging must **never throw**; failures in the logging pipeline should be swallowed
-  or reported via diagnostics, not crash the app.
-- In tests, logger can be configured to:
-  - be silent by default, or
-  - collect logs for assertion.
+- `getLogger(scope)` returns a scoped logger that prefixes all messages with `[scope]`.
+- `setGlobalLogLevel(level)` sets the minimum level that will be logged.
+- Logs below the global level are dropped.
+
+## 4. Internal Model and Invariants
+
+### Invariants
+
+- Logger calls must **never throw**:
+  - All calls to `console` (or other sinks) are wrapped in try/catch.
+- Global log level is respected consistently for all scopes.
+- Scope prefixing is stable (e.g. `[scope] message`).
+
+### Implementation notes
+
+- A simple `levelOrder` map is used to determine which messages should be logged.
+- `safeLog` helper encapsulates console calls and error swallowing.
+
+## 5. Planned vs Implemented
+
+### Current status
+
+- **Lifecycle status**: Implemented
+  - Implementation exists at `src/core/foundation/Logger.ts`.
+  - Tests at `tests/core/logger.test.ts` verify:
+    - Logger methods are callable at different levels without throwing.
+    - Global log level filtering works as expected (at least via smoke checks).
+  - Logging currently uses `console` as its only sink.
+
+### Planned enhancements
+
+- Configurable sinks:
+  - Allow wiring in a remote logging service or file logger.
+- Optional integration with `core.foundation.DiagnosticsHub` to emit structured events.
+- More detailed tests for scoped prefixes and filtering behavior.
 
 ## 6. Dependencies
 
-- May optionally integrate with:
-  - core.foundation.DiagnosticsHub (to emit structured diagnostic events).
-- Must not depend on:
-  - feature.* blocks
-  - UI modules
+### Upstream dependencies
+
+- Only runtime primitives (`console`) and basic JS/TS types.
+
+It MUST NOT depend on:
+
+- `core.auth`, `core.permissions`, `core.storage`, `core.ui`, or feature modules.
+- DB, network, or UI modules.
+
+### Downstream dependents
+
+- All blocks (`core.*`, `feature.*`, `lib.*`) that need logging.
+
+## 7. Testing Strategy
+
+Tests SHOULD:
+
+- Call `getLogger("scope")` and verify:
+  - Methods do not throw.
+  - Changing global log level does not cause errors.
+- Optionally mock `console` to assert:
+  - Scope prefixes appear as expected.
+  - Calls below global level are dropped.
+
+Existing tests focus on non-throwing behavior and global level; future tests may add more detailed assertions as needed.
+
+## 8. CI / Governance Integration
+
+Any change to:
+
+- The Logger interface.
+- Global log level semantics.
+- Scope prefix formatting.
+
+MUST:
+
+1. Update this spec.
+2. Update `Logger.ts`.
+3. Update `logger.test.ts` and any other logger-related tests.
+4. Keep the `core.foundation` block spec and inventory notes in sync.
+5. Ensure `npm run spec:check` passes from the repo root.
