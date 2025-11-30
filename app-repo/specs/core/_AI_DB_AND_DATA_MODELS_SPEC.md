@@ -21,6 +21,16 @@ This doc is conceptual; concrete code contracts live in:
 - `specs/modules/core.storage/core.storage.DalContextFactory.md`
 - `specs/modules/core.storage/core.storage.MigrationRunner.md`
 
+### 1.5 Current Implementation Status (MVP)
+
+- A per-project DB file (`project.db`) is used and exercised by core.storage and feature.map.
+- Migrations are implemented in `src/core/db/migrations/**` and orchestrated by project/bootstrap logic.
+- Not all conceptual tables mentioned here exist yet; MVP schemas focus on:
+  - maps + map_calibrations
+  - core metadata
+  - the minimum tables needed for current features.
+- A dedicated `MigrationRunner` module is Specced but not yet wired as the sole orchestrator of migrations.
+
 ---
 
 ## 2. Per-Project Database Strategy
@@ -47,14 +57,23 @@ Higher-level modules use a per-project DAL context provided by:
 
 ## 3. Core Entities (Conceptual)
 
-Exact schemas will live alongside migrations, but conceptually each project DB will handle:
+Exact schemas live alongside migrations, but conceptually each project DB will handle:
 
 - `project_metadata`
   - one row per project (or a small metadata table)
   - may be mirrored in `project.json` for quick file-based introspection
 - `maps`
   - each floorplan / base image
-  - fields like: `id`, `name`, `file_id`, `width`, `height`, `created_at`, etc.
+  - fields like: `id`, `project_id`, `name`, `file_id`, `width`, `height`, `created_at`, etc.
+- `map_calibrations` (MVP)
+  - calibration sets for maps, tying pixel coordinates to world coordinates
+  - fields like:
+    - `id`
+    - `map_id`
+    - `is_active` (0/1)
+    - `transform_type` (e.g. similarity/affine/other in MVP; may expand later)
+    - `rms_error`
+    - `created_at`
 - `sketch_layers`
   - sketch overlays linked to a map
   - fields like: `id`, `map_id`, `data_blob` (vector data, possibly as JSON or binary), etc.
@@ -64,9 +83,7 @@ Exact schemas will live alongside migrations, but conceptually each project DB w
 - `comments`
   - comments linked to a project / map / sketch / file
   - fields like: `id`, `project_id`, `anchor_type`, `anchor_id`, `body`, `created_at`, `created_by`, etc.
-- `calibration`
-  - calibration sets for maps, tying pixel coordinates to world coordinates
-- `permissions` / `sharing`
+- `permissions` / `sharing` (future)
   - future tables for per-project role assignments
   - may be local or partly derived from central auth/permissions.
 
@@ -79,14 +96,17 @@ Not all of these need to be present in MVP; the schema can grow over time.
 The Data Access Layer is shaped by:
 
 - `core.storage.DalContextFactory`
-  - which returns a context object (DalContext) that wraps the underlying DB access.
-- The DAL should expose:
-  - generic methods (`run`, `all`, etc.) or
-  - higher-level repository-style functions (in feature modules).
+  - returns a context object (DalContext) that wraps underlying DB access.
+
+The DAL should expose:
+
+- generic methods (`run`, `all`, etc.) or
+- higher-level repository-style functions in feature modules.
 
 General principles:
 
-- DAL methods should return `Result<T, AppError>` or throw only when truly exceptional, depending on the abstraction layer.
+- DAL methods should preferably return `Result<T, AppError>` at boundaries that are visible to core/block code.
+- Throwing should be reserved for unexpected programming errors or low-level framework exceptions.
 - SQL queries should be:
   - parameterized (no string interpolation with user data)
   - kept small and explicit
@@ -96,11 +116,15 @@ General principles:
 
 ## 5. Migrations
 
-Schema evolution is managed by:
+Schema evolution is managed by migrations defined in:
 
-- `core.storage.MigrationRunner`.
+- `src/core/db/migrations/**`
 
-Responsibilities:
+And, conceptually, orchestrated by:
+
+- `core.storage.MigrationRunner` (Specced).
+
+Responsibilities (target):
 
 - On project open:
   - detect current schema version (e.g. in a table `schema_version`).
@@ -117,13 +141,13 @@ Migrations should:
 Error handling:
 
 - If a migration fails, the project should not be used until resolved.
-- Surfaces a clear `AppError` describing the failure, while logging full details via Logger/Diagnostics.
+- Surface a clear `AppError` and log details, emitting diagnostics as needed.
 
 ---
 
 ## 6. Relationship to TypeScript Models
 
-`ProjectModel.md` and other module specs define the TS-level models used in code.
+`ProjectModel` and other module specs define the TS-level models used in code.
 
 Rules:
 

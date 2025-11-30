@@ -11,7 +11,7 @@ The storage architecture must:
 
 - Be **predictable** and **inspectable** on disk (easy to debug).
 - Keep **project data isolated** from each other.
-- Support **safe concurrent access** and **atomic writes**.
+- Support **safe concurrent access** and **atomic writes** where required.
 - Work well with both local development and future remote/hosted scenarios.
 - Integrate cleanly with the module system (`core.storage.*`).
 
@@ -25,6 +25,16 @@ This document is *conceptual*. Concrete contracts live in:
 - `specs/modules/core.storage/core.storage.MigrationRunner.md`
 - `specs/modules/core.foundation/core.foundation.ConfigService.md`
 
+### 1.5 Current Implementation Status (MVP)
+
+- `ProjectModel`, `ProjectPathResolver`, `ProjectRegistry`, and `DalContextFactory` are implemented and used in real flows.
+- The **atomic write stack** (StoragePaths/ManifestRepository/AtomicWriteService/AtomicWriteExecutor/diagnostics) is implemented and tested and is the canonical way to perform critical, manifest-backed writes.
+- `FileStorage` exists and provides **non-atomic** IO helpers; it is suitable for utility writes but not for persistent, multi-step operations that require atomicity.
+- A dedicated `core.storage.MigrationRunner` module is Specced, but migrations are currently orchestrated directly by the DB migration layer (`src/core/db/migrations/**`) and project-level initialization logic.
+- Feature modules (e.g. `feature.map`) currently use project DBs and the atomic write stack only for a subset of flows; some write operations are still NotImplemented.
+
+When tightening or using this spec, treat it as the **target model**, with the above as the current MVP slice.
+
 ---
 
 ## 2. STORAGE_ROOT and High-Level Layout
@@ -34,6 +44,7 @@ All application data lives under a **single root directory**, called `STORAGE_RO
 In dev this might be:
 
 - `./.storage/` inside the repo  
+
 In production it might be:
 
 - `/var/fole-data/`  
@@ -64,7 +75,7 @@ Key points:
 - `projectId` is a **stable identifier** (string/UUID).
 - Each project gets its **own folder**, with:
   - Metadata/config in `project.json` (shape defined in `ProjectModel`).
-  - A SQLite DB in `project.db` (schema managed by `MigrationRunner`).
+  - A SQLite DB in `project.db` (schema managed by migrations).
   - Binary files in `files/`.
   - Temporary files in `tmp/`.
 
@@ -110,7 +121,8 @@ Implementation details:
   - generate `projectId`
   - create project folder using `ProjectPathResolver`
   - create/initialize `project.json`
-  - trigger DB migrations via `MigrationRunner` → `project.db`.
+  - **MVP:** initialize DB schema via migrations invoked by project bootstrap logic.
+  - **Target:** delegate schema initialization to `core.storage.MigrationRunner` once implemented.
 
 ---
 
@@ -148,17 +160,16 @@ STORAGE_ROOT/projects/<projectId>/files/
 
 File layout is managed by:
 
-- `core.storage.FileStorage`.
+- `core.storage.FileStorage` for low-level IO helpers.
+- `core.storage.AtomicWriteService` + manifest/diagnostics stack for **critical** writes that must be atomic and observable.
 
 Key rules:
 
-- Only `FileStorage` and `ProjectPathResolver` know exact file layout.
+- Only `FileStorage`, `ProjectPathResolver`, and the atomic write stack know exact file layout and trace/manifest semantics.
 - Higher-level code uses **logical identifiers** rather than raw paths.
-- Writes should be **atomic** as much as practical:
-  - write to `tmp/` then move into `files/` when complete.
-- File naming should be:
-  - stable (so paths can be referenced later)
-  - non-leaky (avoid including user secrets in filenames).
+- Writes that represent **persistent project state** (e.g. manifests, index files, DB-like structures) should use the atomic write pipeline:
+  - write to `tmp/` then move into `files/` when complete, with manifests and diagnostics.
+- Simple, non-critical writes (e.g. transient exports, logs) may use `FileStorage` write helpers directly, as long as they do not break invariants.
 
 ---
 
@@ -172,7 +183,7 @@ STORAGE_ROOT/projects/<projectId>/tmp/
 
 Usage:
 
-- Staging area for partial writes:
+- Staging area for partial writes and intermediate artifacts:
   - asynchronous processing
   - image transformations
   - tile generation
@@ -181,39 +192,50 @@ Usage:
   - no half-written files in `files/`
   - safe rollbacks on failure
 
-Pattern for atomic writes:
+Pattern for atomic writes (target model):
 
 1. Write the resulting file to `tmp/` (e.g. `tmp/<uuid>.part`).
 2. Validate/check file (size, checksum, etc.).
 3. Move/rename into `files/` (or wherever the final path is).
-4. Clean up old temp files periodically.
+4. Update manifest and emit diagnostics via the atomic write stack.
+5. Clean up old temp files periodically.
 
-The exact temp naming and cleanup strategy can be implemented inside `FileStorage` and pipeline-specific modules.
+The exact temp naming and cleanup strategy is implemented inside `AtomicWriteService` and pipeline-specific modules.  
+**MVP note:** Some simple flows may still use non-atomic writes; those should be upgraded over time per this pattern.
 
 ---
 
 ## 7. Migrations and Schema Evolution
 
-Database schema is managed by:
+Database schema is managed conceptually by:
 
 - `core.storage.MigrationRunner`.
-- `core.storage.DalContextFactory` ensures `MigrationRunner` has the correct DB path.
+- The DB migration layer in `src/core/db/migrations/**`.
 
-Responsibilities:
+Responsibilities (target):
 
 - On project creation:
   - Create fresh schema at latest version.
 - On project open:
   - Detect current schema version.
   - Run required migrations in order.
-- Handle failures gracefully:
-  - bubble up a clear `AppError` if migration fails.
-  - do not run the app against a partially-migrated DB.
 
-Migrations themselves:
+**Current MVP reality:**
 
-- Live in a structured place (e.g. `src/core/storage/migrations`).
-- Are **repeatable** and **idempotent** at the step level.
+- Migrations are implemented in `src/core/db/migrations/**` and are invoked by project-level bootstrap logic.
+- A dedicated MigrationRunner module in `core.storage` is Specced but not yet implemented.
+- When MigrationRunner is introduced, it will encapsulate the orchestration and align with these rules.
+
+Migrations themselves must:
+
+- Live in a structured place (e.g. `src/core/db/migrations`).
+- Be **repeatable** and **idempotent** at the step level.
+- Never silently drop data without explicit intent.
+
+Error handling:
+
+- If a migration fails, the project should not be used until resolved.
+- Surface a clear `AppError` if migration fails, log full details, and emit diagnostics.
 
 ---
 
@@ -223,11 +245,11 @@ Concurrency on storage is covered in more detail in:
 
 - `_AI_CONCURRENCY_AND_LOCKING_SPEC.md`
 
-But in short:
+In short:
 
 - SQLite access per project is serialized logically via DAL-level locks.
 - File writes:
-  - should use atomic patterns (tmp → move).
+  - should use atomic patterns (tmp → move) for critical files.
   - should not be performed concurrently to the same logical file without coordination.
 
 ---
@@ -243,4 +265,5 @@ But in short:
 - `_AI_ERROR_HANDLING_AND_DIAGNOSTICS_SPEC.md`
   - describes how storage errors should be surfaced and logged.
 
-Together with this file, they form the storage & data backbone of the system.
+Together with this file, they form the storage & data backbone of the system (target state).  
+The MVP implementation is a subset of this, as described above.

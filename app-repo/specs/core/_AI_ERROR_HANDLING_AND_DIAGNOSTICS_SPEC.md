@@ -21,6 +21,18 @@ This doc is conceptual. Concrete contracts are defined in:
 - `specs/modules/core.foundation/core.foundation.DiagnosticsHub.md`
 - `specs/modules/core.ui/core.ui.ErrorBoundary.md`
 
+### 1.5 Current Implementation Status (MVP)
+
+- `AppError` and `Result<T, AppError>` are implemented in `core.foundation.CoreTypes` and used across core/auth/permissions/storage/UI.
+- `Logger` and `DiagnosticsHub` are implemented with:
+  - console-based logging
+  - an in-process diagnostics hub with a no-op default implementation.
+- UI error boundaries (`core.ui.ErrorBoundary` + `core.ui.ErrorSurface`) are implemented and tested.
+- `lib.image` and `lib.geo` are Specced-only; the image/geo error advice in this document describes **future** behavior for those libraries.
+- Centralized monitoring/alerting and vendor integrations are Specced in `_AI_MONITORING_AND_ALERTING_SPEC.md` but not implemented in this repository.
+
+When generating or modifying code, assume this MVP state and use the AppError/Result/logger/diagnostics APIs accordingly.
+
 ---
 
 ## 2. AppError and Result
@@ -55,6 +67,15 @@ Codes should be:
 - stable
 - centrally documented (this spec + future error catalog).
 
+**MVP note:** Codes currently used in the codebase include examples like:
+
+- `PERMISSION_DENIED`
+- `AUTH_LOGIN_FAILED`
+- `STORAGE_IO_ERROR`
+- `DB_MIGRATION_FAILED`
+
+A full catalog is planned but not yet maintained in a single place.
+
 ---
 
 ## 3. Logger
@@ -68,7 +89,7 @@ Guidelines:
 
 - Each module/block should use a **descriptive scope**:
   - `"core.storage.ProjectRegistry"`
-  - `"feature.map.MapViewport"`
+  - `"feature.map.FeatureMapService"`
   - `"core.permissions.PermissionService"`, etc.
 - Logging must never throw.
 - Log calls should be meaningful:
@@ -80,6 +101,8 @@ In tests:
 - Logs may be:
   - silenced, or
   - captured for assertions.
+
+**MVP note:** The default implementation logs to `console` only. Future sinks (files, remote services) will be wired via lib.diagnostics and configuration.
 
 ---
 
@@ -106,6 +129,8 @@ Modules may:
   - migrations fail
   - unexpected DB/state inconsistencies occur
   - repeated permission denials might indicate a misconfiguration.
+
+**MVP note:** DiagnosticsHub is in-process only. It is up to the application bootstrap to install a hub that forwards events to any external monitoring system.
 
 ---
 
@@ -172,7 +197,7 @@ Storage and DB operations (FileStorage, DAL, migrations) should:
 
 On serious failures:
 
-- log via Logger with scope (e.g. `"core.storage.MigrationRunner"`).
+- log via Logger with scope (e.g. `"core.storage.MigrationRunner"` or `"core.storage.ProjectRegistry"`).
 - emit diagnostic events with:
   - projectId
   - operation
@@ -199,6 +224,8 @@ Such errors:
 
 - should be surfaced to the user with helpful hints.
 - should be logged with enough context for debugging (without leaking sensitive coordinates in logs if that’s a concern).
+
+**MVP note:** `lib.image` and `lib.geo` are currently Specced-only; this section describes **target** behavior for those libraries once implemented.
 
 ---
 
