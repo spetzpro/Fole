@@ -64,6 +64,32 @@ This spec must be implemented consistently with:
    - Human users authenticate via server-side sessions.
    - Machine and integration access will use tokens (future extension), **not** human credentials.
 
+### 1.5 Current Implementation Status (MVP in this repo)
+
+This spec describes the **full FOLE auth system**, including backend services that are not yet implemented in this repository.
+
+In the current `app-repo` codebase:
+
+- `core.auth` modules provide:
+  - `AuthApiClient` — an interface for talking to a backend auth service (no concrete HTTP implementation in this repo).
+  - `AuthSessionManager` — an in-memory session manager (no persistent session storage).
+  - `AuthStateStore` — a reactive store for auth status + current user (implemented and tested).
+  - `CurrentUserProvider` — read-only access to the current user identity (implemented and tested).
+- There is **no backend implementation** here for:
+  - password hashing,
+  - Argon2id configuration,
+  - invite flows,
+  - password reset flows,
+  - rate limiting,
+  - session cookies or CSRF.
+- The rules in this spec are **binding** for any backend or future auth implementation. The current repo should be treated as a thin client-side/front-end slice that must follow these rules when it eventually talks to a real backend.
+
+AI agents working **within this repo** must:
+
+- Treat this document as the source of truth for **designing** or **interfacing with** backend auth.
+- Not assume that Argon2id, invites, or other backend features exist in this codebase yet.
+- Use `AuthApiClient` as the boundary to a future backend that will implement these requirements.
+
 ---
 
 ## 2. IDENTITY MODEL
@@ -123,6 +149,8 @@ Minimum rules:
   - `parallelism`: >= 1
 - Hash must be stored in a standard, self-describing string format that includes parameters.
 - Password hashes must be stored **only** in server-side storage (DB) and never in logs.
+
+> **Repo note:** This repository does not implement password hashing itself; any backend that handles FOLE auth must implement these rules.
 
 ### 3.2 Parameter Upgrades & Rehashing
 

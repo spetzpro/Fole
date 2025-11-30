@@ -19,6 +19,19 @@ The UI system should:
 
 This document defines the high-level UI model. Concrete modules live under `specs/modules/core.ui/`, and UX flows live under `specs/ux/`.
 
+### 1.5 Current Implementation Status (MVP)
+
+In the current codebase:
+
+- `core.ui.UiStateStore` is implemented and tested, and is used as the central global UI state store.
+- `core.ui.ErrorBoundary` and `core.ui.ErrorSurface` are implemented and tested, and wrap major UI surfaces for error handling.
+- `core.ui.AppShell`, `core.ui.NavigationRouter`, and `core.ui.ProjectSelector` are **Specced-only** modules:
+  - They have module specs but no implementation yet under `src/core/ui/**`.
+  - Route handling and workspace selection flows are still conceptual and must be treated as design targets, not existing runtime behavior.
+- There is no concrete routing integration (no router library wired into the app); the routing model in this document describes the desired shape for NavigationRouter and AppShell.
+
+AI agents must treat this document as the **target architecture** for the UI system and combine it with the core.ui block/module specs to understand which pieces exist today (UiStateStore, ErrorBoundary/ErrorSurface) and which are future work (AppShell, NavigationRouter, ProjectSelector, full workspace layout manager).
+
 ---
 
 ## 2. Global UI Structure
@@ -54,12 +67,14 @@ The router operates with three primary routes:
 - `projectWorkspace`
   - Path: `/projects/:projectId`
 
-This is implemented conceptually in `core.ui.NavigationRouter`:
+This is implemented **conceptually** in `core.ui.NavigationRouter`:
 
 - `navigateToLogin()`
 - `navigateToProjectsList()`
 - `navigateToProjectWorkspace(projectId)`
 - `getCurrentRoute()`
+
+> **MVP note:** In the current implementation, there is no concrete NavigationRouter class or routing library; this API is Specced but not yet present in `src/core/ui/**`.
 
 ### 3.2 What the URL Does *Not* Contain
 
@@ -93,6 +108,8 @@ If no saved layout exists:
 - The workspace defaults to a **Map-focused layout** (map as primary context).
 
 The logic for loading/saving workspace layout sits on top of `UiStateStore` and/or a dedicated workspace layout store to be designed later.
+
+> **MVP note:** Persistence of workspace layout across browser refreshes is not yet implemented; current UiStateStore is in-memory only.
 
 ---
 
@@ -144,19 +161,25 @@ The core implementation of the UI system is described in:
 - Renders login, project list, or project workspace accordingly.
 - Hosts global providers (state, theme, error boundary, etc.).
 
+> **MVP note:** AppShell is Specced with these responsibilities, but has no implementation in `src/core/ui/**` yet. AI must treat this as target behavior.
+
 ### 5.2 NavigationRouter
 
 - Implements the route model described in Section 3.
 - Does **not** store panel/layout state.
 - Only knows about high-level routes (`login`, `projects`, `projectWorkspace`).
 
+> **MVP note:** NavigationRouter is Specced-only at this time; the app does not yet include a concrete routing implementation.
+
 ### 5.3 UiStateStore
 
 - Holds global UI state such as:
-  - currentProjectId
-  - activePanel (e.g. `map`, `sketch`, `files`, `comments`)
-  - sidebar open/closed
+  - `currentProjectId`
+  - `activePanel` (e.g. `map`, `sketch`, `files`, `comments`)
+  - `isSidebarOpen`
 - Will later serve as a foundation for persisting and restoring workspace layout.
+
+UiStateStore is implemented and tested; it is the one core.ui module that is Stable enough to rely on in the current codebase.
 
 ### 5.4 ProjectSelector
 
@@ -169,11 +192,15 @@ The core implementation of the UI system is described in:
   - `core.permissions` to filter by access level
   - `NavigationRouter` to enter `projectWorkspace`
 
+> **MVP note:** ProjectSelector is Specced-only, with no implementation in `src/core/ui/**` yet.
+
 ### 5.5 ErrorBoundary
 
 - Wraps major UI surfaces to catch runtime errors.
 - Converts exceptions into user-friendly error views.
 - Integrates with logging/diagnostics (e.g. `core.foundation.Logger`, `DiagnosticsHub`).
+
+ErrorBoundary and ErrorSurface are implemented and tested; AI can assume their presence when reasoning about UI error handling.
 
 ---
 
@@ -220,13 +247,20 @@ When making UI-related changes, AI agents should:
    - `core.ui` should not depend on feature-specific blocks.
 4. Keep UX & UI docs in sync:
    - If implementing a new UX behavior, ensure there is a corresponding update in `specs/ux/` if needed.
+5. Respect MVP state:
+   - Use `UiStateStore` and ErrorBoundary/ErrorSurface where appropriate today.
+   - Treat AppShell/NavigationRouter/ProjectSelector as design targets unless you are explicitly implementing them.
 
 ---
 
 ## 8. Future Work
 
+- Introduce concrete implementations for:
+  - `core.ui.AppShell`
+  - `core.ui.NavigationRouter`
+  - `core.ui.ProjectSelector`
 - Introduce dedicated feature blocks for workspace panels:
-  - `feature.map`, `feature.sketch`, `feature.files`, `feature.comments`, `feature.geo`, `feature.imagePipeline`, etc.
+  - `feature.map`, `feature.sketch`, `feature.files`, `feature.comments`, etc.
 - Add UX specs for each major panel:
   - Map interaction design
   - Sketch interaction design
