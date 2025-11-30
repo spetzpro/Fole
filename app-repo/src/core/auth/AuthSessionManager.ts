@@ -1,6 +1,8 @@
 import type { Result } from "../foundation/CoreTypes";
 import type { AuthTokens, AuthUserInfo, LoginRequest, AuthApiClient } from "./AuthApiClient";
 import { getAuthApiClient } from "./AuthApiClient";
+import type { PersistedSession, SessionStore } from "./SessionStore";
+import { getSessionStore } from "./SessionStore";
 
 export interface AuthSession {
   tokens: AuthTokens;
@@ -19,7 +21,7 @@ let globalAuthSessionManager: AuthSessionManager | undefined;
 
 export function getAuthSessionManager(): AuthSessionManager {
   if (!globalAuthSessionManager) {
-    globalAuthSessionManager = createDefaultAuthSessionManager(getAuthApiClient());
+    globalAuthSessionManager = createDefaultAuthSessionManager(getAuthApiClient(), getSessionStore());
   }
   return globalAuthSessionManager;
 }
@@ -28,7 +30,7 @@ export function setAuthSessionManager(manager: AuthSessionManager): void {
   globalAuthSessionManager = manager;
 }
 
-export function createDefaultAuthSessionManager(apiClient: AuthApiClient): AuthSessionManager {
+export function createDefaultAuthSessionManager(apiClient: AuthApiClient, sessionStore: SessionStore): AuthSessionManager {
   let currentSession: AuthSession | null = null;
 
   return {
@@ -36,16 +38,36 @@ export function createDefaultAuthSessionManager(apiClient: AuthApiClient): AuthS
       const result = await apiClient.login(req);
       if (!result.ok) return result as Result<any>;
       currentSession = { tokens: result.value.tokens, user: result.value.user };
+      const persisted: PersistedSession = {
+        tokens: currentSession.tokens,
+        user: currentSession.user,
+        persistedAt: new Date().toISOString(),
+      };
+      await sessionStore.save(persisted);
       return { ok: true, value: currentSession };
     },
 
     async logout(): Promise<Result<void>> {
       currentSession = null;
+      await sessionStore.clear();
       return { ok: true, value: undefined };
     },
 
     async restoreSession(): Promise<Result<AuthSession | null>> {
-      // MVP: no persistence yet, always return current in-memory session
+      const persisted = await sessionStore.load();
+      if (!persisted) {
+        currentSession = null;
+        return { ok: true, value: null };
+      }
+
+      const expiresAt = persisted.tokens.expiresAt;
+      if (expiresAt && new Date(expiresAt).getTime() <= Date.now()) {
+        await sessionStore.clear();
+        currentSession = null;
+        return { ok: true, value: null };
+      }
+
+      currentSession = { tokens: persisted.tokens, user: persisted.user };
       return { ok: true, value: currentSession };
     },
 

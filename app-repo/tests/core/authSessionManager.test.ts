@@ -1,5 +1,6 @@
 import { setAuthApiClient, type AuthApiClient, type AuthTokens, type AuthUserInfo } from "../../src/core/auth/AuthApiClient";
 import { createDefaultAuthSessionManager } from "../../src/core/auth/AuthSessionManager";
+import type { SessionStore, PersistedSession } from "../../src/core/auth/SessionStore";
 
 const fakeTokens: AuthTokens = {
   accessToken: "access-1",
@@ -25,9 +26,24 @@ class FakeAuthApiClient implements AuthApiClient {
   }
 }
 
+function createInMemoryTestSessionStore(): SessionStore {
+  let persisted: PersistedSession | null = null;
+  return {
+    async load() {
+      return persisted;
+    },
+    async save(session: PersistedSession) {
+      persisted = session;
+    },
+    async clear() {
+      persisted = null;
+    },
+  };
+}
+
 async function run() {
   setAuthApiClient(new FakeAuthApiClient());
-  const manager = createDefaultAuthSessionManager(new FakeAuthApiClient());
+  const manager = createDefaultAuthSessionManager(new FakeAuthApiClient(), createInMemoryTestSessionStore());
 
   const loginResult = await manager.login({ username: "x", password: "y" });
   if (!loginResult.ok) throw new Error("login failed");
