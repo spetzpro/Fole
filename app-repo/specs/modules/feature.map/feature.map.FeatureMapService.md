@@ -1,279 +1,177 @@
-# Feature Map Service — Spec
+# Module: feature.map.FeatureMapService
 
-**File:** `specs/modules/feature.map/feature.map.FeatureMapService.md`  
-**Module:** `feature.map`  
-**Status:** Specced
-
----
+## Module ID
+feature.map.FeatureMapService
 
 ## 1. Purpose
 
-`FeatureMapService` is the primary backend API surface for the **map registry** within a project.
+The `feature.map.FeatureMapService` module provides the **map registry API** for reading map metadata and calibration summary per project.
 
 It is responsible for:
 
-- Managing **map metadata** in the project (name, type, description, tags, status).
-- Providing **filtered listings** of maps for a project.
-- Enforcing **permissions** for map read/manage operations.
-- Respecting **atomic write** and **concurrency** rules defined by the core specs.
+- Listing maps for a project with filters (status, types, tags).
+- Retrieving a single map's metadata.
+- Exposing calibration summary fields per map (where available).
+- Enforcing basic permissions on read operations.
 
-It does **not**:
+At present, the service is **read-only**: all write methods are NotImplemented and should not be used in production flows.
 
-- Handle calibration records (delegated to `FeatureMapCalibrationService`).
-- Handle active-map selection (delegated to `FeatureMapActiveService`).
-- Handle imagery storage or tiling (delegated to imagery/geo pipeline modules).
+## 2. Responsibilities and Non-Responsibilities
 
-This spec refines the `FeatureMapService` definition in `specs/modules/feature.map.module.md` and connects it to concrete state, permissions, and test expectations.
+### Responsibilities (current MVP)
 
----
+- Implement:
 
-## 2. Public API
+  ```ts
+  listMaps(projectId: string, options?: {
+    status?: "active" | "archived" | "draft" | "any";
+    types?: string[];
+    tagsAny?: string[];
+    includeArchived?: boolean;
+  }): Promise<Result<MapMetadata[]>>;
+
+  getMap(projectId: string, mapId: string): Promise<Result<MapMetadata>>;
+  ```
+
+- Query `maps` and `map_calibrations` in project.db via core.storage.
+- Map rows into `MapMetadata` with calibration summary fields:
+
+  - `isCalibrated`
+  - `calibrationTransformType`
+  - `calibrationErrorRms`
+
+- Enforce basic read permissions using `core.permissions` (MVP: ensure PROJECT_READ on the containing project).
+
+### Planned responsibilities
+
+- Implement:
+
+  - `createMap(projectId, input, ctx: PermissionContext)`
+  - `updateMapMetadata(projectId, mapId, input, ctx: PermissionContext)`
+  - `updateMapStatus(projectId, mapId, status, ctx: PermissionContext)`
+
+- Enforce:
+
+  - `map.read` and `map.manage` actions via PermissionService.
+
+- Use `AtomicWriteService` for all write operations:
+  - Ensure concurrency-safe updates and clear error semantics.
+
+### Non-Responsibilities
+
+- Does **not** manage active/default map (ActiveMapService will).
+- Does **not** manage the full calibration lifecycle (CalibrationService will).
+- Does **not** handle viewport/image resolution (ViewportImageryService will).
+
+## 3. Public API (MVP)
+
+> Implementation lives in `src/feature/map/FeatureMapService.ts`.
+
+### Read APIs
 
 ```ts
-interface FeatureMapService {
-  listMaps(
-    projectId: ProjectId,
-    options?: {
-      status?: MapStatus[];          // e.g. ["active", "draft"]
-      types?: MapType[];
-      tagsAny?: MapTag[];
-      includeArchived?: boolean;
-    },
-    ctx: PermissionContext
-  ): Promise<MapMetadata[]>;
+listMaps(projectId: string, options?: {
+  status?: "active" | "archived" | "draft" | "any";
+  types?: string[];
+  tagsAny?: string[];
+  includeArchived?: boolean;
+}): Promise<Result<MapMetadata[]>>;
 
-  getMap(
-    projectId: ProjectId,
-    mapId: MapId,
-    ctx: PermissionContext
-  ): Promise<MapMetadata | null>;
-
-  createMap(
-    projectId: ProjectId,
-    input: CreateMapInput,
-    ctx: PermissionContext
-  ): Promise<MapMetadata>;
-
-  updateMapMetadata(
-    projectId: ProjectId,
-    mapId: MapId,
-    input: UpdateMapMetadataInput,
-    ctx: PermissionContext
-  ): Promise<MapMetadata>;
-
-  updateMapStatus(
-    projectId: ProjectId,
-    mapId: MapId,
-    newStatus: MapStatus,
-    ctx: PermissionContext
-  ): Promise<MapMetadata>;
-}
+getMap(projectId: string, mapId: string): Promise<Result<MapMetadata>>;
 ```
 
-### 2.1 Types
+Note: The current implementation obtains a `PermissionContext` via dependencies (e.g., a `getPermissionContext` function) and does not expose `ctx` as a parameter; this is an MVP design and may evolve.
+
+### Write APIs (planned)
 
 ```ts
-type MapStatus = "draft" | "active" | "archived";
-
-type MapType = "floorplan" | "site" | "satellite" | "custom";
-
-type MapTag = string;
-
-type MapId = string;
-type ProjectId = string;
-
-type CreateMapInput = {
-  name: string;
-  description?: string;
-  mapType: MapType;
-  tags?: MapTag[];
-
-  // Optional initial status; if omitted, defaults to "draft" or "active"
-  initialStatus?: MapStatus;
-
-  // Optional external handle(s)
-  imageHandle?: MapImageHandle;
-};
-
-type UpdateMapMetadataInput = {
-  name?: string;
-  description?: string;
-  mapType?: MapType;
-  tags?: MapTag[];
-};
-
-type MapMetadata = {
-  projectId: ProjectId;
-  mapId: MapId;
-  name: string;
-  description?: string;
-  mapType: MapType;
-  tags: MapTag[];
-  status: MapStatus;
-  createdAt: string;
-  updatedAt: string;
-
-  // Calibration summary
-  isCalibrated: boolean;
-  calibrationTransformType?: CalibrationTransformType;
-  calibrationErrorRms?: number | null;
-
-  // Optional imagery summary
-  imageHandle?: MapImageHandle | null;
-};
+createMap(projectId: string, input: CreateMapInput, ctx: PermissionContext): Promise<Result<MapMetadata>>;
+updateMapMetadata(projectId: string, mapId: string, input: UpdateMapMetadataInput, ctx: PermissionContext): Promise<Result<MapMetadata>>;
+updateMapStatus(projectId: string, mapId: string, status: MapStatus, ctx: PermissionContext): Promise<Result<MapMetadata>>;
 ```
 
-`MapMetadata` matches the types defined in `FeatureMapTypes.ts` (see module spec).
+These are Specced-only and are currently **NotImplemented** in code.
 
----
+## 4. Behavior and Current Implementation
 
-## 3. Semantics
+- `listMaps`:
+  - Performs a SQL SELECT over maps and map_calibrations for a given project.
+  - Constructs `MapMetadata` instances from rows.
+  - Applies in-memory filtering for options (status, types, tagsAny, includeArchived).
 
-### 3.1 `listMaps`
+- Default archived behavior (current):
+  - Tests assume `listMaps` returns all maps, including archived, unless options are provided.
+  - Spec desires a default that excludes archived maps; this is a **planned adjustment**.
 
-Key rules (as defined in the module spec, reiterated here for implementers and tests):
+- `getMap`:
+  - SELECTs a single map + calibration summary by mapId.
+  - Returns a `MapMetadata` or a Result error if not found.
 
-- **Default filter**
-  - If `options` is omitted, `listMaps` returns maps whose `status` is `"active"` or `"draft"`.
-  - `"archived"` maps are **excluded by default**.
+- Permissions (current):
+  - Uses PROJECT_READ on the project via `core.permissions`.
+  - Planned: enforce `map.read/map.manage` actions in addition.
 
-- **`includeArchived`**
-  - If `includeArchived === true` and no explicit `status` is provided, returned statuses are `{"active", "draft", "archived"}`.
-  - If `status` **is** provided, it takes precedence over `includeArchived`.
+- Writes:
+  - `createMap`, `updateMapMetadata`, and `updateMapStatus` currently throw NotImplemented.
+  - Tests explicitly assert this behavior.
 
-- **`status`**
-  - When `options.status` is provided, only maps whose `status` is in that list are returned.
+## 5. Planned vs Implemented
 
-- **`types`**
-  - When `options.types` is provided, only maps whose `mapType` is in that list are returned.
+### Current status
 
-- **`tagsAny`**
-  - When `options.tagsAny` is provided, a map is included if it has at least one tag in common with `tagsAny`.
-  - Tag matching is case-sensitive unless `_AI_DB_AND_DATA_MODELS_SPEC.md` defines otherwise.
+- **Lifecycle status**: Implemented (read-only slice)
+  - Read APIs (list/get) are implemented and tested.
+  - Write APIs are Specced but NotImplemented.
 
-- **Permissions**
-  - Callers must have `map.read` for the project (or a broader permission that implies it, such as `PROJECT_READ`).
-  - In early phases, implementations may internally check both `PROJECT_READ` and `map.read`, but the contract here is expressed in terms of `map.read`.
+### Planned enhancements
 
-- **Calibration summary**
-  - `isCalibrated`, `calibrationTransformType`, `calibrationErrorRms` are derived from the **active calibration** for each map (or default values if none exists).
-  - This calls into `FeatureMapCalibrationService` or queries `map_calibrations` following the DB model.
+- Align default archived behavior with spec (exclude archived maps unless requested).
+- Implement write APIs using AtomicWriteService and concurrency/error model from DB and storage specs.
+- Tighten permission enforcement to use `map.read`, `map.manage`, and `map.calibrate` where appropriate.
 
-### 3.2 `getMap`
+## 6. Dependencies
 
-- Returns `MapMetadata` for the specified map, or `null` if:
-  - The map does not exist for that project, or
-  - The caller lacks `map.read`.
+### Upstream dependencies
 
-- Must apply the same calibration summary logic as `listMaps`.
+- `core.storage` for project DB paths and queries.
+- `core.permissions` for permission checks.
+- `FeatureMapTypes` for MapMetadata and related types.
+- `core.foundation` for Result and AppError.
 
-### 3.3 `createMap`
+### Downstream dependents
 
-- Generates a new `mapId`.
-- Inserts a row into the `maps` table in `project.db` with:
-  - `projectId`, `mapId`, `name`, `description`, `mapType`, `tags`, `status`, `createdAt`, `updatedAt`.
-  - `status`:
-    - If `initialStatus` is provided, must be in `{ "draft", "active" }`.
-    - If omitted, default is `"draft"` (unless the product decides to default to `"active"`, which must then be reflected in tests).
-- Immutable fields after creation:
-  - `mapId`, `projectId`, `createdAt`.
+- Map-related UI flows, once implemented.
+- Calibration management services (when they use summary data).
 
-- **Permissions**
-  - Requires `map.manage`.
+## 7. Testing Strategy
 
-- **Concurrency / atomicity**
-  - Uses an atomic write pattern (single transaction) via core storage/concurrency.
-  - Example concurrency concerns (e.g. duplicate names) should be handled either by constraints or pre-checks.
+Existing tests:
 
-### 3.4 `updateMapMetadata`
+- `featureMapService.test.ts`:
+  - Validates list/get behavior and calibration summary.
+  - Validates filters for status/types/tagsAny.
+  - Validates current default behavior with archived maps.
+- `featureMapService.writes.test.ts`:
+  - Confirms write methods are NotImplemented.
 
-- Allows updating:
-  - `name`, `description`, `mapType` (if allowed), `tags`.
-- Must not change:
-  - `projectId`, `mapId`, `createdAt`.
-- Must update `updatedAt` to the current time.
-- Must preserve any invariant defined in the module spec (e.g., if some `mapType` transitions are disallowed).
+Future tests:
 
-**Permissions**
+- When write APIs are implemented:
+  - Use project DB fixtures and atomic write integration.
+  - Test permission failure scenarios and concurrency errors.
 
-- Requires `map.manage`.
+## 8. CI / Governance Integration
 
-**Concurrency / atomicity**
+Any change to:
 
-- Uses atomic write with a version check or transaction to avoid lost updates.
-- On concurrency conflict, surfaces a domain error (e.g., `ModuleStateConcurrencyError` or equivalent) which must be mapped to `UiError` by Core UI.
+- MapMetadata shape.
+- DB queries for maps/calibration summary.
+- Permission enforcement logic for read/write.
 
-### 3.5 `updateMapStatus`
+MUST:
 
-- Changes only `status`, according to allowed transitions (documented in code/tests).
-  - Typical transitions:
-    - `draft → active`
-    - `active → archived`
-    - `archived → active` (if un-archiving is supported).
-- Must not modify other fields besides `status` and `updatedAt`.
-
-**Permissions**
-
-- Requires `map.manage`.
-
-**Concurrency / atomicity**
-
-- Same as `updateMapMetadata`: atomic, with concurrency-aware error handling.
-
----
-
-## 4. Dependencies
-
-- `core.moduleStateRepository` / storage layer
-- `core.accessControl` / `core.permissions` (for `PermissionContext`, `map.read`, `map.manage`)
-- DB tables for maps (e.g. `maps`, `map_calibrations`) as defined in `_AI_DB_AND_DATA_MODELS_SPEC.md`
-- `FeatureMapCalibrationService` for summary (optional but recommended, instead of direct table joins)
-
----
-
-## 5. Error Model
-
-- `ForbiddenError` / `AccessDeniedError`
-  - When caller lacks `map.read` / `map.manage`.
-- `MapNotFoundError`
-  - Thrown when update operations target a map that does not exist.
-- `ConcurrencyError`
-  - Thrown when concurrency control detects a conflicting update.
-- `ValidationError`
-  - Thrown when inputs are invalid (e.g. unsupported `mapType`, invalid status transition).
-
-Errors must be mappable to:
-
-- Domain error codes, and
-- `UiError` via `Core_UI_Module` mapping.
-
----
-
-## 6. Testing Strategy
-
-At minimum:
-
-1. `listMaps`:
-   - Default behavior (no options).
-   - `includeArchived` behavior.
-   - `status`, `types`, `tagsAny` combinations.
-   - Permission denied behavior.
-
-2. `getMap`:
-   - Existing map, non-existing map, permission denied.
-
-3. `createMap`:
-   - Happy path with full input.
-   - Missing optional fields.
-   - Permission denied.
-   - Duplicate/conflicting constraints (if any).
-
-4. `updateMapMetadata`:
-   - Update allowed fields; immutable fields remain unchanged.
-   - Permission denied.
-   - Concurrent update conflict.
-
-5. `updateMapStatus`:
-   - Allowed transitions.
-   - Disallowed transitions (must fail with a clear error).
-   - Permission denied.
+1. Update this spec.
+2. Update `FeatureMapService.ts`.
+3. Update `featureMapService.test.ts` and write-related tests.
+4. Keep the block spec and inventories aligned.
+5. Ensure `npm run spec:check` passes.

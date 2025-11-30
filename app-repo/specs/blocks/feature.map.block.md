@@ -1,166 +1,193 @@
-# feature.map block spec
+# Block: feature.map
 
-**Status:** Specced  
-**Block name:** feature.map  
-**Related modules:**  
-- feature.map (module) – map registry, active map state, map DB access  
-- lib.geo – coordinate systems, calibration math  
-- lib.image – image normalization, map imagery handling  
-- core.storage – project + map DB layout, file storage  
-- core.ui – workspace shell, panels, navigation  
-- core.permissions – access control for maps and map actions  
+## Block ID
+feature.map
 
----
+## 1. Purpose
 
-## 1. Purpose & Scope
+The `feature.map` block provides **map-centric functionality** for the application:
 
-feature.map provides user-facing functionality around maps in a project:
+- Map registry: listing and retrieving maps per project.
+- Map workspace entry points (maps that can be opened for work).
+- Calibration summary exposure and (in future) calibration lifecycle management.
+- (Planned) active/default map per project.
+- (Planned) viewport helpers and imagery resolution.
 
-- Browsing and selecting maps  
-- Opening a map into the workspace  
-- Displaying map imagery at various zoom levels  
-- Managing map metadata  
-- Representing calibration between image coords and global/world coords  
-- Exposing APIs for other blocks (sketch, measure, comments) to work in map space
+It acts as the **bridge** between core storage (map DB), geo/calibration logic (`lib.geo`), image pipeline (`lib.image`), and permissions (`core.permissions`).
 
-Non-goals: sketching, commenting, measuring, image editing, or GPS hardware integration.
+At present, only the **read-side map registry slice** is implemented. The rest of the responsibilities are Specced only.
 
----
+## 2. Scope and Non-Scope
 
-## 2. Domain Concepts
+### In scope
 
-### 2.1 Project  
-Owns a set of maps. Authoritative project map registry metadata lives in project.db.
+- Reading map metadata and calibration summary from project DB `maps` and `map_calibrations` tables.
+- Exposing map lists and single-map metadata to other blocks.
+- Enforcing basic permissions on map read operations.
 
-### 2.2 Map  
-A spatial container with:
+### Planned
 
-- mapId, projectId  
-- name, description  
-- mapType (small enum: floorplan/site_plan/satellite/schematic/other)  
-- tags: string[]  
-- status: active/archived/draft  
-- timestamps  
-- one canonical normalized image (handled by lib.image)  
-- zero or more calibration versions (via lib.geo), with at most one active.
+- Managing the **active/default map** per project.
+- Full **calibration lifecycle** (create/update/list/activate calibration records per map).
+- **Viewport helpers** and imagery resolution (normalized viewport, tile queries, integration with lib.image).
+- Tight integration with `core.permissions` for `map.read`, `map.manage`, and `map.calibrate`.
 
-### 2.3 Map Image  
-Canonical normalized asset handled by lib.image:
+### Out of scope
 
-- Stored under STORAGE_ROOT/projects/<projectId>/maps/<mapId>/...  
-- Internally may use tiles or pyramids, but logically “one image per map”.  
-- Orientation normalized on ingestion (EXIF etc.), so canonical pixels are “upright”.
+- Low-level DB schema definitions (owned by `_AI_DB_AND_DATA_MODELS_SPEC.md` and core.storage).
+- Geo math (owned by `lib.geo` and `_AI_GEO_AND_CALIBRATION_SPEC.md`).
+- Tile/image loading details (owned by `lib.image` and `_AI_FILE_AND_IMAGE_PIPELINE_SPEC.md`).
+- UI presentation of maps (owned by `core.ui` and feature-specific UI code).
 
-### 2.4 Calibration  
-Delegated to lib.geo, but this block:
+## 3. Block Decomposition
 
-- Stores and exposes calibration records.  
-- Supports at least a similarity transform (scale + rotation + translation).  
-- May support affine transforms for advanced “stretching” use cases.  
-- Tracks transformType, control points, and error metrics.  
-- Treats one calibration per map as active at a time; old versions kept for history.
+`feature.map` is decomposed into the following modules:
 
-### 2.5 Active Map & Viewport  
-Active map = currently opened map in the workspace.  
-Viewport = camera state over that map:
+| Module ID                                  | Responsibility                                         | Status      |
+|--------------------------------------------|--------------------------------------------------------|-------------|
+| `feature.map.FeatureMapTypes`              | Shared map & calibration types                         | Implemented |
+| `feature.map.FeatureMapService`            | Map registry (READ) and calibration summary            | Implemented |
+| `feature.map.ActiveMapService`             | Default/active map per project                         | Specced     |
+| `feature.map.CalibrationService`           | Calibration records lifecycle (list/create/update/activate) | Specced |
+| `feature.map.ViewportImageryService`       | Viewport helpers and map imagery resolution            | Specced     |
 
-- center in canonical pixel coordinates  
-- zoom factor  
-- rotationDeg (visual camera rotation, independent of calibration)
+### Block lifecycle status: **Specced**
 
-core.ui owns overall workspace layout; feature.map defines the map-specific pieces.
+- Types and read-only registry slice are implemented and used in tests.
+- Active/default map, calibration lifecycle management, viewport helpers, imagery resolution, and write flows are **not yet implemented**.
+- The block remains Specced as a whole until those responsibilities are wired and tested.
 
----
+Any new `feature.map.*` module must be added to this table and tracked in the inventories.
 
-## 3. User Flows (High-Level)
+## 4. Responsibilities per Module (High-Level)
 
-### 3.1 Browse Maps  
-- User opens a project.  
-- Sees a list of maps (name, type, status, tags, calibration status).  
-- Can filter by type/status/tags.  
-- Can click to open a map.
+### 4.1 FeatureMapTypes (Implemented)
 
-### 3.2 Open Map  
-- Loads map metadata and canonical image handle.  
-- Loads calibration state (if any).  
-- Switches workspace to a “Map Workspace” view.  
-- Initializes viewport (default or last-used).
+- Defines types for:
+  - Map IDs/project IDs.
+  - Map types/status/tags.
+  - Map metadata (including calibration summary fields).
+  - Calibration-related types (control points, transforms, calibration records).
+  - Viewport types and image-handle descriptors.
 
-### 3.3 Switch Maps  
-- Disposes previous map-specific state.  
-- Loads new map data.  
-- Keeps workspace layout (panels) but swaps the central content.
+Implementation exists in `src/feature/map/FeatureMapTypes.ts` and is used by FeatureMapService and tests.
 
-### 3.4 Calibration Awareness  
-- Uncalibrated maps: fully viewable but geo-dependent tools disabled or clearly marked.  
-- Calibrated maps: enable measurement and geo-aware tools.
+### 4.2 FeatureMapService (Implemented, read-only)
 
----
+- Implements the **map registry read slice**:
+  - `listMaps(projectId, options?)` → `MapMetadata[]`.
+  - `getMap(projectId, mapId)` → `MapMetadata`.
+- Reads from `maps` and `map_calibrations` in project.db via core.storage.
+- Exposes calibration summary fields (isCalibrated, calibrationTransformType, calibrationErrorRms).
+- Enforces basic permissions for read via `core.permissions` (MVP: PROJECT_READ).
 
-## 4. Storage & Data Integration
+Write operations (`createMap`, `updateMapMetadata`, `updateMapStatus`) are currently **NotImplemented**, and there is **no AtomicWriteService integration yet**.
 
-- project.db holds:
-  - maps registry table
-  - map_calibrations table (authoritative calibration records)  
-  - project settings including activeMapId
-- map.db under STORAGE_ROOT/projects/<projectId>/maps/<mapId>/map.db may hold:
-  - cached or feature-specific tables
-- All mutating operations (create/rename/archive maps, change active map, change active calibration) go through AtomicWriteService.
+### 4.3 ActiveMapService (Specced-only)
 
----
+- Planned responsibilities:
+  - Manage an active/default map per project.
+  - Provide `getActiveMap(projectId)` and `setActiveMap(projectId, mapId|null)` APIs.
+  - Store default map ID in project.db (e.g. via project_settings table).
+  - Enforce `map.read` / `map.manage` permissions.
 
-## 5. Integration with Other Blocks
+There is currently **no implementation** for this module.
 
-- feature.sketch:
-  - Anchors sketches to mapId in pixel space.
-  - Subscribes to active map + viewport updates.
+### 4.4 CalibrationService (Specced-only)
 
-- feature.measure:
-  - Requires active calibration for real-world units.
-  - Uses lib.geo + feature.map calibration to compute distances/areas.
+- Planned responsibilities:
+  - Manage calibration records for maps:
+    - List calibrations for a map.
+    - Create/update calibration records.
+    - Set active calibration for a map.
+  - Enforce single active calibration per map.
+  - Integrate with `lib.geo` to represent calibration transforms.
 
-- feature.comments / feature.files:
-  - Anchor items to mapId (and optionally pixel coordinates).
-  - Need access to map metadata and calibration presence.
+Currently, calibration is represented only via the summary fields read by FeatureMapService; there is no dedicated calibration management service.
 
-- lib.geo:
-  - Holds transform math + data structures.
-  - feature.map stores/serves calibration records, lib.geo does calculations.
+### 4.5 ViewportImageryService (Specced-only)
 
-- lib.image:
-  - Handles normalization, tiling, and imagery metadata.
-  - feature.map only asks for canonical map image handles.
+- Planned responsibilities:
+  - Provide viewport math helpers:
+    - Normalize/clamp viewport.
+    - pixel↔normalized coordinate conversions.
+  - Resolve `MapImageHandle` → `MapImageDescriptor`:
+    - Integrate with `lib.image` and core.storage for image locations.
 
----
+There is currently **no implementation** of these services; viewport types exist only in FeatureMapTypes.
 
-## 6. Permissions
+## 5. Invariants and Guarantees (Current Slice)
 
-- map.read – view maps and their calibration state.  
-- map.manage – manage map metadata, visibility, and non-calibration settings.  
-- map.calibrate – create new calibration versions and activate/replace the active calibration for any map in the project.
+- **Read-only registry**:
+  - `listMaps` and `getMap`:
+    - Use `projectId` and `mapId` to query `maps` and `map_calibrations`.
+    - Return `MapMetadata` consistent with FeatureMapTypes.
+- **Calibration summary**:
+  - Only a single active calibration per map is exposed via summary fields.
+  - Detailed calibration records and transforms are not managed at the feature layer yet.
+- **Permissions (MVP)**:
+  - Current implementation uses `PROJECT_READ` permission checks for read-only operations.
+  - Map-level permission actions (`map.read`, `map.manage`, `map.calibrate`) are defined in `core.permissions` but not yet enforced by FeatureMapService.
 
-All feature.map actions must call core.permissions for enforcement.
+## 6. Dependencies
 
----
+### Allowed dependencies
 
-## 7. Error Handling & Diagnostics
+`feature.map` may depend on:
 
-- Use global error model for user-facing errors.  
-- Emit diagnostics for key operations:
-  - map_list_requested / failed  
-  - map_open_requested / failed  
-  - map_image_missing  
-  - map_calibration_missing / calibration_set_active / calibration_failed
+- `core.storage` for project DB access (maps, map_calibrations).
+- `core.permissions` for permission checks (PROJECT_READ today; map.* actions later).
+- `core.foundation` for logging, diagnostics, Result/AppError.
+- `_AI_GEO_AND_CALIBRATION_SPEC.md` / `lib.geo` for calibration semantics (future).
+- `_AI_FILE_AND_IMAGE_PIPELINE_SPEC.md` / `lib.image` for imagery semantics (future).
 
----
+It MUST NOT depend on:
 
-## 8. Telemetry & Future Extensions
+- UI components (`core.ui`).
+- Feature modules unrelated to maps.
 
-Design keeps room for:
+### Downstream dependents
 
-- multi-map views  
-- derived/variant maps per base map  
-- time-aware maps  
-- project-wide map analytics
+- Map-related UI flows.
+- Future map-related services (e.g., measure, comments anchored to maps).
 
-feature.map should not hard-code “one map only” assumptions in the workspace; active map is a concept, but multi-map capabilities can be added later.
+## 7. Performance Considerations
+
+Current implementation:
+
+- `listMaps` executes a SQL SELECT over maps and map_calibrations and performs filtering in memory.
+- `getMap` executes a single SQL SELECT by mapId.
+- No image or heavy calibration math is executed yet.
+
+As long as project map counts remain moderate, this is acceptable; heavy usage should lead to tighter SQL filters and pagination semantics in the future.
+
+## 8. Testing Strategy
+
+Existing tests:
+
+- `tests/feature/map/featureMapService.test.ts`:
+  - Validates list/get behavior and calibration summary fields.
+  - Validates filtering by status, types, and tags.
+- `tests/feature/map/featureMapService.writes.test.ts`:
+  - Asserts that write methods currently throw NotImplemented, documenting their unimplemented status.
+
+Future tests:
+
+- For ActiveMapService, CalibrationService, Viewport/Imagery services when implemented.
+- More detailed permission tests tying together FeatureMapService and `core.permissions` policies (including MAP_CALIBRATE).
+
+## 9. CI and Governance Integration
+
+Any change to:
+
+- Map metadata shape.
+- DB usage patterns (maps/map_calibrations queries).
+- Permission enforcement logic.
+
+MUST:
+
+1. Update this block spec.
+2. Update the relevant module spec(s).
+3. Update implementation and tests.
+4. Keep `Blocks_Modules_Inventory.md` and `specs/inventory/inventory.json` in sync.
+5. Ensure `npm run spec:check` passes from the repo root.
