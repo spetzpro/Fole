@@ -43,15 +43,16 @@ The block is decomposed into these modules:
 | Module ID                           | Responsibility                                                | Status      |
 |------------------------------------|---------------------------------------------------------------|-------------|
 | `core.auth.AuthApiClient`          | Interface to backend auth endpoints (login/refresh/me)       | Implemented |
-| `core.auth.AuthSessionManager`     | Login/logout/refresh + in-memory session management          | Implemented |
+| `core.auth.AuthSessionManager`     | Login/logout/refresh + session management                    | Stable      |
 | `core.auth.AuthStateStore`         | Reactive auth state store (status/user/error)                | Stable      |
 | `core.auth.CurrentUserProvider`    | Read-only current user view + isAuthenticated() helpers      | Stable      |
 
 Block-level lifecycle:
 
-- **Block status**: `Implemented`
-  - All four modules exist and are used in tests.
-  - AuthSessionManager is currently an **MVP implementation** with in-memory-only sessions; durable persistence and richer flows are planned.
+- **Block status**: `Stable`
+  - `AuthSessionManager`, `AuthStateStore`, and `CurrentUserProvider` are implemented and covered by tests.
+  - AuthSessionManager now uses a pluggable `SessionStore` abstraction; the default implementation is in-memory only (no disk/DB/cookie).
+  - Persistent sessions across process restarts are available when the host app provides a concrete `SessionStore` implementation.
 
 Any new modules added under `core.auth` MUST be added to this table and to the inventories.
 

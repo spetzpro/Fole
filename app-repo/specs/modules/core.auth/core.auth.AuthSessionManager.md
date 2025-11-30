@@ -11,10 +11,9 @@ It is responsible for:
 
 - Calling `AuthApiClient` to perform login and token refresh.
 - Holding the current `AuthSession` in memory.
+- Coordinating with a pluggable `SessionStore` abstraction for optional persistence.
 - Providing convenient functions to query and update the current session.
 - Serving as the central place for auth flows used by UI and other blocks.
-
-At the current MVP level, session state is **in-memory only**; durable persistence and richer flows are planned but not implemented yet.
 
 ## 2. Responsibilities and Non-Responsibilities
 
@@ -28,7 +27,7 @@ At the current MVP level, session state is **in-memory only**; durable persisten
   - `restoreSession(): Promise<Result<AuthSession | null>>`
   - `getCurrentSession(): AuthSession | null`
   - `refreshSession(): Promise<Result<AuthSession>>`
-- Maintain an in-memory reference to the current session (if any).
+- Maintain an in-memory reference to the current session (if any) and persist/clear it via `SessionStore`.
 
 ### Non-Responsibilities
 
@@ -70,19 +69,20 @@ declare function getAuthSessionManager(): AuthSessionManager;
 
 - `login`:
   - Calls `AuthApiClient.login(req)`.
-  - On success, stores the resulting `AuthSession` in memory and returns `Ok<AuthSession>`.
+  - On success, stores the resulting `AuthSession` in memory, persists it via `SessionStore.save`, and returns `Ok<AuthSession>`.
   - On failure, returns `Err` with an appropriate code (e.g., `AUTH_LOGIN_FAILED`).
 
 - `logout`:
-  - Clears the in-memory session and returns `Ok<void>`.
+  - Clears the in-memory session, clears any persisted session state via `SessionStore.clear`, and returns `Ok<void>`.
   - Does not yet inform a backend logout endpoint (MVP); that may be added later.
 
 - `getCurrentSession`:
   - Returns the in-memory `AuthSession` or `null` if not logged in.
 
-- `restoreSession` (MVP):
-  - Currently returns `Ok<null>` or a session reconstructed from in-memory state only.
-  - **Does not** load tokens from disk or any persistent store in the MVP.
+- `restoreSession`:
+  - Calls `SessionStore.load()` to attempt to restore a previously persisted session.
+  - If a session is found and `tokens.expiresAt` is still valid, rehydrates `currentSession` from the stored tokens and user and returns `Ok<AuthSession>`.
+  - If no session is found or the stored session is expired, clears `currentSession`, ensures any persisted state is cleared, and returns `Ok<null>`.
 
 - `refreshSession`:
   - If there is no current session or refresh token, returns an `Err` result.
@@ -94,19 +94,13 @@ declare function getAuthSessionManager(): AuthSessionManager;
 
 - At most one active session at a time:
   - Logging in replaces any existing session.
-- Session state is in-memory only for now:
-  - All session data is lost when the process exits or restarts.
 - `getCurrentSession()` is the canonical in-process view of the current session.
+- When a `SessionStore` is configured, `login`/`logout`/`restoreSession` keep in-memory and persisted session state logically in sync.
 
-### Future persistence (planned)
+### Phase 1 persistence
 
-- Future versions may add persistence (e.g., using `core.storage`):
-  - `restoreSession` will read session data from a persistent store.
-  - `logout` may clear persistent state.
-- When persistence is added, this spec must be updated to describe:
-  - Where session data lives.
-  - How it is secured.
-  - How versioning and migrations work for session schema.
+- Session persistence is mediated by a pluggable `SessionStore` abstraction.
+- The default `SessionStore` implementation remains in-memory only, so sessions are not persisted across process restarts unless the host app provides a concrete persistent store.
 
 ## 5. Planned vs Implemented
 

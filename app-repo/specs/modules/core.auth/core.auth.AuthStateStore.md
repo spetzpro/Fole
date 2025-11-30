@@ -79,6 +79,8 @@ declare function getAuthStateStore(): AuthStateStore;
   - Replaces the current state with `next`.
   - Notifies all subscribed listeners.
 
+The module remains a pure in-memory observable store; it does not interact directly with `SessionStore` or any persistence mechanism and continues to be driven by AuthSessionManager and higher-level auth flows.
+
 ## 4. Internal Model and Invariants
 
 ### Invariants

@@ -68,6 +68,8 @@ declare function getCurrentUserProvider(): CurrentUserProvider;
   - Returns `true` iff there is a current session (or a non-null `CurrentUser`).
   - Does not inspect tokens directly.
 
+When `AuthSessionManager.restoreSession()` successfully rehydrates a session from `SessionStore`, `CurrentUserProvider` will expose a non-null `CurrentUser` on first access, with `roles` feeding into `core.permissions` as usual.
+
 ## 4. Internal Model and Invariants
 
 ### Invariants

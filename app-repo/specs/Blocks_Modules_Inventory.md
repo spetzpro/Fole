@@ -24,8 +24,8 @@ Status legend:
 | core.foundation | Module | core | In implementation | Basic app/runtime primitives, env, logging hooks, etc. | specs/modules/core.foundation |
 | core.storage | Block | core | Specced | Overall storage behavior across modules. | specs/blocks/core.storage.md |
 | core.storage | Module | core | Stable | StoragePaths, atomic write services, manifests; implementation aligned with specs. | specs/modules/core.storage |
-| core.auth | Block | core | Specced | Auth flows and UX. | specs/blocks/core.auth.md |
-| core.auth | Module | core | Implemented | Auth engine, session management, identity. | specs/modules/core.auth |
+| core.auth | Block | core | Stable | Auth flows and UX; AuthSessionManager, AuthStateStore, and CurrentUserProvider implemented and tested. | specs/blocks/core.auth.md |
+| core.auth | Module | core | Stable | Auth engine, session management, identity, with pluggable SessionStore-based persistence. | specs/modules/core.auth |
 | core.permissions | Block | core | Stable | Roles, overrides, UX & behavior; engine and guards implemented with static canonical role→permission mapping. | specs/blocks/core.permissions.md |
 | core.permissions | Module | core | Stable | Permission model, policy registry, service, guards; static canonical role→permission mapping and PermissionContext from CurrentUser.roles implemented and tested. | specs/modules/core.permissions |
 | core.ui | Block | core | Specced | App shell, navigation, workspace experience. | specs/blocks/core.ui.md |

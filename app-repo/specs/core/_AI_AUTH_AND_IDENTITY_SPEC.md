@@ -248,6 +248,8 @@ When user clicks invite link:
 
 FOLE uses **server-side sessions** for human users.
 
+In this repo, the client-side auth slice is implemented as an in-memory `AuthSessionManager` that can optionally persist and rehydrate sessions via a pluggable `SessionStore` abstraction. Real server-side session cookies, backend session storage, and logout-everywhere behavior are responsibilities of the backend and are not implemented here; Phase 1 focuses on client-side session tracking and rehydration only.
+
 ### 5.1 Session Cookie
 
 - Cookie name (e.g.): `fole_session`
