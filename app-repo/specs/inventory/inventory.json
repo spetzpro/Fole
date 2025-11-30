@@ -4,35 +4,43 @@
   "items": [
     {
       "name": "core.foundation",
+      "kind": "Block",
+      "layer": "core",
+      "status": "Implemented",
+      "specPath": "specs/blocks/core.foundation.md",
+      "notes": "Base primitives (Logger, DiagnosticsHub, FeatureFlags, ConfigService, CoreTypes)."
+    },
+    {
+      "name": "core.foundation",
       "kind": "Module",
       "layer": "core",
-      "status": "In implementation",
+      "status": "Implemented",
       "specPath": "specs/modules/core.foundation",
-      "notes": "Basic app/runtime primitives, env, logging hooks, etc."
+      "notes": "Logging, feature flags, diagnostics, typed AppConfig, and core Result/AppError types."
     },
     {
       "name": "core.storage",
       "kind": "Block",
       "layer": "core",
-      "status": "Implemented",
+      "status": "Specced",
       "specPath": "specs/blocks/core.storage.md",
-      "notes": "Overall storage behavior across modules; StoragePaths + atomic write stack stable; MigrationRunner specced-only; FileStorage atomic pipeline still evolving."
+      "notes": "Overall storage behavior across modules."
     },
     {
       "name": "core.storage",
       "kind": "Module",
       "layer": "core",
-      "status": "Implemented",
+      "status": "Stable",
       "specPath": "specs/modules/core.storage",
-      "notes": "Storage stack mature overall; ProjectModel/PathResolver behave as Stable, ProjectRegistry/FileStorage/DalContextFactory implemented and used; MigrationRunner currently specced-only."
+      "notes": "StoragePaths, atomic write services, manifests; implementation aligned with specs."
     },
     {
       "name": "core.auth",
       "kind": "Block",
       "layer": "core",
-      "status": "Implemented",
+      "status": "Specced",
       "specPath": "specs/blocks/core.auth.md",
-      "notes": "Auth flows; AuthApiClient/AuthSessionManager implemented; AuthStateStore/CurrentUserProvider stable; sessions currently in-memory only."
+      "notes": "Auth flows and UX."
     },
     {
       "name": "core.auth",
@@ -40,15 +48,15 @@
       "layer": "core",
       "status": "Implemented",
       "specPath": "specs/modules/core.auth",
-      "notes": "Auth engine; in-memory session manager plus reactive auth state store and current user provider."
+      "notes": "Auth engine, session management, identity."
     },
     {
       "name": "core.permissions",
       "kind": "Block",
       "layer": "core",
-      "status": "Implemented",
+      "status": "Specced",
       "specPath": "specs/blocks/core.permissions.md",
-      "notes": "Roles and policy engine; PermissionModel/PolicyRegistry/PermissionService stable; PermissionGuards implemented and maturing."
+      "notes": "Roles, overrides, UX & behavior."
     },
     {
       "name": "core.permissions",
@@ -56,15 +64,15 @@
       "layer": "core",
       "status": "Implemented",
       "specPath": "specs/modules/core.permissions",
-      "notes": "Permission model and engine stable; guards implemented but not yet stable."
+      "notes": "Permission model, policy registry, service, guards."
     },
     {
       "name": "core.ui",
       "kind": "Block",
       "layer": "core",
-      "status": "Implemented",
+      "status": "Specced",
       "specPath": "specs/blocks/core.ui.md",
-      "notes": "App shell + workspace UX; UiStateStore + ErrorBoundary/ErrorSurface implemented; AppShell/NavigationRouter/ProjectSelector specced-only."
+      "notes": "App shell, navigation, workspace experience."
     },
     {
       "name": "core.ui",
@@ -72,7 +80,7 @@
       "layer": "core",
       "status": "Implemented",
       "specPath": "specs/modules/core.ui",
-      "notes": "UiStateStore + ErrorBoundary/ErrorSurface implemented; AppShell/NavigationRouter/ProjectSelector specced-only."
+      "notes": "UI state, router, layout, error boundaries, project selector."
     },
     {
       "name": "core.runtime",
