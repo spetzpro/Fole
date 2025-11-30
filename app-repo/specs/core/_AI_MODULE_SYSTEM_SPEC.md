@@ -52,7 +52,7 @@ Each block has a **block spec** that describes its purpose, responsibilities, an
 - `specs/blocks/core.auth.md`
 - `specs/blocks/core.permissions.md`
 - `specs/blocks/core.ui.md`
-- (future) `specs/blocks/feature.map.md`, etc.
+- (future) `specs/blocks/feature.map.block.md`, etc.
 
 ### 2.2 Modules
 

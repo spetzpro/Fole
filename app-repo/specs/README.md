@@ -16,7 +16,7 @@ This README is the navigation hub for all specification-related documents. It do
   `docs/specs/Spec_Workflow_Guide.md`
 
 - **Master Rules for AI behavior and system-wide constraints:**  
-  `specs/core/_AI_MASTER_RULES.md`
+  `docs/ai/_AI_MASTER_RULES.md`
 
 ## 3. Module & Block Specs
 
@@ -24,7 +24,7 @@ This README is the navigation hub for all specification-related documents. It do
   `specs/modules/README.md`
 
 - **Module specs (core, feature, lib):**  
-  `specs/modules/` and `specs/lib/`
+  `specs/modules/` and `specs/blocks/lib/`
 
 - **Block specs:**  
   `specs/blocks/`
