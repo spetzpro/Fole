@@ -24,7 +24,7 @@ Binding for:
 
 ---
 
-# 1. PURPOSE & SCOPE
+## 1. PURPOSE & SCOPE
 
 The automation engine must:
 
@@ -32,7 +32,7 @@ The automation engine must:
 2. Prevent AI from performing destructive operations without human review.  
 3. Enforce strict **permission**, **role**, and **resource constraints**.  
 4. Provide a predictable scheduling model.  
-5. Ensure governance rules (_AI_MASTER_RULES.md_) are followed.  
+5. Ensure governance rules (`_AI_MASTER_RULES.md`) are followed.  
 6. Track metadata, authorship, and change provenance.  
 7. Prevent runaway or recursive automations.  
 
@@ -43,9 +43,26 @@ Covers:
 - Human-approved destructive actions  
 - Module-level automation integrations  
 
+### 1.5 Current Implementation Status (MVP in this repo)
+
+- There is **no automation engine implementation** in this repo yet:
+  - No `lib.jobs` code exists under `src/lib/**`.
+  - No persisted job tables/entities exist in `project.db` at this time.
+- All automation behavior described here is **target behavior** for a future backend + job system.
+- Some core runtime and testing helpers may evolve to:
+  - model “job-like” operations in-memory,
+  - or provide simple scheduling/diagnostics helpers,
+  but they must still follow this spec when they become persistent, user-visible automation features.
+
+AI agents working within this repo must:
+
+- Treat this document as the source of truth for **designing** and **proposing** automations.
+- Not assume any automation engine code exists yet.
+- Propose JSON metadata and flows consistent with this spec, but leave actual execution and persistence to a future implementation.
+
 ---
 
-# 2. AUTOMATION TYPES
+## 2. AUTOMATION TYPES
 
 The system supports:
 
@@ -80,11 +97,11 @@ Anything requiring:
 
 ---
 
-# 3. AUTOMATION STATE MACHINE
+## 3. AUTOMATION STATE MACHINE
 
 Automations must follow these states:
 
-```
+```text
 draft → pendingApproval → scheduled → running → completed
                                    ↘
                                     error
@@ -103,7 +120,7 @@ State transitions must be atomic and logged.
 
 ---
 
-# 4. PERMISSION & ROLE RULES
+## 4. PERMISSION & ROLE RULES
 
 Automation execution must respect:
 
@@ -119,11 +136,11 @@ Rules:
 
 ---
 
-# 5. METADATA REQUIREMENTS (MANDATORY)
+## 5. METADATA REQUIREMENTS (MANDATORY)
 
 Every automation must contain:
 
-```
+```text
 id
 type
 createdBy
@@ -149,7 +166,7 @@ If `affectsSchema = true`, then:
 
 ---
 
-# 6. APPROVAL RULES
+## 6. APPROVAL RULES
 
 AI cannot approve automations.
 
@@ -177,11 +194,11 @@ Cannot be automated:
 
 ---
 
-# 7. SCHEDULING MODEL
+## 7. SCHEDULING MODEL
 
 Schedules use a normalized format:
 
-```
+```text
 once / hourly / daily / weekly / cron / event-triggered
 ```
 
@@ -201,7 +218,7 @@ Scheduling must be **idempotent**, even after server restart.
 
 ---
 
-# 8. RESOURCE SAFETY
+## 8. RESOURCE SAFETY
 
 Every automation must define:
 - maxRuntimeSeconds  
@@ -217,11 +234,11 @@ Runtime behavior:
 
 ---
 
-# 9. MODULE AUTOMATION RULES
+## 9. MODULE AUTOMATION RULES
 
 Modules may declare:
 
-```
+```text
 automations/
   - <automationName>.json
   - <automationName>.md
@@ -235,7 +252,7 @@ Rules:
 
 ---
 
-# 10. AI BEHAVIOR RULES (CRITICAL)
+## 10. AI BEHAVIOR RULES (CRITICAL)
 
 AI agents must:
 
@@ -262,7 +279,7 @@ AI MUST STOP if:
 - module missing  
 - dependency not satisfied  
 - destructive-change.json missing  
-- storage rules unclear (_AI_STORAGE_ARCHITECTURE_)  
+- storage rules unclear (`_AI_STORAGE_ARCHITECTURE`)  
 - map/tool/template interaction ambiguous  
 - user intent unclear  
 
@@ -271,7 +288,7 @@ Do not run. Do not modify. Ask the user.
 
 ---
 
-# 11. LOGGING & AUDIT TRAIL
+## 11. LOGGING & AUDIT TRAIL
 
 Every automation must log:
 
@@ -317,7 +334,7 @@ This helper is:
 
 ---
 
-# 12. CANCELLATION & FAILURE POLICY
+## 12. CANCELLATION & FAILURE POLICY
 
 ### Cancellation
 - Allowed if job is cancellable  
@@ -335,7 +352,7 @@ AI must not retry automatically unless policy explicitly says so.
 
 ---
 
-# 13. RELATION TO OTHER SPECS
+## 13. RELATION TO OTHER SPECS
 
 Automation engine interacts with:
 
@@ -354,7 +371,7 @@ If conflicts occur:
 
 ---
 
-# 14. END OF DOCUMENT
+## 14. END OF DOCUMENT
 
 This automation engine spec is authoritative.  
 All AI agents and backend systems MUST follow it exactly.

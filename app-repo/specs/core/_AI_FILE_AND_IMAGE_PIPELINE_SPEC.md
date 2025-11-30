@@ -17,39 +17,27 @@ The file and image pipeline must:
 
 This document is conceptual; concrete behavior will be specified in feature and module specs such as:
 
-- `feature.map.*` (future)
-- `lib.image.*` (future)
+- `feature.map.*`
+- `feature.files.*`
+- `lib.image.*`
 - `core.storage.FileStorage`
 - `core.storage.ProjectModel` (for map/file metadata)
 
+### 1.5 Current Implementation Status (MVP in this repo)
+
+As of the current `app-repo` codebase:
+
+- There is **no implementation** of `lib.image` under `src/lib/**`; the image pipeline described here is **Specced-only**.
+- There is **no `feature.files` implementation**; file management exists only as a design in `feature.files.module.md`.
+- `feature.map` currently:
+  - Treats map images as simple binary files stored under the project’s storage hierarchy, managed by `core.storage`.
+  - Does **not** implement canonical normalization or tiling behavior yet.
+  - Only reads calibration summary data from `map_calibrations` and does not coordinate with an image pipeline.
+- `FileStorage` is implemented as a general-purpose IO helper (non-atomic by itself) and is used for basic file handling.
+
+AI agents working **within this repo** must treat this document as a **target design** for future `lib.image` and `feature.files/feature.map` behavior; it does **not** describe code that exists today.
+
 ---
-
-## 1.5. Implementation Modules and Responsibilities
-
-This spec defines **policy and behavioral rules** for the file & image pipeline. The concrete implementation is split across a few modules:
-
-- `lib.image` (library module)
-  - Implements the core image pipeline behaviors:
-    - canonical image normalization
-    - EXIF orientation handling
-    - color profile / ICC handling
-    - thumbnail and preview generation
-    - helpers for tiling / multi-resolution image generation
-  - Uses `core.storage` / `FileStorage` for binary IO and storage layout, following `_AI_STORAGE_ARCHITECTURE.md`.
-
-- `feature.files` (feature module)
-  - Provides the **project-facing file library** and attachment APIs.
-  - Routes image uploads that should enter this pipeline to `lib.image` and stores metadata and relationships in `project.db`, as defined in `_AI_DB_AND_DATA_MODELS_SPEC.md`.
-  - Handles non-image files via a simpler path (no normalization/tiling), still respecting retention and permission rules.
-
-- `feature.map` (feature module)
-  - Owns **map entities** (maps, map imagery handles, calibration, etc.).
-  - Coordinates with `lib.image` for floorplan/map images that need canonicalization and tiling.
-  - Decides where map tiles live under the project storage hierarchy, within the constraints of `_AI_STORAGE_ARCHITECTURE.md`.
-
-The **pipeline rules live here** (in this `_AI_FILE_AND_IMAGE_PIPELINE_SPEC.md` document).  
-The module specs (`lib.image.md`, `feature.files.module.md`, `feature.map.module.md`) describe how each module applies these rules in its own context. This `_AI_*` spec remains the authoritative source of behavior when there is any disagreement.
-
 
 ## 2. File Types and Scope (MVP)
 
@@ -215,4 +203,4 @@ Future enhancements may include:
 - More advanced color management for print workflows.
 - Dedicated `feature.imagePipeline` and `lib.image` blocks with fine-grained modules.
 
-This spec should be revisited as soon as we start designing the `feature.map` and `feature.imagePipeline` module specs.
+This spec should be revisited as soon as we start designing and implementing the `lib.image` and `feature.files` pipelines.

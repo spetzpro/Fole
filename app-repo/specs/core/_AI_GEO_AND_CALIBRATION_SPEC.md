@@ -20,40 +20,26 @@ The geo and calibration system must:
 
 This document is conceptual; concrete implementations will live in:
 
-- `lib.geo.*` (future) – coordinate math, projections, transforms
-- `feature.map.*` (future) – map UI and calibration tools
+- `lib.geo.*` – coordinate math, projections, transforms (future)
+- `feature.map.*` – map UI and calibration tools (partially implemented)
+- `feature.measure.*` – measurement tools and entities (future)
 - `core.storage.ProjectModel` – persistent representation of calibration data
 
+### 1.5 Current Implementation Status (MVP in this repo)
+
+As of the current `app-repo` codebase:
+
+- There is **no implementation** of `lib.geo` under `src/lib/**`; all coordinate math described here is Specced-only.
+- `feature.map`:
+  - persists calibration-related metadata in `map_calibrations` and reads an active calibration summary (isCalibrated, transform_type, rms_error) for each map.
+  - does **not** implement a full calibration lifecycle service (no list/create/update/setActive flows at the feature layer yet).
+  - does **not** call a `lib.geo` API for fitting/calculating transforms; transform semantics are implied but not implemented.
+- `feature.measure` is defined only in `feature.measure.module.md` and has no implementation.
+- All WGS84/ECEF/local ENU math referred to in this document is **target behavior** for future `lib.geo` and feature implementations.
+
+AI agents must treat this document as the **authoritative design** for geo/calibration, but not assume that any of the described math exists in this repo today beyond the minimal `map_calibrations` schema and FeatureMapService’s read-only calibration summary.
+
 ---
-
-## 1.5 Implementation Modules and Responsibilities
-
-This spec defines the **policy and mathematical rules** for coordinate systems and calibration. The concrete implementation is split across a few modules:
-
-- `lib.geo` (library module)
-  - Implements the core geo and calibration math:
-    - WGS84, ECEF, and local tangent plane (ENU) conversions
-    - pixel ↔ local/world transforms
-    - calibration transform fitting from control points
-    - distance/area/angle computations
-  - Exposes stateless functions/services that operate on inputs provided by feature modules.
-  - Does **not** own persistent entities; it only computes results.
-
-- `feature.map` (feature module)
-  - Owns **map entities**, calibration records, and control points in `project.db`.
-  - Calls `lib.geo` to:
-    - compute calibration transforms and error metrics
-    - project between pixel and local/world coordinates for maps.
-  - Ensures that only one calibration per map is active at a time, and that historical calibrations remain for audit and rollback.
-
-- `feature.measure` (feature module)
-  - Uses `lib.geo` to compute distances, areas, and related metrics from stored geometries.
-  - Stores measurement entities that may be anchored to maps and/or local/world coordinates.
-  - Does **not** implement its own coordinate math; it relies on `lib.geo` and the calibration data owned by `feature.map`.
-
-The **behavioral rules live here** (in this `_AI_GEO_AND_CALIBRATION_SPEC.md` document).  
-The module specs (`lib.geo.md`, `feature.map.module.md`, `feature.measure.module.md`) describe how each module applies these rules in its own context. This `_AI_*` spec remains the authoritative source of behavior when there is any disagreement.
-
 
 ## 2. Coordinate Systems Overview
 
@@ -138,9 +124,9 @@ Requirements:
 Storage:
 
 - Calibration metadata is stored in `project.db` under tables like:
-  - `calibration_sets`
+  - `map_calibrations`
   - `calibration_points`
-- The exact schema will be defined as we spec `feature.map` and `lib.geo`.
+- The exact schema will be refined as `feature.map` and `lib.geo` evolve.
 
 ### 5.1 Calibration Versioning
 
@@ -287,4 +273,4 @@ Future enhancements may include:
 - 3D calibration and height modeling.
 - Integration with external GIS data.
 
-This spec should be revisited when designing `lib.geo` and `feature.map` module specs.
+This spec should be revisited when designing and implementing `lib.geo`, `feature.map`, and `feature.measure` beyond their current MVP slices.
