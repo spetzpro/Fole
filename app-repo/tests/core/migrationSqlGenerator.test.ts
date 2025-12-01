@@ -22,9 +22,10 @@ async function testGeneratesSqliteSqlForInitialMigrations() {
   assert(coreSql.statements[0].startsWith("CREATE TABLE IF NOT EXISTS users"), "users table create SQL");
   assert(coreSql.statements[1].startsWith("CREATE TABLE IF NOT EXISTS projects"), "projects table create SQL");
 
-  assert(projectSql.statements.length === 2, "two CREATE TABLE statements for project DB");
+  assert(projectSql.statements.length === 3, "three CREATE TABLE statements for project DB");
   assert(projectSql.statements[0].startsWith("CREATE TABLE IF NOT EXISTS maps"), "maps table create SQL");
   assert(projectSql.statements[1].startsWith("CREATE TABLE IF NOT EXISTS map_calibrations"), "map_calibrations table create SQL");
+  assert(projectSql.statements[2].startsWith("CREATE TABLE IF NOT EXISTS project_members"), "project_members table create SQL");
 }
 
 async function testGeneratesPostgresSqlForInitialMigrations() {

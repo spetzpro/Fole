@@ -52,4 +52,16 @@ export const PROJECT_DB_INITIAL_MIGRATIONS: readonly MigrationDefinition[] = [
       { kind: "drop_table", tableName: "map_calibrations", ifExists: true },
     ],
   },
+  {
+    id: "20251201-301-create-project-members",
+    title: "Create project_members table (project DB)",
+    engine: "any",
+    safety: "non_destructive",
+    up: [
+      { kind: "create_table", tableName: "project_members", ifNotExists: true },
+    ],
+    down: [
+      { kind: "drop_table", tableName: "project_members", ifExists: true },
+    ],
+  },
 ];

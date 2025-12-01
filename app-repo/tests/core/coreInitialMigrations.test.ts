@@ -20,9 +20,10 @@ async function testProjectDbInitialMigrationsShape() {
   const planner = new MigrationPlanner({ engine: "sqlite" });
   const plan = planner.plan(PROJECT_DB_INITIAL_MIGRATIONS);
 
-  assert(plan.ordered.length === 2, "Expected two project DB initial migrations");
+  assert(plan.ordered.length === 3, "Expected three project DB initial migrations");
   assert(plan.ordered[0].id === "20251123-101-create-maps", "First project DB migration should be maps");
   assert(plan.ordered[1].id === "20251201-201-create-map-calibrations", "Second project DB migration should be map_calibrations");
+  assert(plan.ordered[2].id === "20251201-301-create-project-members", "Third project DB migration should be project_members");
 }
 
 (async () => {
