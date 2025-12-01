@@ -5,11 +5,10 @@ import type {
   CurrentUser,
 } from "./PermissionModel";
 import { deriveGlobalPermissionsForUser, deriveProjectMembershipForUser } from "./PermissionModel";
-import type { Result, AppError } from "@/core/foundation/CoreTypes";
-import { err, ok } from "@/core/foundation/CoreTypes";
-import { getCurrentUserProvider } from "@/core/auth/CurrentUserProvider";
+import type { Result, AppError } from "../foundation/CoreTypes";
+import { getCurrentUserProvider } from "../auth/CurrentUserProvider";
 import { getPermissionService } from "./PermissionService";
-import type { ProjectMembershipService } from "@/core/ProjectMembershipService";
+import type { ProjectMembershipService } from "../ProjectMembershipService";
 
 export function createPermissionContextFromCurrentUser(): PermissionContext {
   const currentUserProvider = getCurrentUserProvider();
@@ -98,17 +97,20 @@ export function ensureCanPerform(
   const decision = service.canWithReason(ctx, action, resource);
 
   if (decision.allowed) {
-    return ok(undefined);
+    return { ok: true, value: undefined };
   }
 
-  return err({
-    code: "PERMISSION_DENIED",
-    message: "Permission denied",
-    details: {
-      reasonCode: decision.reasonCode,
-      grantSource: decision.grantSource,
+  return {
+    ok: false,
+    error: {
+      code: "PERMISSION_DENIED",
+      message: "Permission denied",
+      details: {
+        reasonCode: decision.reasonCode,
+        grantSource: decision.grantSource,
+      },
     },
-  });
+  };
 }
 
 export function assertCanPerform(
