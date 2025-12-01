@@ -12,6 +12,8 @@ import {
 import type { ProjectDb } from "../../core/ProjectDb";
 import type { PermissionService } from "../../core/permissions/PermissionService";
 import type { PermissionContext, ResourceDescriptor } from "../../core/permissions/PermissionModel";
+import type { ProjectMembershipService } from "../../core/ProjectMembershipService";
+import { buildProjectPermissionContextForCurrentUser } from "../../core/permissions/PermissionGuards";
 
 // WriteContext shape is defined conceptually in specs/modules/feature.map.module.md.
 // The concrete structure will be aligned with core.storage / AtomicWriteService.
@@ -48,6 +50,7 @@ interface FeatureMapServiceDeps {
   getPermissionContext?: () => PermissionContext;
   // Optional diagnostics/logger dependency; kept minimal for now.
   logger?: { debug(message: string, meta?: unknown): void };
+  projectMembershipService?: ProjectMembershipService;
 }
 
 export class DefaultFeatureMapService implements FeatureMapService {
@@ -160,8 +163,77 @@ export class DefaultFeatureMapService implements FeatureMapService {
   }
 
   async createMap(input: CreateMapInput, ctx: WriteContext): Promise<MapMetadata> {
-    // TODO: enforce map.manage permission and perform atomic write (map_create).
-    throw new Error("NotImplemented: createMap");
+    const membershipService = this.deps.projectMembershipService;
+    if (!membershipService) {
+      throw new Error("ProjectMembershipService is required for createMap");
+    }
+
+    const permissionContext = await buildProjectPermissionContextForCurrentUser(
+      input.projectId,
+      membershipService
+    );
+
+    const resource: ResourceDescriptor = {
+      type: "map",
+      id: "new",
+      projectId: input.projectId,
+    };
+
+    const allowed = this.deps.permissionService.can(permissionContext, "MAP_EDIT", resource);
+    if (!allowed) {
+      const error = new Error("Forbidden: map.edit required for project");
+      (error as any).code = "FORBIDDEN";
+      throw error;
+    }
+
+    const conn = await this.deps.projectDb.getConnection(input.projectId);
+
+    const mapId: MapId = (globalThis.crypto?.randomUUID
+      ? globalThis.crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).slice(2)}`) as MapId;
+
+    const now = new Date().toISOString();
+    const tagsJson = JSON.stringify(input.tags ?? []);
+
+    await conn.executeCommand({
+      text:
+        "INSERT INTO maps (project_id, map_id, name, description, map_type, tags_json, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      parameters: [
+        input.projectId,
+        mapId,
+        input.name,
+        input.description ?? null,
+        input.mapType,
+        tagsJson,
+        "draft",
+        now,
+        now,
+      ],
+    });
+
+    const rows = await conn.executeQuery<any>({
+      text: `SELECT m.map_id AS mapId,
+                    m.project_id AS projectId,
+                    m.name AS name,
+                    m.description AS description,
+                    m.map_type AS mapType,
+                    m.tags_json AS tagsJson,
+                    m.status AS status,
+                    m.created_at AS createdAt,
+                    m.updated_at AS updatedAt,
+                    ac.transform_type AS calibrationTransformType,
+                    ac.rms_error AS calibrationErrorRms
+             FROM maps m
+             LEFT JOIN map_calibrations ac
+               ON ac.project_id = m.project_id
+              AND ac.map_id = m.map_id
+              AND ac.is_active = 1
+            WHERE m.project_id = ? AND m.map_id = ?`,
+      parameters: [input.projectId, mapId],
+    });
+
+    const row = rows[0];
+    return this.mapRowToMetadata(row);
   }
 
   async updateMapMetadata(input: UpdateMapMetadataInput, ctx: WriteContext): Promise<MapMetadata> {

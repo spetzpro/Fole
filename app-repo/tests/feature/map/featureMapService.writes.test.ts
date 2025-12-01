@@ -3,7 +3,11 @@ import { ProjectDb } from "../../../src/core/ProjectDb";
 import { DefaultFeatureMapService, WriteContext } from "../../../src/feature/map/FeatureMapService";
 import type { PermissionService } from "../../../src/core/permissions/PermissionService";
 import type { PermissionContext } from "../../../src/core/permissions/PermissionModel";
-import { MapId, MapStatus, MapType, ProjectId } from "../../../src/feature/map/FeatureMapTypes";
+import { MapType, ProjectId } from "../../../src/feature/map/FeatureMapTypes";
+import { createProjectMembershipService } from "../../../src/core/ProjectMembershipService";
+import { initDefaultPolicies } from "../../../src/core/permissions/PolicyRegistry";
+import { getPermissionService } from "../../../src/core/permissions/PermissionService";
+import { getCurrentUserProvider } from "../../../src/core/auth/CurrentUserProvider";
 
 function assert(condition: unknown, message: string): void {
   if (!condition) {
@@ -32,66 +36,123 @@ async function createRuntimeAndService(projectId: ProjectId) {
   });
 
   const projectDb = new ProjectDb(runtime);
-  const permissionService = new MockPermissionService();
+  const projectMembershipService = createProjectMembershipService(projectDb);
 
-  const getPermissionContext = (): PermissionContext => ({
-    // Minimal placeholder; real implementation will align with core permissions.
-    userId: "tester",
-    projectId,
-  } as any);
+  initDefaultPolicies();
+  const permissionService = getPermissionService();
 
-  const service = new DefaultFeatureMapService({ projectDb, permissionService, getPermissionContext });
-  return { service, projectDb, permissionService };
+  const service = new DefaultFeatureMapService({
+    projectDb,
+    permissionService,
+    projectMembershipService,
+  });
+  return { service, projectDb, projectMembershipService };
 }
 
 async function runFeatureMapServiceWriteContracts(): Promise<void> {
   const projectId: ProjectId = "proj-feature-map-writes";
-  const { service, permissionService, projectDb } = await createRuntimeAndService(projectId);
+  const { service, projectDb, projectMembershipService } = await createRuntimeAndService(projectId);
+
+  const currentUserProvider = getCurrentUserProvider();
 
   const ctx: WriteContext = { userId: "tester" };
 
-  // For now, document that writes are NotImplemented, without enforcing behavior yet.
+  const conn = await projectDb.getConnection(projectId);
+
+  await conn.executeCommand({
+    text: `CREATE TABLE IF NOT EXISTS maps (
+      project_id TEXT NOT NULL,
+      map_id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      description TEXT,
+      map_type TEXT NOT NULL,
+      tags_json TEXT,
+      status TEXT NOT NULL,
+      created_at TEXT,
+      updated_at TEXT
+    )`,
+    parameters: [],
+  });
+
+  // a) Owner membership can create map (MAP_EDIT granted)
+  currentUserProvider.setCurrentUser({
+    id: "user-owner",
+    displayName: "Owner User",
+    roles: ["OWNER"],
+  } as any);
+
+  await projectMembershipService.addOrUpdateMembership(projectId, "user-owner", "OWNER");
+
+  const created = await service.createMap(
+    {
+      projectId,
+      name: "Owner Map",
+      mapType: "floorplan" as MapType,
+    },
+    ctx
+  );
+
+  assert(created.projectId === projectId, "created map should belong to project");
+  assert(created.name === "Owner Map", "created map should have given name");
+  assert(created.mapType === "floorplan", "created map should have given type");
+
+  const rows = await conn.executeQuery<any>({
+    text: "SELECT * FROM maps WHERE project_id = ?",
+    parameters: [projectId],
+  });
+  assert(rows.rows.length === 1, "one map row should exist after owner create");
+
+  // b) Viewer membership cannot create map
+  currentUserProvider.setCurrentUser({
+    id: "user-viewer",
+    displayName: "Viewer User",
+    roles: ["VIEWER"],
+  } as any);
+
+  await projectMembershipService.addOrUpdateMembership(projectId, "user-viewer", "VIEWER");
+
   let threw = false;
   try {
-    await service.createMap({
-      projectId,
-      name: "New Map",
-      mapType: "floorplan" as MapType,
-    }, ctx);
+    await service.createMap(
+      {
+        projectId,
+        name: "Viewer Map",
+        mapType: "floorplan" as MapType,
+      },
+      ctx
+    );
   } catch (err: any) {
     threw = true;
-    assert(err.message.includes("NotImplemented"), "createMap should currently be NotImplemented");
+    assert((err as any).code === "FORBIDDEN", "viewer createMap should be forbidden");
+    assert(
+      typeof err.message === "string" && err.message.includes("map.edit"),
+      "error message should mention map.edit"
+    );
   }
-  assert(threw, "createMap should throw NotImplemented until implemented");
+  assert(threw, "viewer createMap should throw");
+
+  // c) Non-member cannot create map
+  currentUserProvider.setCurrentUser({
+    id: "user-nonmember",
+    displayName: "NonMember User",
+    roles: ["EDITOR"],
+  } as any);
 
   threw = false;
   try {
-    await service.updateMapMetadata({
-      projectId,
-      mapId: "map-1" as MapId,
-      name: "Updated Name",
-    }, ctx);
+    await service.createMap(
+      {
+        projectId,
+        name: "NonMember Map",
+        mapType: "floorplan" as MapType,
+      },
+      ctx
+    );
   } catch (err: any) {
     threw = true;
-    assert(err.message.includes("NotImplemented"), "updateMapMetadata should currently be NotImplemented");
+    assert((err as any).code === "FORBIDDEN", "non-member createMap should be forbidden");
   }
-  assert(threw, "updateMapMetadata should throw NotImplemented until implemented");
-
-  threw = false;
-  try {
-    await service.updateMapStatus({
-      projectId,
-      mapId: "map-1" as MapId,
-      status: "archived" as MapStatus,
-    }, ctx);
-  } catch (err: any) {
-    threw = true;
-    assert(err.message.includes("NotImplemented"), "updateMapStatus should currently be NotImplemented");
-  }
-  assert(threw, "updateMapStatus should throw NotImplemented until implemented");
-
-  // Future: once implementations exist, these tests should be updated to assert
-  // actual DB mutations and permission enforcement for map.manage.
+  assert(threw, "non-member createMap should throw");
 }
 
 (async () => {
