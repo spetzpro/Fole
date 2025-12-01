@@ -152,8 +152,12 @@ Manifest rules:
 
 A canonical project export MUST include at least:
 
-- `db/project.sqlite` (project-level DB)  
-- `db/maps/<mapId>.sqlite` for every map in the project  
+- `db/project.sqlite` (project-level DB; in the current MVP this is
+  equivalent to the per-project `project.db` that contains `maps`,
+  `map_calibrations`, `project_members`, and other project tables).  
+- `db/maps/<mapId>.sqlite` for every map in the project (when map DBs are
+  split out from the core project DB; for the current MVP, per-map DBs may
+  still be modeled conceptually).  
 - `maps/<mapId>/tiles/...`  
 - `assets/...` (all project-owned assets)  
 - `templates/project-overrides.json` (if any)  
@@ -193,6 +197,28 @@ Additional optional directories:
 7. Optionally compress into a ZIP/TAR (without modifying internal paths).  
 
 Exports MUST follow atomic snapshot rules and fsync ordering from _AI_STORAGE_ARCHITECTURE.md.
+
+#### 4.3 Membership and Identity in Project Export/Import (MVP)
+
+- `project_members` rows are included as part of the exported project DB
+  (`db/project.sqlite` / `project.db`).
+- Each membership row contains at least:
+  - `project_id`
+  - `user_id` (local identifier for the source server; corresponds to
+    `CurrentUser.id` in this repo)
+  - `role_id` (canonical/project role identifier such as `"OWNER"`,
+    `"EDITOR"`, or `"VIEWER"`).
+- In the current MVP:
+  - `user_id` is treated as an opaque, source-local identifier.
+  - On import, membership rows represent the **intended membership state** of
+    the imported project, but they are **not automatically bound** to local
+    user accounts.
+  - The importer MUST preserve membership rows in the project DB but MAY
+    surface them as "unbound" or "pending mapping" until a future mapping
+    flow is implemented.
+- Future phases MAY extend `project_members` with additional fields such as
+  external user IDs, snapshot display names, audit timestamps, and explicit
+  import/export mapping helpers. Those are out of scope for the current MVP.
 
 ---
 
