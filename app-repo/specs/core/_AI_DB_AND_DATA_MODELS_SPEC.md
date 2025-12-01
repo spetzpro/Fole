@@ -123,6 +123,38 @@ Exact schemas live alongside migrations, but conceptually each project DB will h
 
 Not all of these need to be present in MVP; the schema can grow over time.
 
+### 3.1 Users Table (Future Schema)
+
+In addition to per-project data, a central `users` table will eventually
+capture the canonical user directory for a deployment.
+
+- `users` (future; schema not yet implemented in this repo)
+  - `user_id` (TEXT, PK)
+    - Internal local identifier; matches `CurrentUser.id` and is used in
+      tables such as `project_members.user_id`.
+  - `user_external_id` (TEXT)
+    - Cross-server identity key, typically equal to the primary email for
+      email+password users or an IdP subject for SSO users.
+    - Intended to remain stable across exports/imports and identity changes
+      on a given server.
+  - `email` (TEXT)
+    - Primary login/invite email; generally unique per deployment.
+  - `display_name` (TEXT)
+    - Human-friendly name shown in UI.
+  - `status` (TEXT)
+    - e.g. `active`, `pending_verification`, `disabled`.
+  - `created_at` / `updated_at` (timestamps)
+    - Lifecycle and audit timestamps.
+
+Notes:
+
+- This table is a **design target** and may not exist in current
+  migrations.
+- Current implementations that need identity should continue to rely on
+  `CurrentUser` as exposed by `core.auth`.
+- When the `users` table is introduced, it must remain aligned with the
+  identity semantics defined in `_AI_AUTH_AND_IDENTITY_SPEC.md`.
+
 ---
 
 ## 4. DAL Context and Access Patterns

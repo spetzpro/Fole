@@ -306,6 +306,53 @@ implemented) from **identity reconciliation** (future). The importer always
 preserves `project_members` rows as-is; only explicit admin actions in a
 future phase will change how those rows are bound to local users.
 
+#### 4.5 Imported Roles and Unmapped Role IDs (Future Design)
+
+> **FUTURE PHASE / NOT IMPLEMENTED:** This section describes how imported
+> role identifiers should eventually be reconciled with the target
+> server’s role configuration.
+
+- On export:
+  - `project_members.role_id` values are written into `project.db` as-is,
+    reflecting the roles present on the source server for that project.
+
+- On import (conceptual future behavior):
+  - The target server may have a different role catalog and project role
+    configuration.
+  - An imported `role_id` may not exist in the target project’s role
+    configuration or in any global role template.
+
+- Definition: **unmapped imported role**
+  - A `role_id` value found in imported `project_members` rows that does
+    not correspond to any known role in the target project’s role
+    configuration (or global role templates).
+  - Such roles are preserved in the data but do not have a well-defined
+    permission set on the target server until they are mapped or resolved.
+
+- Future Role Mapping Flow (high-level):
+  1. After import, the system detects which `role_id` values from
+     `project_members` are not present in the target project’s role config.
+  2. An admin-facing workflow (UI/API) allows resolving each imported
+     `role_id` by:
+     - Mapping it to an existing local role (e.g. mapping
+       `"FieldEngineerSource"` to `"FIELD_ENGINEER"`).
+     - Importing it as a new project-specific role, optionally seeding its
+       permission set from the source export or from a template.
+     - Marking it as ignored/fallback, in which case users with that role
+       may be demoted to a fallback such as `"VIEWER"`.
+  3. Once resolved, the project’s role configuration is updated so that all
+     `project_members.role_id` values reference known roles with concrete
+     permission sets.
+
+- Current MVP behavior:
+  - The runtime today uses `role_id` primarily via
+    `CANONICAL_ROLE_PERMISSIONS`, with a small set of canonical roles.
+  - Non-canonical `role_id` values are not fully modeled; implementations
+    may treat them as a default role (e.g. `"VIEWER"`) or reject them,
+    depending on how `deriveProjectMembershipForUser` is used.
+  - No automatic role-mapping logic exists yet; this section documents the
+    intended direction for future import tooling.
+
 ---
 
 ## 5. MAP EXPORT RULES

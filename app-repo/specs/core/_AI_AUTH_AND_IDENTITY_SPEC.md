@@ -102,6 +102,7 @@ At minimum, each user has:
 - `username` (unique, human-chosen)
 - `canonicalUsername` (normalized, lowercased version for uniqueness)
 - `email` (optional but required for invite-based creation)
+- `userExternalId` (conceptual cross-server identity key; see below)
 - `passwordHash` (Argon2id, see section 3)
 - `createdAt`
 - `lastLoginAt` (nullable)
@@ -109,6 +110,32 @@ At minimum, each user has:
 - `mfaMethod` (nullable: `null`, `totp`, `webauthn`)
 - `mfaStatus` (`inactive` | `active` | `setup_required`)
 - `flags` (JSON / bitfield for future identity attributes)
+
+The relationship between these fields is:
+
+- `userId` is the **local, internal identifier** for a user on a given
+  server. It is opaque and stable within that deployment. In this repo,
+  `CurrentUser.id` is this `userId` and is what appears in
+  `project_members.user_id` today.
+- `email` is the user’s **primary verified email address** for login and
+  invite flows. For MVP, email is unique per deployment (or tenant, if
+  introduced later).
+- `userExternalId` is a **conceptual cross-server identity key**:
+  - For email+password auth, it is initially equal to the primary email.
+  - For future IdP integrations, it may be set to an IdP subject (e.g. an
+    OIDC `sub` claim) or a stable IdP identifier.
+  - It is intended to be stable across exports/imports and identity changes
+    on a given server, and will be the primary key used for correlating
+    imported memberships and accounts.
+
+In all cases:
+
+- `CurrentUser.id` → `userId` (local/internal identifier used in runtime
+  permission checks and `project_members.user_id`).
+- `CurrentUser.email` → the primary email and a candidate for
+  `userExternalId` in the MVP.
+- `userExternalId` is the preferred identity for future cross-server
+  mapping flows (e.g. when reconciling imported memberships and users).
 
 Any additional profile data (name, organization, phone, etc.) must be:
 
@@ -227,11 +254,24 @@ When user clicks invite link:
   - Checks `expiresAt`.
 - If valid:
   - User is prompted to choose `username` (unique) and `password`.
-  - User account is created and linked to the invite email.
+  - A user record is created or re-used with:
+    - `userId` (internal id for this deployment).
+    - `email` = invite email.
+    - `userExternalId` initially set to the email (for email+password flows).
+    - An initial `status` such as `active` or `pending_verification` per
+      deployment policy.
+  - Any pending project memberships or roles that referenced this email (or
+    `userExternalId`) become effective for this user.
   - Invite status → `accepted`.
 - If invalid:
   - Show generic failure message (no account enumeration).
   - AI must not reveal whether email is known or not.
+
+> **Conceptual behavior only:** This repo does not implement actual invite
+> storage or user records yet. The above flows describe how backends must
+> treat email, `userId`, and `userExternalId` once implemented so that
+> future export/import and membership mapping have a consistent identity
+> foundation.
 
 ### 4.3 Token Storage Rules
 

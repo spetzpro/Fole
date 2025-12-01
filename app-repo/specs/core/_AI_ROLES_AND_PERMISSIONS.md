@@ -91,6 +91,69 @@ There may also be special *override* permissions (see below):
 - `projects.write.override`
 - `projects.manage.override`
 
+### 2.3 Role Templates and Project Role Configuration
+
+Roles are **labels plus permission sets**, not hard-coded logic.
+
+- A role is conceptually:
+  - `role_id: string` — e.g. `"OWNER"`, `"EDITOR"`, `"VIEWER"`,
+    `"FIELD_ENGINEER"`, `"QA"`.
+  - `permissions: string[]` — a set of permission nodes such as
+    `"projects.read"`, `"projects.export"`, `"map.edit"`.
+
+We distinguish between:
+
+- **Canonical roles**
+  - A small set shipped with the product, such as
+    `"OWNER" | "EDITOR" | "VIEWER" | "ADMIN"`.
+  - These are provided as **default role templates** and are expected to
+    exist in all deployments.
+- **Custom roles**
+  - Additional roles such as `"FIELD_ENGINEER"`, `"QA"`, or
+    `"VIEWER_PLUS"` that tenants or admins define.
+  - Initially derived from canonical templates or created with explicit
+    permission sets.
+
+#### Role Templates (Global / Sysadmin Level)
+
+- The system maintains a **global list of role templates** that defines
+  default permission sets for canonical and custom roles.
+- Sysadmins can:
+  - Review and edit these templates.
+  - Adjust which permission nodes each template includes over time.
+- When a new project is created:
+  - It receives a **copy** of the current templates as its initial project
+    role configuration.
+
+#### Project Role Config
+
+- Each project maintains its own **role configuration** derived from the
+  global templates:
+  - A set of roles active in that project, each with:
+    - `role_id`.
+    - A project-specific `permissions` list (which may differ slightly from
+      the global template).
+- Project admins can:
+  - Add project-specific roles.
+  - Adjust which permission nodes a role includes for that project.
+- `project_members.role_id` refers to one of the roles defined in the
+  project’s role configuration.
+
+#### MVP Limitation and Current Behavior
+
+- In the current implementation inside this repo:
+  - Only **canonical roles** are effectively modeled via
+    `CANONICAL_ROLE_PERMISSIONS`.
+  - `deriveProjectMembershipForUser` uses this static mapping to turn a
+    `role_id` into a permission set.
+  - Non-canonical `role_id` values are not yet fully supported and may be
+    treated as a default such as `"VIEWER"` until richer role config is
+    implemented.
+- Full project-specific role configuration, custom roles, and editable role
+  templates are **planned** features and not yet wired end-to-end. Specs
+  here describe the target behavior so that future work can align with
+  these concepts.
+
 ### 2.2 Permissions
 
 A permission is the **atomic capability**. Examples:
