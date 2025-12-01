@@ -65,6 +65,28 @@ are Specced only.
 
 Any new `feature.map.*` module must be added to this table and tracked in the inventories.
 
+## 3.5 Permissions & Membership Integration
+
+- Map-related PermissionActions are defined in `core.permissions`:
+  - `PROJECT_READ` / `PROJECT_WRITE` → `"projects.read"` / `"projects.write"` on `project` resources.
+  - `MAP_EDIT` / `MAP_CALIBRATE` → `"map.edit"` / `"map.calibrate"` on `map` resources.
+  - `PROJECT_EXPORT` → `"projects.export"` for export-like operations that may surface map data.
+- All map operations are subject to the `core.permissions` engine using a
+  **membership-aware `PermissionContext`**:
+  - Read APIs (e.g. `listMaps`, `getMap`, read-only calibration queries)
+    require `PROJECT_READ` on the owning project.
+  - Write APIs (e.g. `createMap`, future `updateMapMetadata` /
+    `updateMapStatus`) must enforce `MAP_EDIT` and/or `PROJECT_WRITE` on the
+    appropriate map/project resource.
+  - Calibration lifecycle operations (when implemented) must enforce
+    `MAP_CALIBRATE`.
+- Project membership is resolved via `ProjectMembershipService` and
+  incorporated into `PermissionContext.projectMembership`; global roles
+  contribute to `PermissionContext.globalPermissions`. Final decisions,
+  including `grantSource` (`"project_membership"` / `"global_permission"` /
+  `"override_permission"`) and `RESOURCE_NOT_IN_PROJECT` handling for
+  mismatched `projectId`, are delegated to `core.permissions` policies.
+
 ## 4. Responsibilities per Module (High-Level)
 
 ### 4.1 FeatureMapTypes (Implemented)

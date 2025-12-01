@@ -59,3 +59,25 @@ Manages vector-based sketch documents and layers attached to projects and maps, 
 - Map linkage: attempts to attach a sketch to a non-readable map must fail.
 - Concurrency: concurrent updates with stale versions must produce SketchConflictError.
 - Migration: when schema evolves, existing sketches are transparently upgraded on read or via a batch migration process.
+
+### Permissions & Membership Integration (Implementation Notes)
+
+- Sketch editing permissions are modeled in `core.permissions` via the
+  `SKETCH_EDIT` PermissionAction, mapped to `"sketch.edit"` on `sketch`
+  resources. Future actions such as `SKETCH_VIEW` may be introduced but
+  follow the same pattern.
+- All sketch APIs MUST delegate permission decisions to
+  `core.permissions` using a **membership-aware `PermissionContext`**:
+  - Read/view operations require at least project/feature-level read
+    permissions (for example, `PROJECT_READ` or a future `SKETCH_VIEW`).
+  - Any operation that mutates sketch state (creating sketches,
+    editing geometry, annotations, or metadata) requires `SKETCH_EDIT`.
+- The calling layer is responsible for constructing the
+  membership-aware `PermissionContext` (via `ProjectMembershipService`
+  and the current user), and then invoking `core.permissions` to
+  evaluate whether the action is allowed based on project membership,
+  global roles, or explicit overrides.
+- When a sketch belongs to a project that does not match the
+  membership context, `core.permissions` MUST treat it as
+  `RESOURCE_NOT_IN_PROJECT`, and the sketch module must surface an
+  appropriate access denied error.

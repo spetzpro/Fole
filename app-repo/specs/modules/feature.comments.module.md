@@ -65,3 +65,29 @@ Provides a generic comment thread system that can attach to any resource type wh
 - Status behavior: ensure resolved/archived states affect UI/query semantics but do not accidentally delete data.
 - Event emission: ensure creation/update/delete operations emit well-shaped events suitable for notifications and analytics (even if those consumers are not yet implemented).
 - Concurrency: concurrent state changes on threads (e.g., resolving while new comments arrive) must behave deterministically.
+
+### Permissions & Membership Integration (Implementation Notes)
+
+- Comment permissions are expressed in `core.permissions` via actions such as
+  `COMMENT_CREATE`, `COMMENT_EDIT`, and `COMMENT_DELETE`, mapped to
+  `"comments.create"`, `"comments.edit"`, and `"comments.delete"` on
+  `comment` resources.
+- All comment APIs MUST delegate permission decisions to
+  `core.permissions` using a **membership-aware `PermissionContext`** that
+  combines the current user, global permissions, and, when applicable,
+  project membership for the resource’s owning project.
+- Typical enforcement patterns:
+  - Creating a comment requires `COMMENT_CREATE` and the ability to view
+    the underlying resource (usually `PROJECT_READ` or equivalent
+    feature-level read permission).
+  - Editing a comment requires `COMMENT_EDIT` and must respect ownership
+    rules (for example, users may edit only their own comments unless a
+    higher role grants broader rights via policies).
+  - Deleting a comment requires `COMMENT_DELETE`, with policies defining
+    whether users can delete only their own comments or any comment in a
+    project where they hold sufficient role.
+- The calling layer MUST construct the membership-aware
+  `PermissionContext` (via `ProjectMembershipService` and the current
+  user), and `core.permissions` is responsible for final decisions,
+  including when a comment belongs to a project the user is not a member
+  of (treated as `RESOURCE_NOT_IN_PROJECT`).

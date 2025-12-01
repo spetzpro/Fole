@@ -55,11 +55,18 @@ Any consumer relying on `feature.map` should treat only the list/get registry AP
 
 - Reads from `core.storage` project DB schema (maps, map_calibrations).
 - Writes new map rows into `maps` for `createMap`.
-- Enforces:
-  - `PROJECT_READ` using `core.permissions` for read APIs.
-  - `MAP_EDIT` on a `map` resource for `createMap`, using a
-    membership-aware `PermissionContext` from `buildProjectPermissionContextForCurrentUser` and
-    `ProjectMembershipService`.
+- Enforces permissions via `core.permissions`:
+  - Read APIs (`listMaps`, `getMap`, read-only calibration queries) MUST
+    require `PROJECT_READ` on the owning project.
+  - Map write APIs (`createMap` today, and future update/delete operations)
+    MUST enforce `MAP_EDIT` (and `PROJECT_WRITE` where appropriate) on map
+    and/or project resources.
+  - Calibration lifecycle APIs (when implemented) MUST enforce
+    `MAP_CALIBRATE`.
+- Implementations MUST construct a membership-aware `PermissionContext`
+  (e.g. via `buildProjectPermissionContextForCurrentUser(projectId, ProjectMembershipService)`)
+  and pass it to `core.permissions` `PermissionService` / `PermissionGuards`
+  for all permission checks.
 - Designed to align with `_AI_GEO_AND_CALIBRATION_SPEC.md` and `_AI_FILE_AND_IMAGE_PIPELINE_SPEC.md` as additional services are implemented.
 
 ## 5. Testing and Evolution

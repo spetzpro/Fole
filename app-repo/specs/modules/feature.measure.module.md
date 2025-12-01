@@ -58,3 +58,25 @@ Offers measurement tools and saved measurement entities for distances, areas, an
 - Calibration changes: when calibration for a map changes, measurements tied to it must be either flagged as stale or recomputed.
 - Permissions: read-only roles can view but not modify measurements; edit roles can create/update/delete.
 - Edge cases: zero-length and near-zero area shapes must be handled gracefully without crashes or infinite values.
+
+### Permissions & Membership Integration (Implementation Notes)
+
+- Measurement permissions are enforced via `core.permissions` using
+  project/map-level roles; concrete `PermissionAction` names for
+  measurements may reuse existing actions (for example, `PROJECT_READ`
+  for viewing and `MAP_EDIT`/`PROJECT_WRITE` for creating/updating) or
+  be extended with dedicated measurement actions in the future.
+- All measurement APIs MUST delegate permission decisions to
+  `core.permissions` using a **membership-aware `PermissionContext`**:
+  - Listing and viewing measurements require at least project/feature
+    read permission (typically `PROJECT_READ` plus any feature-specific
+    policies).
+  - Creating, updating, or deleting measurements requires edit-level
+    rights aligned with map/sketch editing (for example, `MAP_EDIT`,
+    `SKETCH_EDIT`, and/or `PROJECT_WRITE`).
+- The calling layer constructs the membership-aware `PermissionContext`
+  (via `ProjectMembershipService` and the current user) and passes it to
+  `core.permissions`, which determines whether access is granted based
+  on project membership, global roles, and any explicit overrides,
+  including `RESOURCE_NOT_IN_PROJECT` handling when a measurement is
+  associated with a project the user is not a member of.

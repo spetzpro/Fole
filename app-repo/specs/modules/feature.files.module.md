@@ -56,7 +56,9 @@ Image-specific flows:
 
 ## Dependencies
 - core.storage (FileStorage, ProjectModel, DAL)
-- core.permissions (files.read, files.manage derived from project roles)
+- core.permissions (PermissionActions such as `FILE_READ` / `FILE_WRITE` with
+  `"files.read"` / `"files.write"` derived from project membership and
+  global roles)
 - core.auth (actor identity)
 - lib.image (for image-specific normalization and thumbnail generation)
 - lib.jobs (for background cleanup or thumbnail generation jobs)
@@ -73,3 +75,20 @@ Image-specific flows:
 - Attachment flows: attaching to nonexistent or unauthorized resources fails, while valid attachments are queryable through the owning resource.
 - Permissions: read-only roles can list/download but not delete or modify; manage roles can soft-delete and edit metadata.
 - Background jobs: if thumbnail or cleanup jobs are configured, they must be enqueued and processed according to lib.jobs semantics.
+
+### Permissions & Membership Integration (Implementation Notes)
+
+- File-related PermissionActions are defined in `core.permissions` as
+  `FILE_READ` / `FILE_WRITE`, mapped to `"files.read"` / `"files.write"`
+  on `file` resources.
+- All `feature.files` read/write APIs MUST delegate permission decisions to
+  `core.permissions` using a **membership-aware `PermissionContext`**:
+  - File list/download/read operations require `FILE_READ`.
+  - Upload, soft-delete, and metadata update operations require
+    `FILE_WRITE` (and any future manage-specific actions, if introduced).
+- The calling layer is responsible for constructing a
+  membership-aware `PermissionContext` (via `ProjectMembershipService` and
+  the current user), and `core.permissions` policies determine whether
+  access is granted via project membership, global permissions, or explicit
+  override, including `RESOURCE_NOT_IN_PROJECT` handling when a file’s
+  `projectId` does not match the membership context.
