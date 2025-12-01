@@ -104,10 +104,10 @@ export function createSecuredProjectExportService(
 
 		const resource: ResourceDescriptor = { type: "project", id: projectId, projectId };
 
-		const decision = permissionService.canWithReason(ctx, "PROJECT_READ", resource);
+		const decision = permissionService.canWithReason(ctx, "PROJECT_EXPORT", resource);
 
 		if (!decision.allowed) {
-			const error = new Error("Forbidden: project.read required to export project");
+			const error = new Error("Forbidden: project.export permission required to export project");
 			(error as any).code = "FORBIDDEN";
 			throw error;
 		}

@@ -115,6 +115,7 @@ export function initDefaultPolicies(): void {
 
   register("PROJECT_READ", "project", "projects.read");
   register("PROJECT_WRITE", "project", "projects.write");
+  register("PROJECT_EXPORT", "project", "projects.export");
   register("FILE_READ", "file", "files.read");
   register("FILE_WRITE", "file", "files.write");
   register("COMMENT_CREATE", "comment", "comments.create");

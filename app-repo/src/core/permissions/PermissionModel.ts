@@ -5,6 +5,7 @@ export type RoleId = string;
 export type PermissionAction =
   | "PROJECT_READ"
   | "PROJECT_WRITE"
+  | "PROJECT_EXPORT"
   | "FILE_READ"
   | "FILE_WRITE"
   | "COMMENT_CREATE"
@@ -86,6 +87,7 @@ export const CANONICAL_ROLE_PERMISSIONS: Record<CanonicalRole, readonly string[]
     "sketch.edit",
     "map.edit",
     "map.calibrate",
+    "projects.export",
   ],
   ADMIN: [
     "projects.read",
@@ -98,6 +100,7 @@ export const CANONICAL_ROLE_PERMISSIONS: Record<CanonicalRole, readonly string[]
     "sketch.edit",
     "map.edit",
     "map.calibrate",
+    "projects.export",
   ],
 };
 

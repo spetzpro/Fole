@@ -102,7 +102,7 @@ A permission is the **atomic capability**. Examples:
 
 The core system uses a typed action model (`PermissionAction`) combined with a `ResourceDescriptor` for concrete checks:
 
-- `PermissionAction` – a finite set of actions such as `PROJECT_READ`, `PROJECT_WRITE`, `FILE_READ`, `FILE_WRITE`, `COMMENT_CREATE`, `SKETCH_EDIT`, etc.
+- `PermissionAction` – a finite set of actions such as `PROJECT_READ`, `PROJECT_WRITE`, `PROJECT_EXPORT`, `FILE_READ`, `FILE_WRITE`, `COMMENT_CREATE`, `SKETCH_EDIT`, etc.
 - `ResourceDescriptor` – describes the resource being accessed (project, file, sketch, comment, etc.).
 
 The mapping from actions + resources to literal permission strings (e.g. `"projects.read"`) is an internal implementation detail of the policy layer.

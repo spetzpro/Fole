@@ -44,15 +44,6 @@ Exports/imports must be:
 
 Includes the full set of project-scoped data:
 
-- project metadata  
-- project DB (project.sqlite or equivalent)  
-- all map DBs for the project  
-- tiles and map imagery  
-- sketches, annotations, and related data  
-- attachments and uploaded files  
-- project-level template overrides  
-- project-level module configurations  
-- optional project-level automations
 
 ### 2.2 Map Export
 
@@ -60,23 +51,13 @@ Includes data for **one map**:
 
 - map metadata  
 - map DB  
-- map tiles  
 - map-specific sketches  
 - calibration metadata  
-- any map-local assets (if applicable)
 
 Map export MUST be importable into another compatible project.
-
-### 2.3 Server Export / Backup
-
-A snapshot of the **entire STORAGE_ROOT**:
-
 - all project directories  
 - all map DBs  
 - all tiles and assets  
-- all server templates under STORAGE_ROOT/templates  
-- core DB (core.db)  
-- optional logs and metrics
 
 Server restore is a **destructive operation** and MUST follow destructive-change governance.
 

@@ -60,6 +60,7 @@ async function setup(projectId: string) {
 
 	const conn = await projectDb.getConnection(projectId);
 	await conn.executeCommand({
+		type: "ddl",
 		text: `CREATE TABLE IF NOT EXISTS project_members (
 		  project_id TEXT NOT NULL,
 		  user_id TEXT NOT NULL,
@@ -96,7 +97,7 @@ async function runProjectExportImportSecuredTests(): Promise<void> {
 	const projectId = "proj-secured-export";
 	const { root, projectsRoot, membershipService, securedExport, securedImport } = await setup(projectId);
 
-	// a) Owner (with PROJECT_READ via membership) can export project
+	// a) Owner (with PROJECT_EXPORT via membership) can export project
 	{
 		await membershipService.addOrUpdateMembership(projectId, "user-owner", "OWNER");
 
@@ -207,6 +208,34 @@ async function runProjectExportImportSecuredTests(): Promise<void> {
 			assert((err as any).code === "FORBIDDEN", "expected FORBIDDEN for non-admin import");
 		}
 		assert(threw, "expected non-admin import to throw");
+	}
+
+	// e) Viewer cannot export project by default
+	{
+		const viewerProjectId = "proj-secured-export-viewer";
+		const { projectsRoot: viewerProjectsRoot, membershipService: viewerMembershipService, securedExport: viewerSecuredExport } =
+			await setup(viewerProjectId);
+
+		await viewerMembershipService.addOrUpdateMembership(viewerProjectId, "user-viewer", "VIEWER");
+
+		const viewerUser: CurrentUser = {
+			id: "user-viewer",
+			displayName: "Viewer User",
+			roles: ["VIEWER"],
+		};
+		setCurrentUserProvider(new TestCurrentUserProvider(viewerUser));
+
+		let threw = false;
+		try {
+			await viewerSecuredExport.exportProject(viewerProjectId);
+		} catch (err: any) {
+			threw = true;
+			assert((err as any).code === "FORBIDDEN", "expected FORBIDDEN for viewer export");
+		}
+		assert(threw, "expected viewer export to throw");
+
+		const expectedPath = path.join(viewerProjectsRoot, viewerProjectId, "project.db");
+		assert(fs.existsSync(expectedPath), "viewer project.db should still exist on disk");
 	}
 }
 

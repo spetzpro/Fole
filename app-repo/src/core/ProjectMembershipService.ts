@@ -17,18 +17,18 @@ export function createProjectMembershipService(projectDb: ProjectDb): ProjectMem
 		async getMembership(projectId: string, userId: string): Promise<ProjectMembershipRecord | null> {
 			const conn = await projectDb.getConnection(projectId);
 
-			const result = await conn.executeQuery<{ project_id: string; user_id: string; role_id: string }>(
+			const rows = await conn.executeQuery<{ project_id: string; user_id: string; role_id: string }>(
 				{
 					text: "SELECT project_id, user_id, role_id FROM project_members WHERE project_id = ? AND user_id = ? LIMIT 1",
 					parameters: [projectId, userId],
 				}
 			);
 
-			if (!result.rows || result.rows.length === 0) {
+			if (!rows || rows.length === 0) {
 				return null;
 			}
 
-			const row = result.rows[0];
+			const row = rows[0];
 
 			return {
 				projectId: row.project_id,
@@ -40,11 +40,13 @@ export function createProjectMembershipService(projectDb: ProjectDb): ProjectMem
 			const conn = await projectDb.getConnection(projectId);
 
 			await conn.executeCommand({
+				type: "delete",
 				text: "DELETE FROM project_members WHERE project_id = ? AND user_id = ?",
 				parameters: [projectId, userId],
 			});
 
 			await conn.executeCommand({
+				type: "insert",
 				text: "INSERT INTO project_members (project_id, user_id, role_id) VALUES (?, ?, ?)",
 				parameters: [projectId, userId, roleId],
 			});
@@ -53,6 +55,7 @@ export function createProjectMembershipService(projectDb: ProjectDb): ProjectMem
 		async removeMembership(projectId: string, userId: string): Promise<void> {
 			const conn = await projectDb.getConnection(projectId);
 			await conn.executeCommand({
+				type: "delete",
 				text: "DELETE FROM project_members WHERE project_id = ? AND user_id = ?",
 				parameters: [projectId, userId],
 			});
