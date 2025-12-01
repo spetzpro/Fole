@@ -15,7 +15,9 @@ The `feature.map` block provides **map-centric functionality** for the applicati
 
 It acts as the **bridge** between core storage (map DB), geo/calibration logic (`lib.geo`), image pipeline (`lib.image`), and permissions (`core.permissions`).
 
-At present, only the **read-side map registry slice** is implemented. The rest of the responsibilities are Specced only.
+At present, the **read-side map registry slice** and a minimal write
+path for map creation are implemented. The rest of the responsibilities
+are Specced only.
 
 ## 2. Scope and Non-Scope
 
@@ -46,16 +48,20 @@ At present, only the **read-side map registry slice** is implemented. The rest o
 | Module ID                                  | Responsibility                                         | Status      |
 |--------------------------------------------|--------------------------------------------------------|-------------|
 | `feature.map.FeatureMapTypes`              | Shared map & calibration types                         | Implemented |
-| `feature.map.FeatureMapService`            | Map registry (READ) and calibration summary            | Implemented |
+| `feature.map.FeatureMapService`            | Map registry (READ) + createMap write path             | Implemented |
 | `feature.map.CalibrationService`           | Calibration records read APIs (list/getActive)         | Implemented |
 | `feature.map.ActiveMapService`             | Default/active map per project                         | Specced     |
 | `feature.map.ViewportImageryService`       | Viewport helpers and map imagery resolution            | Specced     |
 
-### Block lifecycle status: **Implemented (read-only slice)**
+### Block lifecycle status: **Implemented (read-biased slice with createMap)**
 
-- Types, read-only registry slice, and a read-only CalibrationService are implemented and covered by tests.
-- Active/default map, calibration lifecycle **writes** (create/update/activate), viewport helpers, imagery resolution, and write flows for maps are **not yet implemented**.
-- The block will be promoted toward Stable once those responsibilities are wired and tested.
+- Types, read-only registry slice, a read-only CalibrationService, and a
+  minimal `createMap` write flow are implemented and covered by tests.
+- Active/default map, calibration lifecycle **writes** (create/update/activate),
+  viewport helpers, imagery resolution, and additional write flows for maps
+  (`updateMapMetadata`, `updateMapStatus`) are **not yet implemented**.
+- The block will be promoted toward Stable once those responsibilities are
+  wired and tested.
 
 Any new `feature.map.*` module must be added to this table and tracked in the inventories.
 
@@ -72,16 +78,27 @@ Any new `feature.map.*` module must be added to this table and tracked in the in
 
 Implementation exists in `src/feature/map/FeatureMapTypes.ts` and is used by FeatureMapService and tests.
 
-### 4.2 FeatureMapService (Implemented, read-only)
+### 4.2 FeatureMapService (Implemented, read-biased + createMap)
 
 - Implements the **map registry read slice**:
   - `listMaps(projectId, options?)` → `MapMetadata[]`.
   - `getMap(projectId, mapId)` → `MapMetadata`.
+- Implements a **Phase 1 write flow** for map creation:
+  - `createMap(input)` → `MapMetadata` for the newly created map.
+  - Persists a new row in `maps` within the project’s `project.db`.
+  - Enforces `MAP_EDIT` on a `map` resource scoped to `projectId`, using a
+    membership-aware `PermissionContext` constructed via
+    `buildProjectPermissionContextForCurrentUser(projectId, ProjectMembershipService)`.
+  - A user must be a member of the project with a suitable role
+    (e.g. OWNER/EDITOR granting `map.edit`), or have appropriate global/override
+    permissions, to successfully create a map.
 - Reads from `maps` and `map_calibrations` in project.db via core.storage.
 - Exposes calibration summary fields (isCalibrated, calibrationTransformType, calibrationErrorRms).
 - Enforces basic permissions for read via `core.permissions` (MVP: PROJECT_READ).
 
-Write operations (`createMap`, `updateMapMetadata`, `updateMapStatus`) are currently **NotImplemented**, and there is **no AtomicWriteService integration yet**.
+Other write operations (`updateMapMetadata`, `updateMapStatus`) are currently
+**NotImplemented**, and there is **no AtomicWriteService integration yet** for
+map writes.
 
 ### 4.3 ActiveMapService (Specced-only)
 
@@ -126,9 +143,13 @@ There is currently **no implementation** of these services; viewport types exist
 - **Calibration summary**:
   - Only a single active calibration per map is exposed via summary fields.
   - Detailed calibration records and transforms are not managed at the feature layer yet.
-- **Permissions (MVP)**:
-  - Current implementation uses `PROJECT_READ` permission checks for read-only operations.
-  - Map-level permission actions (`map.read`, `map.manage`, `map.calibrate`) are defined in `core.permissions` but not yet enforced by FeatureMapService.
+- **Permissions (MVP + membership-backed MAP_EDIT)**:
+  - Read operations use `PROJECT_READ` permission checks for project-scoped reads.
+  - Map-level permission actions (`MAP_EDIT`, `MAP_CALIBRATE`) are defined in
+    `core.permissions`.
+  - `FeatureMapService.createMap` now enforces `MAP_EDIT` on a `map` resource,
+    using a membership-aware `PermissionContext` built from the current user
+    and `project_members` via `ProjectMembershipService`.
 
 ## 6. Dependencies
 

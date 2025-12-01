@@ -25,8 +25,9 @@ This doc is conceptual; concrete code contracts live in:
 
 - A per-project DB file (`project.db`) is used and exercised by core.storage and feature.map.
 - Migrations are implemented in `src/core/db/migrations/**` and orchestrated by project/bootstrap logic.
-- Not all conceptual tables mentioned here exist yet; MVP schemas focus on:
-  - maps + map_calibrations
+- MVP schemas focus on:
+  - `maps` + `map_calibrations`
+  - `project_members`
   - core metadata
   - the minimum tables needed for current features.
 - A dedicated `MigrationRunner` module is Specced but not yet wired as the sole orchestrator of migrations.
@@ -90,8 +91,17 @@ Exact schemas live alongside migrations, but conceptually each project DB will h
 - `comments`
   - comments linked to a project / map / sketch / file
   - fields like: `id`, `project_id`, `anchor_type`, `anchor_id`, `body`, `created_at`, `created_by`, etc.
+- `project_members` (MVP)
+  - stores minimal per-project membership rows for permissions:
+    - `project_id` (TEXT)
+    - `user_id` (TEXT) — matches `CurrentUser.id` in this repo
+    - `role_id` (TEXT) — canonical/project role identifier (e.g. `"OWNER"`, `"EDITOR"`, `"VIEWER"`).
+  - **Implementation status (Phase 1)**: table is present in `project.db` migrations and exercised by
+    `ProjectMembershipService` tests and membership-aware permission flows.
+  - Additional conceptual fields (external identity keys, display names, timestamps, audit metadata,
+    export/import helpers) are **planned** but not yet implemented.
 - `permissions` / `sharing` (future)
-  - future tables for per-project role assignments
+  - future tables for richer per-project role assignments and sharing models
   - may be local or partly derived from central auth/permissions.
 
 Not all of these need to be present in MVP; the schema can grow over time.

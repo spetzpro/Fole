@@ -27,25 +27,31 @@ UX behavior for override visibility is detailed in:
 
 ---
 
-### 1.5 Current Implementation Status (Phase 1)
+### 1.5 Current Implementation Status (Phase 1–2)
 
 The model in this document describes the **target** roles/permissions system. The current implementation
-in this repo has a completed Phase 1 slice:
+in this repo has a completed Phase 1 slice and an incremental Phase 2 membership slice:
 
 - `core.auth` exposes `CurrentUser` with `roles: string[]`.
 - `core.permissions` implements the **engine** (PermissionModel, PolicyRegistry, PermissionService) and
   uses `PermissionContext` as described here.
-- `core.permissions.PermissionModel` defines a static canonical role → permission mapping
+-- `core.permissions.PermissionModel` defines a static canonical role → permission mapping
   (`CANONICAL_ROLE_PERMISSIONS`) and a helper (`deriveGlobalPermissionsForUser`) which derive
   `PermissionContext.globalPermissions` from `CurrentUser.roles`.
-- `core.permissions.PermissionGuards` use this mapping to build a `PermissionContext` from the current
-  user for simple flows (no projectMembership yet).
-- Feature-module permissions (Section 9) describe the default/target semantics. Today, only the
-  `map.*`-related actions are partially implemented in the engine and exercised via `feature.map`'s
-  read-only map registry and permissions tests; other feature module permissions are future work.
+-- `core.permissions.PermissionGuards` use this mapping to build a `PermissionContext` from the current
+  user for simple flows.
+-- A minimal **per-project membership storage** now exists in `project.db` via the `project_members`
+  table, with a `ProjectMembershipService` providing `getMembership` / `addOrUpdateMembership` /
+  `removeMembership`.
+-- `buildProjectPermissionContextForCurrentUser(projectId, membershipService)` combines `CurrentUser`,
+  global permissions (from roles), and a `project_members` row (if present) to produce a
+  membership-aware `PermissionContext.projectMembership`.
+-- Feature-module permissions (Section 9) describe the default/target semantics. Today, `map.*`-related
+  actions are implemented in the engine and exercised via `feature.map`'s map registry tests and a
+  membership-enforced `createMap` flow; other feature module permissions are future work.
 
-Tenant/dynamic configuration of roles and full project-membership-driven permissions (including
-`PermissionContext.projectMembership.permissions`) remain planned and are not yet wired end-to-end.
+Tenant/dynamic configuration of roles and full project-membership-driven permissions (beyond the
+current MVP membership storage and builder) remain planned and are not yet wired end-to-end.
 
 
 ## 2. Roles vs Permissions
@@ -130,11 +136,12 @@ Concrete shape (see `PermissionModel` spec for exact types):
 
 The permission system does **not** hard-code roles; it works off effective permissions. Roles are just one way to define those permissions.
 
-> **Implementation note (MVP):** Some call sites (such as the current
-> `PermissionGuards.createPermissionContextFromCurrentUser`) construct a simplified `PermissionContext`
-> directly from `CurrentUser`. Over time, these will be replaced or extended to use the full
-> roles→permissions mapping described here, so that `globalPermissions` and `projectMembership.permissions`
-> are always derived from roles + configuration rather than ad-hoc fields on `CurrentUser`.
+> **Implementation note (MVP/Phase 2):** Some call sites (such as the current
+> `PermissionGuards.createPermissionContextFromCurrentUser`) still construct a simplified `PermissionContext`
+> directly from `CurrentUser`. For project-scoped flows, newer helpers such as
+> `buildProjectPermissionContextForCurrentUser(projectId, membershipService)` now derive
+> `projectMembership.permissions` from the canonical role→permission mapping and a `project_members`
+> row in `project.db`. Over time, more call sites will be migrated to this pattern.
 
 
 `map.calibrate` is a **project-scoped permission**:
@@ -210,6 +217,13 @@ When a module requests `map.calibrate`, the `core.permissions` engine must
 evaluate the user’s project-level grants using the same unified `grantSource`
 model (`"project_membership"`, `"global_permission"`, `"override_permission"`),
 so that calibration-related access is fully auditable and visible in UX.
+
+In the current MVP, project-level decisions for `MAP_EDIT` and `MAP_CALIBRATE`
+can be driven by a membership-aware `PermissionContext` that uses
+`project_members.role_id` (e.g. OWNER/EDITOR/VIEWER) to derive
+`projectMembership.permissions` via `CANONICAL_ROLE_PERMISSIONS`. The
+`feature.map` `createMap` flow is the first concrete example enforcing
+`MAP_EDIT` this way.
 
 ---
 

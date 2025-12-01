@@ -19,7 +19,9 @@ This module spec is split across several submodule specs:
 - `feature.map.CalibrationService`
 - `feature.map.ViewportImageryService`
 
-At present, the **types, read-only registry APIs, and a read-only CalibrationService** are implemented (FeatureMapTypes + read-side FeatureMapService + CalibrationService). Other services remain Specced-only.
+At present, the **types, read-only registry APIs, a minimal createMap write
+flow, and a read-only CalibrationService** are implemented (FeatureMapTypes +
+FeatureMapService + CalibrationService). Other services remain Specced-only.
 
 ## 2. Responsibilities
 
@@ -33,11 +35,15 @@ At present, the **types, read-only registry APIs, and a read-only CalibrationSer
 
 ## 3. Status
 
-- **Block status**: Implemented (read-only slice; see Block spec).
+- **Block status**: Implemented (read-biased slice with createMap; see Block spec).
 - **Module status**: Specced, with a partial implementation:
   - Implemented:
     - FeatureMapTypes (types).
-    - Read-only FeatureMapService (list/get with calibration summary from `map_calibrations`).
+    - FeatureMapService:
+      - Read APIs: list/get with calibration summary from `map_calibrations`.
+      - Write API: `createMap`, which persists a new map row in `maps` and
+        enforces `MAP_EDIT` using a membership-aware `PermissionContext` built
+        by `buildProjectPermissionContextForCurrentUser(projectId, ProjectMembershipService)`.
     - Read-only CalibrationService (listCalibrations/getActiveCalibration from `map_calibrations`).
   - Specced-only:
     - ActiveMapService.
@@ -48,10 +54,18 @@ Any consumer relying on `feature.map` should treat only the list/get registry AP
 ## 4. Dependencies and Integration
 
 - Reads from `core.storage` project DB schema (maps, map_calibrations).
-- Enforces `PROJECT_READ` using `core.permissions` for now.
+- Writes new map rows into `maps` for `createMap`.
+- Enforces:
+  - `PROJECT_READ` using `core.permissions` for read APIs.
+  - `MAP_EDIT` on a `map` resource for `createMap`, using a
+    membership-aware `PermissionContext` from `buildProjectPermissionContextForCurrentUser` and
+    `ProjectMembershipService`.
 - Designed to align with `_AI_GEO_AND_CALIBRATION_SPEC.md` and `_AI_FILE_AND_IMAGE_PIPELINE_SPEC.md` as additional services are implemented.
 
 ## 5. Testing and Evolution
 
-- Tests exist for the read-only registry slice.
+- Tests exist for:
+  - The read-only registry slice (list/get and calibration summaries).
+  - The `createMap` write flow, including membership-enforced `MAP_EDIT` permissions via
+    `core.permissions`.
 - As new services are implemented, module specs for each submodule must be updated first, then implementation and tests, and finally the block/module status in inventories revisited.

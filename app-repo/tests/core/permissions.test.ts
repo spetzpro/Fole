@@ -129,6 +129,44 @@ function runPermissionsTests(): void {
       `Expected reason RESOURCE_NOT_IN_PROJECT, got ${decision.reasonCode}`
     );
   }
+
+  // MAP_EDIT: denies when map resource is not in membership project
+  {
+    const user = { id: "u-map", displayName: "Map User", roles: ["OWNER"] } as any;
+
+    const ctx: PermissionContext = {
+      user,
+      globalPermissions: [],
+      projectMembership: {
+        projectId: "proj-1",
+        roleId: "OWNER",
+        permissions: [
+          "projects.read",
+          "projects.write",
+          "files.read",
+          "files.write",
+          "comments.create",
+          "comments.edit",
+          "comments.delete",
+          "sketch.edit",
+          "map.edit",
+          "map.calibrate",
+        ],
+      },
+    };
+
+    const decision = service.canWithReason(ctx, "MAP_EDIT", {
+      type: "map",
+      id: "map-1",
+      projectId: "other-proj",
+    });
+
+    assert(!decision.allowed, "Expected MAP_EDIT to be denied for mismatched projectId");
+    assert(
+      decision.reasonCode === "RESOURCE_NOT_IN_PROJECT",
+      `Expected reason RESOURCE_NOT_IN_PROJECT for MAP_EDIT, got ${decision.reasonCode}`
+    );
+  }
 }
 
 runPermissionsTests();

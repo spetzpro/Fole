@@ -52,7 +52,13 @@ It is not responsible for:
 
 - Engine modules (Model, Registry, Service) are implemented and well tested.
 - Guards are implemented, tested, and use the canonical roles→permissions mapping via `deriveGlobalPermissionsForUser` when building `PermissionContext` from `CurrentUser.roles`.
-- ProjectMembership- and tenant-configuration-driven permissions remain future work and will be added in a later phase.
+- **Phase 2 membership support** is now in place:
+  - A per-project `project_members` table in `project.db` and a `ProjectMembershipService` act as the
+    canonical source of project membership for authorization.
+  - `buildProjectPermissionContextForCurrentUser(projectId, membershipService)` uses `CurrentUserProvider`
+    to get the current user, calls `ProjectMembershipService.getMembership(projectId, user.id)`, and then
+    uses `deriveProjectMembershipForUser` to populate `PermissionContext.projectMembership`.
+- Tenant-configuration-driven roles and richer membership management UX remain future work.
 
 ## 4. Responsibilities per Module
 
