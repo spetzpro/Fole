@@ -4,7 +4,7 @@ import type {
   PermissionContext,
   CurrentUser,
 } from "./PermissionModel";
-import { deriveGlobalPermissionsForUser } from "./PermissionModel";
+import { deriveGlobalPermissionsForUser, deriveProjectMembershipForUser } from "./PermissionModel";
 import type { Result, AppError } from "@/core/foundation/CoreTypes";
 import { err, ok } from "@/core/foundation/CoreTypes";
 import { getCurrentUserProvider } from "@/core/auth/CurrentUserProvider";
@@ -21,6 +21,33 @@ export function createPermissionContextFromCurrentUser(): PermissionContext {
   };
 
   return ctx;
+}
+
+export function createProjectPermissionContextForUser(
+  user: CurrentUser | null,
+  projectId: string,
+  projectRoleIdOverride?: string
+): PermissionContext {
+  if (!user) {
+    return {
+      user: null,
+      globalPermissions: [],
+      projectMembership: undefined,
+    };
+  }
+
+  const globalPermissions = deriveGlobalPermissionsForUser(user);
+  const projectMembership = deriveProjectMembershipForUser(
+    user,
+    projectId,
+    projectRoleIdOverride
+  );
+
+  return {
+    user,
+    globalPermissions,
+    projectMembership,
+  };
 }
 
 export function canPerform(

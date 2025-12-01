@@ -62,7 +62,7 @@ export interface PermissionDecision {
 
 // Canonical role-to-permissions mapping for MVP.
 // This covers only CanonicalRole values and uses existing PolicyRegistry base strings.
-const CANONICAL_ROLE_PERMISSIONS: Record<CanonicalRole, readonly string[]> = {
+export const CANONICAL_ROLE_PERMISSIONS: Record<CanonicalRole, readonly string[]> = {
   VIEWER: ["projects.read", "files.read"],
   EDITOR: [
     "projects.read",
@@ -115,4 +115,26 @@ export function deriveGlobalPermissionsForUser(user: CurrentUser | null): string
   }
 
   return Array.from(perms);
+}
+
+export function deriveProjectMembershipForUser(
+  user: CurrentUser,
+  projectId: string,
+  projectRoleIdOverride?: RoleId
+): ProjectMembershipContext {
+  const roleId: CanonicalRole =
+    projectRoleIdOverride &&
+    (CANONICAL_ROLE_PERMISSIONS as Record<string, readonly string[]>)[
+      projectRoleIdOverride as CanonicalRole
+    ]
+      ? (projectRoleIdOverride as CanonicalRole)
+      : "VIEWER";
+
+  const permissions = Array.from(CANONICAL_ROLE_PERMISSIONS[roleId]);
+
+  return {
+    projectId,
+    roleId,
+    permissions,
+  };
 }
