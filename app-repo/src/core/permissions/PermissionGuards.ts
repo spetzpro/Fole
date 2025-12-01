@@ -9,6 +9,7 @@ import type { Result, AppError } from "@/core/foundation/CoreTypes";
 import { err, ok } from "@/core/foundation/CoreTypes";
 import { getCurrentUserProvider } from "@/core/auth/CurrentUserProvider";
 import { getPermissionService } from "./PermissionService";
+import type { ProjectMembershipService } from "@/core/ProjectMembershipService";
 
 export function createPermissionContextFromCurrentUser(): PermissionContext {
   const currentUserProvider = getCurrentUserProvider();
@@ -42,6 +43,35 @@ export function createProjectPermissionContextForUser(
     projectId,
     projectRoleIdOverride
   );
+
+  return {
+    user,
+    globalPermissions,
+    projectMembership,
+  };
+}
+
+export async function buildProjectPermissionContextForCurrentUser(
+  projectId: string,
+  membershipService: ProjectMembershipService
+): Promise<PermissionContext> {
+  const currentUserProvider = getCurrentUserProvider();
+  const user = currentUserProvider.getCurrentUser() as CurrentUser | null;
+
+  if (!user) {
+    return {
+      user: null,
+      globalPermissions: [],
+      projectMembership: undefined,
+    };
+  }
+
+  const globalPermissions = deriveGlobalPermissionsForUser(user);
+  const membershipRecord = await membershipService.getMembership(projectId, user.id);
+
+  const projectMembership = membershipRecord
+    ? deriveProjectMembershipForUser(user, projectId, membershipRecord.roleId)
+    : undefined;
 
   return {
     user,
