@@ -46,6 +46,7 @@ Status legend:
 | feature.sketch | Block | feature | Planned | Sketching tools UI & interactions. |  |
 | feature.sketch | Module | feature | Planned | Sketch data model & persistence. |  |
 | feature.files | Block | feature | Planned | File browser UX, upload, links. |  |
+| core.exportImport | Module | core | In implementation | Project export/import services; project.db (including `project_members`) is preserved on import, but imported membership rows are not yet automatically mapped to local users. Future membership mapping UX/APIs are sketched in the export/import and DB/data model specs. | specs/modules/core.exportImport |
 | core.permissions        | Block | core | Stable | Roles, overrides, UX & behavior; engine and guards implemented with static canonical role→permission mapping (including PROJECT_EXPORT). | specs/blocks/core.permissions.md |
 | core.permissions        | Module | core | Stable | Permission model, policy registry, service, guards; static canonical role→permission mapping, `project_members` + `ProjectMembershipService` MVP storage, and membership-aware PermissionContext builders implemented and tested, with SecuredProjectExportService enforcing PROJECT_EXPORT. | specs/modules/core.permissions |
 | feature.comments | Module | feature | Planned | Comment persistence, threading, permissions. |  |

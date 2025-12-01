@@ -100,6 +100,23 @@ Exact schemas live alongside migrations, but conceptually each project DB will h
     `ProjectMembershipService` tests and membership-aware permission flows.
   - Additional conceptual fields (external identity keys, display names, timestamps, audit metadata,
     export/import helpers) are **planned** but not yet implemented.
+  - **Future identity fields for import/export mapping (not yet implemented):**
+    - Future schema revisions are expected to extend `project_members` with additional fields to support
+      robust identity mapping across servers. Design targets include:
+      - `user_external_id` (TEXT):
+        - A more stable identifier for the user (e.g. email address or identity-provider subject).
+        - Used to correlate imported membership rows with local users when possible.
+      - `display_name_snapshot` (TEXT):
+        - Snapshot of the user’s display name at the time of export.
+        - Used for admin-facing mapping UIs even when no automatic match is available.
+      - `created_at` / `updated_at` (timestamps):
+        - Basic temporal audit fields for membership lifecycle and import history.
+      - Optional "import-origin" metadata fields such as:
+        - `import_source_server_id` (TEXT) — identifier for the source server or environment.
+        - `import_original_user_id` (TEXT) — the original `user_id` from the exporting server.
+    - These fields are **not yet present** in the live schema and require future migrations.
+    - The current implementation continues to function using `user_id = CurrentUser.id` and `role_id`
+      only; additional fields are intended to *augment* (not replace) existing permission checks.
 - `permissions` / `sharing` (future)
   - future tables for richer per-project role assignments and sharing models
   - may be local or partly derived from central auth/permissions.

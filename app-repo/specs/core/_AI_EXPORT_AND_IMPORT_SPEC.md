@@ -201,6 +201,111 @@ Exports MUST follow atomic snapshot rules and fsync ordering from _AI_STORAGE_AR
   external user IDs, snapshot display names, audit timestamps, and explicit
   import/export mapping helpers. Those are out of scope for the current MVP.
 
+#### 4.4 Imported Membership Rows and Unmapped Members (MVP Behavior)
+
+This section describes how **imported membership rows** behave on the target
+server today, and introduces the concept of **unmapped imported members**.
+
+- On export:
+  - Each `project_members` row is written into the project DB with:
+    - `project_id`
+    - `user_id` (source-local identifier corresponding to `CurrentUser.id` on
+      the exporting server)
+    - `role_id` (canonical/project role identifier such as `"OWNER"`,
+      `"EDITOR"`, or `"VIEWER"`).
+  - The exporting system treats `user_id` as an **opaque, source-local
+    identifier**; no attempt is made to normalize or globalize user identity
+    at export time.
+
+- On import (MVP behavior):
+  - All `project_members` rows from the bundle are preserved in the target
+    project DB **unchanged**.
+  - These rows represent the **intended membership** as it existed on the
+    source server at the time of export.
+  - The import process does **not** automatically:
+    - Create matching local users in `core.auth`.
+    - Bind imported `user_id` values to existing local users.
+    - Modify or filter imported membership rows based on the target server’s
+      user directory.
+
+- Definition: **unmapped imported member**
+  - An imported membership row is considered *unmapped* on the target server
+    if its `user_id` does **not** correspond to any known local user
+    according to the identity model described in `core.auth`
+    (`CurrentUser.id`, roles, etc.).
+  - In the current MVP implementation:
+    - The system has no additional identity fields (such as external IDs or
+      identity provider subjects) on `project_members`.
+    - The importer must therefore assume that all imported `user_id` values
+      are **unmapped** until a dedicated mapping layer is introduced.
+
+- Permission evaluation implications (MVP):
+  - `ProjectMembershipService` and membership-aware permission flows on the
+    target server continue to use `project_members` as the canonical source
+    of project membership.
+  - For a given request, membership checks are only meaningful when **both**:
+    - There is a local user whose `CurrentUser.id` matches the imported
+      `user_id` in some `project_members` row for that project.
+    - That row grants a role/permission set sufficient for the requested
+      action.
+  - All other imported membership rows are effectively **inactive / unbound
+    membership hints**: they express the *intended* membership but have no
+    effect on permission checks until mapping occurs.
+
+- Future work (not implemented in this slice):
+  - Extending `project_members` with richer identity fields
+    (e.g. external identity keys, provider type + subject, display name
+    snapshots, timestamps, import-origin metadata).
+  - Introducing explicit mapping tools (UX + APIs) that allow admins to:
+    - Map imported membership entries to existing local users.
+    - Create new local users for imported membership entries.
+    - Decide what to do with conflicting or obsolete identities.
+  - These capabilities are documented as **future phases** and are *not*
+    part of the current MVP runtime.
+
+### Future Membership Mapping Flow (Non-MVP, Forward-Looking)
+
+> **FUTURE PHASE / NOT IMPLEMENTED:** This section sketches a future flow
+> for mapping imported membership rows to local users. It is **not** a
+> commitment for the current release.
+
+After a project import, the system will be able to identify **unmapped
+imported members** based on `project_members` rows and the current user
+directory (as exposed by `core.auth`). A future admin workflow (via UI and/or
+APIs) is expected to:
+
+1. **List unmapped imported memberships for a project**
+   - For each `project_members` row whose `user_id` (and, later,
+     `user_external_id`) does not match a known local user, show:
+     - `display_name_snapshot` (if present).
+     - `user_external_id` (if present).
+     - `role_id`.
+     - Basic import-origin metadata (e.g. source server id, original
+       `user_id`) when available.
+
+2. **Allow admins to resolve each unmapped entry**
+   - For every unmapped row, the workflow may offer actions such as:
+     - **Map to existing local user** — select a user from the local
+       directory and bind the membership to that identity.
+     - **Create new local user** — provision a new local user account and
+       associate the imported membership with it.
+     - **Remove or deactivate membership** — discard the imported row if it
+       should not grant access on the target server.
+
+3. **Persist mapping decisions back into project_members**
+   - After a mapping action is chosen, the system updates
+     `project_members` and related fields to reflect the local binding:
+     - Update `user_id` and/or `user_external_id` to reference the chosen
+       local user.
+     - Preserve import-origin fields for auditability.
+   - From that point on, membership-aware permission checks behave as if the
+     membership were created locally on the target server.
+
+This flow deliberately separates **data preservation** (MVP, already
+implemented) from **identity reconciliation** (future). The importer always
+preserves `project_members` rows as-is; only explicit admin actions in a
+future phase will change how those rows are bound to local users.
+
 ---
 
 ## 5. MAP EXPORT RULES
