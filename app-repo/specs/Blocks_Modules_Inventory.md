@@ -41,17 +41,17 @@ Status legend:
 
 | Name | Kind | Layer | Status | Notes | Spec Path |
 | ------------------ | -------- | --------- | ----------- | ------- | ------------ |
-| feature.map | Block | feature | Implemented | Read-side map registry, read-only calibration slice, and a membership-enforced `createMap` write flow implemented; ActiveMapService, additional writes, and full calibration lifecycle planned. | specs/blocks/feature.map.block.md |
-| feature.map | Module | feature | In implementation | Map registry, read-only CalibrationService, and a membership-backed `createMap` (MAP_EDIT) implemented; ActiveMapService, viewport, and additional write/calibration lifecycle APIs planned. | specs/modules/feature.map/feature.map.module.md |
-| feature.sketch | Block | feature | Planned | Sketching tools UI & interactions. |  |
-| feature.sketch | Module | feature | Planned | Sketch data model & persistence. |  |
-| feature.files | Block | feature | Planned | File browser UX, upload, links. |  |
+| feature.map | Block | feature | Implemented | Read-side map registry, read-only calibration slice, and a membership-enforced `createMap` write flow implemented; map read/write and calibration operations use core.permissions with a membership-aware PermissionContext (PROJECT_READ/PROJECT_WRITE, MAP_EDIT, MAP_CALIBRATE, PROJECT_EXPORT). | specs/blocks/feature.map.block.md |
+| feature.map | Module | feature | In implementation | Map registry, read-only CalibrationService, and a membership-backed `createMap` (MAP_EDIT) implemented; all map permission checks delegate to core.permissions using a membership-aware PermissionContext. | specs/modules/feature.map/feature.map.module.md |
+| feature.sketch | Block | feature | Planned | Sketching tools UI & interactions; sketch read/write behavior will use core.permissions with membership-aware PermissionContext (SKETCH_EDIT and future view actions). |  |
+| feature.sketch | Module | feature | Planned | Sketch data model & persistence; sketch operations will enforce SKETCH_EDIT via core.permissions and project membership. |  |
+| feature.files | Block | feature | Planned | File browser UX, upload, links; file view/upload/delete will use FILE_READ/FILE_WRITE via core.permissions and membership-aware PermissionContext. |  |
 | core.exportImport | Module | core | In implementation | Project export/import services; project.db (including `project_members`) is preserved on import. Imported membership rows and role_ids are not yet automatically mapped to local users or local role configs; future membership and role mapping flows are described in the export/import and DB/data model specs. | specs/modules/core.exportImport |
 | core.permissions        | Block | core | Stable | Roles, overrides, UX & behavior; engine and guards implemented with static canonical role→permission mapping (including PROJECT_EXPORT). | specs/blocks/core.permissions.md |
 | core.permissions        | Module | core | Stable | Permission model, policy registry, service, guards; static canonical role→permission mapping, `project_members` + `ProjectMembershipService` MVP storage, and membership-aware PermissionContext builders implemented and tested, with SecuredProjectExportService enforcing PROJECT_EXPORT. | specs/modules/core.permissions |
-| feature.comments | Module | feature | Planned | Comment persistence, threading, permissions. |  |
-| feature.measure | Block | feature | Planned | Measurement tools on maps/sketches. |  |
-| feature.measure | Module | feature | Planned | Measurement math, snapping, tolerances. |  |
+| feature.comments | Module | feature | Planned | Comment persistence, threading, permissions; COMMENT_CREATE/EDIT/DELETE are enforced via core.permissions using membership-aware PermissionContext and the underlying resource’s project membership. |  |
+| feature.measure | Block | feature | Planned | Measurement tools on maps/sketches; measurement read/write will use core.permissions with membership-aware PermissionContext and measurement-related PermissionActions. |  |
+| feature.measure | Module | feature | Planned | Measurement math, snapping, tolerances; measurement APIs will delegate permission checks to core.permissions using project membership and related PermissionActions. |  |
 
 ---
 

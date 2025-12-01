@@ -67,25 +67,17 @@ Any new `feature.map.*` module must be added to this table and tracked in the in
 
 ## 3.5 Permissions & Membership Integration
 
-- Map-related PermissionActions are defined in `core.permissions`:
-  - `PROJECT_READ` / `PROJECT_WRITE` → `"projects.read"` / `"projects.write"` on `project` resources.
-  - `MAP_EDIT` / `MAP_CALIBRATE` → `"map.edit"` / `"map.calibrate"` on `map` resources.
-  - `PROJECT_EXPORT` → `"projects.export"` for export-like operations that may surface map data.
-- All map operations are subject to the `core.permissions` engine using a
-  **membership-aware `PermissionContext`**:
-  - Read APIs (e.g. `listMaps`, `getMap`, read-only calibration queries)
-    require `PROJECT_READ` on the owning project.
-  - Write APIs (e.g. `createMap`, future `updateMapMetadata` /
-    `updateMapStatus`) must enforce `MAP_EDIT` and/or `PROJECT_WRITE` on the
-    appropriate map/project resource.
-  - Calibration lifecycle operations (when implemented) must enforce
-    `MAP_CALIBRATE`.
-- Project membership is resolved via `ProjectMembershipService` and
-  incorporated into `PermissionContext.projectMembership`; global roles
-  contribute to `PermissionContext.globalPermissions`. Final decisions,
-  including `grantSource` (`"project_membership"` / `"global_permission"` /
-  `"override_permission"`) and `RESOURCE_NOT_IN_PROJECT` handling for
-  mismatched `projectId`, are delegated to `core.permissions` policies.
+`feature.map` uses `core.permissions` with a membership-aware
+`PermissionContext` to enforce `PROJECT_READ` / `PROJECT_WRITE` and
+map-specific actions such as `MAP_EDIT`, `MAP_CALIBRATE`, and
+`PROJECT_EXPORT` on `project` and `map` resources. Read operations
+(`listMaps`, `getMap`, calibration queries) require `PROJECT_READ`, while
+map creation and other writes require `MAP_EDIT` and/or `PROJECT_WRITE`, and
+future calibration lifecycle flows require `MAP_CALIBRATE`. Membership comes
+from `ProjectMembershipService` and drives
+`projectMembership.permissions`, which are evaluated together with
+`globalPermissions` and any overrides; if a map’s `projectId` does not match
+the membership context, policies must treat it as `RESOURCE_NOT_IN_PROJECT`.
 
 ## 4. Responsibilities per Module (High-Level)
 
