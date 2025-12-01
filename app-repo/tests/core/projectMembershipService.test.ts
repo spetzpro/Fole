@@ -29,40 +29,49 @@ async function runProjectMembershipServiceTests(): Promise<void> {
 		parameters: [],
 	});
 
-	await conn.executeCommand({
-		text: "INSERT INTO project_members (project_id, user_id, role_id) VALUES (?, ?, ?)",
-		parameters: [projectId, "user-1", "OWNER"],
-	});
-
-	await conn.executeCommand({
-		text: "INSERT INTO project_members (project_id, user_id, role_id) VALUES (?, ?, ?)",
-		parameters: [projectId, "user-2", "VIEWER"],
-	});
-
 	const service = createProjectMembershipService(projectDb);
 
+	// a) addOrUpdateMembership inserts a new membership
 	{
+		await service.addOrUpdateMembership(projectId, "user-1", "OWNER");
 		const membership = await service.getMembership(projectId, "user-1");
-		assert(membership !== null, "Expected membership for user-1");
+		assert(membership !== null, "Expected membership for user-1 after addOrUpdateMembership");
 		assert(membership!.projectId === projectId, "Expected projectId proj-1 for user-1");
 		assert(membership!.roleId === "OWNER", "Expected roleId OWNER for user-1");
 	}
 
+	// b) addOrUpdateMembership updates an existing membership
 	{
-		const membership = await service.getMembership(projectId, "user-2");
-		assert(membership !== null, "Expected membership for user-2");
-		assert(membership!.projectId === projectId, "Expected projectId proj-1 for user-2");
-		assert(membership!.roleId === "VIEWER", "Expected roleId VIEWER for user-2");
+		await service.addOrUpdateMembership(projectId, "user-1", "VIEWER");
+		await service.addOrUpdateMembership(projectId, "user-1", "EDITOR");
+		const membership = await service.getMembership(projectId, "user-1");
+		assert(membership !== null, "Expected membership for user-1 after update");
+		assert(membership!.roleId === "EDITOR", "Expected roleId EDITOR for user-1 after update");
+
+		// verify only one row exists for (project_id, user_id)
+		const rows = await conn.executeQuery<{ count: number }>({
+			text: "SELECT COUNT(*) as count FROM project_members WHERE project_id = ? AND user_id = ?",
+			parameters: [projectId, "user-1"],
+		});
+		assert(rows.rows[0].count === 1, "Expected exactly one row for user-1 after updates");
 	}
 
-	{
-		const membership = await service.getMembership(projectId, "user-3");
-		assert(membership === null, "Expected no membership for user-3");
-	}
+	// seed another membership via service for remove tests
+	await service.addOrUpdateMembership(projectId, "user-2", "VIEWER");
 
+	// c) removeMembership deletes membership
 	{
-		const membership = await service.getMembership("proj-2", "user-1");
-		assert(membership === null, "Expected no membership for user-1 in proj-2");
+		await service.addOrUpdateMembership(projectId, "user-3", "OWNER");
+		let membership = await service.getMembership(projectId, "user-3");
+		assert(membership !== null, "Expected membership for user-3 before removal");
+
+		await service.removeMembership(projectId, "user-3");
+		membership = await service.getMembership(projectId, "user-3");
+		assert(membership === null, "Expected no membership for user-3 after removal");
+
+		const user2Membership = await service.getMembership(projectId, "user-2");
+		assert(user2Membership !== null, "Expected membership for user-2 to remain after removing user-3");
+		assert(user2Membership!.roleId === "VIEWER", "Expected roleId VIEWER for user-2");
 	}
 }
 
