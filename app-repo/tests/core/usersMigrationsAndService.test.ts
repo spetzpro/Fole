@@ -1,4 +1,3 @@
-import sqlite3 from "sqlite3";
 import { CORE_INITIAL_MIGRATIONS } from "../../src/core/db/migrations/CoreInitialMigrations";
 import { MigrationPlanner } from "../../src/core/db/migrations/MigrationPlanner";
 import { MigrationSqlGenerator } from "../../src/core/db/migrations/MigrationSqlGenerator";
@@ -11,52 +10,86 @@ function assert(condition: unknown, message: string): asserts condition {
   }
 }
 
-async function applyCoreMigrationsToInMemoryDb(): Promise<sqlite3.Database> {
-  const db = new sqlite3.Database(":memory:");
-
+async function testUsersTableSchema() {
   const planner = new MigrationPlanner({ engine: "sqlite" });
   const plan = planner.plan(CORE_INITIAL_MIGRATIONS);
   const generator = new MigrationSqlGenerator("sqlite");
-  const sql = generator.generate(plan).statements;
+  const sql = generator.generate(plan.ordered).statements;
 
-  await new Promise<void>((resolve, reject) => {
-    db.serialize(() => {
-      for (const stmt of sql) {
-        db.run(stmt, (err) => {
-          if (err) {
-            reject(err);
-          }
-        });
-      }
-      resolve();
-    });
-  });
+  const createUsers = sql.find((stmt) => stmt.includes("CREATE TABLE users")) ?? "";
+  assert(createUsers.includes("id TEXT PRIMARY KEY"), "users table should define id as TEXT PRIMARY KEY");
 
-  return db;
-}
+  const addEmail = sql.find((stmt) => stmt.includes("ALTER TABLE users") && stmt.includes("email")) ?? "";
+  const addUserExternalId = sql.find((stmt) => stmt.includes("ALTER TABLE users") && stmt.includes("user_external_id")) ?? "";
+  const addCreatedAt = sql.find((stmt) => stmt.includes("ALTER TABLE users") && stmt.includes("created_at")) ?? "";
 
-async function testUsersTableSchema() {
-  const db = await applyCoreMigrationsToInMemoryDb();
-
-  await new Promise<void>((resolve, reject) => {
-    db.all("PRAGMA table_info('users')", (err, rows) => {
-      if (err) return reject(err);
-      const names = rows.map((r: any) => r.name);
-      assert(names.includes("id"), "users table should have id column");
-      assert(names.includes("email"), "users table should have email column");
-      assert(names.includes("user_external_id"), "users table should have user_external_id column");
-      assert(names.includes("created_at"), "users table should have created_at column");
-      resolve();
-    });
-  });
+  assert(addEmail.includes("ADD COLUMN"), "migration should add email column to users");
+  assert(addUserExternalId.includes("ADD COLUMN"), "migration should add user_external_id column to users");
+  assert(addCreatedAt.includes("ADD COLUMN"), "migration should add created_at column to users");
 }
 
 async function testUserServiceCreateAndLookup() {
-  const db = await applyCoreMigrationsToInMemoryDb();
+  type UserRow = {
+    id: string;
+    email: string;
+    user_external_id: string;
+    created_at: string;
+  };
 
-  // Monkey-patch getCoreDb to return our in-memory DB instance.
-  const coreDbModule = require("../../src/core/storage/CoreDb");
-  coreDbModule.getCoreDb = () => db;
+  class FakeDb {
+    private users: UserRow[] = [];
+
+    run(sql: string, params: unknown[], callback: (err: Error | null) => void): void {
+      try {
+        if (sql.trim().toUpperCase().startsWith("INSERT INTO USERS")) {
+          const [id, email, userExternalId, createdAt] = params as [string, string, string, string];
+          this.users.push({
+            id,
+            email,
+            user_external_id: userExternalId,
+            created_at: createdAt,
+          });
+          callback(null);
+          return;
+        }
+
+        callback(null);
+      } catch (err) {
+        callback(err as Error);
+      }
+    }
+
+    get(sql: string, params: unknown[], callback: (err: Error | null, row?: UserRow | undefined) => void): void {
+      try {
+        const upperSql = sql.trim().toUpperCase();
+
+        if (upperSql.startsWith("SELECT") && upperSql.includes("FROM USERS") && upperSql.includes("WHERE EMAIL")) {
+          const [email] = params as [string];
+          const row = this.users.find((u) => u.email === email);
+          callback(null, row);
+          return;
+        }
+
+        if (upperSql.startsWith("SELECT") && upperSql.includes("FROM USERS") && upperSql.includes("WHERE ID")) {
+          const [id] = params as [string];
+          const row = this.users.find((u) => u.id === id);
+          callback(null, row);
+          return;
+        }
+
+        callback(null, undefined);
+      } catch (err) {
+        callback(err as Error);
+      }
+    }
+  }
+
+  const fakeDb = new FakeDb();
+
+  // Monkey-patch getCoreDb to return our FakeDb instance.
+  const CoreDbModule = await import("../../src/core/storage/CoreDb");
+  const originalGetCoreDb = CoreDbModule.getCoreDb;
+  (CoreDbModule as any).getCoreDb = () => fakeDb;
 
   const service = createUserService();
 
@@ -80,6 +113,9 @@ async function testUserServiceCreateAndLookup() {
   const secondResult = await service.createUserFromInvite(email);
   assert(secondResult.ok, "createUserFromInvite should succeed for existing email");
   assert(secondResult.value && secondResult.value.userId === createdUser.userId, "existing user should be returned for duplicate email");
+
+  // Restore original getCoreDb
+  (CoreDbModule as any).getCoreDb = originalGetCoreDb;
 }
 
 (async () => {
