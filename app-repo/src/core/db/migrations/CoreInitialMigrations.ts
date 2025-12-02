@@ -64,4 +64,28 @@ export const PROJECT_DB_INITIAL_MIGRATIONS: readonly MigrationDefinition[] = [
       { kind: "drop_table", tableName: "project_members", ifExists: true },
     ],
   },
+  {
+    id: "20251202-401-create-files",
+    title: "Create files table (project DB)",
+    engine: "any",
+    safety: "non_destructive",
+    up: [
+      { kind: "create_table", tableName: "files", ifNotExists: true },
+    ],
+    down: [
+      { kind: "drop_table", tableName: "files", ifExists: true },
+    ],
+  },
+  {
+    id: "20251202-402-create-comments",
+    title: "Create comments table (project DB)",
+    engine: "any",
+    safety: "non_destructive",
+    up: [
+      { kind: "create_table", tableName: "comments", ifNotExists: true },
+    ],
+    down: [
+      { kind: "drop_table", tableName: "comments", ifExists: true },
+    ],
+  },
 ];

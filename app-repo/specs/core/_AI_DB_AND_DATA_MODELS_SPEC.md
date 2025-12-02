@@ -103,8 +103,8 @@ Exact schemas live alongside migrations, but conceptually each project DB will h
   - Future extensions (planned) will extend this table with additional
     columns such as: `storage_key`, `tags`, attachment/anchor fields,
     `updated_at`, `updated_by`, and soft-delete / visibility flags.
-  - TODO (migrations arc): add the `files` table to `project.db`
-    migrations in a dedicated core.db/migrations arc.
+  - Implemented by project.db migrations `20251202-401-create-files`
+    in `PROJECT_DB_INITIAL_MIGRATIONS`.
 - `comments`
   - comments linked to a project / map / sketch / file
   - fields like: `id`, `project_id`, `anchor_type`, `anchor_id`, `body`, `created_at`, `created_by`, etc.
@@ -121,8 +121,8 @@ Exact schemas live alongside migrations, but conceptually each project DB will h
   - Future extensions (planned) will introduce threads, comment status,
     edit metadata, reactions, and richer anchors as described in the
     `feature.comments` module spec.
-  - TODO (migrations arc): add the `comments` table to `project.db`
-    migrations in a dedicated core.db/migrations arc.
+  - Implemented by project.db migrations `20251202-402-create-comments`
+    in `PROJECT_DB_INITIAL_MIGRATIONS`.
 - `project_members` (MVP)
   - stores minimal per-project membership rows for permissions:
     - `project_id` (TEXT)

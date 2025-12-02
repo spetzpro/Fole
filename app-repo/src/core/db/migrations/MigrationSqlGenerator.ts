@@ -42,10 +42,24 @@ export class MigrationSqlGenerator {
   private createTableSql(tableName: string, ifNotExists: boolean): string {
     const ine = ifNotExists ? " IF NOT EXISTS" : "";
     if (this.engine === "sqlite") {
-      return `CREATE TABLE${ine} ${tableName} (id TEXT PRIMARY KEY);`;
+      switch (tableName) {
+        case "files":
+          return `CREATE TABLE${ine} files (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, original_name TEXT NOT NULL, mime_type TEXT NOT NULL, size INTEGER NOT NULL, created_at TEXT NOT NULL, created_by TEXT NOT NULL);`;
+        case "comments":
+          return `CREATE TABLE${ine} comments (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, anchor_type TEXT NOT NULL, anchor_id TEXT NOT NULL, body TEXT NOT NULL, created_at TEXT NOT NULL, created_by TEXT NOT NULL);`;
+        default:
+          return `CREATE TABLE${ine} ${tableName} (id TEXT PRIMARY KEY);`;
+      }
     }
     // postgres
-    return `CREATE TABLE${ine} ${tableName} (id uuid PRIMARY KEY);`;
+    switch (tableName) {
+      case "files":
+        return `CREATE TABLE${ine} files (id uuid PRIMARY KEY, project_id text NOT NULL, original_name text NOT NULL, mime_type text NOT NULL, size integer NOT NULL, created_at text NOT NULL, created_by text NOT NULL);`;
+      case "comments":
+        return `CREATE TABLE${ine} comments (id uuid PRIMARY KEY, project_id text NOT NULL, anchor_type text NOT NULL, anchor_id text NOT NULL, body text NOT NULL, created_at text NOT NULL, created_by text NOT NULL);`;
+      default:
+        return `CREATE TABLE${ine} ${tableName} (id uuid PRIMARY KEY);`;
+    }
   }
 
   private dropTableSql(tableName: string, ifExists: boolean): string {
