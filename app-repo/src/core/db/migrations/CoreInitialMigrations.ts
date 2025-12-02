@@ -25,6 +25,22 @@ export const CORE_INITIAL_MIGRATIONS: readonly MigrationDefinition[] = [
       { kind: "drop_table", tableName: "projects", ifExists: true },
     ],
   },
+  {
+    id: "20251202-003-bootstrap-users-identity-fields",
+    title: "Add identity fields to users table (core)",
+    engine: "any",
+    safety: "non_destructive",
+    up: [
+      { kind: "add_column", tableName: "users", columnName: "email" },
+      { kind: "add_column", tableName: "users", columnName: "user_external_id" },
+      { kind: "add_column", tableName: "users", columnName: "created_at" },
+    ],
+    down: [
+      { kind: "drop_column", tableName: "users", columnName: "email" },
+      { kind: "drop_column", tableName: "users", columnName: "user_external_id" },
+      { kind: "drop_column", tableName: "users", columnName: "created_at" },
+    ],
+  },
 ];
 
 export const PROJECT_DB_INITIAL_MIGRATIONS: readonly MigrationDefinition[] = [
