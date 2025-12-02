@@ -43,6 +43,51 @@ Provides a project-centric file library and attachment system, delegating binary
 - FileMetadataService: manage tags and basic metadata updates.
 - FilePermissionsBlock: enforce project-level file read/manage actions derived from core.permissions.
 
+### MVP Implementation Status (Backend Service)
+
+As of the current MVP, a backend `FileService` is implemented with a
+minimal but real write surface for project files:
+
+- `uploadFile(projectId, { name, contentType, sizeBytes }): Promise<Result<{ fileId: string }, AppError>>`
+- `deleteFile(projectId, fileId): Promise<Result<void, AppError>>`
+
+Both operations:
+
+- Build a **membership-aware `PermissionContext`** for the target
+  project using `buildProjectPermissionContextForCurrentUser(projectId,
+  membershipService)` from `core.permissions`.
+- Delegate the actual decision to `PermissionService.canWithReason`
+  using `FILE_WRITE` on a `file` resource (and `FILE_READ` where read
+  checks are needed as the surface grows).
+- On permission denial, return a failure `Result` with an `AppError` of
+  the form:
+  - `code: "PERMISSION_DENIED"`
+  - `message: "Permission denied"`
+  - `details: { reasonCode, grantSource }` where `reasonCode` and
+    `grantSource` come from the `PermissionDecision`.
+
+These methods do **not** throw for normal permission outcomes; they use
+`Result<T, AppError>` to represent recoverable failures.
+
+MVP persistence for `feature.files` covers a subset of the full state
+shape above. The current implementation persists, per file:
+
+- `projectId` (as `project_id` in `project.db`)
+- `original_name` / `name`
+- `mime_type` / `contentType`
+- `size` / `sizeBytes`
+- `created_at` / `createdAt`
+- `created_by` / `createdBy`
+
+Planned future arcs will extend both the DB schema and this module to
+cover the richer model:
+
+- `storageKey`
+- `tags`
+- `attachedTo` / attachments
+- `updatedAt`, `updatedBy`
+- soft-delete / visibility flags and retention behaviors.
+
 ## Lifecycle
 
 - Upload: files are uploaded via a controlled API, which allocates a storageKey using core.storage.FileStorage and records metadata in project.db.

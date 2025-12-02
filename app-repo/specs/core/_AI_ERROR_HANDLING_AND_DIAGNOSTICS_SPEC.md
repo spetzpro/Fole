@@ -76,6 +76,31 @@ Codes should be:
 
 A full catalog is planned but not yet maintained in a single place.
 
+### 2.1 Result & AppError Conventions for Core and Feature Services
+
+Core and feature services SHOULD expose recoverable failures via
+`Result<T, AppError>` rather than throwing. This includes, but is not
+limited to:
+
+- permission checks and guarded operations
+- validation errors
+- not-found conditions for resources that may legitimately disappear.
+
+Permission-denied outcomes MUST use a consistent `AppError` shape:
+
+- `code: "PERMISSION_DENIED"`
+- `message: "Permission denied"`
+- `details: { reasonCode, grantSource }`
+
+Where `reasonCode` and `grantSource` are copied from the underlying
+`PermissionDecision` returned by `core.permissions`.
+
+Thrown errors are reserved for unexpected/system/internal failures
+(programming errors, invariant violations, framework issues) and for
+boundary layers such as UI error boundaries that intentionally catch and
+surface them. Normal permission denials and other expected error paths
+MUST NOT rely on throwing.
+
 ---
 
 ## 3. Logger
@@ -258,6 +283,19 @@ When generating or modifying code:
 - Add logging and/or diagnostics at:
   - error paths
   - important state transitions
+   
+---
+
+## 11. Tooling & Test Harness Notes (MVP)
+
+- TODO (tooling arc): fix test tooling for feature tests so that
+  `app-repo/tests/feature/**` (including
+  `app-repo/tests/feature/files/filesPermissions.test.ts`) run under the
+  same `ts-node`/TypeScript configuration as core tests. This will
+  likely involve wiring feature tests into the root test scripts and/or
+  introducing minimal tsconfig/test script adjustments in a dedicated
+  tooling arc.
+
   - rare but significant events.
 
 This spec should be consulted together with the relevant module specs for `core.foundation` and the `_AI_*` docs for specific domains (storage, image pipeline, geo, etc.).

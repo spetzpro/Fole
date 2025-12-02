@@ -8,7 +8,7 @@ Scope: How the AI should think about relational data models, per-project DBs, an
 ## 1. Goals
 
 The database layer must:
-
+- `maps`
 - Be **predictable** and **easy to reason about**.
 - Prefer **simple, normalized schemas** over cleverness.
 - Keep **projects isolated** (one DB file per project).
@@ -88,6 +88,23 @@ Exact schemas live alongside migrations, but conceptually each project DB will h
 - `files`
   - metadata about uploaded files
   - fields like: `id`, `original_name`, `mime_type`, `size`, `created_at`, etc.
+- `files`
+  - metadata about uploaded files stored in project.db.
+  - **Canonical MVP schema (per-project DB):**
+    - `id` TEXT PRIMARY KEY
+    - `project_id` TEXT NOT NULL
+    - `original_name` TEXT NOT NULL
+    - `mime_type` TEXT NOT NULL
+    - `size` INTEGER NOT NULL
+    - `created_at` TEXT NOT NULL
+    - `created_by` TEXT NOT NULL
+  - This schema is aligned with the current `feature.files` MVP, which
+    persists minimal metadata needed for upload/delete flows.
+  - Future extensions (planned) will extend this table with additional
+    columns such as: `storage_key`, `tags`, attachment/anchor fields,
+    `updated_at`, `updated_by`, and soft-delete / visibility flags.
+  - TODO (migrations arc): add the `files` table to `project.db`
+    migrations in a dedicated core.db/migrations arc.
 - `comments`
   - comments linked to a project / map / sketch / file
   - fields like: `id`, `project_id`, `anchor_type`, `anchor_id`, `body`, `created_at`, `created_by`, etc.
