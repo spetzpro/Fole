@@ -87,7 +87,7 @@ async function testUserServiceCreateAndLookup() {
   const fakeDb = new FakeDb();
 
   // Monkey-patch getCoreDb to return our FakeDb instance.
-  const CoreDbModule = await import("../../src/core/storage/CoreDb");
+  const CoreDbModule = await import("app/core/storage/CoreDb");
   const originalGetCoreDb = CoreDbModule.getCoreDb;
   (CoreDbModule as any).getCoreDb = () => fakeDb;
 
