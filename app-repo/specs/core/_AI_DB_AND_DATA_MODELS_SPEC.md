@@ -108,6 +108,21 @@ Exact schemas live alongside migrations, but conceptually each project DB will h
 - `comments`
   - comments linked to a project / map / sketch / file
   - fields like: `id`, `project_id`, `anchor_type`, `anchor_id`, `body`, `created_at`, `created_by`, etc.
+  - **Canonical MVP schema (per-project DB):**
+    - `id` TEXT PRIMARY KEY
+    - `project_id` TEXT NOT NULL
+    - `anchor_type` TEXT NOT NULL
+    - `anchor_id` TEXT NOT NULL
+    - `body` TEXT NOT NULL
+    - `created_at` TEXT NOT NULL
+    - `created_by` TEXT NOT NULL
+  - This schema is aligned with the current `feature.comments` MVP, which
+    persists minimal metadata needed for create/delete flows.
+  - Future extensions (planned) will introduce threads, comment status,
+    edit metadata, reactions, and richer anchors as described in the
+    `feature.comments` module spec.
+  - TODO (migrations arc): add the `comments` table to `project.db`
+    migrations in a dedicated core.db/migrations arc.
 - `project_members` (MVP)
   - stores minimal per-project membership rows for permissions:
     - `project_id` (TEXT)
