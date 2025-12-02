@@ -1,13 +1,13 @@
 import * as fs from "fs";
 import * as path from "path";
-import { CoreRuntime } from "app/core/CoreRuntime";
-import { ProjectDb } from "app/core/ProjectDb";
-import { createProjectMembershipService } from "app/core/ProjectMembershipService";
-import { createCommentsService } from "app/feature/comments/CommentsService";
-import { initDefaultPolicies } from "app/core/permissions/PolicyRegistry";
-import { getPermissionService } from "app/core/permissions/PermissionService";
-import { setCurrentUserProvider, type CurrentUserProvider } from "app/core/auth/CurrentUserProvider";
-import type { CurrentUser } from "app/core/auth/CurrentUserTypes";
+import { CoreRuntime } from "../../src/core/CoreRuntime";
+import { ProjectDb } from "../../src/core/ProjectDb";
+import { createProjectMembershipService } from "../../src/core/ProjectMembershipService";
+import { createCommentsService } from "../../src/feature/comments/CommentsService";
+import { initDefaultPolicies } from "../../src/core/permissions/PolicyRegistry";
+import { getPermissionService } from "../../src/core/permissions/PermissionService";
+import { setCurrentUserProvider, type CurrentUserProvider } from "../../src/core/auth/CurrentUserProvider";
+import type { CurrentUser } from "../../src/core/auth/CurrentUserTypes";
 
 function assert(condition: unknown, message: string): void {
 	if (!condition) {
