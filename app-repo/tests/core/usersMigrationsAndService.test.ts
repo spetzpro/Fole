@@ -1,8 +1,8 @@
-import { CORE_INITIAL_MIGRATIONS } from "../../src/core/db/migrations/CoreInitialMigrations";
-import { MigrationPlanner } from "../../src/core/db/migrations/MigrationPlanner";
-import { MigrationSqlGenerator } from "../../src/core/db/migrations/MigrationSqlGenerator";
-import { createUserService } from "../../src/core/identity/UserService";
-import type { User } from "../../src/core/identity/UserService";
+import { CORE_INITIAL_MIGRATIONS } from "app/core/db/migrations/CoreInitialMigrations";
+import { MigrationPlanner } from "app/core/db/migrations/MigrationPlanner";
+import { MigrationSqlGenerator } from "app/core/db/migrations/MigrationSqlGenerator";
+import { createUserService } from "app/core/identity/UserService";
+import type { User } from "app/core/identity/UserService";
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) {
