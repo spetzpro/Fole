@@ -187,10 +187,19 @@ Notes:
 - The current implementation persists `id`, `email`, `user_external_id`,
   and `created_at` in the core DB via `CORE_INITIAL_MIGRATIONS`.
 - Current identity-aware code such as `UserService` uses this table and
-  treats `id` as `userId`.
+  treats `id` as `userId`. The same identifier is exposed at the auth
+  layer as `AuthUserInfo.id` / `CurrentUser.id` and is used in
+  `project_members.user_id`.
 - Future extensions may add `display_name`, `status`, `updated_at`, and
   other profile fields, but must remain aligned with the identity
   semantics defined in `_AI_AUTH_AND_IDENTITY_SPEC.md`.
+
+Core identity helpers (in `core.identity`) resolve a `CurrentUser` into a
+`users` row by first looking up by `id` and, if necessary, falling back
+to an email-based lookup when `CurrentUser.email` is present. If both
+lookups fail to find a row, helpers return `null` so that callers can
+decide whether a missing `users` record is acceptable for the current
+flow.
 
 ### 3.2 Invites Table (Identity Invites MVP)
 

@@ -282,6 +282,36 @@ When user clicks invite link:
   - error messages
 - Token TTL must be enforced at lookup time.
 
+### 4.3 CurrentUser ↔ users Table Resolution (MVP)
+
+In the intended architecture, the authenticated identity exposed via
+`AuthUserInfo` / `CurrentUser` corresponds to a concrete row in the
+central `users` table:
+
+- `AuthUserInfo.id` / `CurrentUser.id` are equal to the `users.id`
+  primary key for that identity.
+- When present, `AuthUserInfo.email` / `CurrentUser.email` should match
+  the `users.email` column for that identity.
+
+In this repo, core identity helpers are responsible for resolving
+`CurrentUser` into a `users` row using this mapping. The resolution
+logic follows these rules:
+
+1. Prefer lookup by id: attempt to load `users` where
+  `users.id = CurrentUser.id`.
+2. If no row is found and `CurrentUser.email` is present, optionally
+  fall back to lookup by email: `users.email = CurrentUser.email`.
+3. If both lookups return no row, the helper returns `null` rather than
+  throwing; callers decide whether a missing `users` row is an error for
+  their workflow.
+
+Dev/test/mocked environments may produce `CurrentUser` values that do
+not yet have corresponding `users` rows. Helpers and callers MUST handle
+this gracefully by treating `null` as a recoverable condition, not as a
+spec violation. For real deployments, backends implementing this spec
+are expected to ensure that authenticated identities have matching
+`users` rows keyed by id, with consistent primary email values.
+
 ---
 
 ## 5. LOGIN, LOGOUT & SESSION MODEL
