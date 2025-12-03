@@ -258,6 +258,42 @@ server today, and introduces the concept of **unmapped imported members**.
     snapshots, timestamps, import-origin metadata).
   - Introducing explicit mapping tools (UX + APIs) that allow admins to:
     - Map imported membership entries to existing local users.
+    
+---
+
+### 4.5 Secured Export/Import Permission Error Shape (MVP)
+
+Secured export/import flows MUST surface permission denials using the
+canonical `AppError` shape defined in the core error handling spec:
+
+- `code: "PERMISSION_DENIED"`
+- `message: "Permission denied"`
+- `details: { reasonCode, grantSource }`
+
+For project export:
+
+- Permission for `PROJECT_EXPORT` is evaluated using the centralized
+  permission system and project membership context.
+- When a user is denied export permission (for example, a non-member or a
+  role that does not grant export), the resulting error MUST be an
+  `AppError` with `code: "PERMISSION_DENIED"` and a `details.reasonCode`
+  derived from the underlying permission decision, along with an optional
+  `details.grantSource` such as `"project_membership"`,
+  `"global_permission"`, or `"override_permission"`.
+
+For project import:
+
+- The MVP rule is that only users with the `ADMIN` role may import
+  projects.
+- When this rule fails (no user or the user does not have the `ADMIN`
+  role), the secured importer MUST throw an `AppError` with:
+  - `code: "PERMISSION_DENIED"`
+  - `message: "Permission denied"`
+  - `details: { reasonCode: "ADMIN_ROLE_REQUIRED", grantSource: "role_check" }`.
+
+In both cases, successful secured export/import operations MUST behave
+identically to the underlying base services; only the shape of
+permission-denied errors is standardized.
     - Create new local users for imported membership entries.
     - Decide what to do with conflicting or obsolete identities.
   - These capabilities are documented as **future phases** and are *not*

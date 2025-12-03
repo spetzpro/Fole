@@ -128,7 +128,16 @@ async function runProjectExportImportSecuredTests(): Promise<void> {
 			await securedExport.exportProject(projectId);
 		} catch (err: any) {
 			threw = true;
-			assert((err as any).code === "FORBIDDEN", "expected FORBIDDEN for non-member export");
+			assert((err as any).code === "PERMISSION_DENIED", "expected PERMISSION_DENIED for non-member export");
+			assert((err as any).message === "Permission denied", "expected canonical permission denied message");
+			assert(typeof (err as any).details?.reasonCode === "string", "expected reasonCode in error details");
+			const grantSource = (err as any).details?.grantSource;
+			if (grantSource !== undefined) {
+				assert(
+					["project_membership", "global_permission", "override_permission"].includes(grantSource),
+					"unexpected grantSource for non-member export"
+				);
+			}
 		}
 		assert(threw, "expected non-member export to throw");
 	}
@@ -205,7 +214,16 @@ async function runProjectExportImportSecuredTests(): Promise<void> {
 			await securedImport.importProject(bundle);
 		} catch (err: any) {
 			threw = true;
-			assert((err as any).code === "FORBIDDEN", "expected FORBIDDEN for non-admin import");
+			assert((err as any).code === "PERMISSION_DENIED", "expected PERMISSION_DENIED for non-admin import");
+			assert((err as any).message === "Permission denied", "expected canonical permission denied message");
+			assert(
+				(err as any).details?.reasonCode === "ADMIN_ROLE_REQUIRED",
+				"expected ADMIN_ROLE_REQUIRED reasonCode for non-admin import"
+			);
+			assert(
+				(err as any).details?.grantSource === "role_check",
+				"expected role_check grantSource for non-admin import"
+			);
 		}
 		assert(threw, "expected non-admin import to throw");
 	}
@@ -230,7 +248,16 @@ async function runProjectExportImportSecuredTests(): Promise<void> {
 			await viewerSecuredExport.exportProject(viewerProjectId);
 		} catch (err: any) {
 			threw = true;
-			assert((err as any).code === "FORBIDDEN", "expected FORBIDDEN for viewer export");
+			assert((err as any).code === "PERMISSION_DENIED", "expected PERMISSION_DENIED for viewer export");
+			assert((err as any).message === "Permission denied", "expected canonical permission denied message");
+			assert(typeof (err as any).details?.reasonCode === "string", "expected reasonCode in error details");
+			const grantSource = (err as any).details?.grantSource;
+			if (grantSource !== undefined) {
+				assert(
+					["project_membership", "global_permission", "override_permission"].includes(grantSource),
+					"unexpected grantSource for viewer export"
+				);
+			}
 		}
 		assert(threw, "expected viewer export to throw");
 

@@ -3,7 +3,8 @@ import * as path from "path";
 import type { ProjectMembershipService } from "./ProjectMembershipService";
 import type { PermissionService } from "./permissions/PermissionService";
 import type { ResourceDescriptor, PermissionContext } from "./permissions/PermissionModel";
-import { buildProjectPermissionContextForCurrentUser } from "./permissions/PermissionGuards";
+import { buildProjectPermissionContextForCurrentUser, ensureCanPerform } from "./permissions/PermissionGuards";
+import type { AppError } from "./AppError";
 import { getCurrentUserProvider } from "./auth/CurrentUserProvider";
 
 export interface ProjectExportManifest {
@@ -104,12 +105,9 @@ export function createSecuredProjectExportService(
 
 		const resource: ResourceDescriptor = { type: "project", id: projectId, projectId };
 
-		const decision = permissionService.canWithReason(ctx, "PROJECT_EXPORT", resource);
-
-		if (!decision.allowed) {
-			const error = new Error("Forbidden: project.export permission required to export project");
-			(error as any).code = "FORBIDDEN";
-			throw error;
+		const result = ensureCanPerform(permissionService, ctx, "PROJECT_EXPORT", resource);
+		if (!result.ok) {
+			throw result.error;
 		}
 	}
 
@@ -131,9 +129,15 @@ export function createSecuredProjectImportService(
 			const user = currentUserProvider.getCurrentUser();
 
 			if (!user || !Array.isArray(user.roles) || !user.roles.includes("ADMIN")) {
-				const error = new Error("Forbidden: admin role required to import projects");
-				(error as any).code = "FORBIDDEN";
-				throw error;
+				const appError: AppError = {
+					code: "PERMISSION_DENIED",
+					message: "Permission denied",
+					details: {
+						reasonCode: "ADMIN_ROLE_REQUIRED",
+						grantSource: "role_check",
+					},
+				};
+				throw appError;
 			}
 
 			return base.importProject(bundle);
