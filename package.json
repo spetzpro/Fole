@@ -11,7 +11,8 @@
     "spec:check:inventory": "node app-repo/scripts/specs/validateInventory.js",
     "spec:check:deps": "node app-repo/scripts/specs/validateDependencies.js",
     "spec:check:perf": "node app-repo/scripts/specs/validatePerformanceBudget.js",
-    "spec:check": "npm run spec:check:inventory && npm run spec:check:deps && npm run spec:check:perf"
+    "spec:check": "npm run spec:check:inventory && npm run spec:check:deps && npm run spec:check:perf",
+    "dev:debug-api": "npx ts-node --project tsconfig.json app-repo/src/server/debugProjectOverviewServer.ts"
   },
   "devDependencies": {
     "ajv-cli": "^5.0.0",
