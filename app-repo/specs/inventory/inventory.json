@@ -134,33 +134,33 @@
       "name": "feature.files",
       "kind": "Block",
       "layer": "feature",
-      "status": "Planned",
+      "status": "In implementation",
       "specPath": "",
-      "notes": "File browser UX, upload, links."
+      "notes": "File browser UX, upload, links; backend MVP implements file upload/delete using FILE_READ/FILE_WRITE via core.permissions and a membership-aware PermissionContext."
     },
     {
       "name": "feature.files",
       "kind": "Module",
       "layer": "feature",
-      "status": "Planned",
+      "status": "In implementation",
       "specPath": "",
-      "notes": "File metadata, storage integration."
+      "notes": "File metadata and storage integration; backend MVP implements file upload/delete using FILE_READ/FILE_WRITE via core.permissions."
     },
     {
       "name": "feature.comments",
       "kind": "Block",
       "layer": "feature",
-      "status": "Planned",
+      "status": "In implementation",
       "specPath": "",
-      "notes": "Comment UI, side panels, activity."
+      "notes": "Comment UI and activity surfaces; MVP focuses on basic create/delete flows."
     },
     {
       "name": "feature.comments",
       "kind": "Module",
       "layer": "feature",
-      "status": "Planned",
+      "status": "In implementation",
       "specPath": "",
-      "notes": "Comment persistence, threading, permissions."
+      "notes": "Comment persistence and permissions; backend MVP implements create/delete using COMMENT_* actions via core.permissions with a membership-aware PermissionContext."
     },
     {
       "name": "feature.measure",
@@ -177,6 +177,14 @@
       "status": "Planned",
       "specPath": "",
       "notes": "Measurement math, snapping, tolerances."
+    },
+    {
+      "name": "core.exportImport",
+      "kind": "Module",
+      "layer": "core",
+      "status": "In implementation",
+      "specPath": "specs/modules/core.exportImport",
+      "notes": "Project export/import services; project.db (including project_members) is preserved on import. Export/import permission errors follow the canonical PERMISSION_DENIED AppError shape."
     },
     {
       "name": "lib.image",
