@@ -27,10 +27,31 @@ async function testGeneratesSqliteSqlForInitialMigrations() {
   assert(hasUsersTableCreate, "users table create SQL must be present");
   assert(hasProjectsTableCreate, "projects table create SQL must be present");
 
-  assert(projectSql.statements.length === 3, "three CREATE TABLE statements for project DB");
-  assert(projectSql.statements[0].startsWith("CREATE TABLE IF NOT EXISTS maps"), "maps table create SQL");
-  assert(projectSql.statements[1].startsWith("CREATE TABLE IF NOT EXISTS map_calibrations"), "map_calibrations table create SQL");
-  assert(projectSql.statements[2].startsWith("CREATE TABLE IF NOT EXISTS project_members"), "project_members table create SQL");
+  const projectCreateTables = projectSql.statements.filter((s) =>
+    s.startsWith("CREATE TABLE IF NOT EXISTS"),
+  );
+
+  const hasMaps = projectCreateTables.some((s) =>
+    s.startsWith("CREATE TABLE IF NOT EXISTS maps"),
+  );
+  const hasMapCalibrations = projectCreateTables.some((s) =>
+    s.startsWith("CREATE TABLE IF NOT EXISTS map_calibrations"),
+  );
+  const hasProjectMembers = projectCreateTables.some((s) =>
+    s.startsWith("CREATE TABLE IF NOT EXISTS project_members"),
+  );
+  const hasFiles = projectCreateTables.some((s) =>
+    s.startsWith("CREATE TABLE IF NOT EXISTS files"),
+  );
+  const hasComments = projectCreateTables.some((s) =>
+    s.startsWith("CREATE TABLE IF NOT EXISTS comments"),
+  );
+
+  assert(hasMaps, "maps table create SQL must be present");
+  assert(hasMapCalibrations, "map_calibrations table create SQL must be present");
+  assert(hasProjectMembers, "project_members table create SQL must be present");
+  assert(hasFiles, "files table create SQL must be present");
+  assert(hasComments, "comments table create SQL must be present");
 }
 
 async function testGeneratesPostgresSqlForInitialMigrations() {
