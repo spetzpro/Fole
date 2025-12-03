@@ -3,6 +3,8 @@
 
 import http from "http";
 import { parse } from "url";
+import { promises as fs } from "fs";
+import * as path from "path";
 import type { IncomingMessage, ServerResponse } from "http";
 import type { AppError, Result } from "../../core/foundation/CoreTypes";
 import { createProjectRegistry } from "../../core/storage/modules/ProjectRegistry";
@@ -50,6 +52,20 @@ async function handleRequest(
 ): Promise<void> {
   const { method, url } = req;
   const segments = parsePath(url);
+
+  // Serve the static debug UI shell for project overview.
+  if (method === "GET" && segments.length === 2 && segments[0] === "debug" && segments[1] === "project-overview") {
+    const htmlPath = path.join(__dirname, "debugProjectOverviewShell.html");
+    try {
+      const html = await fs.readFile(htmlPath, "utf8");
+      res.statusCode = 200;
+      res.setHeader("Content-Type", "text/html; charset=utf-8");
+      res.end(html);
+    } catch (err) {
+      sendJson(res, 500, { ok: false, error: { code: "INTERNAL_ERROR", message: "Failed to load debug UI shell" } });
+    }
+    return;
+  }
 
   if (method === "GET" && segments.length === 3 && segments[0] === "api" && segments[1] === "debug" && segments[2] === "projects") {
     const result = await services.projectOverviewService.listProjectsForCurrentUser();

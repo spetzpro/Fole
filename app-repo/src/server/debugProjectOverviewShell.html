@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Debug / Dev Project Overview Shell</title>
+    <style>
+      body {
+        margin: 0;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: #0f172a;
+        color: #e5e7eb;
+      }
+
+      .app-root {
+        display: grid;
+        grid-template-columns: 320px 1fr;
+        height: 100vh;
+      }
+
+      .sidebar {
+        border-right: 1px solid #1f2937;
+        padding: 16px;
+        box-sizing: border-box;
+        background: #020617;
+      }
+
+      .main {
+        padding: 16px 24px;
+        box-sizing: border-box;
+      }
+
+      h1 {
+        font-size: 18px;
+        margin: 0 0 4px;
+      }
+
+      .subtitle {
+        font-size: 12px;
+        color: #9ca3af;
+        margin-bottom: 16px;
+      }
+
+      .section-title {
+        font-size: 14px;
+        font-weight: 600;
+        margin: 16px 0 8px;
+      }
+
+      .projects-list {
+        border-radius: 4px;
+        border: 1px solid #1f2937;
+        background: #020617;
+        overflow-y: auto;
+        max-height: calc(100vh - 120px);
+      }
+
+      .project-item {
+        padding: 8px 10px;
+        border-bottom: 1px solid #111827;
+        cursor: pointer;
+      }
+
+      .project-item:last-child {
+        border-bottom: none;
+      }
+
+      .project-item:hover {
+        background: #111827;
+      }
+
+      .project-item.selected {
+        background: #1d4ed8;
+      }
+
+      .project-name {
+        font-size: 13px;
+        font-weight: 500;
+      }
+
+      .project-meta {
+        font-size: 11px;
+        color: #9ca3af;
+      }
+
+      .status {
+        font-size: 12px;
+        margin-bottom: 8px;
+      }
+
+      .status.error {
+        color: #fecaca;
+      }
+
+      .status.info {
+        color: #a5b4fc;
+      }
+
+      .pill {
+        display: inline-block;
+        padding: 2px 6px;
+        border-radius: 999px;
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        background: #1d4ed8;
+        color: white;
+      }
+
+      .overview-card {
+        border-radius: 6px;
+        border: 1px solid #1f2937;
+        background: #020617;
+        padding: 12px 14px;
+        margin-bottom: 12px;
+      }
+
+      .overview-header {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 12px;
+      }
+
+      .overview-header-title {
+        font-size: 16px;
+        font-weight: 600;
+      }
+
+      .overview-header-sub {
+        font-size: 11px;
+        color: #9ca3af;
+      }
+
+      .tag-row {
+        margin-top: 4px;
+        font-size: 11px;
+        color: #9ca3af;
+      }
+
+      .summary-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+        margin-top: 12px;
+      }
+
+      .summary-card {
+        border-radius: 4px;
+        border: 1px solid #1f2937;
+        padding: 8px 10px;
+        background: #020617;
+      }
+
+      .summary-title {
+        font-size: 12px;
+        font-weight: 600;
+        margin-bottom: 4px;
+      }
+
+      .summary-count {
+        font-size: 20px;
+        font-weight: 600;
+      }
+
+      .summary-body {
+        font-size: 11px;
+        color: #9ca3af;
+        margin-top: 4px;
+      }
+
+      .maps-list {
+        margin-top: 6px;
+        font-size: 11px;
+      }
+
+      .map-row {
+        display: flex;
+        justify-content: space-between;
+        padding: 2px 0;
+        border-bottom: 1px solid #0b1120;
+      }
+
+      .map-row:last-child {
+        border-bottom: none;
+      }
+
+      .badge {
+        display: inline-block;
+        padding: 1px 5px;
+        border-radius: 999px;
+        font-size: 10px;
+        background: #064e3b;
+        color: #d1fae5;
+      }
+
+      .badge.missing {
+        background: #78350f;
+        color: #ffedd5;
+      }
+
+      .placeholder {
+        font-size: 12px;
+        color: #6b7280;
+        margin-top: 16px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app-root">
+      <div class="sidebar">
+        <h1>Debug / Dev Project Overview Shell</h1>
+        <div class="subtitle">Dev-only UI using /api/debug endpoints. Not tenant-facing.</div>
+        <div id="projects-status" class="status info">Loading projects…</div>
+        <div id="projects-list" class="projects-list"></div>
+      </div>
+      <div class="main">
+        <div id="overview-root">
+          <div class="placeholder">Select a project on the left to view its overview.</div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      (function () {
+        /** @typedef {{ id: string, name: string, createdAt?: string, lastOpenedAt?: string }} ProjectListItem */
+        /**
+         * @typedef {{
+         *   project: ProjectListItem,
+         *   mapsSummary: { total: number, items: Array<{ id: string, name: string, hasCalibration?: boolean }> },
+         *   filesSummary: { total: number, items: Array<any> },
+         *   commentsSummary: { total: number, items: Array<any> },
+         * }} ProjectOverviewDto
+         */
+
+        const projectsStatusEl = document.getElementById("projects-status");
+        const projectsListEl = document.getElementById("projects-list");
+        const overviewRootEl = document.getElementById("overview-root");
+
+        let currentProjects = /** @type {ProjectListItem[]} */ ([]);
+        let selectedProjectId = null;
+
+        function setProjectsStatus(text, kind) {
+          projectsStatusEl.textContent = text;
+          projectsStatusEl.classList.remove("error", "info");
+          if (kind === "error") {
+            projectsStatusEl.classList.add("error");
+          } else if (kind === "info") {
+            projectsStatusEl.classList.add("info");
+          }
+        }
+
+        async function fetchJson(url) {
+          const res = await fetch(url, { credentials: "include" });
+          let payload;
+          try {
+            payload = await res.json();
+          } catch (e) {
+            throw {
+              status: res.status,
+              raw: null,
+              message: "Failed to parse JSON from debug API",
+            };
+          }
+
+          if (payload && payload.ok) {
+            return payload.value;
+          }
+
+          throw {
+            status: res.status,
+            appError: payload && payload.error ? payload.error : null,
+          };
+        }
+
+        /** @returns {Promise<ProjectListItem[]>} */
+        async function fetchDebugProjects() {
+          return fetchJson("/api/debug/projects");
+        }
+
+        /** @returns {Promise<ProjectOverviewDto>} */
+        async function fetchProjectOverview(projectId) {
+          return fetchJson(`/api/debug/projects/${encodeURIComponent(projectId)}/overview`);
+        }
+
+        function renderProjectsList() {
+          projectsListEl.innerHTML = "";
+          if (!currentProjects.length) {
+            const empty = document.createElement("div");
+            empty.className = "project-item";
+            empty.textContent = "No projects visible. Check permissions or create a project.";
+            projectsListEl.appendChild(empty);
+            return;
+          }
+
+          currentProjects.forEach((p) => {
+            const item = document.createElement("div");
+            item.className = "project-item" + (p.id === selectedProjectId ? " selected" : "");
+
+            const nameEl = document.createElement("div");
+            nameEl.className = "project-name";
+            nameEl.textContent = p.name || p.id;
+
+            const metaEl = document.createElement("div");
+            metaEl.className = "project-meta";
+            const bits = [p.id];
+            if (p.createdAt) bits.push(`created: ${p.createdAt}`);
+            if (p.lastOpenedAt) bits.push(`last opened: ${p.lastOpenedAt}`);
+            metaEl.textContent = bits.join(" · ");
+
+            item.appendChild(nameEl);
+            item.appendChild(metaEl);
+
+            item.addEventListener("click", () => {
+              if (selectedProjectId === p.id) return;
+              selectedProjectId = p.id;
+              renderProjectsList();
+              loadOverviewForSelected();
+            });
+
+            projectsListEl.appendChild(item);
+          });
+        }
+
+        function renderOverviewPlaceholder(message) {
+          overviewRootEl.innerHTML = "";
+          const div = document.createElement("div");
+          div.className = "placeholder";
+          div.textContent = message;
+          overviewRootEl.appendChild(div);
+        }
+
+        function renderOverviewError(error) {
+          overviewRootEl.innerHTML = "";
+          const card = document.createElement("div");
+          card.className = "overview-card";
+
+          const title = document.createElement("div");
+          title.className = "overview-header-title";
+          title.textContent = "Error loading overview";
+
+          const body = document.createElement("div");
+          body.className = "summary-body";
+
+          if (error && error.appError) {
+            const e = error.appError;
+            body.textContent = `code: ${e.code} · message: ${e.message || ""}`;
+          } else if (error && error.message) {
+            body.textContent = error.message;
+          } else {
+            body.textContent = "Unknown error";
+          }
+
+          card.appendChild(title);
+          card.appendChild(body);
+          overviewRootEl.appendChild(card);
+        }
+
+        /** @param {ProjectOverviewDto} overview */
+        function renderOverview(overview) {
+          overviewRootEl.innerHTML = "";
+
+          const headerCard = document.createElement("div");
+          headerCard.className = "overview-card";
+
+          const header = document.createElement("div");
+          header.className = "overview-header";
+
+          const left = document.createElement("div");
+          const title = document.createElement("div");
+          title.className = "overview-header-title";
+          title.textContent = overview.project.name || overview.project.id;
+
+          const sub = document.createElement("div");
+          sub.className = "overview-header-sub";
+          const bits = [overview.project.id];
+          if (overview.project.createdAt) bits.push(`created: ${overview.project.createdAt}`);
+          if (overview.project.lastOpenedAt) bits.push(`last opened: ${overview.project.lastOpenedAt}`);
+          sub.textContent = bits.join(" · ");
+
+          left.appendChild(title);
+          left.appendChild(sub);
+
+          const right = document.createElement("div");
+          const pill = document.createElement("span");
+          pill.className = "pill";
+          pill.textContent = "Debug / Dev Shell";
+          right.appendChild(pill);
+
+          header.appendChild(left);
+          header.appendChild(right);
+          headerCard.appendChild(header);
+
+          overviewRootEl.appendChild(headerCard);
+
+          const summaryRow = document.createElement("div");
+          summaryRow.className = "summary-grid";
+
+          // Maps summary card
+          const mapsCard = document.createElement("div");
+          mapsCard.className = "summary-card";
+          const mapsTitle = document.createElement("div");
+          mapsTitle.className = "summary-title";
+          mapsTitle.textContent = "Maps";
+          const mapsCount = document.createElement("div");
+          mapsCount.className = "summary-count";
+          mapsCount.textContent = String(overview.mapsSummary.total);
+          const mapsBody = document.createElement("div");
+          mapsBody.className = "summary-body";
+          mapsBody.textContent = "Maps registered for this project";
+
+          mapsCard.appendChild(mapsTitle);
+          mapsCard.appendChild(mapsCount);
+          mapsCard.appendChild(mapsBody);
+
+          const mapsList = document.createElement("div");
+          mapsList.className = "maps-list";
+          overview.mapsSummary.items.forEach((m) => {
+            const row = document.createElement("div");
+            row.className = "map-row";
+
+            const left = document.createElement("div");
+            left.textContent = `${m.name || m.id}`;
+
+            const right = document.createElement("div");
+            const badge = document.createElement("span");
+            badge.className = "badge" + (m.hasCalibration ? "" : " missing");
+            badge.textContent = m.hasCalibration ? "Calibrated" : "No calibration";
+            right.appendChild(badge);
+
+            row.appendChild(left);
+            row.appendChild(right);
+            mapsList.appendChild(row);
+          });
+          mapsCard.appendChild(mapsList);
+
+          // Files summary card
+          const filesCard = document.createElement("div");
+          filesCard.className = "summary-card";
+          const filesTitle = document.createElement("div");
+          filesTitle.className = "summary-title";
+          filesTitle.textContent = "Files";
+          const filesCount = document.createElement("div");
+          filesCount.className = "summary-count";
+          filesCount.textContent = String(overview.filesSummary.total);
+          const filesBody = document.createElement("div");
+          filesBody.className = "summary-body";
+          if (overview.filesSummary.total === 0) {
+            filesBody.textContent = "No file summary yet (MVP placeholder).";
+          } else {
+            filesBody.textContent = "Files summary is partially implemented.";
+          }
+          filesCard.appendChild(filesTitle);
+          filesCard.appendChild(filesCount);
+          filesCard.appendChild(filesBody);
+
+          // Comments summary card
+          const commentsCard = document.createElement("div");
+          commentsCard.className = "summary-card";
+          const commentsTitle = document.createElement("div");
+          commentsTitle.className = "summary-title";
+          commentsTitle.textContent = "Comments";
+          const commentsCount = document.createElement("div");
+          commentsCount.className = "summary-count";
+          commentsCount.textContent = String(overview.commentsSummary.total);
+          const commentsBody = document.createElement("div");
+          commentsBody.className = "summary-body";
+          if (overview.commentsSummary.total === 0) {
+            commentsBody.textContent = "No comments summary yet (MVP placeholder).";
+          } else {
+            commentsBody.textContent = "Comments summary is partially implemented.";
+          }
+          commentsCard.appendChild(commentsTitle);
+          commentsCard.appendChild(commentsCount);
+          commentsCard.appendChild(commentsBody);
+
+          summaryRow.appendChild(mapsCard);
+          summaryRow.appendChild(filesCard);
+          summaryRow.appendChild(commentsCard);
+
+          overviewRootEl.appendChild(summaryRow);
+        }
+
+        async function loadProjects() {
+          setProjectsStatus("Loading projects…", "info");
+          try {
+            currentProjects = await fetchDebugProjects();
+            if (!Array.isArray(currentProjects)) {
+              currentProjects = [];
+            }
+            if (currentProjects.length === 0) {
+              setProjectsStatus("No projects visible. You may need to configure auth or create a project.", "info");
+            } else {
+              setProjectsStatus(`${currentProjects.length} project(s) loaded.", "info");
+            }
+            renderProjectsList();
+          } catch (err) {
+            // Handle permission or auth errors explicitly if we have an AppError.
+            if (err && err.appError) {
+              const e = err.appError;
+              if (e.code === "PERMISSION_DENIED" && e.details && e.details.reasonCode === "NOT_AUTHENTICATED") {
+                setProjectsStatus("Not authenticated (PERMISSION_DENIED/NOT_AUTHENTICATED). Configure auth for debug API.", "error");
+              } else {
+                setProjectsStatus(`Error loading projects: ${e.code} - ${e.message || ""}", "error");
+              }
+            } else {
+              setProjectsStatus("Error loading projects from debug API.", "error");
+            }
+            currentProjects = [];
+            renderProjectsList();
+          }
+        }
+
+        async function loadOverviewForSelected() {
+          if (!selectedProjectId) {
+            renderOverviewPlaceholder("Select a project on the left to view its overview.");
+            return;
+          }
+
+          renderOverviewPlaceholder("Loading overview…");
+          try {
+            const overview = await fetchProjectOverview(selectedProjectId);
+            renderOverview(overview);
+          } catch (err) {
+            renderOverviewError(err);
+          }
+        }
+
+        // Initial load
+        loadProjects();
+      })();
+    </script>
+  </body>
+</html>
