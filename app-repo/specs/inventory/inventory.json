@@ -187,6 +187,14 @@
       "notes": "Project export/import services; project.db (including project_members) is preserved on import. Export/import permission errors follow the canonical PERMISSION_DENIED AppError shape."
     },
     {
+      "name": "debug.projectOverview",
+      "kind": "Module",
+      "layer": "feature",
+      "status": "In implementation",
+      "specPath": "specs/modules/debug.projectOverview.module.md",
+      "notes": "Dev/debug-only project overview aggregation module; read-only, permission-respecting views over project-level feature data (maps, files, comments)."
+    },
+    {
       "name": "lib.image",
       "kind": "Lib",
       "layer": "lib",

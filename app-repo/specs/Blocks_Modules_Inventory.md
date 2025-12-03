@@ -54,6 +54,7 @@ Status legend:
 | feature.comments | Module | feature | In implementation | Comment persistence and permissions; backend MVP implements create/delete using COMMENT_* actions via core.permissions with a membership-aware PermissionContext. Threads, edit flows, ownership-aware rules, and notifications remain future arcs. |  |
 | feature.measure | Block | feature | Planned | Measurement tools on maps/sketches; measurement read/write will use core.permissions with membership-aware PermissionContext and measurement-related PermissionActions. |  |
 | feature.measure | Module | feature | Planned | Measurement math, snapping, tolerances; measurement APIs will delegate permission checks to core.permissions using project membership and related PermissionActions. |  |
+| debug.projectOverview | Module | feature | In implementation | Dev/debug-only project overview aggregation module; read-only, permission-respecting views over project-level feature data (maps, files, comments). | specs/modules/debug.projectOverview.module.md |
 
 ---
 
