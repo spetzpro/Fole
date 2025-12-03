@@ -155,13 +155,13 @@ Exact schemas live alongside migrations, but conceptually each project DB will h
 
 Not all of these need to be present in MVP; the schema can grow over time.
 
-### 3.1 Users Table (Future Schema)
+### 3.1 Users Table (Current MVP Schema)
 
-In addition to per-project data, a central `users` table will eventually
-capture the canonical user directory for a deployment.
+In addition to per-project data, a central `users` table captures the
+canonical user directory for a deployment.
 
-- `users` (future; schema not yet implemented in this repo)
-  - `user_id` (TEXT, PK)
+- `users` (core DB)
+  - `id` (TEXT, PK)
     - Internal local identifier; matches `CurrentUser.id` and is used in
       tables such as `project_members.user_id`.
   - `user_external_id` (TEXT)
@@ -171,21 +171,66 @@ capture the canonical user directory for a deployment.
       on a given server.
   - `email` (TEXT)
     - Primary login/invite email; generally unique per deployment.
-  - `display_name` (TEXT)
-    - Human-friendly name shown in UI.
-  - `status` (TEXT)
-    - e.g. `active`, `pending_verification`, `disabled`.
-  - `created_at` / `updated_at` (timestamps)
-    - Lifecycle and audit timestamps.
+  - `display_name` (TEXT, future)
+    - Human-friendly name shown in UI. Not yet persisted in the current
+      migrations and may be added in a later phase.
+  - `status` (TEXT, future)
+    - e.g. `active`, `pending_verification`, `disabled`. Not yet persisted
+      in the current migrations.
+  - `created_at` (TEXT)
+    - ISO8601 timestamp for when the user row was created.
+  - `updated_at` (TEXT, future)
+    - Lifecycle and audit timestamp for future phases.
 
 Notes:
 
-- This table is a **design target** and may not exist in current
-  migrations.
-- Current implementations that need identity should continue to rely on
-  `CurrentUser` as exposed by `core.auth`.
-- When the `users` table is introduced, it must remain aligned with the
-  identity semantics defined in `_AI_AUTH_AND_IDENTITY_SPEC.md`.
+- The current implementation persists `id`, `email`, `user_external_id`,
+  and `created_at` in the core DB via `CORE_INITIAL_MIGRATIONS`.
+- Current identity-aware code such as `UserService` uses this table and
+  treats `id` as `userId`.
+- Future extensions may add `display_name`, `status`, `updated_at`, and
+  other profile fields, but must remain aligned with the identity
+  semantics defined in `_AI_AUTH_AND_IDENTITY_SPEC.md`.
+
+### 3.2 Invites Table (Identity Invites MVP)
+
+The invites model provides a simple, email-based onboarding flow on top of
+the central `users` table. Invites are stored in the core DB in an
+`invites` table.
+
+- `invites` (core DB)
+  - `id` (TEXT, PK)
+    - Internal identifier for the invite.
+  - `email` (TEXT, NOT NULL)
+    - Normalized (trimmed, lowercased) email address that the invite
+      targets.
+  - `token` (TEXT, NOT NULL, UNIQUE)
+    - Opaque token used by the Identity Invites MVP service to accept the
+      invite. In this MVP it is stored in plaintext; future phases may
+      replace this with a hashed token as required by
+      `_AI_AUTH_AND_IDENTITY_SPEC.md`.
+  - `created_at` (TEXT, NOT NULL)
+    - ISO8601 timestamp when the invite was created.
+  - `accepted_at` (TEXT, NULL)
+    - ISO8601 timestamp when the invite was accepted. `NULL` means the
+      invite is still pending.
+  - `created_by_user_id` (TEXT, NULL)
+    - Optional reference to the user who created the invite. May remain
+      `NULL` in the MVP.
+
+Semantics:
+
+- Invites are created via `InviteService.createInvite(email)` which always
+  creates a new invite row for the normalized email, without reusing prior
+  pending invites.
+- Invites are accepted via `InviteService.acceptInvite(token)`, which:
+  - Looks up the invite by `token`.
+  - Creates or reuses a `users` row for the invite email via
+    `UserService.createUserFromInvite`.
+  - Sets `accepted_at` to the current time when the invite is consumed.
+  - Returns both the updated invite and the associated user.
+- This MVP does not enforce invite expiration or status fields beyond the
+  `accepted_at` marker; those may be added in later phases.
 
 ---
 

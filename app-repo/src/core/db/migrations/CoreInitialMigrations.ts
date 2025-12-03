@@ -41,6 +41,18 @@ export const CORE_INITIAL_MIGRATIONS: readonly MigrationDefinition[] = [
       { kind: "drop_column", tableName: "users", columnName: "created_at" },
     ],
   },
+  {
+    id: "20251203-004-create-invites",
+    title: "Create invites table (core)",
+    engine: "any",
+    safety: "non_destructive",
+    up: [
+      { kind: "create_table", tableName: "invites", ifNotExists: true },
+    ],
+    down: [
+      { kind: "drop_table", tableName: "invites", ifExists: true },
+    ],
+  },
 ];
 
 export const PROJECT_DB_INITIAL_MIGRATIONS: readonly MigrationDefinition[] = [

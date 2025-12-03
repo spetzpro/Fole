@@ -11,13 +11,14 @@ async function testCoreInitialMigrationsShape() {
   const planner = new MigrationPlanner({ engine: "sqlite" });
   const plan = planner.plan(CORE_INITIAL_MIGRATIONS);
 
-  assert(plan.ordered.length === 3, "Expected three core initial migrations");
+  assert(plan.ordered.length === 4, "Expected four core initial migrations");
   assert(plan.ordered[0].id === "20251123-001-create-users", "First core migration should be users");
   assert(plan.ordered[1].id === "20251123-002-create-projects", "Second core migration should be projects");
   assert(
     plan.ordered[2].id === "20251202-003-bootstrap-users-identity-fields",
     "Third core migration should be users identity bootstrap",
   );
+  assert(plan.ordered[3].id === "20251203-004-create-invites", "Fourth core migration should be invites");
 }
 
 async function testProjectDbInitialMigrationsShape() {
