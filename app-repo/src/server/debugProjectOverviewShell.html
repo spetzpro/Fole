@@ -265,7 +265,7 @@
           }
 
           if (payload && payload.ok) {
-            return payload.value;
+            return payload;
           }
 
           throw {
@@ -280,17 +280,24 @@
 
         /** @returns {Promise<ProjectsApiResponse>} */
         async function fetchDebugProjects() {
-          return fetchJson("/api/debug/projects");
+          const payload = await fetchJson("/api/debug/projects");
+          return {
+            ok: !!(payload && payload.ok),
+            value: (payload && Array.isArray(payload.value)) ? payload.value : [],
+            warnings: (payload && Array.isArray(payload.warnings)) ? payload.warnings : [],
+          };
         }
 
         /** @returns {Promise<ProjectOverviewDto>} */
         async function fetchProjectOverview(projectId) {
-          return fetchJson(`/api/debug/projects/${encodeURIComponent(projectId)}/overview`);
+          const payload = await fetchJson(`/api/debug/projects/${encodeURIComponent(projectId)}/overview`);
+          return payload && payload.value;
         }
 
         async function createDevSandboxProject() {
+          const payload = await fetchJson("/api/debug/projects/dev-sandbox", { method: "POST" });
           /** @type {ProjectListItem} */
-          const project = await fetchJson("/api/debug/projects/dev-sandbox", { method: "POST" });
+          const project = payload && payload.value;
           return project;
         }
 

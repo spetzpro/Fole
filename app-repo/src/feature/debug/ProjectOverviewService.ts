@@ -124,7 +124,7 @@ export function createProjectOverviewService(deps: ProjectOverviewServiceDeps): 
       if (!currentUser) {
         return notAuthenticatedError() as Result<ProjectOverviewDto, AppError>;
       }
-
+        async getProjectOverviewForCurrentUser(projectId: string): Promise<Result<ProjectOverviewDto, AppError>> {
       const projectResult = await deps.projectRegistry.getProjectById(projectId as ProjectId);
       if (!projectResult.ok) {
         return projectResult as Result<ProjectOverviewDto, AppError>;
@@ -205,6 +205,41 @@ export function createProjectOverviewService(deps: ProjectOverviewServiceDeps): 
       if (!currentUser) {
         const err = notAuthenticatedError();
         throw err.error;
+        async ensureDevSandboxProjectForCurrentUser(): Promise<ProjectListItem> {
+          const currentUser = getCurrentUserProvider().getCurrentUser();
+          if (!currentUser) {
+          const err = notAuthenticatedError();
+          throw err.error;
+          }
+
+          const projectsResult = await deps.projectRegistry.listProjects();
+          if (!projectsResult.ok) {
+          throw projectsResult.error;
+          }
+
+          const existing = projectsResult.value.find((p) => p.name === "Dev Sandbox Project");
+
+          const targetProject = existing
+          ? existing
+          : (await (async () => {
+            const createdResult = await deps.projectRegistry.createProject({ name: "Dev Sandbox Project" });
+            if (!createdResult.ok) {
+              throw createdResult.error;
+            }
+            return createdResult.value;
+            })());
+
+          await deps.membershipService.addOrUpdateMembership(targetProject.id as ProjectId, currentUser.id, {
+          role: "OWNER",
+          } as any);
+
+          return {
+          id: targetProject.id,
+          name: targetProject.name,
+          createdAt: targetProject.createdAt,
+          lastOpenedAt: (targetProject as any).lastOpenedAt,
+          };
+        },
       }
 
       const existingResult = await deps.projectRegistry.listProjects();
