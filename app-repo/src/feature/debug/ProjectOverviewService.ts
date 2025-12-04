@@ -59,6 +59,7 @@ export interface ProjectOverviewServiceDeps {
 export interface ProjectOverviewService {
   listProjectsForCurrentUser(): Promise<Result<ProjectListItem[], AppError>>;
   getProjectOverviewForCurrentUser(projectId: string): Promise<Result<ProjectOverviewDto, AppError>>;
+  ensureDevSandboxProjectForCurrentUser(): Promise<ProjectListItem>;
 }
 
 function notAuthenticatedError(): Result<never, AppError> {
@@ -196,6 +197,44 @@ export function createProjectOverviewService(deps: ProjectOverviewServiceDeps): 
       return {
         ok: true,
         value: overview,
+      };
+    },
+
+    async ensureDevSandboxProjectForCurrentUser(): Promise<ProjectListItem> {
+      const currentUser = getCurrentUserProvider().getCurrentUser();
+      if (!currentUser) {
+        const err = notAuthenticatedError();
+        throw err.error;
+      }
+
+      const existingResult = await deps.projectRegistry.listProjects();
+      if (existingResult.ok) {
+        const existing = existingResult.value.find((p) => p.id === "dev-sandbox");
+        if (existing) {
+          return {
+            id: existing.id,
+            name: existing.name,
+            createdAt: existing.createdAt,
+            lastOpenedAt: (existing as any).lastOpenedAt,
+          };
+        }
+      }
+
+      const createResult = await deps.projectRegistry.createProject({
+        id: "dev-sandbox",
+        name: "Dev Sandbox Project",
+      } as any);
+
+      if (!createResult.ok) {
+        throw createResult.error;
+      }
+
+      const project = createResult.value;
+      return {
+        id: project.id,
+        name: project.name,
+        createdAt: project.createdAt,
+        lastOpenedAt: (project as any).lastOpenedAt,
       };
     },
   };

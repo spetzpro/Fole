@@ -99,6 +99,22 @@ async function handleRequest(
     return;
   }
 
+  if (method === "POST" && segments.length === 4 && segments[0] === "api" && segments[1] === "debug" && segments[2] === "projects" && segments[3] === "dev-sandbox") {
+    try {
+      const created = await services.projectOverviewService.ensureDevSandboxProjectForCurrentUser();
+      sendJson(res, 200, { ok: true, project: created });
+    } catch (err: any) {
+      sendJson(res, 500, {
+        ok: false,
+        error: {
+          code: "DEV_SANDBOX_CREATE_FAILED",
+          message: err?.message || "Failed to create dev sandbox project",
+        },
+      });
+    }
+    return;
+  }
+
   if (
     method === "GET" &&
     segments.length === 5 &&
