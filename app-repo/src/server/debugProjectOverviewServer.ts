@@ -90,7 +90,7 @@ async function handleRequest(
       sendJson(res, 200, { ok: true, value: result.value });
     } else {
       if (result.error.code === "PROJECT_LIST_FAILED") {
-        sendJson(res, 200, { ok: true, projects: [], warnings: [result.error] });
+        sendJson(res, 200, { ok: true, value: [], warnings: [result.error] });
       } else {
         const status = mapAppErrorToStatus(result.error);
         sendJson(res, status, { ok: false, error: result.error });
@@ -102,7 +102,7 @@ async function handleRequest(
   if (method === "POST" && segments.length === 4 && segments[0] === "api" && segments[1] === "debug" && segments[2] === "projects" && segments[3] === "dev-sandbox") {
     try {
       const created = await services.projectOverviewService.ensureDevSandboxProjectForCurrentUser();
-      sendJson(res, 200, { ok: true, project: created });
+      sendJson(res, 200, { ok: true, value: created });
     } catch (err: any) {
       sendJson(res, 500, {
         ok: false,

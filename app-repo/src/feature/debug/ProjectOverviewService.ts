@@ -211,6 +211,11 @@ export function createProjectOverviewService(deps: ProjectOverviewServiceDeps): 
       if (existingResult.ok) {
         const existing = existingResult.value.find((p) => p.id === "dev-sandbox");
         if (existing) {
+          // Ensure current user has membership on the existing dev sandbox project.
+          await deps.membershipService.addOrUpdateMembership(existing.id as ProjectId, currentUser.id, {
+            role: "OWNER",
+          } as any);
+
           return {
             id: existing.id,
             name: existing.name,
@@ -221,15 +226,20 @@ export function createProjectOverviewService(deps: ProjectOverviewServiceDeps): 
       }
 
       const createResult = await deps.projectRegistry.createProject({
-        id: "dev-sandbox",
         name: "Dev Sandbox Project",
-      } as any);
+      });
 
       if (!createResult.ok) {
         throw createResult.error;
       }
 
       const project = createResult.value;
+
+      // Ensure the current user is an owner of the new dev sandbox project.
+      await deps.membershipService.addOrUpdateMembership(project.id as ProjectId, currentUser.id, {
+        role: "OWNER",
+      } as any);
+
       return {
         id: project.id,
         name: project.name,

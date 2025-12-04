@@ -289,8 +289,9 @@
         }
 
         async function createDevSandboxProject() {
-          const res = await fetchJson("/api/debug/projects/dev-sandbox", { method: "POST" });
-          return res && res.project ? res.project : null;
+          /** @type {ProjectListItem} */
+          const project = await fetchJson("/api/debug/projects/dev-sandbox", { method: "POST" });
+          return project;
         }
 
         function renderProjectsList() {
