@@ -89,8 +89,12 @@ async function handleRequest(
     if (result.ok) {
       sendJson(res, 200, { ok: true, value: result.value });
     } else {
-      const status = mapAppErrorToStatus(result.error);
-      sendJson(res, status, { ok: false, error: result.error });
+      if (result.error.code === "PROJECT_LIST_FAILED") {
+        sendJson(res, 200, { ok: true, projects: [], warnings: [result.error] });
+      } else {
+        const status = mapAppErrorToStatus(result.error);
+        sendJson(res, status, { ok: false, error: result.error });
+      }
     }
     return;
   }

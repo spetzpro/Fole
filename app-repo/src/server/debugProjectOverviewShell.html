@@ -272,7 +272,11 @@
           };
         }
 
-        /** @returns {Promise<ProjectListItem[]>} */
+        /**
+         * @typedef {{ ok: boolean, value?: ProjectListItem[], projects?: ProjectListItem[], warnings?: any[], error?: any }} ProjectsApiResponse
+         */
+
+        /** @returns {Promise<ProjectsApiResponse>} */
         async function fetchDebugProjects() {
           return fetchJson("/api/debug/projects");
         }
@@ -483,14 +487,31 @@
         async function loadProjects() {
           setProjectsStatus("Loading projects…", "info");
           try {
-            currentProjects = await fetchDebugProjects();
+            const projectsPayload = await fetchDebugProjects();
+
+            /** @type {any[]} */
+            const warnings = (projectsPayload && Array.isArray(projectsPayload.warnings)) ? projectsPayload.warnings : [];
+
+            if (projectsPayload && Array.isArray(projectsPayload.projects)) {
+              currentProjects = projectsPayload.projects;
+            } else if (projectsPayload && Array.isArray(projectsPayload.value)) {
+              currentProjects = projectsPayload.value;
+            } else {
+              currentProjects = [];
+            }
+
             if (!Array.isArray(currentProjects)) {
               currentProjects = [];
             }
             if (currentProjects.length === 0) {
-              setProjectsStatus("No projects visible. You may need to configure auth or create a project.", "info");
+              const hasProjectListFailed = warnings.some((w) => w && w.code === "PROJECT_LIST_FAILED");
+              if (hasProjectListFailed) {
+                setProjectsStatus("No projects folder detected yet. The debug UI is using an empty project list.", "info");
+              } else {
+                setProjectsStatus("No projects visible. You may need to configure auth or create a project.", "info");
+              }
             } else {
-              setProjectsStatus(`${currentProjects.length} project(s) loaded.", "info");
+              setProjectsStatus(`${currentProjects.length} project(s) loaded.`, "info");
             }
             renderProjectsList();
           } catch (err) {
@@ -500,7 +521,7 @@
               if (e.code === "PERMISSION_DENIED" && e.details && e.details.reasonCode === "NOT_AUTHENTICATED") {
                 setProjectsStatus("Not authenticated (PERMISSION_DENIED/NOT_AUTHENTICATED). Configure auth for debug API.", "error");
               } else {
-                setProjectsStatus(`Error loading projects: ${e.code} - ${e.message || ""}", "error");
+                setProjectsStatus(`Error loading projects: ${e.code} - ${e.message || ""}`, "error");
               }
             } else {
               setProjectsStatus("Error loading projects from debug API.", "error");
