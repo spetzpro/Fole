@@ -6,15 +6,14 @@ import { parse } from "url";
 import { promises as fs } from "fs";
 import * as path from "path";
 import type { IncomingMessage, ServerResponse } from "http";
-import type { AppError, Result } from "../../core/foundation/CoreTypes";
-import { createProjectRegistry } from "../../core/storage/modules/ProjectRegistry";
-import { createProjectPathResolver } from "../../core/storage/modules/ProjectPathResolver";
-import { createProjectMembershipService } from "../../core/ProjectMembershipService";
-import { getPermissionService } from "../../core/permissions/PermissionService";
-import type { PermissionService } from "../../core/permissions/PermissionService";
-import { createProjectDb } from "../../core/ProjectDb";
-import { DefaultFeatureMapService } from "../../feature/map/FeatureMapService";
-import { createProjectOverviewService } from "../../feature/debug/ProjectOverviewService";
+import type { AppError, Result } from "../core/foundation/CoreTypes";
+import { CoreRuntime } from "../core/CoreRuntime";
+import { ProjectDb } from "../core/ProjectDb";
+import { createProjectMembershipService } from "../core/ProjectMembershipService";
+import { getPermissionService } from "../core/permissions/PermissionService";
+import type { PermissionService } from "../core/permissions/PermissionService";
+import { DefaultFeatureMapService } from "../feature/map/FeatureMapService";
+import { createProjectOverviewService } from "../feature/debug/ProjectOverviewService";
 
 function sendJson(res: ServerResponse, statusCode: number, body: unknown): void {
   const json = JSON.stringify(body, null, 2);
@@ -101,10 +100,10 @@ async function handleRequest(
 }
 
 function createServices() {
-  const projectRoot = process.cwd();
-  const pathResolver = createProjectPathResolver({ rootDir: projectRoot });
-  const projectRegistry = createProjectRegistry(pathResolver);
-  const projectDb = createProjectDb(pathResolver);
+  const storageRoot = process.cwd();
+  const runtime = new CoreRuntime({ storageRoot });
+  const projectRegistry = runtime.projectRegistry;
+  const projectDb = new ProjectDb(runtime);
   const membershipService = createProjectMembershipService(projectDb);
   const permissionService: PermissionService = getPermissionService();
 
