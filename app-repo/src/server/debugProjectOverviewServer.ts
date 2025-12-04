@@ -14,6 +14,7 @@ import { getPermissionService } from "../core/permissions/PermissionService";
 import type { PermissionService } from "../core/permissions/PermissionService";
 import { DefaultFeatureMapService } from "../feature/map/FeatureMapService";
 import { createProjectOverviewService } from "../feature/debug/ProjectOverviewService";
+import { getCurrentUserProvider, setCurrentUserProvider, type CurrentUserProvider } from "../core/auth/CurrentUserProvider";
 
 function sendJson(res: ServerResponse, statusCode: number, body: unknown): void {
   const json = JSON.stringify(body, null, 2);
@@ -43,6 +44,23 @@ function parsePath(url: string | undefined): string[] {
   const parsed = parse(url);
   return (parsed.pathname ?? "").split("/").filter(Boolean);
 }
+
+// Dev/debug-only CurrentUser override. This server is NOT a production entrypoint.
+// It forces a synthetic authenticated user so that debug APIs can be exercised
+// without wiring a full auth flow.
+const devCurrentUserProvider: CurrentUserProvider = {
+  getCurrentUser() {
+    return {
+      id: "dev-debug-user",
+      displayName: "Dev Debug User",
+      email: "dev@example.com",
+      roles: ["ADMIN", "OWNER"],
+    } as any;
+  },
+  isAuthenticated() {
+    return true;
+  },
+};
 
 async function handleRequest(
   req: IncomingMessage,
@@ -100,6 +118,10 @@ async function handleRequest(
 }
 
 function createServices() {
+  // Dev-only override: ensure debug server always sees an authenticated user.
+  // This does not affect production entrypoints.
+  setCurrentUserProvider(devCurrentUserProvider);
+
   const storageRoot = process.cwd();
   const runtime = new CoreRuntime({ storageRoot });
   const projectRegistry = runtime.projectRegistry;
