@@ -54,7 +54,7 @@ The resolution logic MUST follow this strict deterministic priority order. When 
 2.  **Published Link Resolution**:
     -   IF `segment_1` == `link`:
         -   Extract `slug` from `segment_2`.
-        -   Lookup `slug` in the `shell.infra.routing` published links map.
+        -   Resolve `slug` via the server-side authoritative published link registry, applying the optional local `shell.infra.routing.publishedLinks` overlay only if it does not shadow a server entry.
         -   IF found -> **Redirect** (302 for GET/HEAD, 307 for others) to the target URL.
         -   IF not found -> **404 Not Found**.
     -   STOP.
