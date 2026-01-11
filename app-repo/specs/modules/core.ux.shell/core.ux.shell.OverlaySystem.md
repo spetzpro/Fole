@@ -30,7 +30,10 @@ The shell recognizes specific categories of overlays, each with distinct behavio
 | **System Banners** | **Safe Mode** warning strip, Connection Loss | System State | Persistent while condition is true |
 
 ### 2.2 Registry
-Like Windows, major structural overlays (like the Main Menu) MUST be defined in the `shell.manifest.json`.
+Like Windows, structural overlays (e.g., Main Menu) MUST be declared as blocks in the active shell bundle with `blockType: shell.overlay.*`.
+
+Identifier rule: `toggleOverlay.overlayId` MUST match the `blockId` of a declared `shell.overlay.*` block in the active bundle (overlayId == blockId). Unknown overlayIds are treated as A1-invalid at validation time for core shell bundles.
+
 -   **Block Type**: `shell.overlay.*`
 -   **Identifier**: A unique `overlayId` used by the actions system to target it.
 
@@ -70,7 +73,7 @@ System Banners are "pseudo-persistent" because they reflect an underlying boolea
 
 ### 5.1 Fail-Closed Registry
 The Shell Validation system enforces a strict registry for structural overlays.
--   An action requesting `toggleOverlay(overlayId: "magic_menu")` will **fail silently** if "magic_menu" is not explicitly defined in the active bundle.
+-   An action requesting `toggleOverlay(overlayId: "magic_menu")` will **no-op (fail-closed) and MUST be logged as a diagnostics event (client toast optional)** if "magic_menu" is not explicitly defined in the active bundle.
 -   There are no "implicit" overlays allowed in the Core Shell.
 
 ### 5.2 Safe Mode Restrictions
