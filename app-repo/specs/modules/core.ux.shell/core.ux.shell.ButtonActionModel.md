@@ -30,7 +30,7 @@ An Action Descriptor is a purely declarative JSON object describing *what* shoul
 ```typescript
 interface ActionDescriptor {
   kind: ActionKind;          // e.g., 'navigate', 'command'
-  params: Record<string, any>; // Strictly typed per kind
+  params: object; // Validated per kind (schema-enforced); unknown fields rejected
   destructive?: boolean;     // If true, triggers confirmation wrapper
   confirmation?: ConfirmationConfig;
   permissions?: string[];    // Required permissions to execute
@@ -100,4 +100,4 @@ Every action execution is gated by the `core.permissions.PermissionGuards` modul
 -   **[ModesAdvancedDeveloper](core.ux.shell.ModesAdvancedDeveloper.md)**: Rules for debugging actions and overriding constraints.
 -   **[RoutingResolution](core.ux.shell.RoutingResolution.md)**: Handling of the `navigate` action kind.
 -   **[SafeMode](core.ux.shell.SafeMode.md)**: Interaction with destructive actions and warning surfaces.
--   **[PermissionGuards](../../core/_AI_ROLES_AND_PERMISSIONS.md)**: The authoritative permission checking logic.
+-   **[PermissionGuards](../../core/core.permissions/core.permissions.PermissionGuards.md)**: The authoritative permission checking logic.

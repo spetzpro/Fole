@@ -26,6 +26,7 @@ export class ShellConfigValidator {
         "shell.rules.viewport.data.schema.json",
         "shell.infra.routing.data.schema.json",
         "shell.infra.theme_tokens.data.schema.json",
+        "action-descriptor.schema.json",
         "shell.control.button.schema.json",
         "shell.overlay.main_menu.data.schema.json",
         "shell.overlay.advanced_menu.data.schema.json"

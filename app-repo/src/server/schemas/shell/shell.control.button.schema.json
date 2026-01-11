@@ -5,13 +5,25 @@
         "label": { "type": "string" },
         "icon": { "type": "string" },
         "tooltip": { "type": "string" },
-        "actions": {
+        "variant": { "type": "string", "enum": ["primary", "secondary", "ghost", "danger"] },
+        "disabled": { "type": "boolean" },
+        "interactions": {
             "type": "object",
+            "additionalProperties": false,
             "properties": {
-                "onClick": { "type": "string" },
-                "onLongPress": { "type": "string" }
-            },
-            "required": ["onClick"]
+                "click": { "$ref": "action-descriptor.schema.json#/definitions/actionDescriptor" },
+                "long-press": { "$ref": "action-descriptor.schema.json#/definitions/actionDescriptor" },
+                "context-menu": { "$ref": "action-descriptor.schema.json#/definitions/actionDescriptor" },
+                "drag": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["dragStart"],
+                    "properties": {
+                        "dragStart": { "$ref": "action-descriptor.schema.json#/definitions/actionDescriptor" },
+                        "onDrop": { "$ref": "action-descriptor.schema.json#/definitions/actionDescriptor" }
+                    }
+                }
+            }
         }
     },
     "required": ["label"]

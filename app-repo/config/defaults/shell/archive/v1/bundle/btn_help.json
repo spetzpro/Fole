@@ -5,8 +5,11 @@
   "data": {
     "label": "Help",
     "icon": "help-circle",
-    "actions": {
-        "onClick": "sys.action.help"
+    "interactions": {
+        "click": {
+            "kind": "toggleOverlay",
+            "params": { "overlayId": "help_overlay" }
+        }
     }
   }
 }

@@ -5,8 +5,11 @@
   "data": {
     "label": "Menu",
     "icon": "menu",
-    "actions": {
-        "onClick": "sys.action.toggleMenu"
+    "interactions": {
+        "click": {
+            "kind": "toggleOverlay",
+            "params": { "overlayId": "menu_overlay" }
+        }
     }
   }
 }

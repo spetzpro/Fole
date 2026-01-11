@@ -5,8 +5,14 @@
   "data": {
     "label": "Windows",
     "icon": "layers",
-    "actions": {
-        "onClick": "sys.action.toggleWM"
+    "interactions": {
+        "click": {
+            "kind": "openWindow",
+            "params": { 
+                "windowKey": "window_manager",
+                "mode": "singleton"
+            }
+        }
     }
   }
 }
