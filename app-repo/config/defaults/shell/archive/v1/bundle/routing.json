@@ -3,8 +3,13 @@
   "blockType": "shell.infra.routing",
   "schemaVersion": "1.0.0",
   "data": {
-    "routes": [
-        { "path": "/", "targetBlockId": "home_feature", "label": "Home" }
-    ]
+    "routes": {
+      "home": {
+        "targetBlockId": "home_feature",
+        "label": "Home",
+        "enabled": true
+      }
+    },
+    "publishedLinks": {}
   }
 }

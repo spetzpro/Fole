@@ -1,20 +1,87 @@
 {
     "$schema": "http://json-schema.org/draft-07/schema#",
     "type": "object",
+    "description": "Validation for shell.infra.routing block data. Enforces local routing tables and aliases.",
+    "additionalProperties": false,
+    "required": [
+        "routes",
+        "publishedLinks"
+    ],
     "properties": {
         "routes": {
-            "type": "array",
-            "items": {
-                "type": "object",
-                "properties": {
-                    "path": { "type": "string" },
-                    "targetBlockId": { "type": "string" },
-                    "label": { "type": "string" },
-                    "meta": { "type": "object" }
-                },
-                "required": ["path", "targetBlockId"]
-            }
+            "type": "object",
+            "description": "Map of entrySlug to route definitions. Note: Logic applies case-insensitivity and trim transformations; distinct invalid characters are rejected.",
+            "patternProperties": {
+                "^[a-z0-9-]+$": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                        "targetBlockId",
+                        "label",
+                        "enabled"
+                    ],
+                    "properties": {
+                        "targetBlockId": {
+                            "type": "string"
+                        },
+                        "label": {
+                            "type": "string"
+                        },
+                        "enabled": {
+                            "type": "boolean"
+                        },
+                        "accessPolicy": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "properties": {
+                                "roles": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "string"
+                                    }
+                                },
+                                "anonymous": {
+                                    "type": "boolean"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "additionalProperties": false
+        },
+        "publishedLinks": {
+            "type": "object",
+            "description": "Map of short-link aliases - LOCAL overlay only. Authoritative registry is server-side. Local collisions with server entries are rejected at validation time (A1).",
+            "patternProperties": {
+                "^[a-z0-9-]+$": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                        "targetUrl",
+                        "enabled"
+                    ],
+                    "properties": {
+                        "targetUrl": {
+                            "type": "string"
+                        },
+                        "enabled": {
+                            "type": "boolean"
+                        }
+                    }
+                }
+            },
+            "additionalProperties": false
+        },
+        "aliases": {
+            "type": "object",
+            "description": "Configuration for local aliases that map to entry points.",
+            "patternProperties": {
+                "^[a-z0-9-]+$": {
+                    "type": "string"
+                }
+            },
+            "additionalProperties": false
         }
-    },
-    "required": ["routes"]
+    }
 }
