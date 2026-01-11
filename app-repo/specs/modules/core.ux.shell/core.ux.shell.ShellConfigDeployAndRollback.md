@@ -54,7 +54,7 @@ interface DeployRequest {
 3.  **Immutable Archival**:
     -   Create directory: `config/shell/archive/<versionId>/`
     -   Write Artifacts:
-        -   `bundle/*`: The serialized bundle content (manifest.json, blocks/).
+        -   `bundle/*`: The serialized bundle content as flat files, including `shell.manifest.json` and one `<blockId>.json` file per block.
         -   `meta.json`: Metadata (author, timestamp, parentVersionId, mode).
         -   `validation.json`: The full validation report generated in Step 1.
     -   **Rule**: Once written, this archive folder is **immutable**.
@@ -90,7 +90,7 @@ interface RollbackRequest {
 2.  **Safe Mode Reset**:
     -   Rollback acts as the primary recovery mechanism.
     -   It explicitly sets the system state to **Normal Mode** (`safeMode: false`), assuming the target version is valid.
-    -   *Note: If the target version itself was "Forced Invalid", the system relies on the assumption that operators would not rollback TO a broken state intentionally.*
+    -   Note: Rollback resets `safeMode` to false but does not re-validate the target archive version at activation time. Operators must rollback only to known-good versions.
 
 3.  **Atomic Activation**:
     -   Update `active.json` to point to the target `versionId`.
