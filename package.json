@@ -12,7 +12,8 @@
     "spec:check:deps": "node app-repo/scripts/specs/validateDependencies.js",
     "spec:check:perf": "node app-repo/scripts/specs/validatePerformanceBudget.js",
     "spec:check": "npm run spec:check:inventory && npm run spec:check:deps && npm run spec:check:perf",
-    "dev:debug-api": "npx ts-node --project tsconfig.json app-repo/src/server/debugProjectOverviewServer.ts"
+    "dev:debug-api": "npx ts-node --project tsconfig.json app-repo/src/server/debug/debugProjectOverviewServer.ts",
+    "dev:server": "npx ts-node --project tsconfig.json app-repo/src/server/serverMain.ts"
   },
   "devDependencies": {
     "ajv-cli": "^5.0.0",
