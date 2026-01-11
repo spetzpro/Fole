@@ -42,6 +42,9 @@
                                 },
                                 "anonymous": {
                                     "type": "boolean"
+                                },
+                                "expr": {
+                                    "$ref": "https://fole.example/schemas/shell/expression-ast.schema.json"
                                 }
                             }
                         }
