@@ -42,6 +42,8 @@ The Shell Bundle MUST contain the following block types. These form the immutabl
 | `shell.infra.routing` | JSON-based route definitions & deep links. | **YES** | **Locked** |
 | `shell.infra.theme_tokens` | Global CSS/theme variables (colors/typo). | **YES** | **Locked** |
 
+Required shell blocks MUST exist in the bundle AND MUST be referenced by the active `shell.manifest.json`. Missing required blocks or missing manifest references are A1 validation failures.
+
 ## 3. Editability & Governance Matrix
 
 The Core UX Shell enforces a strict "Tiered Editability" model to prevent users from breaking the application frame.
@@ -55,9 +57,9 @@ The Core UX Shell enforces a strict "Tiered Editability" model to prevent users 
 
 | Block Category | Normal Mode | Advanced Mode | Developer Mode |
 | :--- | :--- | :--- | :--- |
-| **Header / Footer** | **Content Safe-Edit Only**<br>(e.g., Change text label, Toggle visibility of sub-items).<br>*Cannot move/delete.* | **Risk-Edit Allowed**<br>(e.g., Reorder inner items).<br>*Cannot delete block.* | **Full Access**<br>(Can force invalid state w/ warning). |
+| **Header / Footer** | **Content Safe-Edit Only**<br>(e.g., Change text label, Toggle visibility of sub-items).<br>*Cannot move/delete.* | **Risk-Edit Allowed**<br>(e.g., Reorder inner items).<br>*Cannot delete block.* | **Full Access**<br>(may force invalid only via `forceInvalid` and will enter Safe Mode; gated by ModeGate + env flags). |
 | **Core Buttons** | **Read Only**.<br>Positioning may be fixed by theme. | **Read Only**.<br>Visibility toggling allowed if non-fatal. | **Structural Edit**.<br>Can remove/replace actions. |
-| **Routing** | **No Access**.<br>Routes are code-bound. | **Append Only**.<br>Can add alias routes. | **Full Access**.<br>Can rewrite active routes. |
+| **Routing** | **Safe Edit Allowed**<br>(e.g., rename labels, reorder visible routes, enable/disable existing entries).<br>*Cannot delete the routing block.* | **Risk-Edit Allowed**<br>(e.g., add/modify routes and aliases; manage published links).<br>*Cannot delete the routing block.* | **Full Access**<br>(can restructure routing model; may force invalid via `forceInvalid` with ModeGate + env flags). |
 | **Theme Tokens** | **Value Edit Only**.<br>Change "Blue" to "Red". | **Value Edit Only**. | **Schema Edit**.<br>Add new tokens. |
 | **Viewport Rules** | **Read Only**. | **Read Only**. | **Full Access**. |
 
@@ -70,7 +72,7 @@ All changes to the blocks listed in Section 2 must pass the **ShellConfigValidat
 -   **[ShellConfigGovernance](../modules/core.ux.shell/core.ux.shell.ShellConfigGovernance.md)**:
     -   Defines the policies for Safe Mode and Developer Mode overrides.
 -   **[ShellConfigStorage](../modules/core.ux.shell/core.ux.shell.ShellConfigStorage.md)**:
-    -   Defines how these blocks are serialized to `manifest.json` and block files in the `config/shell/` directory.
+    -   Defines how these blocks are serialized to `shell.manifest.json` and block files in the `config/shell/` directory.
 -   **[ShellConfigValidation](../modules/core.ux.shell/core.ux.shell.ShellConfigValidation.md)**:
     -   Defines the A1/A2/B severity rules that police the "Structural Lock" column in Section 2.
 -   **[ShellConfigDeployAndRollback](../modules/core.ux.shell/core.ux.shell.ShellConfigDeployAndRollback.md)**:
