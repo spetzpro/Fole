@@ -1,0 +1,101 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "$id": "https://fole.example/schemas/shell/expression-ast.schema.json",
+    "type": "object",
+    "title": "Expression AST",
+    "description": "Recursive Abstract Syntax Tree for declarative logic.",
+    "definitions": {
+        "expression": {
+            "oneOf": [
+                { "$ref": "#/definitions/literal" },
+                { "$ref": "#/definitions/ref" },
+                { "$ref": "#/definitions/unary" },
+                { "$ref": "#/definitions/logical" },
+                { "$ref": "#/definitions/compare" },
+                { "$ref": "#/definitions/set" },
+                { "$ref": "#/definitions/existence" }
+            ]
+        },
+        "literal": {
+            "type": "object",
+            "required": ["kind", "value"],
+            "properties": {
+                "kind": { "const": "literal" },
+                "value": { "type": ["string", "number", "boolean", "null"] }
+            },
+            "additionalProperties": false
+        },
+        "ref": {
+            "type": "object",
+            "required": ["kind", "refType", "key"],
+            "properties": {
+                "kind": { "const": "ref" },
+                "refType": {
+                    "type": "string",
+                    "enum": ["permission", "role", "uiState", "surfaceState"]
+                },
+                "key": { "type": "string", "minLength": 1 }
+            },
+            "additionalProperties": false
+        },
+        "unary": {
+             "type": "object",
+             "required": ["kind", "expr"],
+             "properties": {
+                 "kind": { "const": "not" },
+                 "expr": { "$ref": "#/definitions/expression" }
+             },
+             "additionalProperties": false
+        },
+        "logical": {
+            "type": "object",
+            "required": ["kind", "exprs"],
+            "properties": {
+                "kind": { "enum": ["and", "or"] },
+                "exprs": {
+                    "type": "array",
+                    "items": { "$ref": "#/definitions/expression" },
+                    "minItems": 1,
+                    "maxItems": 50
+                }
+            },
+            "additionalProperties": false
+        },
+        "compare": {
+            "type": "object",
+            "required": ["kind", "op", "left", "right"],
+            "properties": {
+                "kind": { "const": "cmp" },
+                "op": { "enum": ["==", "!=", "<", "<=", ">", ">="] },
+                "left": { "$ref": "#/definitions/expression" },
+                "right": { "$ref": "#/definitions/expression" }
+            },
+            "additionalProperties": false
+        },
+        "set": {
+            "type": "object",
+            "required": ["kind", "item", "set"],
+            "properties": {
+                "kind": { "const": "in" },
+                "item": { "$ref": "#/definitions/expression" },
+                "set": {
+                     "oneOf": [
+                         { "$ref": "#/definitions/expression" },
+                         { "type": "array", "items": { "$ref": "#/definitions/expression" }, "maxItems": 50 }
+                     ]
+                }
+            },
+            "additionalProperties": false
+        },
+        "existence": {
+            "type": "object",
+            "required": ["kind", "expr"],
+            "properties": {
+                "kind": { "const": "exists" },
+                "expr": { "$ref": "#/definitions/expression" }
+            },
+            "additionalProperties": false
+        }
+    },
+    "$ref": "#/definitions/expression"
+}
