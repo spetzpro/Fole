@@ -8,7 +8,7 @@
     "interactions": {
         "click": {
             "kind": "toggleOverlay",
-            "params": { "overlayId": "menu_overlay" }
+            "params": { "overlayId": "overlay_menu" }
         }
     }
   }

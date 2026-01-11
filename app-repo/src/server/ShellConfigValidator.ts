@@ -127,11 +127,16 @@ export class ShellConfigValidator {
     // Cross-check: openWindow actions vs Window Registry
     // 1. Build registry
     const registeredWindows = new Set<string>();
+    const registeredOverlays = new Set<string>();
+
     for (const blockId of Object.keys(bundle.blocks)) {
         const block = bundle.blocks[blockId];
         if (block.blockType === "shell.infra.window_registry") {
              const windows = (block.data as any).windows || {};
              Object.keys(windows).forEach(k => registeredWindows.add(k));
+        }
+        if (block.blockType.startsWith("shell.overlay.")) {
+            registeredOverlays.add(blockId);
         }
     }
 
@@ -146,7 +151,9 @@ export class ShellConfigValidator {
                     ? interactions[trigger].dragStart 
                     : interactions[trigger];
 
-                 if (action && action.kind === "openWindow" && action.params && action.params.windowKey) {
+                 if (!action) continue;
+
+                 if (action.kind === "openWindow" && action.params && action.params.windowKey) {
                      if (!registeredWindows.has(action.params.windowKey)) {
                          errors.push({
                              severity: "A1",
@@ -156,6 +163,18 @@ export class ShellConfigValidator {
                              blockId: blockId
                          });
                      }
+                 }
+
+                 if (action.kind === "toggleOverlay" && action.params && action.params.overlayId) {
+                    if (!registeredOverlays.has(action.params.overlayId)) {
+                        errors.push({
+                            severity: "A1",
+                            code: "unknown_overlayId",
+                            message: `Action references unknown overlayId '${action.params.overlayId}' (not found in any shell.overlay.* block)`,
+                            path: `/blocks/${blockId}/data/interactions/${trigger}/params/overlayId`,
+                            blockId: blockId
+                        }); 
+                    }
                  }
              }
          }
