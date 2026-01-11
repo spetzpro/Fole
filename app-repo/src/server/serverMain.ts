@@ -4,14 +4,17 @@ import { parse } from "url";
 import { Router } from "./Router";
 import { ShellConfigRepository } from "./ShellConfigRepository";
 import { ShellConfigValidator } from "./ShellConfigValidator";
+import { ShellConfigDeployer } from "./ShellConfigDeployer";
 
 // Default to port 3000, or use env var
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
 async function main() {
   const router = new Router();
-  const configRepo = new ShellConfigRepository(process.cwd());
-  const validator = new ShellConfigValidator(process.cwd());
+  const cwd = process.cwd();
+  const configRepo = new ShellConfigRepository(cwd);
+  const validator = new ShellConfigValidator(cwd);
+  const deployer = new ShellConfigDeployer(configRepo, validator, cwd);
   
   await configRepo.ensureInitialized();
 
@@ -98,6 +101,45 @@ async function main() {
       router.json(res, 500, { error: "Internal Server Error" });
     }
   });
+
+  router.post("/api/config/shell/deploy", async (req, res) => {
+    try {
+      const body = await router.readJsonBody(req);
+      if (!body.bundle) {
+        return router.json(res, 400, { error: "Missing bundle in request body" });
+      }
+      
+      const result = await deployer.deploy(body.bundle, body.message);
+      router.json(res, 200, result);
+    } catch (err: any) {
+      if (err.status) {
+        return router.json(res, err.status, { error: err.message, report: err.report });
+      }
+      // eslint-disable-next-line no-console
+      console.error("Deploy error", err);
+      router.json(res, 500, { error: "Internal Server Error" });
+    }
+  });
+
+  router.post("/api/config/shell/rollback", async (req, res) => {
+    try {
+      const body = await router.readJsonBody(req);
+      if (!body.versionId) {
+        return router.json(res, 400, { error: "Missing versionId" });
+      }
+
+      const result = await deployer.rollback(body.versionId);
+      router.json(res, 200, result);
+    } catch (err: any) {
+       if (err.status) {
+        return router.json(res, err.status, { error: err.message });
+      }
+      // eslint-disable-next-line no-console
+      console.error("Rollback error", err);
+      router.json(res, 500, { error: "Internal Server Error" });
+    }
+  });
+
 
   const server = http.createServer((req, res) => {
     router.handle(req, res).catch((err) => {

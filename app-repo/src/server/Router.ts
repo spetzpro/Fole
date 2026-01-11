@@ -57,7 +57,9 @@ export class Router {
         } catch (err) {
           // eslint-disable-next-line no-console
           console.error("Handler error:", err);
-          this.json(res, 500, { ok: false, error: "Internal Server Error" });
+          if (!res.headersSent) {
+             this.json(res, 500, { ok: false, error: "Internal Server Error" });
+          }
         }
         return;
       }
@@ -67,8 +69,36 @@ export class Router {
   }
 
   json(res: ServerResponse, status: number, body: unknown): void {
+    if (res.headersSent) return;
     res.statusCode = status;
     res.setHeader("Content-Type", "application/json; charset=utf-8");
     res.end(JSON.stringify(body));
+  }
+
+  async readJsonBody(req: IncomingMessage, maxBytes = 5 * 1024 * 1024): Promise<any> {
+    return new Promise((resolve, reject) => {
+      let data = "";
+      let bytesRead = 0;
+      
+      req.on("data", (chunk) => {
+        data += chunk;
+        bytesRead += chunk.length;
+        if (bytesRead > maxBytes) {
+          req.destroy();
+          reject(new Error("Payload too large"));
+        }
+      });
+
+      req.on("end", () => {
+        try {
+          if (!data) return resolve({}); 
+          resolve(JSON.parse(data));
+        } catch (err) {
+          reject(new Error("Invalid JSON"));
+        }
+      });
+
+      req.on("error", (err) => reject(err));
+    });
   }
 }
