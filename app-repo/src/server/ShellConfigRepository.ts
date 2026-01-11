@@ -1,11 +1,11 @@
 import { promises as fs } from "fs";
 import * as path from "path";
-import { ActivePointer, ShellBundle, ConfigMeta, ConfigValidation, ShellManifest } from "./ShellConfigTypes";
+import { ActivePointer, ShellBundle, ConfigMeta, ConfigValidation, ShellManifest, BlockEnvelope } from "./ShellConfigTypes";
 
 export class ShellConfigRepository {
   private readonly configRoot: string;
   private readonly defaultsRoot: string;
-
+  
   constructor(workspaceFolder: string) {
     this.configRoot = path.join(workspaceFolder, "app-repo", "config", "shell");
     this.defaultsRoot = path.join(workspaceFolder, "app-repo", "config", "defaults", "shell");
@@ -58,19 +58,20 @@ export class ShellConfigRepository {
       const validation = JSON.parse(validationContent) as ConfigValidation;
       const manifest = JSON.parse(manifestContent) as ShellManifest;
 
-      const blocks: Record<string, unknown> = {};
+      const blocks: Record<string, BlockEnvelope> = {};
       const blockPromises = Object.values(manifest.regions).map(async (region) => {
         const blockId = region.blockId;
         if (!blockId || blockId.includes("/") || blockId.includes("\\")) return;
         
         try {
           const blockContent = await fs.readFile(path.join(archivePath, "bundle", `${blockId}.json`), "utf-8");
-          blocks[blockId] = JSON.parse(blockContent);
+          blocks[blockId] = JSON.parse(blockContent) as BlockEnvelope;
         } catch (e: any) {
           // eslint-disable-next-line no-console
           console.warn(`Failed to load block ${blockId}: ${e.message}`);
         }
       });
+
 
       await Promise.all(blockPromises);
 

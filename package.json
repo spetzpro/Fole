@@ -16,6 +16,7 @@
     "dev:server": "npx ts-node --project tsconfig.json app-repo/src/server/serverMain.ts"
   },
   "devDependencies": {
+    "ajv": "^8.17.1",
     "ajv-cli": "^5.0.0",
     "ts-node": "^10.9.2",
     "typescript": "^5.6.0"

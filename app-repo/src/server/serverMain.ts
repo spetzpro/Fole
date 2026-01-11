@@ -3,6 +3,7 @@ import * as path from "path";
 import { parse } from "url";
 import { Router } from "./Router";
 import { ShellConfigRepository } from "./ShellConfigRepository";
+import { ShellConfigValidator } from "./ShellConfigValidator";
 
 // Default to port 3000, or use env var
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
@@ -10,6 +11,7 @@ const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 async function main() {
   const router = new Router();
   const configRepo = new ShellConfigRepository(process.cwd());
+  const validator = new ShellConfigValidator(process.cwd());
   
   await configRepo.ensureInitialized();
 
@@ -47,6 +49,16 @@ async function main() {
 
     try {
       const bundle = await configRepo.getBundle(versionId);
+
+      // Validate on read
+      const report = await validator.validateBundle(bundle.bundle);
+      if (report.status !== "valid") {
+        return router.json(res, 500, {
+          error: "Bundle validation failed",
+          report
+        });
+      }
+
       router.json(res, 200, bundle);
     } catch (err: any) {
       if (err.message.includes("not found")) {
@@ -66,6 +78,16 @@ async function main() {
 
     try {
       const bundle = await configRepo.getBundle(versionId);
+
+      // Validate on read
+      const report = await validator.validateBundle(bundle.bundle);
+      if (report.status !== "valid") {
+        return router.json(res, 500, {
+          error: "Bundle validation failed",
+          report
+        });
+      }
+
       router.json(res, 200, bundle);
     } catch (err: any) {
       if (err.message.includes("not found")) {

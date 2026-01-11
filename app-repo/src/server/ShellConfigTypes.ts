@@ -15,7 +15,35 @@ export interface ConfigValidation {
   checkedAt: string;
 }
 
+export interface ValidationError {
+  severity: "error" | "warning";
+  code: string;
+  message: string;
+  path: string;
+  blockId?: string;
+  relatedBlockIds?: string[];
+}
+
+export interface ValidationReport {
+  status: "valid" | "invalid";
+  validatorVersion: string;
+  severityCounts: {
+    error: number;
+    warning: number;
+    info: number;
+  };
+  errors: ValidationError[];
+}
+
+export interface BlockEnvelope {
+  blockId: string;
+  blockType: string;
+  schemaVersion: string;
+  data: Record<string, unknown>;
+}
+
 export interface ShellManifest {
+  schemaVersion: string;
   regions: Record<string, { blockId: string; config?: Record<string, unknown> }>;
 }
 
@@ -25,6 +53,6 @@ export interface ShellBundle {
   validation: ConfigValidation;
   bundle: {
     manifest: ShellManifest;
-    blocks: Record<string, unknown>;
+    blocks: Record<string, BlockEnvelope>;
   };
 }

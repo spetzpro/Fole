@@ -1,4 +1,5 @@
 {
+  "schemaVersion": "1.0.0",
   "regions": {
     "top": { "blockId": "header" },
     "bottom": { "blockId": "footer" },

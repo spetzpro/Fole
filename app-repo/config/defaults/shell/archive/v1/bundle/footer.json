@@ -1,1 +1,8 @@
-{ "type": "footer", "copyright": "2026" }
+{
+  "blockId": "footer",
+  "blockType": "footer",
+  "schemaVersion": "1.0.0",
+  "data": {
+    "copyright": "2026"
+  }
+}

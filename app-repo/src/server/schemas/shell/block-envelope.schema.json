@@ -1,0 +1,27 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "object",
+    "required": [
+        "blockId",
+        "blockType",
+        "schemaVersion",
+        "data"
+    ],
+    "properties": {
+        "blockId": {
+            "type": "string",
+            "minLength": 1
+        },
+        "blockType": {
+            "type": "string",
+            "minLength": 1
+        },
+        "schemaVersion": {
+            "type": "string",
+            "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+        },
+        "data": {
+            "type": "object"
+        }
+    }
+}

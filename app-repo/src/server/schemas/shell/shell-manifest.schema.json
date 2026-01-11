@@ -1,0 +1,38 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "object",
+    "required": [
+        "schemaVersion",
+        "regions"
+    ],
+    "properties": {
+        "schemaVersion": {
+            "type": "string",
+            "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+        },
+        "regions": {
+            "type": "object",
+            "required": [
+                "top",
+                "bottom",
+                "main"
+            ],
+            "patternProperties": {
+                "^[a-zA-Z0-9]+$": {
+                    "type": "object",
+                    "required": [
+                        "blockId"
+                    ],
+                    "properties": {
+                        "blockId": {
+                            "type": "string"
+                        },
+                        "config": {
+                            "type": "object"
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

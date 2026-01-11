@@ -1,1 +1,8 @@
-{ "type": "header", "title": "Fole App" }
+{
+  "blockId": "header",
+  "blockType": "header",
+  "schemaVersion": "1.0.0",
+  "data": {
+    "title": "Fole App"
+  }
+}
