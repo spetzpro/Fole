@@ -26,6 +26,7 @@ export class ShellConfigValidator {
         "shell.rules.viewport.data.schema.json",
         "shell.infra.routing.data.schema.json",
         "shell.infra.theme_tokens.data.schema.json",
+        "shell.infra.window_registry.data.schema.json",
         "action-descriptor.schema.json",
         "shell.control.button.schema.json",
         "shell.overlay.main_menu.data.schema.json",
@@ -52,6 +53,7 @@ export class ShellConfigValidator {
           "shell.rules.viewport": "shell.rules.viewport.data.schema.json",
           "shell.infra.routing": "shell.infra.routing.data.schema.json",
           "shell.infra.theme_tokens": "shell.infra.theme_tokens.data.schema.json",
+          "shell.infra.window_registry": "shell.infra.window_registry.data.schema.json",
           "shell.overlay.main_menu": "shell.overlay.main_menu.data.schema.json",
           "shell.overlay.advanced_menu": "shell.overlay.advanced_menu.data.schema.json"
       };
@@ -120,6 +122,43 @@ export class ShellConfigValidator {
           blockId: blockId
         });
       }
+    }
+
+    // Cross-check: openWindow actions vs Window Registry
+    // 1. Build registry
+    const registeredWindows = new Set<string>();
+    for (const blockId of Object.keys(bundle.blocks)) {
+        const block = bundle.blocks[blockId];
+        if (block.blockType === "shell.infra.window_registry") {
+             const windows = (block.data as any).windows || {};
+             Object.keys(windows).forEach(k => registeredWindows.add(k));
+        }
+    }
+
+    // 2. Scan buttons for openWindow actions
+    for (const blockId of Object.keys(bundle.blocks)) {
+         const block = bundle.blocks[blockId];
+         if (block.blockType.startsWith("shell.control.button") && block.data.interactions) {
+             const interactions = block.data.interactions as Record<string, any>;
+             for (const trigger of Object.keys(interactions)) {
+                 // handle both direct action or drag object
+                 const action = trigger === 'drag' 
+                    ? interactions[trigger].dragStart 
+                    : interactions[trigger];
+
+                 if (action && action.kind === "openWindow" && action.params && action.params.windowKey) {
+                     if (!registeredWindows.has(action.params.windowKey)) {
+                         errors.push({
+                             severity: "A1",
+                             code: "unknown_windowKey",
+                             message: `Action references unknown windowKey '${action.params.windowKey}' (not found in any shell.infra.window_registry block)`,
+                             path: `/blocks/${blockId}/data/interactions/${trigger}/params/windowKey`,
+                             blockId: blockId
+                         });
+                     }
+                 }
+             }
+         }
     }
 
     const errorCount = errors.filter(e => e.severity === "A1").length;

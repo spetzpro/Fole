@@ -1,0 +1,19 @@
+{
+  "blockId": "window_registry",
+  "blockType": "shell.infra.window_registry",
+  "schemaVersion": "1.0.0",
+  "data": {
+    "windows": {
+      "window_manager": {
+        "mode": "singleton",
+        "label": "Window Manager",
+        "enabled": true
+      },
+      "help": {
+        "mode": "singleton",
+        "label": "Help Documentation",
+        "enabled": true
+      }
+    }
+  }
+}

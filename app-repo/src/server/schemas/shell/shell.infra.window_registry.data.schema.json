@@ -1,0 +1,40 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "object",
+    "description": "Registry of available window types for the core shell.",
+    "additionalProperties": false,
+    "required": [
+        "windows"
+    ],
+    "properties": {
+        "windows": {
+            "type": "object",
+            "description": "Map of windowKey to window definitions.",
+            "patternProperties": {
+                "^[a-z0-9-_]+$": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                        "mode"
+                    ],
+                    "properties": {
+                        "mode": {
+                            "type": "string",
+                            "enum": [
+                                "singleton",
+                                "multi"
+                            ]
+                        },
+                        "label": {
+                            "type": "string"
+                        },
+                        "enabled": {
+                            "type": "boolean"
+                        }
+                    }
+                }
+            },
+            "additionalProperties": false
+        }
+    }
+}
