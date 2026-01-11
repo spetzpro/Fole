@@ -20,7 +20,7 @@ export class ShellConfigDeployer {
     const report = await this.validator.validateBundle(bundle);
     
     // 2. Reject if any error (A1 severity)
-    if (report.severityCounts.error > 0) {
+    if (report.severityCounts.A1 > 0) {
       const errorMsg = "Deployment rejected due to validation errors.";
       // eslint-disable-next-line no-console
       console.error(errorMsg, JSON.stringify(report.errors));

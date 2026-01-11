@@ -15,8 +15,10 @@ export interface ConfigValidation {
   checkedAt: string;
 }
 
+export type ValidationSeverity = "A1" | "A2" | "B";
+
 export interface ValidationError {
-  severity: "error" | "warning";
+  severity: ValidationSeverity;
   code: string;
   message: string;
   path: string;
@@ -28,9 +30,9 @@ export interface ValidationReport {
   status: "valid" | "invalid";
   validatorVersion: string;
   severityCounts: {
-    error: number;
-    warning: number;
-    info: number;
+    A1: number;
+    A2: number;
+    B: number;
   };
   errors: ValidationError[];
 }

@@ -44,7 +44,7 @@ export class ShellConfigValidator {
     const validSchema = this.ajv.validate("shell-bundle.schema.json", bundle);
     
     const errors: ValidationError[] = (this.ajv.errors || []).map(err => ({
-      severity: "error",
+      severity: "A1",
       code: err.keyword,
       message: err.message || "Unknown error",
       path: err.instancePath,
@@ -58,7 +58,7 @@ export class ShellConfigValidator {
       // console.log(`Checking region ${region} -> blockId ${blockId}. In blocks? ${!!bundle.blocks[blockId]}`);
       if (!bundle.blocks[blockId]) {
         errors.push({
-          severity: "error",
+          severity: "A1",
           code: "missing_block",
           message: `Manifest references missing blockId: ${blockId}`,
           path: `/manifest/regions/${region}/blockId`,
@@ -67,13 +67,13 @@ export class ShellConfigValidator {
       }
     }
 
-    const errorCount = errors.filter(e => e.severity === "error").length;
+    const errorCount = errors.filter(e => e.severity === "A1").length;
     
     if (errorCount === 0) {
       return {
         status: "valid",
         validatorVersion: "1.0.0",
-        severityCounts: { error: 0, warning: 0, info: 0 },
+        severityCounts: { A1: 0, A2: 0, B: 0 },
         errors: []
       };
     }
@@ -82,9 +82,9 @@ export class ShellConfigValidator {
       status: "invalid",
       validatorVersion: "1.0.0",
       severityCounts: {
-        error: errorCount,
-        warning: errors.filter(e => e.severity === "warning").length,
-        info: 0
+        A1: errorCount,
+        A2: errors.filter(e => e.severity === "A2").length,
+        B: errors.filter(e => e.severity === "B").length
       },
       errors
     };

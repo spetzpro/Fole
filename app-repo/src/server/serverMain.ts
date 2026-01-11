@@ -56,7 +56,7 @@ async function main() {
       // Validate on read
       const report = await validator.validateBundle(bundle.bundle);
       if (report.status !== "valid") {
-        return router.json(res, 500, {
+        return router.json(res, 400, {
           error: "Bundle validation failed",
           report
         });
@@ -85,7 +85,7 @@ async function main() {
       // Validate on read
       const report = await validator.validateBundle(bundle.bundle);
       if (report.status !== "valid") {
-        return router.json(res, 500, {
+        return router.json(res, 400, {
           error: "Bundle validation failed",
           report
         });
