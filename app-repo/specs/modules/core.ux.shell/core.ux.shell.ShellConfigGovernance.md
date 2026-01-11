@@ -26,7 +26,7 @@ Its primary purpose is to ensure the application cannot enter a broken state dur
 1. **Server Authoritative**: The server file system (`active.json`) is the absolute source of truth. Clients must synchronize to this state.
 2. **Fail-Closed**: If a configuration is invalid (A1 severity) or ambiguous, deployment is rejected securely.
 3. **Rollback-First**: Recovery from bad states is achieved by rolling back the pointer to a known-previous version, not by hot-fixing the current one.
-4. **Atomic Activation**: Changes to the active configuration happen instantly via file system atomic rename. Partial states are impossible.
+4. **Atomic Activation**: Changes to the active configuration happen instantly via file system atomic rename. Atomicity is guaranteed by temp-write + rename semantics on the same filesystem volume. Partial states are not observable under these conditions.
 
 ## 4. Versioning Model
 
@@ -36,7 +36,7 @@ Its primary purpose is to ensure the application cannot enter a broken state dur
   - This folder contains copies of the `bundle` contents, a `meta.json` (deployment metadata), and `validation.json` (validation report).
 - **Active State**:
   - The system reads `active.json` to know which Version ID is live.
-  - If `active.json` is missing, the system falls back to hardcoded internal defaults (Emergency Mode) or fails to start.
+  - If `active.json` or the runtime shell directory is missing, the server initializes runtime state by copying from `app-repo/config/defaults/shell/`. There is no hardcoded fallback configuration.
 
 ## 5. Validation Severity Model
 
@@ -55,11 +55,13 @@ The system categorizes validation findings into three tiers:
   - **Meaning**: Stylistic issues or suggestions (unused descriptions, etc.).
   - **Action**: Deployment allowed silently.
 
+Note: The current implementation emits only A1 findings for schema and referential integrity violations. A2 and B categories are reserved for future non-blocking validation checks.
+
 ## 6. Activation Rules
 
 - **Normal Activation**: 
   - Requires Validation Status = `valid` (0 A1 errors).
-  - Updates `active.json` with `{ "safeMode": false, "mode": "normal" }`.
+  - Updates `active.json` with `{ "safeMode": false, "activatedByMode": "normal" }`.
 
 - **Forced Activation ("Force Invalid")**:
   - **Pre-requisite**: 
@@ -67,7 +69,7 @@ The system categorizes validation findings into three tiers:
      2. `FOLE_DEV_FORCE_INVALID_CONFIG=1` environment variable is set.
      3. `FOLE_DEV_ALLOW_MODE_OVERRIDES=1` environment variable is set.
   - **Behavior**: 
-     - Updates `active.json` with `{ "safeMode": true, "mode": "developer" }`.
+     - Updates `active.json` with `{ "safeMode": true, "activatedByMode": "developer" }`.
      - System enters **Safe Mode**.
 
 - **Rollback Activation**:
@@ -76,7 +78,7 @@ The system categorizes validation findings into three tiers:
 
 ## 7. Client Contract
 
-- **State Sync**: The client queries `/api/shell/status` to determine the active version.
+- **State Sync**: The client queries `/api/config/shell/status` to determine the active version.
 - **No Auto-Reload**: The server does NOT force clients to reload when `active.json` changes. Clients may choose to poll or reload on next navigation.
 - **Safe Mode UI**: If the server reports `safeMode: true`, the client MUST display a persistent warning banner ("Developer Safe Mode Enabled").
 
