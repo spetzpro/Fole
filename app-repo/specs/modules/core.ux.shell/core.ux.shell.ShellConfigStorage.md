@@ -3,11 +3,6 @@
 ## Module ID
 core.ux.shell.ShellConfigStorage
 
-# Module: core.ux.shell.ShellConfigStorage
-
-## Module ID
-core.ux.shell.ShellConfigStorage
-
 ## 1. Purpose
 The Storage module abstracts the file system for the Shell Configuration system. It manages the runtime persistence of configuration artifacts, ensuring consistency, atomicity, and safe recovery.
 
@@ -36,11 +31,11 @@ app-repo/config/defaults/shell/
 ```
 
 ### 2.2 Runtime Configuration (Gitignored)
-Located at: `app-repo/config/shell/` (Created at runtime)
+Located at: `config/shell/` (Created/managed at runtime)
 
 Structure:
 ```text
-app-repo/config/shell/
+config/shell/
 ├── active.json                      # Single source of truth for running app
 ├── active.json.<timestamp>.tmp      # Transient atomic write file
 └── archive/
@@ -58,9 +53,9 @@ app-repo/config/shell/
 
 The initialization process ("Boot") protects the server from starting in an undefined state.
 
-1.  **Check Runtime Existence**: The server checks for `app-repo/config/shell/active.json`.
+1.  **Check Runtime Existence**: The server checks for `config/shell/active.json`.
 2.  **Auto-Initialization**: 
-    - If the `config/shell` directory or `active.json` is missing, the system **automatically copies** the entire contents of `config/defaults/shell/` to `config/shell/`.
+    - If the `config/shell` directory or `active.json` is missing, the system **automatically copies** the entire contents of `app-repo/config/defaults/shell/` to `config/shell/`.
     - This ensures a fresh install starts with a valid, git-tracked configuration (v1).
 3.  **Missing Defaults**:
     - If `config/defaults/shell/` is missing or empty, initialization **fails immediately** (Fail-Closed).
@@ -91,7 +86,7 @@ Concurrency is managed via strict filesystem semantics.
 ## 6. Operational Notes
 
 ### 6.1 Inspecting State
-Administrator can verify the current state by inspecting `app-repo/config/shell/active.json`.
+Administrator can verify the current state by inspecting `config/shell/active.json`.
 ```json
 {
   "activeVersionId": "v1736631234567",
@@ -105,7 +100,7 @@ Administrator can verify the current state by inspecting `app-repo/config/shell/
 If the server APIs are unresponsive, a manual rollback can be performed via the filesystem:
 
 1.  Stop the server process.
-2.  Navigate to `app-repo/config/shell/`.
+2.  Navigate to `config/shell/`.
 3.  Identify a known-good version ID in `archive/` (e.g., `v1`).
 4.  Edit `active.json` to set `"activeVersionId": "v1"`.
     - *Optional*: Set `"safeMode": true` if you wish to force Safe Mode booting.
