@@ -24,6 +24,20 @@ async function main() {
   });
 
   // Shell Config Endpoints
+  router.get("/api/config/shell/status", async (_req, res) => {
+    try {
+      const active = await configRepo.getActivePointer();
+      if (!active) {
+        return router.json(res, 404, { error: "No active configuration found" });
+      }
+      router.json(res, 200, active);
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error("Error fetching active status", err);
+      router.json(res, 500, { error: "Internal Server Error" });
+    }
+  });
+
   router.get("/api/config/shell/active", async (_req, res) => {
     try {
       const active = await configRepo.getActivePointer();
@@ -104,12 +118,16 @@ async function main() {
 
   router.post("/api/config/shell/deploy", async (req, res) => {
     try {
+      const urlParts = parse(req.url || "", true);
+      const forceQuery = urlParts.query.forceInvalid === "1";
+
       const body = await router.readJsonBody(req);
       if (!body.bundle) {
         return router.json(res, 400, { error: "Missing bundle in request body" });
       }
       
-      const result = await deployer.deploy(body.bundle, body.message);
+      const forceInvalid = body.forceInvalid === true || forceQuery;
+      const result = await deployer.deploy(body.bundle, body.message, forceInvalid);
       router.json(res, 200, result);
     } catch (err: any) {
       if (err.status) {

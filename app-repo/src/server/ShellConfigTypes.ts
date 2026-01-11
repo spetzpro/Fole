@@ -1,6 +1,12 @@
 export interface ActivePointer {
   activeVersionId: string;
   lastUpdated: string;
+  // Extended fields for Safe Mode
+  safeMode: boolean;
+  activatedAt: string; // ISO timestamp, usually same as lastUpdated
+  activatedByMode: "normal" | "advanced" | "developer";
+  safeModeReason?: string;
+  safeModeReport?: ValidationReport;
 }
 
 export interface ConfigMeta {
