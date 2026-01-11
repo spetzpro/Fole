@@ -1,8 +1,9 @@
 {
   "blockId": "viewport",
-  "blockType": "viewport",
+  "blockType": "shell.rules.viewport",
   "schemaVersion": "1.0.0",
   "data": {
-    "defaultZoom": 1
+    "allowZoom": true,
+    "minWidth": 320
   }
 }

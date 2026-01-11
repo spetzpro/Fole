@@ -1,0 +1,9 @@
+{
+  "blockId": "overlay_advanced",
+  "blockType": "shell.overlay.advanced_menu",
+  "schemaVersion": "1.0.0",
+  "data": {
+    "enabled": false,
+    "tools": []
+  }
+}

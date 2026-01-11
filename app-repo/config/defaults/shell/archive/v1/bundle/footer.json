@@ -1,8 +1,9 @@
 {
   "blockId": "footer",
-  "blockType": "footer",
+  "blockType": "shell.region.footer",
   "schemaVersion": "1.0.0",
   "data": {
-    "copyright": "2026"
+    "copyrightText": "2026 Fole Inc",
+    "links": []
   }
 }

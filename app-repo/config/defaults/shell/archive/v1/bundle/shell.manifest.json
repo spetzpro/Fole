@@ -3,6 +3,8 @@
   "regions": {
     "top": { "blockId": "header" },
     "bottom": { "blockId": "footer" },
-    "main": { "blockId": "viewport" }
+    "main": { "blockId": "viewport" },
+    "buttons": { "blockId": "btn_menu" },
+    "overlays": { "blockId": "overlay_menu" }
   }
 }

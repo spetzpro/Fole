@@ -1,8 +1,9 @@
 {
   "blockId": "header",
-  "blockType": "header",
+  "blockType": "shell.region.header",
   "schemaVersion": "1.0.0",
   "data": {
-    "title": "Fole App"
+    "title": "Fole App",
+    "navigationItems": []
   }
 }

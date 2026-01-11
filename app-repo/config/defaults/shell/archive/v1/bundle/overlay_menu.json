@@ -1,0 +1,10 @@
+{
+  "blockId": "overlay_menu",
+  "blockType": "shell.overlay.main_menu",
+  "schemaVersion": "1.0.0",
+  "data": {
+    "items": [
+        { "id": "home", "label": "Home", "action": "nav.go.home" }
+    ]
+  }
+}

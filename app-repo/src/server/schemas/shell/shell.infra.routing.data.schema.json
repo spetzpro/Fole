@@ -1,0 +1,20 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "object",
+    "properties": {
+        "routes": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "path": { "type": "string" },
+                    "targetBlockId": { "type": "string" },
+                    "label": { "type": "string" },
+                    "meta": { "type": "object" }
+                },
+                "required": ["path", "targetBlockId"]
+            }
+        }
+    },
+    "required": ["routes"]
+}

@@ -1,0 +1,11 @@
+{
+  "blockId": "theme_tokens",
+  "blockType": "shell.infra.theme_tokens",
+  "schemaVersion": "1.0.0",
+  "data": {
+    "tokens": {
+        "primaryColor": "#007bff",
+        "fontFamily": "Inter, sans-serif"
+    }
+  }
+}

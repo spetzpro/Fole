@@ -1,0 +1,12 @@
+{
+  "blockId": "btn_help",
+  "blockType": "shell.control.button.help",
+  "schemaVersion": "1.0.0",
+  "data": {
+    "label": "Help",
+    "icon": "help-circle",
+    "actions": {
+        "onClick": "sys.action.help"
+    }
+  }
+}

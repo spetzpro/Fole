@@ -17,13 +17,24 @@ export class ShellConfigValidator {
     if (this.schemasLoaded) return;
 
     try {
-      const envelopeParams = await this.readSchema("block-envelope.schema.json");
-      const manifestParams = await this.readSchema("shell-manifest.schema.json");
-      const bundleParams = await this.readSchema("shell-bundle.schema.json");
+      const coreSchemas = [
+        "block-envelope.schema.json",
+        "shell-manifest.schema.json",
+        "shell-bundle.schema.json",
+        "shell.region.header.data.schema.json",
+        "shell.region.footer.data.schema.json",
+        "shell.rules.viewport.data.schema.json",
+        "shell.infra.routing.data.schema.json",
+        "shell.infra.theme_tokens.data.schema.json",
+        "shell.control.button.schema.json",
+        "shell.overlay.main_menu.data.schema.json",
+        "shell.overlay.advanced_menu.data.schema.json"
+      ];
 
-      this.ajv.addSchema(envelopeParams, "block-envelope.schema.json");
-      this.ajv.addSchema(manifestParams, "shell-manifest.schema.json");
-      this.ajv.addSchema(bundleParams, "shell-bundle.schema.json");
+      for (const schemaName of coreSchemas) {
+          const schemaContent = await this.readSchema(schemaName);
+          this.ajv.addSchema(schemaContent, schemaName);
+      }
 
       this.schemasLoaded = true;
     } catch (err: any) {
@@ -32,6 +43,24 @@ export class ShellConfigValidator {
       throw new Error("Validation initialization failed: " + err.message);
     }
   }
+
+  private getSchemaForBlockType(blockType: string): string | null {
+      const exactMap: Record<string, string> = {
+          "shell.region.header": "shell.region.header.data.schema.json",
+          "shell.region.footer": "shell.region.footer.data.schema.json",
+          "shell.rules.viewport": "shell.rules.viewport.data.schema.json",
+          "shell.infra.routing": "shell.infra.routing.data.schema.json",
+          "shell.infra.theme_tokens": "shell.infra.theme_tokens.data.schema.json",
+          "shell.overlay.main_menu": "shell.overlay.main_menu.data.schema.json",
+          "shell.overlay.advanced_menu": "shell.overlay.advanced_menu.data.schema.json"
+      };
+
+      if (exactMap[blockType]) return exactMap[blockType];
+      if (blockType.startsWith("shell.control.button")) return "shell.control.button.schema.json";
+      
+      return null;
+  }
+
 
   private async readSchema(filename: string): Promise<any> {
     const content = await fs.readFile(path.join(this.schemaRoot, filename), "utf-8");
@@ -49,6 +78,31 @@ export class ShellConfigValidator {
       message: err.message || "Unknown error",
       path: err.instancePath,
     }));
+
+    // Data Shape Validation per Block Type
+    for (const blockId of Object.keys(bundle.blocks)) {
+        const block = bundle.blocks[blockId];
+        const schemaName = this.getSchemaForBlockType(block.blockType);
+
+        if (schemaName) {
+            const valid = this.ajv.validate(schemaName, block.data);
+            if (!valid) {
+                 (this.ajv.errors || []).forEach(err => {
+                    errors.push({
+                        severity: "A1",
+                        code: `data_schema_${err.keyword}`,
+                        message: `Block ${blockId} data invalid: ${err.message}`,
+                        path: `/blocks/${blockId}/data${err.instancePath}`,
+                        blockId: blockId
+                    });
+                 });
+            }
+        } else if (block.blockType.startsWith("shell.")) {
+             // Unknown shell block type
+             // For strictness, if it claims to be a shell.* block but we don't have a schema, flag it.
+             // (Optional: could relax this if we expect plugins to extend shell.*)
+        }
+    }
 
     // Check for missing blocks referenced in manifest
     // This goes beyond simple schema validation
