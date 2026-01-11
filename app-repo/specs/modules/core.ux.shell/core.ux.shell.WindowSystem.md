@@ -84,7 +84,7 @@ All windows adhere to a single set of physics constants (friction, restitution, 
 
 ### 7.1 Spawning Validation
 -   Any action (e.g., `openWindow`) requesting to spawn a window MUST provide a valid `windowKey`.
--   **Fail-Closed**: If the `windowKey` is not registered in the Shell Configuration, the request is denied. The system explicitly ignores requests for unknown windows.
+-   **Fail-Closed**: If the `windowKey` is not registered in the `shell.infra.window_registry` block within the active shell bundle, the request is denied. The system explicitly ignores requests for unknown windows.
 
 ### 7.2 Safe Mode
 In **Safe Mode**:

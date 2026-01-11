@@ -41,6 +41,7 @@ The Shell Bundle MUST contain the following block types. These form the immutabl
 | :--- | :--- | :--- | :--- |
 | `shell.infra.routing` | JSON-based route definitions & deep links. | **YES** | **Locked** |
 | `shell.infra.theme_tokens` | Global CSS/theme variables (colors/typo). | **YES** | **Locked** |
+| `shell.infra.window_registry` | Declares the set of valid windowKeys and window instance modes; used for fail-closed validation of openWindow actions. | **YES** | **Locked** |
 
 Required shell blocks MUST exist in the bundle AND MUST be referenced by the active `shell.manifest.json`. Missing required blocks or missing manifest references are A1 validation failures.
 
