@@ -56,10 +56,12 @@ $DeployBody = @{
 
 try {
     # --- SCENARIO 1: Flag Disabled (Default) ---
-    Write-Log "--- SCENARIO 1: Force Invalid with Flag=0 ---"
+    Write-Log "--- SCENARIO 1: Force Invalid with Flag=1 BUT ModeOverride=0 ---"
     
-    # Start Server (Flag=0 explicit)
-    $Env:FOLE_DEV_FORCE_INVALID_CONFIG = "0"
+    # Enable Force Invalid but Disable Mode Override -> Should reject via ModeGate
+    $Env:FOLE_DEV_FORCE_INVALID_CONFIG = "1"
+    $Env:FOLE_DEV_ALLOW_MODE_OVERRIDES = "0"
+
     $ProcessArgs = @("--project", "tsconfig.json", "app-repo/src/server/serverMain.ts")
     $S1 = Start-Process -FilePath $TsNodePath -ArgumentList $ProcessArgs -WorkingDirectory $RepoRoot -RedirectStandardOutput $LogFile1 -PassThru -NoNewWindow
     Write-Log "Server 1 Started (PID $($S1.Id))"
@@ -83,10 +85,12 @@ try {
     
     Kill-Server $S1.Id
     
-    # --- SCENARIO 2: Flag Enabled ---
-    Write-Log "`n--- SCENARIO 2: Force Invalid with Flag=1 ---"
+    # --- SCENARIO 2: All Flags Enabled ---
+    Write-Log "`n--- SCENARIO 2: Force Invalid with All Flags Enabled ---"
     
     $Env:FOLE_DEV_FORCE_INVALID_CONFIG = "1"
+    $Env:FOLE_DEV_ALLOW_MODE_OVERRIDES = "1"
+
     $S2 = Start-Process -FilePath $TsNodePath -ArgumentList $ProcessArgs -WorkingDirectory $RepoRoot -RedirectStandardOutput $LogFile2 -PassThru -NoNewWindow
     Write-Log "Server 2 Started (PID $($S2.Id))"
     

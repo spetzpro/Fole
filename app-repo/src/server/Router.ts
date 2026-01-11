@@ -1,7 +1,9 @@
 import { IncomingMessage, ServerResponse } from "http";
 import { parse } from "url";
+import { randomUUID } from "crypto";
+import { RequestContext } from "./ServerContext";
 
-export type Handler = (req: IncomingMessage, res: ServerResponse, params: Record<string, string>) => void | Promise<void>;
+export type Handler = (req: IncomingMessage, res: ServerResponse, params: Record<string, string>, ctx: RequestContext) => void | Promise<void>;
 
 interface Route {
   method: string;
@@ -53,7 +55,12 @@ export class Router {
         }
         
         try {
-          await route.handler(req, res, params);
+          const ctx: RequestContext = {
+            requestId: randomUUID(),
+            remoteAddress: req.socket.remoteAddress || "",
+            req
+          };
+          await route.handler(req, res, params, ctx);
         } catch (err) {
           // eslint-disable-next-line no-console
           console.error("Handler error:", err);

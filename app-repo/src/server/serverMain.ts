@@ -5,6 +5,7 @@ import { Router } from "./Router";
 import { ShellConfigRepository } from "./ShellConfigRepository";
 import { ShellConfigValidator } from "./ShellConfigValidator";
 import { ShellConfigDeployer } from "./ShellConfigDeployer";
+import { ModeGate } from "./ModeGate";
 
 // Default to port 3000, or use env var
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
@@ -116,7 +117,7 @@ async function main() {
     }
   });
 
-  router.post("/api/config/shell/deploy", async (req, res) => {
+  router.post("/api/config/shell/deploy", async (req, res, _params, ctx) => {
     try {
       const urlParts = parse(req.url || "", true);
       const forceQuery = urlParts.query.forceInvalid === "1";
@@ -127,6 +128,22 @@ async function main() {
       }
       
       const forceInvalid = body.forceInvalid === true || forceQuery;
+
+      if (forceInvalid) {
+         const canDev = ModeGate.canUseDeveloperMode(ctx);
+         
+         if (!canDev) {
+             // Strict 403 if mode gate fails
+             return router.json(res, 403, { 
+               error: "Forbidden: Developer Mode required for force-invalid deployment.", 
+               modeDetails: {
+                  canUseDeveloperMode: false,
+                  reason: "Requires both FOLE_DEV_ALLOW_MODE_OVERRIDES=1 and FOLE_DEV_FORCE_INVALID_CONFIG=1 on localhost"
+               }
+             });
+         }
+      }
+
       const result = await deployer.deploy(body.bundle, body.message, forceInvalid);
       router.json(res, 200, result);
     } catch (err: any) {
