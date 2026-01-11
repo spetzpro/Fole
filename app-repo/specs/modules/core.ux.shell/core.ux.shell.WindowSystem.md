@@ -28,7 +28,7 @@ This specification governs:
 -   **Window Key**: The unique, explicit identifier for a window type (e.g., `tool_inspector`, `chat_panel`). Never inferred from content.
 -   **Instance ID**: A unique runtime identifier for a specific instance of a window.
     -   **Singleton**: The Instance ID is identical to the Window Key. Only one can exist "Open" at a time.
-    -   **Multi-Instance**: Generated UUID. Multiple instances of the same Window Key can exist simultaneously.
+    -   **Multi-Instance**: Generated unique string (typically a UUID). Multiple instances of the same Window Key can exist simultaneously.
 
 ## 4. State & Persistence
 
@@ -39,8 +39,8 @@ The following attributes MUST be persisted to maintain user spatial arrangement:
 | :--- | :--- | :--- |
 | `x` | number | Horizontal position relative to Viewport origin. |
 | `y` | number | Vertical position relative to Viewport origin. |
-| `width` | number | Width in pixels or percentage. |
-| `height` | number | Height in pixels or percentage. |
+| `width` | number | Width in pixels. |
+| `height` | number | Height in pixels. |
 | `minimized` | boolean | Whether the window is collapsed to its header/icon. |
 | `zOrder` | number | Stacking order index. |
 | `docked` | enum/null | Snap-state (e.g., 'left', 'right', 'maximized'). |
@@ -57,7 +57,7 @@ The following are strictly runtime-only and MUST NOT be persisted:
 Window state is scoped to the **Browser Tab** (Workspace Session).
 
 1.  **Scope**: Per browser tab. Opening the app in a new tab starts a fresh workspace session or loads a default layout.
-2.  **Storage**: State is stored in `sessionStorage` (or localized `indexedDB` keyed by Tab ID). It is **NOT** synced to the server or across devices automatically.
+2.  **Storage**: State is stored locally on the device, keyed by a per-tab Workspace Session ID (tabId). The storage backend (e.g., localStorage/indexedDB) is an implementation detail, but state MUST survive page reload for that tabId until GC. It is **NOT** synced to the server or across devices automatically.
 3.  **Tab Duplication**:
     -   When a tab is duplicated, the snapshot of the window arrangement is cloned.
     -   Subsequent mutations in either tab fork the state; they are independent sessions.
