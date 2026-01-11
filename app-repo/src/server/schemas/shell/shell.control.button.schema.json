@@ -7,6 +7,8 @@
         "tooltip": { "type": "string" },
         "variant": { "type": "string", "enum": ["primary", "secondary", "ghost", "danger"] },
         "disabled": { "type": "boolean" },
+        "visibleWhen": { "$ref": "https://fole.example/schemas/shell/expression-ast.schema.json" },
+        "enabledWhen": { "$ref": "https://fole.example/schemas/shell/expression-ast.schema.json" },
         "interactions": {
             "type": "object",
             "additionalProperties": false,
