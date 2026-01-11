@@ -16,6 +16,7 @@ This specification defines the restricted operational modes—**Advanced Mode** 
 -   **Capabilities**:
     -   Can edit non-critical block properties.
 -   **Restrictions**:
+    -   Currently has no operational effect because `ModeGate.canUseAdvancedMode(ctx)` is hardcoded to return false.
     -   **CANNOT** force invalid shell deployments.
     -   **CANNOT** modify Core UX Shell structure.
     -   **Does NOT** require a server-side flag (managed via standard RBAC/Permissions in the future).
@@ -25,7 +26,7 @@ This specification defines the restricted operational modes—**Advanced Mode** 
 
 -   **Definition**: A highly privileged state intended for system integrators and engineers to modify the Core UX Shell itself, including applying structurally invalid states for testing resilience.
 -   **Capabilities**:
-    -   **Can** invoke `POST /deploy` with `forceInvalid=true`.
+    -   **Can** invoke `POST /api/config/shell/deploy` with `forceInvalid=true`.
     -   **Can** trigger entry into **Safe Mode**.
 -   **Requirements (AND Condition)**:
     1.  **Server Flag**: The server process must be started with explicit environment variable overrides.
