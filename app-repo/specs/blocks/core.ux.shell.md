@@ -3,44 +3,79 @@
 ## Block ID
 core.ux.shell
 
-## 1. Purpose
+## 1. Overview
+The **Core UX Shell** is not a single UI component but a governed collection (Bundle) of blocks that define the application's comprehensive frame. It establishes the global layout, navigation, and theming constraints within which all other blocks (Features) reside.
 
-The `core.ux.shell` block governs the application's runtime configuration shell, deployment lifecycle, and mode management (safe mode, develop mode). It provides the system-level interface for administrators and developers to manage the application state without modifying the core codebase directly.
+Because the shell controls the primary user interface and application stability, it is subject to strict governance rules managed by the `core.ux.shell.*` modules.
 
-It is responsible for:
-- **Shell Configuration**: Managing `active.json` atomic configuration states.
-- **Deployment & Rollback**: Orchestrating safe transitions between configuration versions.
-- **Validation**: Enforcing strict schema compliance (A1/A2/B severity) for all config changes.
-- **Mode Gates**: Managing access to advanced developer tools and "Force Invalid" capabilities.
-- **Safe Mode**: Providing a fail-safe state when configuration is corrupted or invalid.
+## 2. Core UX Shell Taxonomy
 
-It is not responsible for:
-- Runtime retrieval of standard config values (handled by `core.foundation.ConfigService`).
-- User-level preferences or UI state.
-- Authentication logic.
+The Shell Bundle MUST contain the following block types. These form the immutable skeleton of the application.
 
-## 2. Scope and Non-Scope
+### 2.1 Structural Regions
 
-### In scope
-- Atomic deployment of server-side JSON configuration.
-- Validation logic for preventing invalid system states.
-- Management of `active.json`, `active.json.prev`, and `active.json.next` pointers.
-- Server-side "Safe Mode" failover logic.
-- Developer-only overrides (Force Invalid).
+| Block Type (`blockType`) | Purpose | Required? | Structural Lock |
+| :--- | :--- | :--- | :--- |
+| `shell.region.header` | Global navigation bar and identity area. | **YES** | **Locked** (Cannot delete) |
+| `shell.region.footer` | Compliance links, version info, global status. | **YES** | **Locked** (Cannot delete) |
+| `shell.rules.viewport` | Responsive breakpoints and layout constraints. | **YES** | **Locked** (Immutable in Normal) |
 
-### Out of scope
-- Application business logic configuration (e.g., feature specific settings not part of the shell).
-- Client-side routing.
+### 2.2 Core Controls
 
-## 3. Block Decomposition
+| Block Type (`blockType`) | Purpose | Required? | Structural Lock |
+| :--- | :--- | :--- | :--- |
+| `shell.control.button.help` | Global "Help" access point. | **YES** | **Locked** (Cannot delete) |
+| `shell.control.button.window_manager` | Toggles for panels/windows management. | **YES** | **Locked** (Cannot delete) |
+| `shell.control.button.main_menu` | Trigger for the primary navigation overlay. | **YES** | **Locked** (Cannot delete) |
 
-`core.ux.shell` is decomposed into the following modules:
+### 2.3 Core Overlays
 
-| Module ID | Responsibility | Status |
-|-----------|----------------|--------|
-| `core.ux.shell.ShellConfigGovernance` | Rules for what constitutes a valid configuration. | Specced |
-| `core.ux.shell.ShellConfigStorage` | Atomic file system operations for config management. | Specced |
-| `core.ux.shell.ShellConfigValidation` | Schema validation and severity classification (A1/A2/B). | Specced |
-| `core.ux.shell.ShellConfigDeployAndRollback` | Orchestration of deploy/rollback actions. | Specced |
-| `core.ux.shell.ModesAdvancedDeveloper` | Developer-specific features and overrides. | Specced |
-| `core.ux.shell.SafeMode` | Fail-safe behavioral definitions. | Specced |
+| Block Type (`blockType`) | Purpose | Required? | Structural Lock |
+| :--- | :--- | :--- | :--- |
+| `shell.overlay.main_menu` | The primary navigation menu container. | **YES** | **Locked** |
+| `shell.overlay.advanced_menu` | Access to heavy tooling/settings. | **Optional** | Floating (Defaults to Hidden) |
+
+### 2.4 Infrastructure
+
+| Block Type (`blockType`) | Purpose | Required? | Structural Lock |
+| :--- | :--- | :--- | :--- |
+| `shell.infra.routing` | JSON-based route definitions & deep links. | **YES** | **Locked** |
+| `shell.infra.theme_tokens` | Global CSS/theme variables (colors/typo). | **YES** | **Locked** |
+
+## 3. Editability & Governance Matrix
+
+The Core UX Shell enforces a strict "Tiered Editability" model to prevent users from breaking the application frame.
+
+### 3.1 Mode Definitions
+-   **Normal Mode**: Standard administrative user.
+-   **Advanced Mode**: Power user (Defined in `ModesAdvancedDeveloper`).
+-   **Developer Mode**: System engineer with `FOLE_DEV` flags enabled.
+
+### 3.2 Editability Rules
+
+| Block Category | Normal Mode | Advanced Mode | Developer Mode |
+| :--- | :--- | :--- | :--- |
+| **Header / Footer** | **Content Safe-Edit Only**<br>(e.g., Change text label, Toggle visibility of sub-items).<br>*Cannot move/delete.* | **Risk-Edit Allowed**<br>(e.g., Reorder inner items).<br>*Cannot delete block.* | **Full Access**<br>(Can force invalid state w/ warning). |
+| **Core Buttons** | **Read Only**.<br>Positioning may be fixed by theme. | **Read Only**.<br>Visibility toggling allowed if non-fatal. | **Structural Edit**.<br>Can remove/replace actions. |
+| **Routing** | **No Access**.<br>Routes are code-bound. | **Append Only**.<br>Can add alias routes. | **Full Access**.<br>Can rewrite active routes. |
+| **Theme Tokens** | **Value Edit Only**.<br>Change "Blue" to "Red". | **Value Edit Only**. | **Schema Edit**.<br>Add new tokens. |
+| **Viewport Rules** | **Read Only**. | **Read Only**. | **Full Access**. |
+
+## 4. Governance Modules
+
+The Core UX Shell is validated, stored, and deployed via a dedicated governance system described in the following Module Specifications. 
+
+All changes to the blocks listed in Section 2 must pass the **ShellConfigValidation** gates before becoming active.
+
+-   **[ShellConfigGovernance](../modules/core.ux.shell/core.ux.shell.ShellConfigGovernance.md)**:
+    -   Defines the policies for Safe Mode and Developer Mode overrides.
+-   **[ShellConfigStorage](../modules/core.ux.shell/core.ux.shell.ShellConfigStorage.md)**:
+    -   Defines how these blocks are serialized to `manifest.json` and block files in the `config/shell/` directory.
+-   **[ShellConfigValidation](../modules/core.ux.shell/core.ux.shell.ShellConfigValidation.md)**:
+    -   Defines the A1/A2/B severity rules that police the "Structural Lock" column in Section 2.
+-   **[ShellConfigDeployAndRollback](../modules/core.ux.shell/core.ux.shell.ShellConfigDeployAndRollback.md)**:
+    -   Governs the atomic API for updating these blocks.
+-   **[SafeMode](../modules/core.ux.shell/core.ux.shell.SafeMode.md)**:
+    -   The state entered if Developer Mode forces a layout that breaks the Shell Taxonomy.
+-   **[ModesAdvancedDeveloper](../modules/core.ux.shell/core.ux.shell.ModesAdvancedDeveloper.md)**:
+    -   Defines the technical implementation of the "Advanced" and "Developer" personas referenced in Section 3.
