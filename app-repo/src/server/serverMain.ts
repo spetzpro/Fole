@@ -1,5 +1,6 @@
 import http from "http";
 import * as path from "path";
+import { parse } from "url";
 import { Router } from "./Router";
 import { ShellConfigRepository } from "./ShellConfigRepository";
 
@@ -9,6 +10,8 @@ const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 async function main() {
   const router = new Router();
   const configRepo = new ShellConfigRepository(process.cwd());
+  
+  await configRepo.ensureInitialized();
 
   // Health check endpoint
   router.get("/api/health", (_req, res) => {
@@ -26,6 +29,31 @@ async function main() {
     } catch (err) {
       // eslint-disable-next-line no-console
       console.error("Error fetching active config", err);
+      router.json(res, 500, { error: "Internal Server Error" });
+    }
+  });
+
+  router.get("/api/config/shell/bundle", async (req, res) => {
+    const urlParts = parse(req.url || "", true);
+    let versionId = urlParts.query.versionId as string;
+
+    if (!versionId) {
+      const active = await configRepo.getActivePointer();
+      if (!active) {
+        return router.json(res, 404, { error: "No active configuration found" });
+      }
+      versionId = active.activeVersionId;
+    }
+
+    try {
+      const bundle = await configRepo.getBundle(versionId);
+      router.json(res, 200, bundle);
+    } catch (err: any) {
+      if (err.message.includes("not found")) {
+        return router.json(res, 404, { error: err.message });
+      }
+      // eslint-disable-next-line no-console
+      console.error("Error fetching bundle", err);
       router.json(res, 500, { error: "Internal Server Error" });
     }
   });
@@ -66,6 +94,8 @@ async function main() {
 
 // Run only when executed directly
 if (require.main === module) {
-  // eslint-disable-next-line no-floating-promises
-  main();
+  main().catch(err => {
+    console.error("Fatal error in main:", err);
+    process.exit(1);
+  });
 }

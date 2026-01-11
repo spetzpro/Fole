@@ -1,0 +1,7 @@
+{
+  "regions": {
+    "top": { "blockId": "header" },
+    "bottom": { "blockId": "footer" },
+    "main": { "blockId": "viewport" }
+  }
+}

@@ -25,5 +25,6 @@ export interface ShellBundle {
   validation: ConfigValidation;
   bundle: {
     manifest: ShellManifest;
+    blocks: Record<string, unknown>;
   };
 }

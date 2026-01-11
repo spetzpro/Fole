@@ -1,7 +1,0 @@
-{
-  "regions": {
-    "header": { "blockId": "core.ui.header", "config": { "title": "Fole App" } },
-    "main": { "blockId": "core.ui.viewport" },
-    "footer": { "blockId": "core.ui.footer" }
-  }
-}
