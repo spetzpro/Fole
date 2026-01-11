@@ -225,6 +225,62 @@
       "status": "Specced",
       "specPath": "specs/blocks/lib/lib.diagnostics.md",
       "notes": "Block specced; no implementation in src/lib/** yet."
+    },
+    {
+      "name": "core.ux.shell",
+      "kind": "Block",
+      "layer": "core",
+      "status": "Specced",
+      "specPath": "specs/blocks/core.ux.shell.md",
+      "notes": "Runtime configuration shell, deployment lifecycle, and mode management."
+    },
+    {
+      "name": "core.ux.shell.ShellConfigGovernance",
+      "kind": "Module",
+      "layer": "core",
+      "status": "Specced",
+      "specPath": "specs/modules/core.ux.shell/core.ux.shell.ShellConfigGovernance.md",
+      "notes": "Rules for what constitutes a valid configuration."
+    },
+    {
+      "name": "core.ux.shell.ShellConfigStorage",
+      "kind": "Module",
+      "layer": "core",
+      "status": "Specced",
+      "specPath": "specs/modules/core.ux.shell/core.ux.shell.ShellConfigStorage.md",
+      "notes": "Atomic file system operations for config management."
+    },
+    {
+      "name": "core.ux.shell.ShellConfigValidation",
+      "kind": "Module",
+      "layer": "core",
+      "status": "Specced",
+      "specPath": "specs/modules/core.ux.shell/core.ux.shell.ShellConfigValidation.md",
+      "notes": "Schema validation and severity classification (A1/A2/B)."
+    },
+    {
+      "name": "core.ux.shell.ShellConfigDeployAndRollback",
+      "kind": "Module",
+      "layer": "core",
+      "status": "Specced",
+      "specPath": "specs/modules/core.ux.shell/core.ux.shell.ShellConfigDeployAndRollback.md",
+      "notes": "Orchestration of deploy/rollback actions."
+    },
+    {
+      "name": "core.ux.shell.ModesAdvancedDeveloper",
+      "kind": "Module",
+      "layer": "core",
+      "status": "Specced",
+      "specPath": "specs/modules/core.ux.shell/core.ux.shell.ModesAdvancedDeveloper.md",
+      "notes": "Developer-specific features and overrides."
+    },
+    {
+      "name": "core.ux.shell.SafeMode",
+      "kind": "Module",
+      "layer": "core",
+      "status": "Specced",
+      "specPath": "specs/modules/core.ux.shell/core.ux.shell.SafeMode.md",
+      "notes": "Fail-safe behavioral definitions."
     }
   ]
 }

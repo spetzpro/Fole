@@ -18,6 +18,7 @@ It is not responsible for:
 - Fetching remote configuration at runtime.
 - Persisting user-level preferences.
 - Validating entire config graphs (this can be done at bootstrap time).
+- Governance of Shell Configuration (handled by `core.ux.shell`).
 
 ## 2. Responsibilities and Non-Responsibilities
 

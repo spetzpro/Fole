@@ -33,6 +33,13 @@ Status legend:
 | core.runtime | Module | core | Planned | Module lifetime, hooks, job scheduling, diagnostics integration. |  |
 | core.moduleStateRepository | Module | core | Planned | Versioned module-state storage with atomic writes & schemaVersion rules. |  |
 | core.accessControl | Module | core | Planned | Authentication, sessions, PermissionContext, roles→permissions mapping. |  |
+| core.ux.shell | Block | core | Specced | Runtime configuration shell, deployment lifecycle, and mode management. | specs/blocks/core.ux.shell.md |
+| core.ux.shell.ShellConfigGovernance | Module | core | Specced | Rules for what constitutes a valid configuration. | specs/modules/core.ux.shell/core.ux.shell.ShellConfigGovernance.md |
+| core.ux.shell.ShellConfigStorage | Module | core | Specced | Atomic file system operations for config management. | specs/modules/core.ux.shell/core.ux.shell.ShellConfigStorage.md |
+| core.ux.shell.ShellConfigValidation | Module | core | Specced | Schema validation and severity classification (A1/A2/B). | specs/modules/core.ux.shell/core.ux.shell.ShellConfigValidation.md |
+| core.ux.shell.ShellConfigDeployAndRollback | Module | core | Specced | Orchestration of deploy/rollback actions. | specs/modules/core.ux.shell/core.ux.shell.ShellConfigDeployAndRollback.md |
+| core.ux.shell.ModesAdvancedDeveloper | Module | core | Specced | Developer-specific features and overrides. | specs/modules/core.ux.shell/core.ux.shell.ModesAdvancedDeveloper.md |
+| core.ux.shell.SafeMode | Module | core | Specced | Fail-safe behavioral definitions. | specs/modules/core.ux.shell/core.ux.shell.SafeMode.md |
 
 
 ---
