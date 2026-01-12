@@ -8,6 +8,26 @@
         "targetBlockId": "home_feature",
         "label": "Home",
         "enabled": true
+      },
+      "secure": {
+          "targetBlockId": "secure_feature",
+          "label": "Secure",
+          "enabled": true,
+          "accessPolicy": {
+              "roles": ["admin"]
+          }
+      },
+      "expr_protected": {
+          "targetBlockId": "expr_feature",
+          "label": "Expression Protected",
+          "enabled": true,
+          "accessPolicy": {
+              "expr": {
+                  "kind": "ref",
+                  "refType": "permission",
+                  "key": "can_access_expr"
+              }
+          }
       }
     },
     "publishedLinks": {}

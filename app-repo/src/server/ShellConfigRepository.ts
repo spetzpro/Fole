@@ -58,14 +58,22 @@ export class ShellConfigRepository {
       const validation = JSON.parse(validationContent) as ConfigValidation;
       const manifest = JSON.parse(manifestContent) as ShellManifest;
 
+      const bundleDir = path.join(archivePath, "bundle");
+      const files = await fs.readdir(bundleDir);
+      
       const blocks: Record<string, BlockEnvelope> = {};
-      const blockPromises = Object.values(manifest.regions).map(async (region) => {
-        const blockId = region.blockId;
-        if (!blockId || blockId.includes("/") || blockId.includes("\\")) return;
+      const blockPromises = files.map(async (file) => {
+        if (!file.endsWith(".json") || file === "shell.manifest.json") return;
+        
+        // We assume the filename is the blockId for simplicity in loading, 
+        // though the content has the real blockId.
+        const blockId = file.replace(".json", "");
         
         try {
-          const blockContent = await fs.readFile(path.join(archivePath, "bundle", `${blockId}.json`), "utf-8");
-          blocks[blockId] = JSON.parse(blockContent) as BlockEnvelope;
+          const blockContent = await fs.readFile(path.join(bundleDir, file), "utf-8");
+          const blockData = JSON.parse(blockContent) as BlockEnvelope;
+          // Use the ID from the file content if available, else filename
+          blocks[blockData.blockId || blockId] = blockData;
         } catch (e: any) {
           // eslint-disable-next-line no-console
           console.warn(`Failed to load block ${blockId}: ${e.message}`);

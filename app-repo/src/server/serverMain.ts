@@ -7,6 +7,8 @@ import { ShellConfigValidator } from "./ShellConfigValidator";
 import { ShellConfigDeployer } from "./ShellConfigDeployer";
 import { ModeGate } from "./ModeGate";
 
+import { evaluateBoolean, ExpressionContext } from "./ExpressionEvaluator";
+
 // Default to port 3000, or use env var
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
@@ -18,6 +20,7 @@ async function main() {
   const deployer = new ShellConfigDeployer(configRepo, validator, cwd);
   
   await configRepo.ensureInitialized();
+
 
   // Health check endpoint
   router.get("/api/health", (_req, res) => {
@@ -172,6 +175,107 @@ async function main() {
       // eslint-disable-next-line no-console
       console.error("Rollback error", err);
       router.json(res, 500, { error: "Internal Server Error" });
+    }
+  });
+
+  router.get("/api/routing/resolve/:entrySlug", async (req, res, params) => {
+    let entrySlug = params.entrySlug || "";
+    entrySlug = entrySlug.trim().toLowerCase();
+
+    try {
+        const active = await configRepo.getActivePointer();
+        if (!active) {
+            return router.json(res, 404, { error: "No active configuration" });
+        }
+        
+        const bundleContainer = await configRepo.getBundle(active.activeVersionId);
+        const bundle = bundleContainer.bundle;
+
+        // Find routing block
+        let routingBlock: any = null;
+        for (const blockId of Object.keys(bundle.blocks)) {
+            if (bundle.blocks[blockId].blockType === "shell.infra.routing") {
+                routingBlock = bundle.blocks[blockId].data;
+                break;
+            }
+        }
+
+        if (!routingBlock) {
+             return router.json(res, 500, { error: "Routing block missing in bundle" });
+        }
+
+        const route = routingBlock.routes[entrySlug];
+        if (!route || route.enabled === false) {
+            return router.json(res, 404, { entrySlug, allowed: false, status: 404, reason: "Route not found or disabled" });
+        }
+
+        // Access Policy Check
+        // Construct Context
+        const authHeader = req.headers["x-dev-auth"] as string | undefined;
+        const permissions = new Set<string>();
+        const roles = new Set<string>();
+
+        if (authHeader) {
+            try {
+                // Support simple JSON: { "permissions": ["a"], "roles": ["b"] }
+                const json = JSON.parse(authHeader);
+                if (Array.isArray(json.permissions)) json.permissions.forEach((p: any) => permissions.add(String(p)));
+                if (Array.isArray(json.roles)) json.roles.forEach((r: any) => roles.add(String(r)));
+            } catch {
+                // Ignore parse errors, treat as empty
+            }
+        }
+
+        const ctx: ExpressionContext = {
+            permissions,
+            roles,
+            ui: {},
+            data: {}
+        };
+
+        const policy = route.accessPolicy || {};
+
+        // 1. Anonymous Check
+        if (policy.anonymous) {
+             return router.json(res, 200, { entrySlug, allowed: true, status: 200, targetBlockId: route.targetBlockId });
+        }
+
+        // If not anonymous, assume "authenticated" check implicitly.
+        // For dev purposes, if 'x-dev-auth' is completely missing, we treat as unauthenticated -> 401
+        // But if provided (even empty permissions), we run roles/expr checks.
+        if (!authHeader) {
+             return router.json(res, 401, { entrySlug, allowed: false, status: 401, reason: "Login required" });
+        }
+
+        // 2. Roles Check
+        if (Array.isArray(policy.roles) && policy.roles.length > 0) {
+            let roleMatch = false;
+            for (const r of policy.roles) {
+                if (roles.has(r)) {
+                    roleMatch = true;
+                    break;
+                }
+            }
+            if (!roleMatch) {
+                return router.json(res, 403, { entrySlug, allowed: false, status: 403, reason: "Role required" });
+            }
+        }
+
+        // 3. Expression Check
+        if (policy.expr) {
+            const result = evaluateBoolean(policy.expr, ctx);
+            if (!result) {
+                return router.json(res, 403, { entrySlug, allowed: false, status: 403, reason: "Expression denied" });
+            }
+        }
+
+        // Allowed
+        return router.json(res, 200, { entrySlug, allowed: true, status: 200, targetBlockId: route.targetBlockId });
+
+    } catch (err: any) {
+        // eslint-disable-next-line no-console
+        console.error("Resolve error", err);
+        router.json(res, 500, { error: "Internal Server Error" });
     }
   });
 
