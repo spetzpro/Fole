@@ -40,6 +40,13 @@ async function main() {
       const entry = await configRepo.getBundle(activeVersionId);
 
       if (entry && entry.bundle) {
+         // Initialize runtime state for blocks from bundle defaults
+         for (const [id, block] of Object.entries(entry.bundle.blocks)) {
+             if (block.blockType !== "binding" && block.data && runtimeState[id] === undefined) {
+                 runtimeState[id] = JSON.parse(JSON.stringify(block.data));
+             }
+         }
+
          // Atomic re-instantiation: new instance, tick, then swap
          const newRuntime = new BindingRuntime(entry.bundle, runtimeState);
          const primeResult = newRuntime.applyDerivedTick();

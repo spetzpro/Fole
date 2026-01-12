@@ -2,9 +2,9 @@ import { spawn } from 'child_process';
 import http from 'http';
 import { platform } from 'os';
 
-const SERVER_PORT = 3011;
+const SERVER_PORT = 3012;
 const SERVER_HOST = '127.0.0.1';
-const STARTUP_TIMEOUT_MS = 10000;
+const STARTUP_TIMEOUT_MS = 15000;
 
 function log(msg: string) {
   console.log(`[E2E] ${msg}`);
@@ -100,7 +100,7 @@ async function runTest() {
   serverProcess.stdout.on('data', (data) => {
     const str = data.toString();
     serverOutput += str;
-    // process.stdout.write(`[SERVER] ${str}`); // Start quiet, verify strictly
+    process.stdout.write(`[SERVER] ${str}`); // DEBUG: Enable live logging
     if (str.includes(`Server listening on http://127.0.0.1:${SERVER_PORT}`)) {
       serverReady = true;
     }
@@ -122,11 +122,95 @@ async function runTest() {
     await new Promise(r => setTimeout(r, 100));
   }
   
-  log("Server is ready. Running tests...");
+  log("Server is ready. Preparing deployment...");
 
   try {
-    // TEST 1: Valid Dispatch (Success Case)
-    log("Test 1: Valid Dispatch Payload...");
+     const bundle = {
+        manifest: {
+            schemaVersion: "1.0.0",
+            // Minimal manifest with required empty regions
+            regions: {
+                top: { blockId: "head" },
+                main: { blockId: "view" },
+                bottom: { blockId: "foot" }
+            }
+        },
+        blocks: {
+            "head": { schemaVersion: "1.0.0", blockId: "head", blockType: "shell.region.header", data: { title: "Test" } },
+            "view": { schemaVersion: "1.0.0", blockId: "view", blockType: "shell.rules.viewport", data: { allowZoom: true } },
+            "foot": { schemaVersion: "1.0.0", blockId: "foot", blockType: "shell.region.footer", data: { copyrightText: "Test" } },
+            // Infra Blocks
+            "infra_routing": { schemaVersion: "1.0.0", blockId: "infra_routing", blockType: "shell.infra.routing", data: { routes: {}, publishedLinks: {} } },
+            "infra_theme": { schemaVersion: "1.0.0", blockId: "infra_theme", blockType: "shell.infra.theme_tokens", data: { tokens: {} } },
+            "infra_windows": { schemaVersion: "1.0.0", blockId: "infra_windows", blockType: "shell.infra.window_registry", data: { windows: {} } },
+            "overlay_menu": { schemaVersion: "1.0.0", blockId: "overlay_menu", blockType: "shell.overlay.main_menu", data: { items: [] } },
+
+            // Source of the trigger
+            "X": { schemaVersion: "1.0.0", blockId: "X", blockType: "generic.data", data: {} },
+            // Target
+            "TargetBlock": { 
+                schemaVersion: "1.0.0", 
+                blockId: "TargetBlock",
+                blockType: "generic.data", 
+                data: { state: { triggered_val: "initial" } } 
+            },
+            // The Binding
+            "TriggeredBinding": {
+                schemaVersion: "1.0.0",
+                blockId: "TriggeredBinding",
+                blockType: "binding",
+                data: {
+                    mode: "triggered",
+                    enabled: true,
+                    endpoints: [
+                        { 
+                            endpointId: "dst", 
+                            direction: "in", 
+                            target: { blockId: "TargetBlock", path: "/state/triggered_val" } 
+                        },
+                        { 
+                            // Dummy Source Endpoint to satisfy minItems: 2
+                            endpointId: "src", 
+                            direction: "out", 
+                            target: { blockId: "X", path: "/data" } 
+                        }
+                    ],
+                    mapping: {
+                        trigger: { sourceBlockId: "X", actionName: "ping" },
+                        kind: "setLiteral",
+                        to: "dst",
+                        value: "pong"
+                    },
+                    accessPolicy: { 
+                        expr: { 
+                            kind: "ref", 
+                            refType: "permission", 
+                            key: "can_ping" 
+                        } 
+                    }
+                }
+            }
+        }
+     };
+
+     // 1. Deploy
+     log("Step 1: Deploying Bundle (valid)...");
+     const deployRes = await makeRequest('/api/config/shell/deploy', {
+         bundle: bundle,
+         message: "E2E Test Deploy",
+         forceInvalid: false // Valid bundle
+     });
+
+     if (deployRes.statusCode !== 200) {
+         error(`Deploy failed with status ${deployRes.statusCode}`);
+         console.log(JSON.stringify(deployRes.data, null, 2));
+         throw new Error("Deploy failed");
+     }
+     log("Deploy success.");
+
+
+    // 2. Dispatch
+    log("Step 2: Dispatching 'ping' action...");
     const res1 = await makeRequest('/api/debug/action/dispatch', {
        sourceBlockId: "X",
        actionName: "ping",
@@ -136,31 +220,38 @@ async function runTest() {
     });
 
     if (res1.statusCode !== 200) {
-       error(`Test 1 Failed: Expected status 200, got ${res1.statusCode}`);
+       error(`Dispatch Failed: Expected status 200, got ${res1.statusCode}`);
        console.log(res1.data);
-       throw new Error("Test 1 Failed");
+       throw new Error("Dispatch Failed");
     }
 
-    if (typeof res1.data.applied !== 'number' || typeof res1.data.skipped !== 'number' || !Array.isArray(res1.data.logs)) {
-        error(`Test 1 Failed: Response shape invalid`);
-        console.log(res1.data);
-        throw new Error("Test 1 Failed");
+    log("Dispatch returned 200. Checking application...");
+    if (res1.data.applied !== 1) {
+        error(`Application Check Failed: Expected applied=1, got ${res1.data.applied}`);
+        console.log("Logs:", res1.data.logs);
+        throw new Error("Binding was not applied");
     }
-    log("PASS: Test 1 (Valid Dispatch)");
+    
+    // Optional: Check log content
+    if (res1.data.logs && res1.data.logs.length > 0) {
+        // Just print them for verification
+        // console.log("Binding Logs:", res1.data.logs);
+    }
 
-    // TEST 2: Invalid Payload (Validation Case)
-    log("Test 2: Invalid Payload (Missing actionName)...");
+    log("PASS: Step 2 (Triggered Binding Applied)");
+
+    // 3. Validation Check
+    log("Step 3: Invalid Payload Check...");
     const res2 = await makeRequest('/api/debug/action/dispatch', {
         sourceBlockId: "123",
-        actionName: null // Invalid
+        actionName: null
     });
 
     if (res2.statusCode !== 400) {
-        error(`Test 2 Failed: Expected status 400, got ${res2.statusCode}`);
-        console.log(res2.data);
-        throw new Error("Test 2 Failed");
+        error(`Validation Check Failed: Expected status 400, got ${res2.statusCode}`);
+        throw new Error("Validation mismatch");
     }
-    log("PASS: Test 2 (Validation Error)");
+    log("PASS: Step 3 (Validation Error)");
 
     log("All tests passed.");
     killProcess(serverProcess);

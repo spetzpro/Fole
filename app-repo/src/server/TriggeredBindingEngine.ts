@@ -1,5 +1,6 @@
 import { ShellBundle } from "./ShellConfigTypes";
 import { JsonPointer } from "./JsonPointer";
+import { evaluateBoolean } from "./ExpressionEvaluator";
 
 export interface TriggerEvent {
   sourceBlockId: string;
@@ -19,13 +20,6 @@ export interface TriggeredBindingResult {
   applied: number;
   skipped: number;
   logs: string[];
-}
-
-function evaluateBoolean(expr: string, ctx: TriggerContext): boolean {
-    // MVP Access Policy: 
-    // If expr is a string, treat it as a required permission.
-    // e.g. "admin_access" -> ctx.permissions.has("admin_access")
-    return ctx.permissions.has(expr);
 }
 
 export function dispatchTriggeredBindings(
@@ -66,9 +60,15 @@ export function dispatchTriggeredBindings(
     
       // 3.1 Access Policy Gating
       if (accessPolicy && accessPolicy.expr) {
-          if (!evaluateBoolean(accessPolicy.expr, ctx)) {
+          const evalCtx = {
+              permissions: ctx.permissions,
+              roles: ctx.roles,
+              ui: ctx.ui || {},
+              data: ctx.data || {}
+          };
+          if (!evaluateBoolean(accessPolicy.expr, evalCtx)) {
               result.skipped++;
-              result.logs.push(`[${blockId}] Skipped: Access policy '${accessPolicy.expr}' failed.`);
+              result.logs.push(`[${blockId}] Skipped: Access policy '${JSON.stringify(accessPolicy.expr)}' failed.`);
               continue;
           }
       }
@@ -80,10 +80,11 @@ export function dispatchTriggeredBindings(
           continue; 
       }
 
-      const { sourceBlockId, name } = mapping.trigger;
+      const { sourceBlockId, name, actionName } = mapping.trigger;
+      const triggerName = actionName || name;
       
       // Strict match for MVP
-      if (sourceBlockId !== evt.sourceBlockId || name !== evt.name) {
+      if (sourceBlockId !== evt.sourceBlockId || triggerName !== evt.name) {
           continue; // Not a match, plain skip (don't count as "skipped" in metrics, just irrelevant)
       }
 
