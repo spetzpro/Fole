@@ -80,11 +80,10 @@ export function dispatchTriggeredBindings(
           continue; 
       }
 
-      const { sourceBlockId, name, actionName } = mapping.trigger;
-      const triggerName = actionName || name;
+      const { sourceBlockId, name } = mapping.trigger;
       
       // Strict match for MVP
-      if (sourceBlockId !== evt.sourceBlockId || triggerName !== evt.name) {
+      if (sourceBlockId !== evt.sourceBlockId || name !== evt.name) {
           continue; // Not a match, plain skip (don't count as "skipped" in metrics, just irrelevant)
       }
 

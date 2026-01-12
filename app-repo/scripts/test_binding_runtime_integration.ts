@@ -68,7 +68,13 @@ function createMockBundle(): ShellBundle["bundle"] {
                         to: "dst", 
                         value: "pong" 
                     },
-                    accessPolicy: { expr: "can_ping" }
+                    accessPolicy: { 
+                        expr: { 
+                            kind: "ref", 
+                            refType: "permission", 
+                            key: "can_ping" 
+                        } 
+                    }
                 }
             }
         }

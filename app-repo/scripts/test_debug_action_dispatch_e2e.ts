@@ -176,7 +176,7 @@ async function runTest() {
                         }
                     ],
                     mapping: {
-                        trigger: { sourceBlockId: "X", actionName: "ping" },
+                        trigger: { sourceBlockId: "X", name: "ping" },
                         kind: "setLiteral",
                         to: "dst",
                         value: "pong"

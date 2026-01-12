@@ -42,8 +42,8 @@ async function main() {
       if (entry && entry.bundle) {
          // Initialize runtime state for blocks from bundle defaults
          for (const [id, block] of Object.entries(entry.bundle.blocks)) {
-             if (block.blockType !== "binding" && block.data && runtimeState[id] === undefined) {
-                 runtimeState[id] = JSON.parse(JSON.stringify(block.data));
+             if (block.blockType !== "binding" && runtimeState[id] === undefined) {
+                 runtimeState[id] = {};
              }
          }
 
