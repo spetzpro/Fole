@@ -281,6 +281,78 @@
       "status": "Specced",
       "specPath": "specs/modules/core.ux.shell/core.ux.shell.SafeMode.md",
       "notes": "Fail-safe behavioral definitions."
+    },
+    {
+      "name": "core.ux.shell.RoutingResolution",
+      "kind": "Module",
+      "layer": "core",
+      "status": "Specced",
+      "specPath": "specs/modules/core.ux.shell/core.ux.shell.RoutingResolution.md",
+      "notes": "URL mapping strategies and resolution logic."
+    },
+    {
+      "name": "core.ux.shell.ButtonActionModel",
+      "kind": "Module",
+      "layer": "core",
+      "status": "Specced",
+      "specPath": "specs/modules/core.ux.shell/core.ux.shell.ButtonActionModel.md",
+      "notes": "Standardized interaction model for buttons and triggers."
+    },
+    {
+      "name": "core.ux.shell.WindowSystem",
+      "kind": "Module",
+      "layer": "core",
+      "status": "Specced",
+      "specPath": "specs/modules/core.ux.shell/core.ux.shell.WindowSystem.md",
+      "notes": "Window management, layout, and registry."
+    },
+    {
+      "name": "core.ux.shell.WorkspacePersistence",
+      "kind": "Module",
+      "layer": "core",
+      "status": "Specced",
+      "specPath": "specs/modules/core.ux.shell/core.ux.shell.WorkspacePersistence.md",
+      "notes": "Persistence for user-specific workspace adjustments."
+    },
+    {
+      "name": "core.ux.shell.OverlaySystem",
+      "kind": "Module",
+      "layer": "core",
+      "status": "Specced",
+      "specPath": "specs/modules/core.ux.shell/core.ux.shell.OverlaySystem.md",
+      "notes": "Management of overlays, modals, and dialogs."
+    },
+    {
+      "name": "core.ux.shell.ExpressionSystem",
+      "kind": "Module",
+      "layer": "core",
+      "status": "Specced",
+      "specPath": "specs/modules/core.ux.shell/core.ux.shell.ExpressionSystem.md",
+      "notes": "Logic evaluation engine for dynamic behaviors."
+    },
+    {
+      "name": "core.ux.shell.BindingSystem",
+      "kind": "Module",
+      "layer": "core",
+      "status": "Specced",
+      "specPath": "specs/modules/core.ux.shell/core.ux.shell.BindingSystem.md",
+      "notes": "Reactive data binding and event propagation."
+    },
+    {
+      "name": "core.ux.shell.TemplateSystem",
+      "kind": "Module",
+      "layer": "core",
+      "status": "Specced",
+      "specPath": "specs/modules/core.ux.shell/core.ux.shell.TemplateSystem.md",
+      "notes": "Workspace composition and template management."
+    },
+    {
+      "name": "core.ux.shell.SysadminUi",
+      "kind": "Module",
+      "layer": "core",
+      "status": "Specced",
+      "specPath": "specs/modules/core.ux.shell/core.ux.shell.SysadminUi.md",
+      "notes": "Administrative interface for shell configuration."
     }
   ]
 }

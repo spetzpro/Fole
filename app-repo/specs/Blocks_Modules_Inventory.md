@@ -40,6 +40,15 @@ Status legend:
 | core.ux.shell.ShellConfigDeployAndRollback | Module | core | Specced | Orchestration of deploy/rollback actions. | specs/modules/core.ux.shell/core.ux.shell.ShellConfigDeployAndRollback.md |
 | core.ux.shell.ModesAdvancedDeveloper | Module | core | Specced | Developer-specific features and overrides. | specs/modules/core.ux.shell/core.ux.shell.ModesAdvancedDeveloper.md |
 | core.ux.shell.SafeMode | Module | core | Specced | Fail-safe behavioral definitions. | specs/modules/core.ux.shell/core.ux.shell.SafeMode.md |
+| core.ux.shell.RoutingResolution | Module | core | Specced | URL mapping strategies and resolution logic. | specs/modules/core.ux.shell/core.ux.shell.RoutingResolution.md |
+| core.ux.shell.ButtonActionModel | Module | core | Specced | Standardized interaction model for buttons and triggers. | specs/modules/core.ux.shell/core.ux.shell.ButtonActionModel.md |
+| core.ux.shell.WindowSystem | Module | core | Specced | Window management, layout, and registry. | specs/modules/core.ux.shell/core.ux.shell.WindowSystem.md |
+| core.ux.shell.WorkspacePersistence | Module | core | Specced | Persistence for user-specific workspace adjustments. | specs/modules/core.ux.shell/core.ux.shell.WorkspacePersistence.md |
+| core.ux.shell.OverlaySystem | Module | core | Specced | Management of overlays, modals, and dialogs. | specs/modules/core.ux.shell/core.ux.shell.OverlaySystem.md |
+| core.ux.shell.ExpressionSystem | Module | core | Specced | Logic evaluation engine for dynamic behaviors. | specs/modules/core.ux.shell/core.ux.shell.ExpressionSystem.md |
+| core.ux.shell.BindingSystem | Module | core | Specced | Reactive data binding and event propagation. | specs/modules/core.ux.shell/core.ux.shell.BindingSystem.md |
+| core.ux.shell.TemplateSystem | Module | core | Specced | Workspace composition and template management. | specs/modules/core.ux.shell/core.ux.shell.TemplateSystem.md |
+| core.ux.shell.SysadminUi | Module | core | Specced | Administrative interface for shell configuration. | specs/modules/core.ux.shell/core.ux.shell.SysadminUi.md |
 
 
 ---
