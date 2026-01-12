@@ -6,6 +6,7 @@ import { ShellConfigRepository } from "./ShellConfigRepository";
 import { ShellConfigValidator } from "./ShellConfigValidator";
 import { ShellConfigDeployer } from "./ShellConfigDeployer";
 import { ModeGate } from "./ModeGate";
+import { BindingRuntime } from "./BindingRuntime";
 
 import { evaluateBoolean, ExpressionContext } from "./ExpressionEvaluator";
 
@@ -19,7 +20,34 @@ async function main() {
   const validator = new ShellConfigValidator(cwd);
   const deployer = new ShellConfigDeployer(configRepo, validator, cwd);
   
+  // Singleton runtime state & engine
+  const runtimeState: Record<string, any> = {};
+  let bindingRuntime: BindingRuntime | undefined;
+
   await configRepo.ensureInitialized();
+
+  // Try to initialize runtime from active bundle
+  try {
+    const active = await configRepo.getActivePointer();
+    if (active && active.activeVersionId) {
+      const activeBundle = await configRepo.getBundle(active.activeVersionId);
+      if (activeBundle) { // Ensure bundle exists
+          bindingRuntime = new BindingRuntime(activeBundle.bundle, runtimeState);
+          const primeResult = bindingRuntime.applyDerivedTick();
+          console.log(`[BindingRuntime] Boot applied=${primeResult.applied} skipped=${primeResult.skipped}`);
+          if (primeResult.logs.length > 0) {
+              primeResult.logs.forEach(l => console.log(`  [BindingLog] ${l}`));
+          }
+      } else {
+        console.log("[BindingRuntime] Active version found but bundle load failed/empty; runtime disabled.");
+      }
+    } else {
+      console.log("[BindingRuntime] No active bundle; runtime disabled.");
+    }
+  } catch (err: any) {
+    console.error("[BindingRuntime] Failed to initialize:", err.message);
+    // Fail-closed: bindingRuntime remains undefined
+  }
 
 
   // Health check endpoint
