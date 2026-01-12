@@ -85,7 +85,7 @@ The Binding System mandates transparency:
 
 ## 6. Cross-References
 
--   [core.ux.shell.ExpressionSystem](core.ux.shell.ExpressionSystem.md) - For `mapping` logic and `accessPolicy`.
+-   [core.ux.shell.ExpressionSystem](core.ux.shell.ExpressionSystem.md) - For `accessPolicy` gating (and optional conditional sub-expressions inside mapping if introduced later).
 -   [core.ux.shell.ShellConfigValidation](core.ux.shell.ShellConfigValidation.md) - Enforces A1 rules (cycles, broken links).
 -   [core.ux.shell.ButtonActionModel](core.ux.shell.ButtonActionModel.md) - Source of 'click' triggers.
 -   [core.ux.shell.SafeMode](core.ux.shell.SafeMode.md) - Bindings may be disabled globally in Safe Mode.
