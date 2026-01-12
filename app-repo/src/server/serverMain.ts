@@ -297,47 +297,6 @@ async function main() {
     }
   });
 
-  // Debug Action Dispatch Endpoint
-  router.post("/api/debug/action/dispatch", async (req, res, _params, ctx) => {
-    // 1. Strict Gating
-    if (!ModeGate.canUseDeveloperMode(ctx)) {
-       return router.json(res, 403, { error: "Forbidden: Developer Mode required" });
-    }
-
-    try {
-        const body = await router.readJsonBody(req);
-        
-        // 2. Validation
-        if (!body.sourceBlockId || typeof body.sourceBlockId !== 'string') {
-             return router.json(res, 400, { error: "Missing or invalid sourceBlockId" });
-        }
-        if (!body.actionName || typeof body.actionName !== 'string') {
-             return router.json(res, 400, { error: "Missing or invalid actionName" });
-        }
-
-        // 3. Context Construction
-        const triggerCtx: TriggerContext = {
-             permissions: new Set(Array.isArray(body.permissions) ? body.permissions : []),
-             roles: new Set(Array.isArray(body.roles) ? body.roles : [])
-        };
-
-        // 4. Dispatch using wrapper
-        const result = executeActionEvent(
-            body.sourceBlockId,
-            body.actionName,
-            body.payload,
-            triggerCtx
-        );
-
-        router.json(res, 200, result);
-
-    } catch (err: any) {
-        // eslint-disable-next-line no-console
-        console.error("Debug dispatch error", err);
-        router.json(res, 500, { error: "Internal Server Error" });
-    }
-  });
-
   router.get("/api/routing/resolve/:entrySlug", async (req, res, params) => {
     let entrySlug = params.entrySlug || "";
     entrySlug = entrySlug.trim().toLowerCase();
