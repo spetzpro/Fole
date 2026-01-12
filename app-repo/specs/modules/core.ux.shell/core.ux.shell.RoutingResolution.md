@@ -43,7 +43,17 @@ To ensure consistency and prevent ambiguity, all slugs (`entrySlug` and link `sl
 
 Behavior: Logic applies case-insensitivity and trim transformations; distinct invalid characters are rejected; collisions are disallowed; disable is supported; renaming is allowed (though old links may break).
 
-## 4. Resolution Algorithm
+## 4. Server Helper Endpoint
+
+The Server provides a helper endpoint to resolve routes efficiently without the client downloading the full Configuration Bundle.
+
+### `GET /api/routing/resolve/:entrySlug`
+- **Purpose**: Validates access and returns the Target Block ID for a given slug.
+- **Access Control**: Enforces `accessPolicy` (Roles, Permissions, and Expressions) defined in the routing block.
+- **Dev Modes**: Supports `X-Dev-Auth` header for simulation only when Developer Mode overrides are enabled.
+- **Fail-Closed**: If the route is disabled, not found, or permission is denied, it returns 404 or 403.
+
+## 5. Resolution Algorithm
 
 The resolution logic MUST follow this strict deterministic priority order. When a request `GET /:segment_1/...` arrives:
 

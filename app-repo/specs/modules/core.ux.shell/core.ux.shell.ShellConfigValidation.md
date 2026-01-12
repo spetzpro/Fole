@@ -22,8 +22,16 @@ Validation is performed in two distinct passes:
 
 ### 2.2 Referential Integrity
 -   **Logic**: Custom logic extending schema checks.
--   **Checks**: Verified that every `blockId` referenced in `manifest.regions` exists within the `blocks` map of the bundle.
+-   **Checks**: 
+    -   Verifies that every `blockId` referenced in `manifest.regions` exists within the `blocks` map.
+    -   Iterates through **all loaded blocks** (from the bundle directory enumeration) to ensure internal references are valid.
 -   **Severity**: Missing blocks are treated as fatal A1 errors.
+
+### 2.3 Uniqueness Integrity
+-   **Logic**: Enforced during Bundle Loading.
+-   **Checks**: Ensures that no two files within the `bundle/` directory resolve to the same Block ID.
+-   **Failure**: Validated as an A1 Blocking Error (Duplicate Block Definition).
+
 
 ## 3. Execution Points
 

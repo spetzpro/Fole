@@ -212,17 +212,44 @@ async function main() {
         // Access Policy Check
         // Construct Context
         const authHeader = req.headers["x-dev-auth"] as string | undefined;
-        const permissions = new Set<string>();
-        const roles = new Set<string>();
+        let permissions = new Set<string>();
+        let roles = new Set<string>();
 
         if (authHeader) {
-            try {
-                // Support simple JSON: { "permissions": ["a"], "roles": ["b"] }
-                const json = JSON.parse(authHeader);
-                if (Array.isArray(json.permissions)) json.permissions.forEach((p: any) => permissions.add(String(p)));
-                if (Array.isArray(json.roles)) json.roles.forEach((r: any) => roles.add(String(r)));
-            } catch {
-                // Ignore parse errors, treat as empty
+            // SECURITY: Only accept auth mocks in Developer Mode
+            // We construct a mock ServerContext here to check mode gate.
+            // ModeGate expects { remoteAddress, req, requestId, etc. }
+            // Since we are inside the request handler, we have req.
+            const serverCtx = {
+                req: req,
+                remoteAddress: req.socket.remoteAddress || "unknown",
+                requestId: Math.random().toString(36).substring(7)
+            };
+            
+            const canMockAuth = ModeGate.canUseDeveloperMode(serverCtx as any);
+
+            if (canMockAuth) {
+                try {
+                     // Support simple JSON: { "permissions": ["a"], "roles": ["b"] }
+                    const json = JSON.parse(authHeader);
+                    if (Array.isArray(json.permissions)) json.permissions.forEach((p: any) => permissions.add(String(p)));
+                    if (Array.isArray(json.roles)) json.roles.forEach((r: any) => roles.add(String(r)));
+                } catch {
+                    // Ignore parse errors, treat as empty
+                }
+            }
+            // If dev mode is NOT allowed, we simply ignore the header and permissions/roles remain empty.
+            // This effectively treats the request as authenticated-but-no-permissions (if we continue),
+            // OR we can nullify authHeader to force 401 below.
+            else {
+                // Determine behavior: do we block or just ignore?
+                // If we ignore, logic below sees 'authHeader' is present string.
+                // We should probably treat it as if the header wasn't there if we really want to enforce "Gate".
+                // However, "ignoring X-Dev-Auth" typically means "don't trust its content". 
+                // Checks below use 'if (!authHeader)' to trigger 401. 
+                // If we leave authHeader string but with empty roles, it acts like a logged-in user with no rights.
+                // It is safer to treat as unauthenticated if no real auth system is attached.
+                // BUT, for this dev-tool, let's treat it as "Detected auth header but locked out -> Unauthenticated".
             }
         }
 
@@ -243,8 +270,16 @@ async function main() {
         // If not anonymous, assume "authenticated" check implicitly.
         // For dev purposes, if 'x-dev-auth' is completely missing, we treat as unauthenticated -> 401
         // But if provided (even empty permissions), we run roles/expr checks.
-        if (!authHeader) {
-             return router.json(res, 401, { entrySlug, allowed: false, status: 401, reason: "Login required" });
+        
+        // Re-check auth validity after mode gating
+        const effectiveAuth = authHeader && ModeGate.canUseDeveloperMode({ 
+            req: req, 
+            remoteAddress: req.socket.remoteAddress || "unknown", 
+            requestId: "" 
+        });
+
+        if (!effectiveAuth) {
+             return router.json(res, 401, { entrySlug, allowed: false, status: 401, reason: "Login required (or Dev Auth disabled)" });
         }
 
         // 2. Roles Check

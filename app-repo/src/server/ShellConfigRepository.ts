@@ -62,26 +62,47 @@ export class ShellConfigRepository {
       const files = await fs.readdir(bundleDir);
       
       const blocks: Record<string, BlockEnvelope> = {};
-      const blockPromises = files.map(async (file) => {
-        if (!file.endsWith(".json") || file === "shell.manifest.json") return;
-        
-        // We assume the filename is the blockId for simplicity in loading, 
-        // though the content has the real blockId.
-        const blockId = file.replace(".json", "");
-        
-        try {
-          const blockContent = await fs.readFile(path.join(bundleDir, file), "utf-8");
-          const blockData = JSON.parse(blockContent) as BlockEnvelope;
-          // Use the ID from the file content if available, else filename
-          blocks[blockData.blockId || blockId] = blockData;
-        } catch (e: any) {
-          // eslint-disable-next-line no-console
-          console.warn(`Failed to load block ${blockId}: ${e.message}`);
-        }
-      });
+      
+      // We must process sequentially or lock to detect duplicates accurately,
+      // because Promise.all + assignment to object might race if we just check 'if exists'.
+      // Actually strictly single-threaded event loop means 'if (blocks[id])' is safe in the .map() callback 
+      // ONLY IF we don't await between check and set. 
+      // But we await readFile. So we should store loaded blocks in array then reduce.
+      
+      const loadedBlocks = await Promise.all(
+          files.map(async (file) => {
+             if (!file.endsWith(".json") || file === "shell.manifest.json") return null;
+             
+             const fileBlockId = file.replace(".json", "");
+             const content = await fs.readFile(path.join(bundleDir, file), "utf-8");
+             try {
+                const data = JSON.parse(content) as BlockEnvelope;
+                const finalId = data.blockId || fileBlockId;
+                return { id: finalId, data, filename: file };
+             } catch (e: any) {
+                 console.warn(`Failed to parse block file ${file}: ${e.message}`);
+                 return null;
+             }
+          })
+      );
 
-
-      await Promise.all(blockPromises);
+      for (const loaded of loadedBlocks) {
+          if (!loaded) continue;
+          
+          if (blocks[loaded.id]) {
+                const existing = blocks[loaded.id] as any;
+               throw new Error(`Duplicate blockId validation failure: '${loaded.id}' is defined in multiple files (e.g. ${existing.filename || 'unknown'} and ${loaded.filename}).`);
+          }
+          // We attach a hidden/temp property to finding the filename later if needed? 
+          // BlockEnvelope doesn't natively support it. We'll just cast or ignore.
+          // For the check above, we need to know previous filename.
+          // Let's rely on the blocks map being clean.
+          // Wait, 'blocks' stores BlockEnvelope. 
+          // To track filename, we might need a separate map or extend the object.
+          // Let's extend the object in memory (it won't hurt JSON serialization usually).
+          (loaded.data as any).filename = loaded.filename; 
+          blocks[loaded.id] = loaded.data;
+      }
 
       return {
         versionId,

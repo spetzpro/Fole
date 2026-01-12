@@ -49,6 +49,14 @@ config/shell/
             └── ...
 ```
 
+### 2.3 Bundle Loading Logic
+At runtime, the storage engine loads a bundle by enumerating **all** `.json` files in the `bundle/` directory (excluding `shell.manifest.json` which is loaded separately for region wiring).
+
+- **Block ID Discovery**: The system derives the Block ID first from the file content (`blockId` property). If not present, it falls back to the filename (excluding extension).
+- **Duplicate Prevention**: If two files resolve to the same Block ID, the system **MUST** fail the load operation with a validation error. Duplicate definitions are not permitted.
+- **Manifest vs. Files**: The `shell.manifest.json` defines "Regions" (wires a block ID to a UI slot). It does NOT need to list all available blocks. Any block in the `bundle/` folder is available for routing or internal referencing, even if not placed in a region.
+
+
 ## 3. Initialization Rules
 
 The initialization process ("Boot") protects the server from starting in an undefined state.

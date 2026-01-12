@@ -41,7 +41,13 @@ async function startServer(): Promise<ChildProcess> {
     // Use ts-node to run server
     const serverProc = spawn("npx.cmd", ["ts-node", SERVER_SCRIPT], {
         cwd: process.cwd(),
-        env: { ...process.env, PORT: String(SERVER_PORT) },
+        env: { 
+            ...process.env, 
+            PORT: String(SERVER_PORT),
+            // ENABLE DEV MODE FOR TESTS
+            FOLE_DEV_ALLOW_MODE_OVERRIDES: "1",
+            FOLE_DEV_FORCE_INVALID_CONFIG: "1" // This combo allows dev mode according to ModeGate logic
+        },
         stdio: "inherit",
         shell: true
     });
