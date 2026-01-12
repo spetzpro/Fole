@@ -29,7 +29,7 @@ export class BindingRuntime {
         const result: BindingEngineResult = { applied: 0, skipped: 0, logs: [] };
 
         try {
-            // result.logs.push("[BindingRuntime] Starting derived tick."); // Keeping logs concise as requested, but "at least one log entry per call start/end"
+            result.logs.push("[BindingRuntime] Starting derived tick.");
             const engineResult = applyDerivedBindings(this.bundle, this.runtimeState);
             
             result.applied = engineResult.applied;
@@ -38,7 +38,8 @@ export class BindingRuntime {
             result.logs.push(`[BindingRuntime] Derived tick complete. Applied: ${result.applied}, Skipped: ${result.skipped}`);
         } catch (e: any) {
             // Fail-closed on unexpected error, though engines shouldn't throw.
-            result.logs.push(`[BindingRuntime] Critical Error in applyDerivedTick: ${e.message}`);
+            result.skipped = 1;
+            result.logs.push(`A1: [BindingRuntime] Critical Error in applyDerivedTick: ${e.message}`);
         } finally {
             this.lock = false;
         }
@@ -63,7 +64,7 @@ export class BindingRuntime {
         const result: TriggeredBindingResult = { applied: 0, skipped: 0, logs: [] };
 
         try {
-            // result.logs.push(`[BindingRuntime] Dispatching event '${evt.name}' from '${evt.sourceBlockId}'.`);
+            result.logs.push(`[BindingRuntime] Dispatching event '${evt.name}' from '${evt.sourceBlockId}'.`);
             const engineResult = dispatchTriggeredBindings(this.bundle, this.runtimeState, evt, ctx);
 
             result.applied = engineResult.applied;
@@ -72,7 +73,8 @@ export class BindingRuntime {
             result.logs.push(`[BindingRuntime] Dispatch complete. Applied: ${result.applied}, Skipped: ${result.skipped}`);
         } catch (e: any) {
             // Fail-closed on unexpected error
-            result.logs.push(`[BindingRuntime] Critical Error in dispatchEvent: ${e.message}`);
+            result.skipped = 1;
+            result.logs.push(`A1: [BindingRuntime] Critical Error in dispatchEvent: ${e.message}`);
         } finally {
             this.lock = false;
         }
