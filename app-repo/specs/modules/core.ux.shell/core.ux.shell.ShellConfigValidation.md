@@ -32,6 +32,17 @@ Validation is performed in two distinct passes:
 -   **Checks**: Ensures that no two files within the `bundle/` directory resolve to the same Block ID.
 -   **Failure**: Validated as an A1 Blocking Error (Duplicate Block Definition).
 
+### 2.4 Binding Graph Validation
+-   **Logic**: Specialized graph analysis for `binding` blocks.
+-   **Integrity Checks (A1)**:
+    -   **Target Existence**: `endpoint.target.blockId` must exist in the bundle (`binding_missing_target_block`).
+    -   **Path Syntax**: `endpoint.target.path` must be a valid JSON pointer (at minimum start with `/` and contain no spaces) (`binding_invalid_json_pointer`).
+-   **Cycle Detection (A1)**:
+    -   Derived bindings (`mode: "derived"`) are analyzed for dependency cycles.
+    -   Detected Source -> Target -> Source loops result in `binding_cycle_detected` errors.
+-   **Behavior**: Fail-closed. Any violation blocks deployment and runtime loading.
+
+
 
 ## 3. Execution Points
 
