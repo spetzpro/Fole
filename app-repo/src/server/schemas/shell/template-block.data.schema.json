@@ -1,0 +1,49 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["label", "enabled"],
+  "properties": {
+    "label": {
+      "type": "string",
+      "minLength": 1
+    },
+    "enabled": {
+      "type": "boolean"
+    },
+    "surfaces": {
+      "type": "array",
+      "maxItems": 100,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "tools": {
+      "type": "array",
+      "maxItems": 100,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "dataSources": {
+      "type": "array",
+      "maxItems": 100,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "windows": {
+      "type": "array",
+      "maxItems": 100,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "buttons": {
+      "type": "array",
+      "maxItems": 100,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "bindings": {
+      "type": "array",
+      "maxItems": 100,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  }
+}
