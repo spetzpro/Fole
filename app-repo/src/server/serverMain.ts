@@ -211,7 +211,6 @@ async function main() {
       if (forceInvalid) {
          const canDev = ModeGate.canUseDeveloperMode(ctx);
          
-      await reloadBindingRuntime();
          if (!canDev) {
              // Strict 403 if mode gate fails
              return router.json(res, 403, { 
@@ -225,6 +224,7 @@ async function main() {
       }
 
       const result = await deployer.deploy(body.bundle, body.message, forceInvalid);
+      await reloadBindingRuntime();
       router.json(res, 200, result);
     } catch (err: any) {
       if (err.status) {
@@ -243,8 +243,8 @@ async function main() {
         return router.json(res, 400, { error: "Missing versionId" });
       }
 
-      await reloadBindingRuntime();
       const result = await deployer.rollback(body.versionId);
+      await reloadBindingRuntime();
       router.json(res, 200, result);
     } catch (err: any) {
        if (err.status) {
