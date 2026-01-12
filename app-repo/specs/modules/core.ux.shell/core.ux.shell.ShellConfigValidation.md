@@ -42,6 +42,25 @@ Validation is performed in two distinct passes:
     -   Detected Source -> Target -> Source loops result in `binding_cycle_detected` errors.
 -   **Behavior**: Fail-closed. Any violation blocks deployment and runtime loading.
 
+### 2.5 Core Shell Required Blocks & Manifest Wiring (A1)
+-   **Logic**: Hardcoded validation for non-negotiable Core features.
+-   **Required Block Type Existence**: The bundle MUST contain at least one block of each of the following types:
+    -   `shell.region.header`
+    -   `shell.region.footer`
+    -   `shell.rules.viewport`
+    -   `shell.infra.routing`
+    -   `shell.infra.theme_tokens`
+    -   `shell.infra.window_registry`
+    -   `shell.overlay.main_menu`
+    -   *(Error code: `shell_missing_required_block`)*
+-   **Manifest Region Wiring**: The `manifest.regions` property MUST be configured with specific semantic block types.
+    -   `manifest.regions.top` -> `shell.region.header`
+    -   `manifest.regions.bottom` -> `shell.region.footer`
+    -   `manifest.regions.main` -> `shell.rules.viewport`
+-   **Manifest Violations (A1)**:
+    -   References to non-existent blocks in regions (`missing_block`).
+    -   References to blocks of the wrong type (`shell_manifest_wrong_block_type`).
+    -   Missing references when the required block type exists but isn't wired (`shell_manifest_missing_required_reference`).
 
 
 ## 3. Execution Points
