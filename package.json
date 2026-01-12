@@ -9,6 +9,7 @@
     "test:feature": "npx ts-node --project tsconfig.json app-repo/tests/feature/files/filesPermissions.test.ts && npx ts-node --project tsconfig.json app-repo/tests/feature/comments/commentsPermissions.test.ts",
     "test:all": "npm run test:core && npm run test:feature",
     "test:binding-runtime": "npx ts-node --project tsconfig.json app-repo/scripts/test_binding_runtime_integration.ts",
+    "test:action-dispatcher": "npx ts-node --project tsconfig.json app-repo/scripts/test_action_dispatcher.ts",
     "spec:check:inventory": "node app-repo/scripts/specs/validateInventory.js",
     "spec:check:deps": "node app-repo/scripts/specs/validateDependencies.js",
     "spec:check:perf": "node app-repo/scripts/specs/validatePerformanceBudget.js",

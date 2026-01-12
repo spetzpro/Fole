@@ -8,6 +8,7 @@ import { ShellConfigDeployer } from "./ShellConfigDeployer";
 import { ModeGate } from "./ModeGate";
 import { BindingRuntime } from "./BindingRuntime";
 import { TriggerEvent, TriggerContext, TriggeredBindingResult } from "./TriggeredBindingEngine";
+import { dispatchActionEvent } from "./ActionDispatcher";
 
 import { evaluateBoolean, ExpressionContext } from "./ExpressionEvaluator";
 
@@ -68,34 +69,26 @@ async function main() {
     actionName: string,
     payload: any,
     ctx: TriggerContext
-  ): TriggeredBindingResult => {
-    if (!bindingRuntime) {
-      const msg = `A1: [Action] Dropped '${actionName}' from '${sourceBlockId}': BindingRuntime not active.`;
-      console.log(msg);
-      return { applied: 0, skipped: 1, logs: [msg] };
-    }
-
-    const event: TriggerEvent = {
+    
+    const result = dispatchActionEvent(
+        bindingRuntime,
         sourceBlockId,
-        sourcePath: "/", 
-        name: actionName,
-        payload
-    };
+        actionName,
+        payload,
+        ctx
+    );
 
-    const result = bindingRuntime.dispatchEvent(event, ctx);
-    
-    console.log(`[Action] Dispatched '${actionName}' from '${sourceBlockId}' applied=${result.applied} skipped=${result.skipped}`);
-    if (result.logs.length > 0) {
-        result.logs.forEach(l => console.log(`  [BindingLog] ${l}`));
-    }
-    
-    return result;
-  };
-
-  
-  await configRepo.ensureInitialized();
-  await reloadBindingRuntime();
-
+    // Logging wrapper
+    if (!bindingRuntime) {
+         // Echo the drop log from the result if needed, or rely on caller to inspect result.logs
+         // The original requirement says: "log the A1 drop once"
+         // dispatchActionEvent returns the log in result.logs set.
+         result.logs.forEach(l => console.log(l));
+    } else {
+         console.log(`[Action] Dispatched '${actionName}' from '${sourceBlockId}' applied=${result.applied} skipped=${result.skipped}`);
+         if (result.logs.length > 0) {
+             result.logs.forEach(l => console.log(`  [BindingLog] ${l}`));
+         }
 
   // Health check endpoint
   router.get("/api/health", (_req, res) => {
