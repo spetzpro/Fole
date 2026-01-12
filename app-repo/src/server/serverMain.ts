@@ -55,7 +55,7 @@ async function main() {
       }
     } catch (err: any) {
        // Unexpected error (I/O, parsing, etc) -> Keep last-known-good runtime
-       console.error(`[BindingRuntime] A1: Reload failed: ${err.message}. Runtime remains on previous bundle.`);
+       console.error(`A1: [BindingRuntime] Reload failed: ${err.message}. Runtime remains on previous bundle.`);
     }
   };
 
