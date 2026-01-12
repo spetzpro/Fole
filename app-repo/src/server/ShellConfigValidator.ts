@@ -31,7 +31,8 @@ export class ShellConfigValidator {
         "expression-ast.schema.json",
         "shell.control.button.schema.json",
         "shell.overlay.main_menu.data.schema.json",
-        "shell.overlay.advanced_menu.data.schema.json"
+        "shell.overlay.advanced_menu.data.schema.json",
+        "binding-block.data.schema.json"
       ];
 
       for (const schemaName of coreSchemas) {
@@ -61,6 +62,7 @@ export class ShellConfigValidator {
 
       if (exactMap[blockType]) return exactMap[blockType];
       if (blockType.startsWith("shell.control.button")) return "shell.control.button.schema.json";
+      if (blockType === "binding") return "binding-block.data.schema.json";
       
       return null;
   }
