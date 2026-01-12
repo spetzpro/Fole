@@ -7,6 +7,7 @@ import { ShellConfigValidator } from "./ShellConfigValidator";
 import { ShellConfigDeployer } from "./ShellConfigDeployer";
 import { ModeGate } from "./ModeGate";
 import { BindingRuntime } from "./BindingRuntime";
+import { TriggerEvent, TriggerContext, TriggeredBindingResult } from "./TriggeredBindingEngine";
 
 import { evaluateBoolean, ExpressionContext } from "./ExpressionEvaluator";
 
@@ -58,7 +59,40 @@ async function main() {
        console.error(`A1: [BindingRuntime] Reload failed: ${err.message}. Runtime remains on previous bundle.`);
     }
   };
+/**
+   * Internal helper to dispatch user actions to the binding runtime.
+   * Not yet exposed via HTTP.
+   */
+  const executeActionEvent = (
+    sourceBlockId: string,
+    actionName: string,
+    payload: any,
+    ctx: TriggerContext
+  ): TriggeredBindingResult => {
+    if (!bindingRuntime) {
+      const msg = `A1: [Action] Dropped '${actionName}' from '${sourceBlockId}': BindingRuntime not active.`;
+      console.log(msg);
+      return { applied: 0, skipped: 1, logs: [msg] };
+    }
 
+    const event: TriggerEvent = {
+        sourceBlockId,
+        sourcePath: "/", 
+        name: actionName,
+        payload
+    };
+
+    const result = bindingRuntime.dispatchEvent(event, ctx);
+    
+    console.log(`[Action] Dispatched '${actionName}' from '${sourceBlockId}' applied=${result.applied} skipped=${result.skipped}`);
+    if (result.logs.length > 0) {
+        result.logs.forEach(l => console.log(`  [BindingLog] ${l}`));
+    }
+    
+    return result;
+  };
+
+  
   await configRepo.ensureInitialized();
   await reloadBindingRuntime();
 
