@@ -83,7 +83,7 @@ async function main() {
          // Echo the drop log from the result if needed, or rely on caller to inspect result.logs
          // The original requirement says: "log the A1 drop once"
          // dispatchActionEvent returns the log in result.logs set.
-         result.logs.forEach(l => console.log(l));
+         result.logs.forEach(l => console.error(l));
     } else {
          console.log(`[Action] Dispatched '${actionName}' from '${sourceBlockId}' applied=${result.applied} skipped=${result.skipped}`);
          if (result.logs.length > 0) {
