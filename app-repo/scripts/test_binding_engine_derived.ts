@@ -2,6 +2,20 @@
 import { applyDerivedBindings } from "../src/server/BindingEngine";
 import { ShellBundle } from "../src/server/ShellConfigTypes";
 
+let passed = 0;
+let failed = 0;
+
+function assert(description: string, condition: boolean, details?: any) {
+    if (condition) {
+        console.log(`✅ PASS: ${description}`);
+        passed++;
+    } else {
+        console.error(`❌ FAIL: ${description}`);
+        if (details) console.error("   Details:", JSON.stringify(details, null, 2));
+        failed++;
+    }
+}
+
 function createMockBundle(): ShellBundle["bundle"] {
     return {
         manifest: {
@@ -63,18 +77,8 @@ function runTests() {
 
     const result = applyDerivedBindings(bundle, runtimeState);
 
-    // Assertions
-    if (result.applied === 1) {
-        console.log("✅ PASS: One binding applied");
-    } else {
-        console.error("❌ FAIL: Expected 1 applied, got", result.applied, "Logs:", result.logs);
-    }
-
-    if (runtimeState["BlockB"].state.mirror === 123) {
-        console.log("✅ PASS: State mirrored correctly (123)");
-    } else {
-        console.error("❌ FAIL: Expected 123, got", runtimeState["BlockB"].state.mirror);
-    }
+    assert("One binding applied", result.applied === 1, result);
+    assert("State mirrored correctly (123)", runtimeState["BlockB"].state.mirror === 123);
 
     // --- Test Case 2: Negative Case (Unknown Endpoint) ---
     // Modify binding to point to non-existent endpoint
@@ -83,15 +87,8 @@ function runTests() {
     
     const resultNeg = applyDerivedBindings(bundleNegative, runtimeState);
 
-    if (resultNeg.skipped === 1) {
-        console.log("✅ PASS: Binding skipped due to missing endpoint");
-    } else {
-        console.error("❌ FAIL: Expected 1 skipped, got", resultNeg.skipped);
-    }
-
-    if (resultNeg.logs[0] && resultNeg.logs[0].includes("Skipped")) {
-        console.log("✅ PASS: Log contained 'Skipped' reason");
-    }
+    assert("Binding skipped due to missing endpoint", resultNeg.skipped === 1, resultNeg);
+    assert("Log contained 'Skipped' reason", (resultNeg.logs[0] && resultNeg.logs[0].includes("Skipped")) || false);
 
     // --- Test Case 3: SetLiteral ---
     const bundleLiteral = createMockBundle();
@@ -110,21 +107,43 @@ function runTests() {
 
     const resultLit = applyDerivedBindings(bundleLiteral, runtimeStateLit);
     
-    if (resultLit.applied === 1) {
-         console.log("✅ PASS: setLiteral binding applied");
-    } else {
-        console.error("❌ FAIL: setLiteral not applied. Logs:", resultLit.logs);
-    }
-    
-    if (runtimeStateLit["BlockB"].state.mirror === 999) {
-        console.log("✅ PASS: State updated to literal value (999)");
-    } else {
-        console.error("❌ FAIL: Expected 999, got", runtimeStateLit["BlockB"].state.mirror);
-    }
+    assert("setLiteral binding applied", resultLit.applied === 1, resultLit);
+    assert("State updated to literal value (999)", runtimeStateLit["BlockB"].state.mirror === 999);
 
+    // --- Test Case 4: Negative Case - Direction Enforcement ---
+    const bundleDirection = createMockBundle();
+    const bData = bundleDirection.blocks["Binding1"].data as any;
+    // Set desination direction to "out" which is invalid for writing
+    bData.endpoints[1].direction = "out"; 
+    // And use setLiteral
+    bData.mapping = {
+        kind: "setLiteral",
+        to: "dst", // this endpoint is now 'out'
+        value: 777
+    };
+    
+    const runtimeStateDir: Record<string, any> = {
+        "BlockA": { state: { value: 123 } },
+        "BlockB": { state: { mirror: 0 } }
+    };
+
+    const resultDir = applyDerivedBindings(bundleDirection, runtimeStateDir);
+
+    // We expect applied = 0 because the only destination was skipped
+    assert("Binding not applied when destination direction is invalid (out)", resultDir.applied === 0, resultDir);
+    // Depending on logic, if 0 applied, it might increment skipped
+    assert("Binding count (skipped or 0 applied)", resultDir.skipped === 1 || resultDir.applied === 0);
+    assert("State NOT updated (remains 0)", runtimeStateDir["BlockB"].state.mirror === 0);
+    // Check logs for specific warning
+    const hasDirWarning = resultDir.logs.some(l => l.includes("direction invalid for writing"));
+    assert("Log contains direction warning", hasDirWarning, resultDir.logs);
 
     // Final Summary
-    console.log(`\nTests Completed: 6 Passed, 0 Failed.`); // Assuming all above passed
+    console.log(`\nTests Completed: ${passed} Passed, ${failed} Failed.`);
+    
+    if (failed > 0) {
+        process.exit(1);
+    }
 }
 
 runTests();

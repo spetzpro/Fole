@@ -64,6 +64,13 @@ export function applyDerivedBindings(
             continue;
         }
 
+        // Direction Check: Source must be 'out' or 'inout'
+        if ((fromEndpoint as any).direction !== "out" && (fromEndpoint as any).direction !== "inout") {
+            result.skipped++;
+            result.logs.push(`[${blockId}] Skipped: Source endpoint '${fromId}' direction invalid for reading.`);
+            continue;
+        }
+
         const fromTarget = fromEndpoint.target;
         if (!fromTarget || !fromTarget.blockId || !fromTarget.path) {
             result.skipped++;
@@ -81,12 +88,10 @@ export function applyDerivedBindings(
         valueToWrite = JsonPointer.getByPointer(sourceBlockState, fromTarget.path);
 
     } else if (mapping.kind === "setLiteral") {
-        if (mapping.value === undefined) {
-             // We allow null, but undefined is treated as missing value for setLiteral usually? 
-             // Or maybe we allow setting undefined. Let's assume 'value' property must exist.
-             // But if undefined is passed in JSON it is missing.
-             // We can check if property exists if we had raw object, here TS types vague.
-             // We'll proceed.
+        if (!Object.prototype.hasOwnProperty.call(mapping, "value")) {
+             result.skipped++;
+             result.logs.push(`[${blockId}] Skipped: 'setLiteral' mapping missing 'value' property.`);
+             continue;
         }
         valueToWrite = mapping.value;
     }
@@ -105,6 +110,12 @@ export function applyDerivedBindings(
         const toEndpoint = endpoints.find((e: any) => e.endpointId === toId);
         if (!toEndpoint) {
             result.logs.push(`[${blockId}] Warning: Destination endpoint '${toId}' not found. Skipping this destination.`);
+            continue;
+        }
+
+        // Direction Check: Destination must be 'in' or 'inout'
+        if ((toEndpoint as any).direction !== "in" && (toEndpoint as any).direction !== "inout") {
+            result.logs.push(`[${blockId}] Warning: Destination endpoint '${toId}' direction invalid for writing.`);
             continue;
         }
 
