@@ -33,10 +33,10 @@ export function applyDerivedBindings(
   for (const binding of bindings) {
     const { blockId, mapping, endpoints } = binding;
     
-    // Validation: Check Mapping
-    if (!mapping || !mapping.kind || mapping.kind !== "copy") {
+    // Validation: Check Mapping Kind
+    if (!mapping || !mapping.kind || (mapping.kind !== "copy" && mapping.kind !== "setLiteral")) {
       result.skipped++;
-      result.logs.push(`[${blockId}] Skipped: Unsupported or missing mapping kind. Only 'copy' is supported.`);
+      result.logs.push(`[${blockId}] Skipped: Unsupported or missing mapping kind.`);
       continue;
     }
 
@@ -46,43 +46,60 @@ export function applyDerivedBindings(
         continue;
     }
 
-    const fromId = mapping.from;
-    const toIds = Array.isArray(mapping.to) ? mapping.to : [mapping.to];
+    // Determine value to write
+    let valueToWrite: any = undefined;
 
-    // Find Source Endpoint
-    const fromEndpoint = endpoints.find((e: any) => e.endpointId === fromId);
-    if (!fromEndpoint) {
+    if (mapping.kind === "copy") {
+        const fromId = mapping.from;
+        if (!fromId) {
+             result.skipped++;
+             result.logs.push(`[${blockId}] Skipped: 'copy' mapping missing 'from' endpointId.`);
+             continue;
+        }
+
+        const fromEndpoint = endpoints.find((e: any) => e.endpointId === fromId);
+        if (!fromEndpoint) {
+            result.skipped++;
+            result.logs.push(`[${blockId}] Skipped: Source endpoint '${fromId}' not found.`);
+            continue;
+        }
+
+        const fromTarget = fromEndpoint.target;
+        if (!fromTarget || !fromTarget.blockId || !fromTarget.path) {
+            result.skipped++;
+            result.logs.push(`[${blockId}] Skipped: Source endpoint '${fromId}' has invalid target definition.`);
+            continue;
+        }
+
+        const sourceBlockState = runtimeState[fromTarget.blockId];
+        if (!sourceBlockState) {
+            result.skipped++;
+            result.logs.push(`[${blockId}] Skipped: Source block state '${fromTarget.blockId}' not found in runtime.`);
+            continue;
+        }
+
+        valueToWrite = JsonPointer.getByPointer(sourceBlockState, fromTarget.path);
+
+    } else if (mapping.kind === "setLiteral") {
+        if (mapping.value === undefined) {
+             // We allow null, but undefined is treated as missing value for setLiteral usually? 
+             // Or maybe we allow setting undefined. Let's assume 'value' property must exist.
+             // But if undefined is passed in JSON it is missing.
+             // We can check if property exists if we had raw object, here TS types vague.
+             // We'll proceed.
+        }
+        valueToWrite = mapping.value;
+    }
+
+    // Apply to Destinations (Common Logic)
+    let toIds = mapping.to;
+    if (!toIds) {
         result.skipped++;
-        result.logs.push(`[${blockId}] Skipped: Source endpoint '${fromId}' not found.`);
+        result.logs.push(`[${blockId}] Skipped: Mapping missing 'to' field.`);
         continue;
     }
+    if (!Array.isArray(toIds)) toIds = [toIds];
 
-    // Resolve Source Value
-    const fromTarget = fromEndpoint.target;
-    if (!fromTarget || !fromTarget.blockId || !fromTarget.path) {
-         result.skipped++;
-         result.logs.push(`[${blockId}] Skipped: Source endpoint '${fromId}' has invalid target definition.`);
-         continue;
-    }
-
-    const sourceBlockState = runtimeState[fromTarget.blockId];
-    if (!sourceBlockState) {
-        // Technically this might be valid if block doesn't exist yet, but for derived bindings usually implies input data is missing.
-        // We log and skip.
-        result.skipped++;
-        result.logs.push(`[${blockId}] Skipped: Source block state '${fromTarget.blockId}' not found in runtime.`);
-        continue;
-    }
-
-    const sourceValue = JsonPointer.getByPointer(sourceBlockState, fromTarget.path);
-    if (sourceValue === undefined) {
-         // Could assume undefined is the value, but for 'copy' typically implies source path is missing.
-         // We will pass undefined through, but if traversal failed it is undefined.
-         // Let's allow copying undefined/null, assuming getByPointer returns undefined for missing paths AND actual undefineds.
-         // If traversing failed, setByPointer will just set "undefined", which is fine.
-    }
-
-    // Apply to Destinations
     let anyApplied = false;
     for (const toId of toIds) {
         const toEndpoint = endpoints.find((e: any) => e.endpointId === toId);
@@ -103,14 +120,14 @@ export function applyDerivedBindings(
              continue;
         }
 
-        JsonPointer.setByPointer(destBlockState, toTarget.path, sourceValue);
+        JsonPointer.setByPointer(destBlockState, toTarget.path, valueToWrite);
         anyApplied = true;
     }
 
     if (anyApplied) {
         result.applied++;
     } else {
-        result.skipped++; // Failed to apply to any destination
+        result.skipped++;
     }
   }
 

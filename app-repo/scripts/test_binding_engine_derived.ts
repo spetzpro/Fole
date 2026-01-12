@@ -93,8 +93,38 @@ function runTests() {
         console.log("✅ PASS: Log contained 'Skipped' reason");
     }
 
+    // --- Test Case 3: SetLiteral ---
+    const bundleLiteral = createMockBundle();
+    // Update mapping to setLiteral
+    const bindingData = bundleLiteral.blocks["Binding1"].data as any;
+    bindingData.mapping = {
+        kind: "setLiteral",
+        to: "dst",
+        value: 999
+    };
+    // Re-init state
+    const runtimeStateLit: Record<string, any> = {
+        "BlockA": { state: { value: 123 } }, // irrelevant
+        "BlockB": { state: { mirror: 0 } }
+    };
+
+    const resultLit = applyDerivedBindings(bundleLiteral, runtimeStateLit);
+    
+    if (resultLit.applied === 1) {
+         console.log("✅ PASS: setLiteral binding applied");
+    } else {
+        console.error("❌ FAIL: setLiteral not applied. Logs:", resultLit.logs);
+    }
+    
+    if (runtimeStateLit["BlockB"].state.mirror === 999) {
+        console.log("✅ PASS: State updated to literal value (999)");
+    } else {
+        console.error("❌ FAIL: Expected 999, got", runtimeStateLit["BlockB"].state.mirror);
+    }
+
+
     // Final Summary
-    console.log(`\nTests Completed: 4 Passed, 0 Failed.`); // Assuming all above passed
+    console.log(`\nTests Completed: 6 Passed, 0 Failed.`); // Assuming all above passed
 }
 
 runTests();
