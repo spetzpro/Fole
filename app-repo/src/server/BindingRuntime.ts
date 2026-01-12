@@ -40,6 +40,7 @@ export class BindingRuntime {
             // Fail-closed on unexpected error, though engines shouldn't throw.
             result.skipped = 1;
             result.logs.push(`A1: [BindingRuntime] Critical Error in applyDerivedTick: ${e.message}`);
+            result.logs.push(`[BindingRuntime] Derived tick aborted.`);
         } finally {
             this.lock = false;
         }
@@ -74,6 +75,7 @@ export class BindingRuntime {
         } catch (e: any) {
             // Fail-closed on unexpected error
             result.skipped = 1;
+            result.logs.push(`[BindingRuntime] Dispatch aborted.`);
             result.logs.push(`A1: [BindingRuntime] Critical Error in dispatchEvent: ${e.message}`);
         } finally {
             this.lock = false;
