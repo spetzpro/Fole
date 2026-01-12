@@ -56,6 +56,15 @@ An `Endpoint` represents a specific path on a specific block.
 -   **Use Case**: Disabling a "Save" button when a Form's "isValid" state is false.
 -   **Constraint**: Must be acyclic.
 
+#### Implemented Mapping Kinds (MVP)
+The following mapping kinds are currently implemented and supported by the runtime engine:
+-   **Copy**: Direct value transfer. Use `direction: "out"` for source, `direction: "in"` for target.
+    -   Schema: `{ "kind": "copy", "from": "<endpointId>", "to": "<endpointId>" | ["..."] }`
+-   **SetLiteral**: Writes a constant value to one or more targets. No source endpoint read required.
+    -   Schema: `{ "kind": "setLiteral", "to": "<endpointId>" | ["..."], "value": any }` (The `value` property is required; `null` is allowed).
+
+*Note: Additional mapping kinds (e.g., toggle, append, transform) are planned but not yet implemented.*
+
 ### 3.2 Triggered Mode (`mode: "triggered"`)
 -   **Semantics**: Event-driven action. "When X happens, do Y".
 -   **Behavior**: When a **source** endpoint emits a signal (e.g., button click, storage write), the binding executes the `mapping` logic to mutate the **target**.
