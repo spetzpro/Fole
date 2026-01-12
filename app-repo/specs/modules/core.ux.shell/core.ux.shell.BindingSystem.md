@@ -88,7 +88,13 @@ Unlike derived bindings, triggered bindings are ephemeral and state-independent.
     -   **Toggle**: Boolean flip of target path.
     -   **Append**: Push to array target (e.g., logs, lists).
 3.  **Access Policy**: Verified precisely at trigger time. References `accessPolicy` on the Binding block. If validation fails (or returns false), the event is dropped silently (Fail-Closed).
-
+#### Implemented Triggered Mappings (MVP)
+The following mapping kinds are currently implemented and supported by the runtime engine:
+-   **SetLiteral**: Writes a constant value to one or more targets.
+    -   Schema: `{ "kind": "setLiteral", "to": "<endpointId>"|["..."], "value": any }`
+-   **SetFromPayload**: Writes data from the event payload to target(s).
+    -   Schema: `{ "kind": "setFromPayload", "to": "<endpointId>"|["..."], "payloadPath": "..." }` (Optional `payloadPath` extracts a specific property; otherwise entire payload is used).
+-   **Structure Constraint**: Triggered mappings MUST include a `trigger` definition: `{ "sourceBlockId": "...", "name": "..." }` matching the event source.
 #### 3.3.3 Ordering and Reentrancy
 To ensure determinism in a highly interconnected shell:
 -   **Execution Order**: If multiple Triggered Bindings listen to the exact same source Endpoint and Event, they execute in **ascending alphanumeric order** of their `blockId`.
