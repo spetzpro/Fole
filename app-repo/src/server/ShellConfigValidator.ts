@@ -322,6 +322,77 @@ export class ShellConfigValidator {
         }
     }
 
+
+    // Core Shell Required Blocks Validation
+    const requiredBlockTypes = [
+        "shell.region.header",
+        "shell.region.footer",
+        "shell.rules.viewport",
+        "shell.infra.routing",
+        "shell.infra.theme_tokens",
+        "shell.infra.window_registry",
+        "shell.overlay.main_menu"
+    ];
+
+    const blockTypeCounts: Record<string, number> = {};
+    requiredBlockTypes.forEach(t => blockTypeCounts[t] = 0);
+
+    for (const blockId of Object.keys(bundle.blocks)) {
+        const type = bundle.blocks[blockId].blockType;
+        if (blockTypeCounts.hasOwnProperty(type)) {
+            blockTypeCounts[type]++;
+        }
+    }
+
+    requiredBlockTypes.forEach(type => {
+        if (blockTypeCounts[type] === 0) {
+            errors.push({
+                severity: "A1",
+                code: "shell_missing_required_block",
+                message: `Required block type '${type}' is missing from the bundle.`,
+                path: "/blocks",
+                blockId: "global"
+            });
+        }
+    });
+
+    // Manifest Region Wiring Validation
+    const regionExpectations: Record<string, string> = {
+        "top": "shell.region.header",
+        "bottom": "shell.region.footer",
+        "main": "shell.rules.viewport"
+    };
+
+    for (const [regionKey, expectedType] of Object.entries(regionExpectations)) {
+        const regionDef = bundle.manifest.regions && bundle.manifest.regions[regionKey];
+        const blockId = regionDef ? regionDef.blockId : undefined;
+        
+        // Check if referenced block has correct type
+        if (blockId && bundle.blocks[blockId]) {
+            const actualType = bundle.blocks[blockId].blockType;
+            if (actualType !== expectedType) {
+                 errors.push({
+                    severity: "A1",
+                    code: "shell_manifest_wrong_block_type",
+                    message: `Manifest region '${regionKey}' references block '${blockId}' of type '${actualType}', expected '${expectedType}'`,
+                    path: `/manifest/regions/${regionKey}/blockId`,
+                    blockId: blockId
+                 });
+            }
+        }
+        
+        // A1: If required blockType exists but is not referenced where required
+        if (!blockId && blockTypeCounts[expectedType] > 0) {
+              errors.push({
+                severity: "A1",
+                code: "shell_manifest_missing_required_reference",
+                message: `Manifest region '${regionKey}' is not configured, but a block of type '${expectedType}' exists in the bundle.`,
+                path: `/manifest/regions/${regionKey}`,
+                blockId: "global"
+            });          
+        }
+    }
+
     // Template Reference Validation
     const templateBlocks = Object.values(bundle.blocks).filter(b => b.blockType === "template");
     for (const tpl of templateBlocks) {

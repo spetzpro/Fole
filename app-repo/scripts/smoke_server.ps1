@@ -122,21 +122,48 @@ try {
             blocks = @{
                 header = @{
                     blockId = "header"
-                    blockType = "header"
+                    blockType = "shell.region.header"
                     schemaVersion = "1.0.0"
                     data = @{ title = "Smoke Test App" }
                 }
                 viewport = @{
                     blockId = "viewport"
-                    blockType = "viewport"
+                    blockType = "shell.rules.viewport"
                     schemaVersion = "1.0.0"
-                    data = @{ zoom = 1 }
+                    data = @{ allowZoom = $true }
                 }
                 footer = @{
                     blockId = "footer"
-                    blockType = "footer"
+                    blockType = "shell.region.footer"
                     schemaVersion = "1.0.0"
-                    data = @{ copyright = "2027" }
+                    data = @{ copyrightText = "2027" }
+                }
+                routing = @{
+                    blockId = "routing"
+                    blockType = "shell.infra.routing"
+                    schemaVersion = "1.0.0"
+                    data = @{ 
+                        routes = @{}
+                        publishedLinks = @{}
+                    }
+                }
+                theme = @{
+                    blockId = "theme"
+                    blockType = "shell.infra.theme_tokens"
+                    schemaVersion = "1.0.0"
+                    data = @{ tokens = @{} }
+                }
+                registry = @{
+                    blockId = "registry"
+                    blockType = "shell.infra.window_registry"
+                    schemaVersion = "1.0.0"
+                    data = @{ windows = @{} }
+                }
+                main_menu = @{
+                    blockId = "main_menu"
+                    blockType = "shell.overlay.main_menu"
+                    schemaVersion = "1.0.0"
+                    data = @{ items = @() }
                 }
             }
         }
