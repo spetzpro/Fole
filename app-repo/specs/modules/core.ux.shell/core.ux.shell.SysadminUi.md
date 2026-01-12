@@ -35,7 +35,7 @@ A detailed view of a selected block.
 
 ### 2.3 Validation Panel
 Real-time feedback on configuration health.
--   **Report Rendering**: Displays validation results categorized by severity (A1 - Critical, A2 - Error, B - Warning).
+-   **Report Rendering**: Displays validation results categorized by severity (A1 = blocking; A2/B = non-blocking when present).
 -   **Navigation**: Clicking an error navigates directly to the offending block/field.
 
 ### 2.4 Deploy Flow
@@ -91,7 +91,7 @@ The Sysadmin UI allows hot-configuration provided it does not disrupt active use
 ## 6. Cross-References
 
 -   [core.ux.shell.ShellConfigGovernance](core.ux.shell.ShellConfigGovernance.md)
--   [core.ux.shell.DeployAndRollback](core.ux.shell.DeployAndRollback.md)
+-   [core.ux.shell.ShellConfigDeployAndRollback](core.ux.shell.ShellConfigDeployAndRollback.md)
 -   [core.ux.shell.SafeMode](core.ux.shell.SafeMode.md)
 -   [core.ux.shell.ModesAdvancedDeveloper](core.ux.shell.ModesAdvancedDeveloper.md)
 -   [core.ux.shell.BindingSystem](core.ux.shell.BindingSystem.md)
