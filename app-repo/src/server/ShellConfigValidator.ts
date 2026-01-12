@@ -322,6 +322,28 @@ export class ShellConfigValidator {
         }
     }
 
+    // Template Reference Validation
+    const templateBlocks = Object.values(bundle.blocks).filter(b => b.blockType === "template");
+    for (const tpl of templateBlocks) {
+        const fieldsToCheck = ["surfaces", "tools", "dataSources", "windows", "buttons", "bindings"];
+        for (const field of fieldsToCheck) {
+             const refs: string[] = (tpl.data as any)[field] || [];
+             if (Array.isArray(refs)) {
+                 refs.forEach((refId, index) => {
+                     if (!bundle.blocks[refId]) {
+                         errors.push({
+                            severity: "A1",
+                            code: "template_missing_reference",
+                            message: `Template '${tpl.blockId}' references missing blockId '${refId}' in field '${field}'`,
+                            path: `/blocks/${tpl.blockId}/data/${field}/${index}`,
+                            blockId: tpl.blockId
+                         });
+                     }
+                 });
+             }
+        }
+    }
+
     const errorCount = errors.filter(e => e.severity === "A1").length;
     
     if (errorCount === 0) {
