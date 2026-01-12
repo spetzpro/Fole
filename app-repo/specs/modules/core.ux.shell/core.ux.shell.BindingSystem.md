@@ -61,6 +61,43 @@ An `Endpoint` represents a specific path on a specific block.
 -   **Behavior**: When a **source** endpoint emits a signal (e.g., button click, storage write), the binding executes the `mapping` logic to mutate the **target**.
 -   **Use Case**: Opening a specific Overlay when a Header button is clicked.
 
+### 3.3 Triggered Bindings (Detailed Semantics)
+
+Triggered bindings provide the reactive glue for user interactions and system events.
+
+#### 3.3.1 Trigger Sources
+Triggers initiate the binding execution.
+-   **Micro-Interactions**: Direct user inputs such as `click`, `long-press`, `context-menu` (right click), or `drag-drop` initiation/completion on UI blocks (Buttons, Cards).
+-   **Signal Endpoints**: Explicit block paths designated as output signals (e.g., `/events/completed` on a Task Block).
+-   **System Events**: (Reserved for future use) Global lifecycle events like `app:resume` or `network:online`.
+
+#### 3.3.2 Execution Contract
+Unlike derived bindings, triggered bindings are ephemeral and state-independent.
+1.  **Discrete Execution**: The binding runs exactly once per emitted event. It does NOT maintain state or continuous synchronization between events.
+2.  **Mapping Actions**: The `mapping` definition dictates the payload transformation.
+    -   **Set**: Replace target value with constant or event payload.
+    -   **Toggle**: Boolean flip of target path.
+    -   **Append**: Push to array target (e.g., logs, lists).
+3.  **Access Policy**: Verified precisely at trigger time. References `accessPolicy` on the Binding block. If validation fails (or returns false), the event is dropped silently (Fail-Closed).
+
+#### 3.3.3 Ordering and Reentrancy
+To ensure determinism in a highly interconnected shell:
+-   **Execution Order**: If multiple Triggered Bindings listen to the exact same source Endpoint and Event, they execute in **ascending alphanumeric order** of their `blockId`.
+-   **Loop Prevention (Runaway Chains)**:
+    -   Triggered bindings are excluded from static Cycle Detection (as A->B->A over time is valid state toggling).
+    -   **Runtime Check**: The dispatcher maintains a recursion counter per original user interaction. If a chain exceeds `MAX_CASCADE_DEPTH` (default: 32), the execution chain serves a Hard Stop (Error logged, subsequent triggers dropped).
+
+#### 3.3.4 Safe Mode Behavior
+Under `Safe Mode` (see [SafeMode Spec](core.ux.shell.SafeMode.md)):
+-   Triggered bindings flagged as non-essential may be globally disabled.
+-   Diagnostic bindings (tagged in `meta`) remain active to assist recovery.
+
+#### 3.3.5 A1 Validation Rules
+While runtime behavior is dynamic, the static configuration is strictly validated (Part of `npm run spec:check`):
+1.  **Endpoint Integrity**: All source and target blocks MUST exist in the bundle.
+2.  **Path Syntax**: JSON pointers in endpoints MUST be syntactically valid (RFC 6901).
+3.  **Structure**: The `mapping` object MUST conform to the known schema (e.g., cannot be null or empty).
+
 ## 4. Governance Rules
 
 ### 4.1 Validation (Fail-Closed)
