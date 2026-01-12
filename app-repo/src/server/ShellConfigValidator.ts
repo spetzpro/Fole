@@ -183,6 +183,143 @@ export class ShellConfigValidator {
          }
     }
 
+
+    // Binding System Graph Validation
+    // Pass 1: Collect enabled bindings, check for invalid JSON pointers and missing target blocks
+    const derivedEdges: { source: string; target: string; via: string }[] = [];
+    const bindingBlockIds = Object.keys(bundle.blocks).filter(id => bundle.blocks[id].blockType === "binding");
+
+    for (const bindId of bindingBlockIds) {
+        const block = bundle.blocks[bindId];
+        const data = block.data;
+        
+        // Skip check if explicitly disabled
+        if (data.enabled === false) continue;
+        
+        // Must have endpoints array if schema pass succeeded
+        const endpoints = Array.isArray(data.endpoints) ? data.endpoints : [];
+        
+        // Step 1: Validate Endpoints integrity
+        endpoints.forEach((ep: any, index: number) => {
+             const targetBlockId = ep.target && ep.target.blockId;
+             const targetPath = ep.target && ep.target.path;
+             
+             // Check referential integrity
+             if (targetBlockId && !bundle.blocks[targetBlockId]) {
+                 errors.push({
+                     severity: "A1",
+                     code: "binding_missing_target_block",
+                     message: `Binding '${bindId}' references non-existent block '${targetBlockId}'`,
+                     path: `/blocks/${bindId}/data/endpoints/${index}/target/blockId`,
+                     blockId: bindId
+                 });
+             }
+             
+             // Check JSON Pointer syntax
+             if (targetPath) {
+                 // Basic simplistic check: Must start with / and no spaces.
+                 // Real RFC6901 allows spaces if encoded but standard raw string usually lacks them in keys.
+                 // We will be strict:
+                 if (!targetPath.startsWith("/") || targetPath.includes(" ")) {
+                     errors.push({
+                         severity: "A1",
+                         code: "binding_invalid_json_pointer",
+                         message: `Binding '${bindId}' has invalid JSON Pointer path '${targetPath}'`,
+                         path: `/blocks/${bindId}/data/endpoints/${index}/target/path`,
+                         blockId: bindId
+                     });
+                 }
+             }
+        });
+
+        // Step 2: Build Graph for Cycle Detection (Derived Bindings Only)
+        // If mode is derived, endpoints with 'in' are sources of data, 'out' are sinks.
+        // Wait, standard usage: 
+        // Derived: Target (out) is calculated FROM Source (in).
+        // So dependency edge is: Target DEPENDS ON Source.
+        // Cycle detection usually looks for Source -> Target -> Source cycles in data flow.
+        // Let's model DATA FLOW: Source(in) -> Target(out).
+        // If A(out) depends on B(in), and B(out) depends on A(in), that's a cycle.
+        
+        if (data.mode === "derived") {
+            const inputs = endpoints.filter((e: any) => e.direction === "in" || e.direction === "inout");
+            const outputs = endpoints.filter((e: any) => e.direction === "out" || e.direction === "inout");
+            
+            // For every output, it depends on every input in THIS binding.
+            // Edge: InputBlock -> OutputBlock
+            inputs.forEach((inp: any) => {
+                outputs.forEach((outp: any) => {
+                    if (inp.target?.blockId && outp.target?.blockId && inp.target.blockId !== outp.target.blockId) {
+                         derivedEdges.push({ 
+                             source: inp.target.blockId, 
+                             target: outp.target.blockId,
+                             via: bindId 
+                         });
+                    }
+                });
+            });
+        }
+    }
+
+    // Pass 2: Cycle Detection (DFS)
+    if (derivedEdges.length > 0) {
+        const adjacency: Record<string, string[]> = {};
+        derivedEdges.forEach(edge => {
+            if (!adjacency[edge.source]) adjacency[edge.source] = [];
+            adjacency[edge.source].push(edge.target);
+        });
+
+        const visited = new Set<string>();
+        const recursionStack = new Set<string>();
+        
+        // Helper specifically for cycle extraction
+        const findCycle = (node: string, path: string[]): string[] | null => {
+            visited.add(node);
+            recursionStack.add(node);
+            path.push(node);
+
+            const neighbors = adjacency[node] || [];
+            for (const neighbor of neighbors) {
+                if (!visited.has(neighbor)) {
+                    const cycle = findCycle(neighbor, path);
+                    if (cycle) return cycle;
+                } else if (recursionStack.has(neighbor)) {
+                    // Cycle detected
+                    // Add the neighbor to close the loop list
+                    path.push(neighbor);
+                    // Filter path to start from the first occurrence of neighbor
+                    const startIndex = path.indexOf(neighbor);
+                    return path.slice(startIndex);
+                }
+            }
+
+            recursionStack.delete(node);
+            path.pop();
+            return null;
+        };
+
+        const nodes = Object.keys(adjacency);
+        for (const node of nodes) {
+            if (!visited.has(node)) {
+                const cycle = findCycle(node, []);
+                if (cycle) {
+                    // Find which binding caused the last link? 
+                    // Actually, we fail all bindings involved in future, but for now just error on 'detected'.
+                    // We don't easily know which binding ID corresponds to which link in the simple string cycle array.
+                    // But we can report the cycle blocks.
+                    errors.push({
+                        severity: "A1",
+                        code: "binding_cycle_detected",
+                        message: `Derived Binding Cycle Detected: ${cycle.join(" -> ")}`,
+                        path: `/data/blocks`, // General error
+                        blockId: "global"
+                    });
+                    break; // Just report one cycle per pass to avoid noise
+                }
+            }
+        }
+    }
+
     const errorCount = errors.filter(e => e.severity === "A1").length;
     
     if (errorCount === 0) {
