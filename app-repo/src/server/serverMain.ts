@@ -24,30 +24,43 @@ async function main() {
   const runtimeState: Record<string, any> = {};
   let bindingRuntime: BindingRuntime | undefined;
 
-  await configRepo.ensureInitialized();
-
-  // Try to initialize runtime from active bundle
-  try {
-    const active = await configRepo.getActivePointer();
-    if (active && active.activeVersionId) {
-      const activeBundle = await configRepo.getBundle(active.activeVersionId);
-      if (activeBundle) { // Ensure bundle exists
-          bindingRuntime = new BindingRuntime(activeBundle.bundle, runtimeState);
-          const primeResult = bindingRuntime.applyDerivedTick();
-          console.log(`[BindingRuntime] Boot applied=${primeResult.applied} skipped=${primeResult.skipped}`);
-          if (primeResult.logs.length > 0) {
-              primeResult.logs.forEach(l => console.log(`  [BindingLog] ${l}`));
-          }
-      } else {
-        console.log("[BindingRuntime] Active version found but bundle load failed/empty; runtime disabled.");
+  const reloadBindingRuntime = async () => {
+    try {
+      const active = await configRepo.getActivePointer();
+      if (!active || !active.activeVersionId) {
+         console.log("[BindingRuntime] No active version found; disabling runtime.");
+         bindingRuntime = undefined;
+         return;
       }
-    } else {
-      console.log("[BindingRuntime] No active bundle; runtime disabled.");
+
+      const activeVersionId = active.activeVersionId;
+      // Note: We deliberately let getBundle throw if I/O fails, falling to catch -> keep old runtime
+      const entry = await configRepo.getBundle(activeVersionId);
+
+      if (entry && entry.bundle) {
+         // Atomic re-instantiation: new instance, tick, then swap
+         const newRuntime = new BindingRuntime(entry.bundle, runtimeState);
+         const primeResult = newRuntime.applyDerivedTick();
+         
+         bindingRuntime = newRuntime;
+         
+         console.log(`[BindingRuntime] Reloaded active=${activeVersionId} applied=${primeResult.applied} skipped=${primeResult.skipped}`);
+         if (primeResult.logs.length > 0) {
+             primeResult.logs.forEach(l => console.log(`  [BindingLog] ${l}`));
+         }
+      } else {
+         // Explicitly empty/missing bundle content -> Disable
+         console.log(`[BindingRuntime] Active version ${activeVersionId} found but bundle empty; disabling runtime.`);
+         bindingRuntime = undefined;
+      }
+    } catch (err: any) {
+       // Unexpected error (I/O, parsing, etc) -> Keep last-known-good runtime
+       console.error(`[BindingRuntime] A1: Reload failed: ${err.message}. Runtime remains on previous bundle.`);
     }
-  } catch (err: any) {
-    console.error("[BindingRuntime] Failed to initialize:", err.message);
-    // Fail-closed: bindingRuntime remains undefined
-  }
+  };
+
+  await configRepo.ensureInitialized();
+  await reloadBindingRuntime();
 
 
   // Health check endpoint
@@ -163,6 +176,7 @@ async function main() {
       if (forceInvalid) {
          const canDev = ModeGate.canUseDeveloperMode(ctx);
          
+      await reloadBindingRuntime();
          if (!canDev) {
              // Strict 403 if mode gate fails
              return router.json(res, 403, { 
@@ -194,6 +208,7 @@ async function main() {
         return router.json(res, 400, { error: "Missing versionId" });
       }
 
+      await reloadBindingRuntime();
       const result = await deployer.rollback(body.versionId);
       router.json(res, 200, result);
     } catch (err: any) {
