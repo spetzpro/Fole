@@ -36,7 +36,7 @@ The **Template System** is the comprehensive assembly engine for the Shell. It d
 
 ## 3. Template Structure
 
-A Template is a structured JSON Block.
+A Template is a structured JSON Block. Templates are referenceable entities in the bundle; routing configuration maps URL slugs to a Template's `blockId`. Templates do not claim URL slugs themselves.
 
 ### 3.1 JSON Model (Concept)
 ```json
@@ -46,11 +46,9 @@ A Template is a structured JSON Block.
   "data": {
     "label": "Standard GIS Editor",
     "enabled": true,
-    "entrySlug": "editor",
-    "routing": {
-       "default": true
-    },
-    // Composition Lists (References to Block IDs or Inline Definitions)
+    // Note: Selection is controlled by shell.infra.routing mapping to this blockId
+    
+    // Composition Lists (References to Block IDs)
     "surfaces": [ "surf_main_map" ],
     "tools": [ "tool_draw", "tool_select" ],
     "dataSources": [ "ds_satellite", "ds_features" ],
@@ -78,9 +76,10 @@ Templates are validated by [ShellConfigValidation](core.ux.shell.ShellConfigVali
 
 ### 5.1 Selection
 Templates are selected during the **Bootstrap Phase**:
-1.  **Direct Navigation**: URL matches `entrySlug` (e.g., `/app/editor`).
-2.  **Default Resolution**: If no slug provided, the Template marked `routing.default: true` is loaded (subject to user permissions).
-3.  **Resolution Logic**: See [RoutingResolution](core.ux.shell.RoutingResolution.md).
+1.  **RoutingResolution** selects an `entrySlug`.
+2.  `shell.infra.routing` routes `entrySlug` to a `targetBlockId` which may be a template `blockId`.
+3.  Default template selection is expressed in routing (not inside template).
+4.  **Resolution Logic**: See [RoutingResolution](core.ux.shell.RoutingResolution.md).
 
 ### 5.2 Initialization
 Upon selection:
