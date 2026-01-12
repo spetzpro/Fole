@@ -7,6 +7,7 @@ import { ShellConfigValidator } from "./ShellConfigValidator";
 import { ShellConfigDeployer } from "./ShellConfigDeployer";
 import { ModeGate } from "./ModeGate";
 import { BindingRuntime } from "./BindingRuntime";
+import { createBindingRuntimeManager } from "./BindingRuntimeManager";
 import { TriggerEvent, TriggerContext, TriggeredBindingResult } from "./TriggeredBindingEngine";
 import { dispatchActionEvent } from "./ActionDispatcher";
 
@@ -22,52 +23,10 @@ async function main() {
   const validator = new ShellConfigValidator(cwd);
   const deployer = new ShellConfigDeployer(configRepo, validator, cwd);
   
-  // Singleton runtime state & engine
-  const runtimeState: Record<string, any> = {};
-  let bindingRuntime: BindingRuntime | undefined;
+  // Singleton runtime manager
+  const runtimeManager = createBindingRuntimeManager(configRepo);
 
-  const reloadBindingRuntime = async () => {
-    try {
-      const active = await configRepo.getActivePointer();
-      if (!active || !active.activeVersionId) {
-         console.log("[BindingRuntime] No active version found; disabling runtime.");
-         bindingRuntime = undefined;
-         return;
-      }
-
-      const activeVersionId = active.activeVersionId;
-      // Note: We deliberately let getBundle throw if I/O fails, falling to catch -> keep old runtime
-      const entry = await configRepo.getBundle(activeVersionId);
-
-      if (entry && entry.bundle) {
-         // Initialize runtime state for blocks from bundle defaults
-         for (const [id, block] of Object.entries(entry.bundle.blocks)) {
-             if (block.blockType !== "binding" && runtimeState[id] === undefined) {
-                 runtimeState[id] = {};
-             }
-         }
-
-         // Atomic re-instantiation: new instance, tick, then swap
-         const newRuntime = new BindingRuntime(entry.bundle, runtimeState);
-         const primeResult = newRuntime.applyDerivedTick();
-         
-         bindingRuntime = newRuntime;
-         
-         console.log(`[BindingRuntime] Reloaded active=${activeVersionId} applied=${primeResult.applied} skipped=${primeResult.skipped}`);
-         if (primeResult.logs.length > 0) {
-             primeResult.logs.forEach(l => console.log(`  [BindingLog] ${l}`));
-         }
-      } else {
-         // Explicitly empty/missing bundle content -> Disable
-         console.log(`[BindingRuntime] Active version ${activeVersionId} found but bundle empty; disabling runtime.`);
-         bindingRuntime = undefined;
-      }
-    } catch (err: any) {
-       // Unexpected error (I/O, parsing, etc) -> Keep last-known-good runtime
-       console.error(`A1: [BindingRuntime] Reload failed: ${err.message}. Runtime remains on previous bundle.`);
-    }
-  };
-/**
+  /**
    * Internal helper to dispatch user actions to the binding runtime.
    * Not yet exposed via HTTP.
    */
@@ -78,6 +37,7 @@ async function main() {
     ctx: TriggerContext
   ): TriggeredBindingResult => {
     
+    const bindingRuntime = runtimeManager.getRuntime();
     const result = dispatchActionEvent(
         bindingRuntime,
         sourceBlockId,
@@ -103,7 +63,7 @@ async function main() {
   };
 
   await configRepo.ensureInitialized();
-  await reloadBindingRuntime();
+  await runtimeManager.reload();
 
   // Health check endpoint
   router.get("/api/health", (_req, res) => {
@@ -231,7 +191,7 @@ async function main() {
       }
 
       const result = await deployer.deploy(body.bundle, body.message, forceInvalid);
-      await reloadBindingRuntime();
+      await runtimeManager.reload();
       router.json(res, 200, result);
     } catch (err: any) {
       if (err.status) {
@@ -251,7 +211,7 @@ async function main() {
       }
 
       const result = await deployer.rollback(body.versionId);
-      await reloadBindingRuntime();
+      await runtimeManager.reload();
       router.json(res, 200, result);
     } catch (err: any) {
        if (err.status) {
