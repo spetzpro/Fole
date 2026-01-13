@@ -69,3 +69,4 @@ out/
 
 # Shell Configuration Runtime
 app-repo/config/shell/archive/
+app-repo/config/shell/active.json
