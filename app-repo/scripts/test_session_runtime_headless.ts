@@ -125,6 +125,13 @@ async function runTest() {
 
             log("Session Runtime created.");
 
+            // 3b. Test Derived Tick (Stub)
+            const tick = await session.applyDerivedTick();
+            if (tick.ok !== true || tick.didWork !== false || (tick as any).reason !== "not-implemented") {
+                throw new Error("applyDerivedTick stub failed checks");
+            }
+            log("applyDerivedTick stub verified.");
+
             // 4. Dispatch Action (Positive)
             log("Dispatching action via session...");
             const res = await session.dispatchAction({
@@ -146,6 +153,12 @@ async function runTest() {
             
             // Re-create session with prod client
             const sessionProd = await createSessionRuntime(clientProd, "ping");
+
+            // Test derived tick in prod
+            const tick2 = await sessionProd.applyDerivedTick();
+            if (tick2.ok !== true || tick2.didWork !== false || (tick2 as any).reason !== "not-implemented") {
+                throw new Error("applyDerivedTick stub failed checks in prod");
+            }
             
             // Should return 403 object (not throw) because of client-side guard in ClientRuntime.ts
             const resProd = await sessionProd.dispatchAction({

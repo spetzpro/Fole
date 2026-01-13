@@ -1,10 +1,15 @@
-import { ClientRuntime, createClientRuntime } from './ClientRuntime';
+import { ClientRuntime } from './ClientRuntime';
 import { assembleTemplateSession, TemplateSessionModel } from './TemplateRuntime';
+
+export type DerivedTickResult =
+    | { ok: true; didWork: false; reason: "not-implemented" }
+    | { ok: false; error: string };
 
 export interface SessionRuntime {
     entrySlug: string;
     model: TemplateSessionModel;
     dispatchAction(req: { sourceBlockId: string; actionName: string; payload?: any; permissions?: string[]; roles?: string[] }): Promise<any>;
+    applyDerivedTick(): Promise<DerivedTickResult>;
 }
 
 export async function createSessionRuntime(client: ClientRuntime, entrySlug: string): Promise<SessionRuntime> {
@@ -29,6 +34,10 @@ export async function createSessionRuntime(client: ClientRuntime, entrySlug: str
         model: assembled.model,
         dispatchAction: async (req) => {
             return client.dispatchDebugAction(req);
+        },
+        applyDerivedTick: async () => {
+            // Derived ticks not implemented in headless client yet.
+            return { ok: true, didWork: false, reason: "not-implemented" };
         }
     };
 }
