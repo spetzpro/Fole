@@ -36,6 +36,29 @@ export class Router {
   }
 
   async handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
+    // Dev-only CORS support
+    const origin = req.headers.origin;
+    const allowOverrides = process.env.FOLE_DEV_ALLOW_MODE_OVERRIDES === "1" || process.env.FOLE_DEV_ALLOW_MODE_OVERRIDES === "true";
+    const enableDebug = process.env.FOLE_DEV_ENABLE_DEBUG_ENDPOINTS === "1" || process.env.FOLE_DEV_ENABLE_DEBUG_ENDPOINTS === "true";
+
+    if (origin && 
+       (origin === "http://localhost:5173" || origin === "http://127.0.0.1:5173") &&
+       allowOverrides &&
+       enableDebug) {
+      
+      res.setHeader("Access-Control-Allow-Origin", origin);
+      res.setHeader("Access-Control-Allow-Credentials", "true");
+      res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
+      res.setHeader("Access-Control-Allow-Headers", "Content-Type, X-Dev-Auth");
+      res.setHeader("Vary", "Origin");
+
+      if (req.method === "OPTIONS") {
+        res.statusCode = 204;
+        res.end();
+        return;
+      }
+    }
+
     const { method, url } = req;
     if (!url) return;
     
