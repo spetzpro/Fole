@@ -163,12 +163,34 @@ async function runTest() {
                  } else {
                      throw new Error("Bindings array missing from model");
                  }
+
+                 // Check overlays
+                 if (Array.isArray(result.model.overlays)) {
+                    log(`SUCCESS: Overlays array present (length=${result.model.overlays.length})`);
+                    if (result.model.overlays.length !== 1) {
+                        throw new Error(`Expected 1 overlay, got ${result.model.overlays.length}`);
+                    }
+                    if (result.model.overlays[0].blockId === "overlay_menu") {
+                       log("SUCCESS: Overlay blockId match");
+                    } else {
+                       throw new Error(`Expected overlay blockId 'overlay_menu', got ${result.model.overlays[0].blockId}`);
+                    }
+                 } else {
+                     throw new Error("Overlays array missing from model");
+                 }
+
+                 // Check windowRegistry
+                 if (result.model.windowRegistry && result.model.windowRegistry.blockId === "infra_windows") {
+                     log("SUCCESS: Window Registry present and correct");
+                 } else {
+                     throw new Error("Window Registry missing or invalid");
+                 }
         
              } else {
                  throw new Error(`Assemble failed unexpectedly: ${result.error}`);
              }
 
-             // 6. Negative Case
+             // 6. Negative Case (Route Not Allowed)
             log("Testing Negative Case (Route Not Allowed)...");
             const badResolveResponse = { ...resolveResponse, allowed: false, status: 403 };
             const badResult = assembleTemplateSession(loadedBundle, "ping", badResolveResponse);
@@ -177,6 +199,25 @@ async function runTest() {
                 log(`SUCCESS: Got expected failure for forbidden route: ${badResult.error}`);
             } else {
                 throw new Error("Expected failure for forbidden route, but got success");
+            }
+
+            // 7. Negative Case (Missing Window Registry)
+            log("Testing Negative Case (Missing Window Registry)...");
+            // Deep clone to safely modify (JSON parse/stringify is safest here for tests)
+            const clonedBundle = JSON.parse(JSON.stringify(loadedBundle));
+            if (clonedBundle.bundle && clonedBundle.bundle.blocks) {
+                delete clonedBundle.bundle.blocks["infra_windows"];
+            }
+            
+            const noRegistryResult = assembleTemplateSession(clonedBundle, "ping", resolveResponse);
+            if (noRegistryResult.ok === false) {
+                 if (noRegistryResult.error === "Window registry missing") {
+                    log(`SUCCESS: Got expected failure for missing registry`);
+                 } else {
+                    throw new Error(`Expected 'Window registry missing', got: ${noRegistryResult.error}`);
+                 }
+            } else {
+                throw new Error("Expected failure for missing window registry, but got success");
             }
 
             log("ALL TESTS PASSED");

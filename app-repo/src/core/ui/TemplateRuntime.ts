@@ -5,6 +5,8 @@ export interface TemplateSessionModel {
     manifest: any;          // from bundle.bundle.manifest (or equivalent)
     targetBlock: any;       // the block envelope for targetBlockId
     bindings: any[];        // All binding blocks in the bundle
+    overlays: any[];        // All overlay blocks in the bundle
+    windowRegistry: any;    // shell.infra.window_registry block
 }
 
 export type TemplateRuntimeResult =
@@ -42,15 +44,29 @@ export function assembleTemplateSession(bundleContainer: any, entrySlug: string,
         };
     }
 
-    // 5. Collect Bindings
+    // 5. Collect Bindings, Overlays, and Window Registry
     const bindings: any[] = [];
+    const overlays: any[] = [];
+    let windowRegistry: any = null;
+    
     for (const [key, block] of Object.entries(blocks)) {
-        if ((block as any).blockType === "binding") {
-            bindings.push(block);
+        const b = block as any;
+        if (b.blockType === "binding") {
+            bindings.push(b);
+        } else if (b.blockType && b.blockType.startsWith("shell.overlay.")) {
+            overlays.push(b);
+        } else if (b.blockType === "shell.infra.window_registry") {
+            windowRegistry = b;
         }
     }
+
+    if (!windowRegistry) {
+        return { ok: false, error: "Window registry missing" };
+    }
+
     // Sort for determinism
     bindings.sort((a, b) => a.blockId.localeCompare(b.blockId));
+    overlays.sort((a, b) => a.blockId.localeCompare(b.blockId));
 
     // 6. Assemble and return model
     return {
@@ -60,7 +76,9 @@ export function assembleTemplateSession(bundleContainer: any, entrySlug: string,
             targetBlockId,
             manifest: actualBundle.manifest,
             targetBlock,
-            bindings
+            bindings,
+            overlays,
+            windowRegistry
         }
     };
 }
