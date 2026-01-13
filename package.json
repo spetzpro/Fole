@@ -22,7 +22,8 @@
     "dev:debug-api": "npx ts-node --project tsconfig.json app-repo/src/server/debug/debugProjectOverviewServer.ts",
     "dev:server": "npx ts-node --project tsconfig.json app-repo/src/server/serverMain.ts",
     "test:derived-tick-e2e": "npx ts-node --project tsconfig.json app-repo/scripts/test_derived_tick_e2e.ts",
-    "test:derived-evaluator": "npx ts-node --project tsconfig.json app-repo/scripts/test_derived_tick_evaluator_unit.ts"
+    "test:derived-evaluator": "npx ts-node --project tsconfig.json app-repo/scripts/test_derived_tick_evaluator_unit.ts",
+    "test:session-prod-derived": "npx ts-node --project tsconfig.json app-repo/scripts/test_session_runtime_prod_derived_local.ts"
   },
   "devDependencies": {
     "ajv": "^8.17.1",
