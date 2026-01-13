@@ -2,7 +2,7 @@ import { ClientRuntime } from './ClientRuntime';
 import { assembleTemplateSession, TemplateSessionModel } from './TemplateRuntime';
 
 export type DerivedTickResult =
-    | { ok: true; didWork: false; reason: "not-implemented" }
+    | { ok: true; didWork: boolean; result?: any; reason?: "not-implemented" }
     | { ok: false; error: string };
 
 export interface SessionRuntime {
@@ -36,8 +36,24 @@ export async function createSessionRuntime(client: ClientRuntime, entrySlug: str
             return client.dispatchDebugAction(req);
         },
         applyDerivedTick: async () => {
-            // Derived ticks not implemented in headless client yet.
-            return { ok: true, didWork: false, reason: "not-implemented" };
+            if (client.config.devMode !== true) {
+                 return { ok: true, didWork: false, reason: "not-implemented" };
+            }
+            try {
+                const r = await client.dispatchDebugDerivedTick();
+                // If the response is a 403 error object (from client guard or server), this might fail or return a structured error
+                if (r && r.status === 403) {
+                     return { ok: false, error: r.error || "Forbidden" };
+                }
+                
+                return { 
+                    ok: true, 
+                    didWork: (r && typeof r.applied === "number" ? r.applied > 0 : false), 
+                    result: r 
+                };
+            } catch (e: any) {
+                return { ok: false, error: e.message || "Failed to apply derived tick" };
+            }
         }
     };
 }

@@ -12,6 +12,7 @@ export interface ClientRuntime {
     loadActiveBundle(): Promise<any>; // fetches /api/config/shell/bundle (no versionId) and stores it
     resolveRoute(entrySlug: string, devAuth?: { permissions?: string[], roles?: string[] }): Promise<any>; // calls /api/routing/resolve/:entrySlug with optional x-dev-auth header
     dispatchDebugAction(req: { sourceBlockId: string; actionName: string; payload?: any; permissions?: string[]; roles?: string[] }): Promise<any>; // POST /api/debug/action/dispatch
+    dispatchDebugDerivedTick(): Promise<any>; // POST /api/debug/bindings/derived-tick
 }
 
 export function createClientRuntime(config: ClientRuntimeConfig): ClientRuntime {
@@ -98,11 +99,22 @@ export function createClientRuntime(config: ClientRuntimeConfig): ClientRuntime 
         return makeRequest("POST", "/api/debug/action/dispatch", req);
     };
 
+    const dispatchDebugDerivedTick = async (): Promise<any> => {
+        if (!config.devMode) {
+            return {
+                status: 403,
+                error: "Forbidden: Developer Mode required"
+            };
+        }
+        return makeRequest("POST", "/api/debug/bindings/derived-tick", {});
+    };
+
     return {
         config,
         getBundle: () => currentBundle,
         loadActiveBundle,
         resolveRoute,
-        dispatchDebugAction
+        dispatchDebugAction,
+        dispatchDebugDerivedTick
     };
 }

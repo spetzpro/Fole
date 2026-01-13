@@ -127,10 +127,12 @@ async function runTest() {
 
             // 3b. Test Derived Tick (Stub)
             const tick = await session.applyDerivedTick();
-            if (tick.ok !== true || tick.didWork !== false || (tick as any).reason !== "not-implemented") {
-                throw new Error("applyDerivedTick stub failed checks");
+            // In dev mode, this now hits the server. The server might say "skipped" or "applied:0"
+            // So we just check basic structure.
+            if (tick.ok !== true) {
+                throw new Error("applyDerivedTick failed");
             }
-            log("applyDerivedTick stub verified.");
+            log("applyDerivedTick verified (dev mode).");
 
             // 4. Dispatch Action (Positive)
             log("Dispatching action via session...");

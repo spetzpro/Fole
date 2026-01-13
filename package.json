@@ -20,7 +20,8 @@
     "spec:check:perf": "node app-repo/scripts/specs/validatePerformanceBudget.js",
     "spec:check": "npm run spec:check:inventory && npm run spec:check:deps && npm run spec:check:perf",
     "dev:debug-api": "npx ts-node --project tsconfig.json app-repo/src/server/debug/debugProjectOverviewServer.ts",
-    "dev:server": "npx ts-node --project tsconfig.json app-repo/src/server/serverMain.ts"
+    "dev:server": "npx ts-node --project tsconfig.json app-repo/src/server/serverMain.ts",
+    "test:derived-tick-e2e": "npx ts-node --project tsconfig.json app-repo/scripts/test_derived_tick_e2e.ts"
   },
   "devDependencies": {
     "ajv": "^8.17.1",

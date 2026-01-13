@@ -264,6 +264,32 @@ async function main() {
     }
   });
 
+  // Debug Derived Tick Endpoint
+  router.post("/api/debug/bindings/derived-tick", async (req, res, _params, ctx) => {
+    // 1. Strict Gating
+    if (!ModeGate.canUseDeveloperMode(ctx)) {
+       return router.json(res, 403, { error: "Forbidden: Developer Mode required" });
+    }
+
+    try {
+        const runtime = runtimeManager.getRuntime();
+        if (!runtime) {
+            return router.json(res, 200, { 
+                applied: 0, 
+                skipped: 1, 
+                logs: ["A1: [DerivedTick] BindingRuntime not active."] 
+            });
+        }
+        
+        const result = runtime.applyDerivedTick();
+        router.json(res, 200, result);
+    } catch (err: any) {
+        // eslint-disable-next-line no-console
+        console.error("Derived tick error", err);
+        router.json(res, 500, { error: "Internal Server Error" });
+    }
+  });
+
   router.get("/api/routing/resolve/:entrySlug", async (req, res, params) => {
     let entrySlug = params.entrySlug || "";
     entrySlug = entrySlug.trim().toLowerCase();
