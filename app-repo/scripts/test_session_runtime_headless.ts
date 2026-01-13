@@ -164,17 +164,19 @@ async function runTest() {
                 throw new Error("applyDerivedTick failed checks in prod (expected ok=true, didWork=false)");
             }
             
-            // Should return 403 object (not throw) because of client-side guard in ClientRuntime.ts
+            // Should return local evaluation result (not 403) because Prod SessionRuntime now evaluates locally
             const resProd = await sessionProd.dispatchAction({
                 sourceBlockId: "X",
                 actionName: "ping"
             });
             
-            if (resProd && resProd.status === 403) {
-                log("SUCCESS: Got 403 Forbidden as expected in prod mode");
+            // In this test case (prod mode call), we didn't pass permissions, 
+            // so the accessPolicy 'can_ping' should fail => skipped.
+            if (resProd && resProd.applied === 0 && resProd.skipped >= 1 && Array.isArray(resProd.logs)) {
+                log("SUCCESS: Local evaluation executed in prod mode (access denied as expected)");
             } else {
                 console.log("Unexpected response in prod dispatch:", resProd);
-                throw new Error("Expected 403 object for dispatch in prod mode");
+                throw new Error("Expected local evaluation result (applied=0, skipped>=1) for dispatch in prod mode");
             }
             
             log("ALL TESTS PASSED");

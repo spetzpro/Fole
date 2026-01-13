@@ -1,6 +1,7 @@
 import { ClientRuntime } from './ClientRuntime';
 import { assembleTemplateSession, TemplateSessionModel } from './TemplateRuntime';
 import { applyDerivedTickFromBundle } from './DerivedTickEvaluator';
+import { dispatchTriggeredEventFromBundle, TriggerContext, TriggerEvent } from './TriggeredActionEvaluator';
 
 export type DerivedTickResult =
     | { ok: true; didWork: boolean; result?: any; reason?: "not-implemented" }
@@ -46,7 +47,23 @@ export async function createSessionRuntime(client: ClientRuntime, entrySlug: str
         entrySlug,
         model: assembled.model,
         dispatchAction: async (req) => {
-            return client.dispatchDebugAction(req);
+            if (client.config.devMode === true) {
+                return client.dispatchDebugAction(req);
+            } else {
+                // Prod mode: local triggered evaluation
+                const permissions = new Set(req.permissions ?? []);
+                const roles = new Set(req.roles ?? []);
+                const ctx: TriggerContext = { permissions, roles };
+
+                const evt: TriggerEvent = {
+                    sourceBlockId: req.sourceBlockId,
+                    sourcePath: "/",
+                    name: req.actionName,
+                    payload: req.payload
+                };
+
+                return dispatchTriggeredEventFromBundle(bundleContainer.bundle, sessionRuntimeState, evt, ctx);
+            }
         },
         applyDerivedTick: async () => {
             if (client.config.devMode === true) {
