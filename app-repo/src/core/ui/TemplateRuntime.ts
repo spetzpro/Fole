@@ -6,6 +6,7 @@ export interface TemplateSessionModel {
     targetBlock: any;       // the block envelope for targetBlockId
     bindings: any[];        // All binding blocks in the bundle
     overlays: any[];        // All overlay blocks in the bundle
+    actionBlocks: any[];    // All button/action blocks
     windowRegistry: any;    // shell.infra.window_registry block
     routingInfra: any;      // shell.infra.routing block
     themeTokensInfra: any;  // shell.infra.theme_tokens block
@@ -49,6 +50,7 @@ export function assembleTemplateSession(bundleContainer: any, entrySlug: string,
 
     // 5. Collect Bindings, Overlays, and Window Registry
     const bindings: any[] = [];
+    const actionBlocks: any[] = [];
     const overlays: any[] = [];
     let windowRegistry: any = null;
     let routingInfra: any = null;
@@ -60,6 +62,8 @@ export function assembleTemplateSession(bundleContainer: any, entrySlug: string,
             bindings.push(b);
         } else if (b.blockType && b.blockType.startsWith("shell.overlay.")) {
             overlays.push(b);
+        } else if (b.blockType && b.blockType.startsWith("shell.control.button.")) {
+            actionBlocks.push(b);
         } else if (b.blockType === "shell.infra.window_registry") {
             windowRegistry = b;
         } else if (b.blockType === "shell.infra.routing") {
@@ -79,9 +83,9 @@ export function assembleTemplateSession(bundleContainer: any, entrySlug: string,
         return { ok: false, error: "Theme tokens infra missing" };
     }
 
-    // Sort for determinism
     bindings.sort((a, b) => a.blockId.localeCompare(b.blockId));
     overlays.sort((a, b) => a.blockId.localeCompare(b.blockId));
+    actionBlocks.sort((a, b) => a.blockId.localeCompare(b.blockId));
 
     // 6. Assemble and return model
     return {
@@ -93,6 +97,7 @@ export function assembleTemplateSession(bundleContainer: any, entrySlug: string,
             targetBlock,
             bindings,
             overlays,
+            actionBlocks,
             windowRegistry,
             routingInfra,
             themeTokensInfra,

@@ -24,6 +24,7 @@
     "test:derived-tick-e2e": "npx ts-node --project tsconfig.json app-repo/scripts/test_derived_tick_e2e.ts",
     "test:derived-evaluator": "npx ts-node --project tsconfig.json app-repo/scripts/test_derived_tick_evaluator_unit.ts",
     "test:session-prod-triggered": "npx ts-node --project tsconfig.json app-repo/scripts/test_session_runtime_prod_triggered_local.ts",
+    "test:action-index": "npx ts-node --project tsconfig.json app-repo/scripts/test_action_index_headless.ts",
     "test:session-prod-derived": "npx ts-node --project tsconfig.json app-repo/scripts/test_session_runtime_prod_derived_local.ts"
   },
   "devDependencies": {
