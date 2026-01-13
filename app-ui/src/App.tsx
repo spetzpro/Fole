@@ -67,10 +67,13 @@ function createWindowSystemRuntime(params: {
   const state: Record<string, WindowState> = {};
   // Scan registry (bundle blocks) for windows
   Object.values(params.registry).forEach((block: any) => {
+    const blockType = typeof block.blockType === 'string' ? block.blockType : '';
+    const blockId = typeof block.id === 'string' ? block.id : '';
+
     // Heuristic: if block type has 'window' or is implicitly a window
-    if (block.blockType?.includes('window') || block.id.includes('win')) {
-      state[block.id] = {
-        id: block.id,
+    if (blockType.includes('window') || blockId.includes('win')) {
+      state[blockId] = {
+        id: blockId,
         x: 100,
         y: 100,
         width: 400,
@@ -88,15 +91,18 @@ function buildActionIndex(bundle: BundleResponse) {
   const actions: ActionDefinition[] = [];
   const blocks = bundle.blocks || {};
   Object.values(blocks).forEach((block: any) => {
+    const blockType = typeof block.blockType === 'string' ? block.blockType : '';
+    const blockId = typeof block.id === 'string' ? block.id : '';
+    
     // Heuristic: Generate actions for buttons or clickable things
-    if (block.actions) {
+    if (Array.isArray(block.actions)) {
        block.actions.forEach((act: string) => {
-         actions.push({ id: `${block.id}:${act}`, actionName: act, sourceBlockId: block.id });
+         actions.push({ id: `${blockId}:${act}`, actionName: act, sourceBlockId: blockId });
        });
-    } else if (block.blockType?.includes('button')) {
+    } else if (blockType.includes('button')) {
        // Implicit 'click' for buttons
-       actions.push({ id: `${block.id}:click`, actionName: 'click', sourceBlockId: block.id });
-       actions.push({ id: `${block.id}:context`, actionName: 'context', sourceBlockId: block.id });
+       actions.push({ id: `${blockId}:click`, actionName: 'click', sourceBlockId: blockId });
+       actions.push({ id: `${blockId}:context`, actionName: 'context', sourceBlockId: blockId });
     }
   });
   return actions;
