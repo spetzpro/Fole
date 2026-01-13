@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import './App.css';
 
 interface PingResponse {
@@ -22,6 +22,7 @@ interface OverlayState {
 
 interface WindowState {
   id: string;
+  title: string;
   x: number;
   y: number;
   width: number;
@@ -45,80 +46,376 @@ interface RuntimePlan {
   actions: ActionDefinition[];
 }
 
-// Factory Simulation
-function createOverlayRuntime(params: { overlays: any[] }) {
-  // Initialize state for overlays found in bundle
-  const state: Record<string, OverlayState> = {};
-  params.overlays.forEach((block: any, idx: number) => {
-    state[block.id] = {
-      id: block.id,
-      isOpen: false, // default closed
-      zOrder: 100 + idx
+// --- Simulated Runtime Class (Stateful, held in Ref) ---
+class WindowSystemRuntime {
+  private windows: Map<string, WindowState> = new Map();
+  private overlays: Map<string, OverlayState> = new Map();
+  private actions: ActionDefinition[] = [];
+  private entrySlug: string = '';
+  private targetBlockId: string = '';
+  private zCounter: number = 100;
+
+  constructor() {}
+
+  public init(bundle: BundleResponse, ping: PingResponse) {
+    this.entrySlug = 'ping';
+    this.targetBlockId = ping.targetBlockId || 'unknown';
+    this.windows.clear();
+    this.overlays.clear();
+    this.actions = [];
+    this.zCounter = 100;
+
+    const blocks = bundle.blocks || {};
+
+    // 1. Scan for Windows & Overlays
+    Object.values(blocks).forEach((block: any) => {
+      const blockType = typeof block.blockType === 'string' ? block.blockType : '';
+      const blockId = typeof block.id === 'string' ? block.id : '';
+      const title = block.title || block.name || blockId;
+
+      if (!blockId) return;
+
+      if (blockType.includes('overlay')) {
+        this.overlays.set(blockId, {
+          id: blockId,
+          isOpen: false,
+          zOrder: 2000 // Overlays sit above windows
+        });
+      } else if (blockType.includes('window') || blockId.includes('win') || blockType.includes('panel')) {
+         // Default Window Layout
+         this.windows.set(blockId, {
+            id: blockId,
+            title,
+            x: 50 + (this.windows.size * 30),
+            y: 50 + (this.windows.size * 30),
+            width: 400,
+            height: 300,
+            isMinimized: false,
+            dockMode: 'none',
+            zOrder: this.zCounter++
+         });
+      }
+    });
+
+    // 2. Build Actions
+    const actionIdx: ActionDefinition[] = [];
+    Object.values(blocks).forEach((block: any) => {
+       const blockType = typeof block.blockType === 'string' ? block.blockType : '';
+       const blockId = typeof block.id === 'string' ? block.id : '';
+       if (!blockId) return;
+
+       if (Array.isArray(block.actions)) {
+          block.actions.forEach((act: string) => {
+             actionIdx.push({ id: `${blockId}:${act}`, actionName: act, sourceBlockId: blockId });
+          });
+       } else if (blockType.includes('button')) {
+          actionIdx.push({ id: `${blockId}:click`, actionName: 'click', sourceBlockId: blockId });
+       }
+    });
+    this.actions = actionIdx;
+  }
+
+  // --- Window Operations ---
+  public focusWindow(id: string) {
+    const w = this.windows.get(id);
+    if (!w) return;
+    w.zOrder = ++this.zCounter;
+    this.windows.set(id, { ...w });
+  }
+
+  public moveWindow(id: string, x: number, y: number) {
+    const w = this.windows.get(id);
+    if (!w) return;
+    // Clamping logic (0,0 to 900,600 approx)
+    const maxX = 900 - 50; // Allow partial offscreen
+    const maxY = 600 - 30; // Capture title bar
+    this.windows.set(id, {
+        ...w,
+        x: Math.max(0, Math.min(x, maxX)),
+        y: Math.max(0, Math.min(y, maxY)),
+        dockMode: 'none' // moving undocks
+    });
+  }
+
+  public resizeWindow(id: string, width: number, height: number) {
+    const w = this.windows.get(id);
+    if (!w) return;
+    this.windows.set(id, { 
+        ...w, 
+        width: Math.max(100, width), 
+        height: Math.max(80, height),
+        dockMode: 'none'
+    });
+  }
+
+  public closeWindow(id: string) {
+      // For this demo, we just remove it to simulate closing
+      this.windows.delete(id);
+  }
+
+  public setMinimized(id: string, min: boolean) {
+    const w = this.windows.get(id);
+    if (!w) return;
+    this.windows.set(id, { ...w, isMinimized: min });
+  }
+
+  public dockWindow(id: string, mode: WindowState['dockMode']) {
+     const w = this.windows.get(id);
+     if (!w) return;
+     
+     const newState = { ...w, dockMode: mode, isMinimized: false };
+     
+     // Simple Dock Logic (Viewport 900x600)
+     if (mode === 'left') {
+         newState.x = 0; newState.y = 0; newState.height = 600; newState.width = 450;
+     } else if (mode === 'right') {
+         newState.x = 450; newState.y = 0; newState.height = 600; newState.width = 450;
+     } else if (mode === 'top') {
+         newState.x = 0; newState.y = 0; newState.width = 900; newState.height = 300;
+     } else if (mode === 'bottom') {
+         newState.x = 0; newState.y = 300; newState.width = 900; newState.height = 300;
+     } else if (mode === 'none') {
+         // reset to center-ish
+         newState.width = 400; newState.height = 300;
+         newState.x = 100; newState.y = 100;
+     }
+     
+     this.windows.set(id, newState);
+  }
+
+  // --- Overlay Operations ---
+  public setOverlayOpen(id: string, isOpen: boolean) {
+      const o = this.overlays.get(id);
+      if (!o) return;
+      this.overlays.set(id, { ...o, isOpen });
+  }
+
+  public dismissTop() {
+      // Find highest z-order open overlay
+      let top: OverlayState | null = null;
+      for (const o of this.overlays.values()) {
+          if (o.isOpen) {
+              if (!top || o.zOrder > top.zOrder) top = o;
+          }
+      }
+      if (top) {
+          this.setOverlayOpen((top as OverlayState).id, false);
+      }
+  }
+
+  public getSnapshot(): RuntimePlan {
+    return {
+       entrySlug: this.entrySlug,
+       targetBlockId: this.targetBlockId,
+       windows: Object.fromEntries(this.windows),
+       overlays: Object.fromEntries(this.overlays),
+       actions: this.actions
     };
-  });
-  return state;
+  }
 }
 
-function createWindowSystemRuntime(params: { 
-  tabId: string; 
-  viewport: { width: number, height: number }; 
-  registry: any;
+// --- Components ---
+
+function WindowFrame({ 
+    win, 
+    onFocus, 
+    onMove, 
+    onResize, 
+    onClose, 
+    onMinimize, 
+    onDock 
+}: { 
+    win: WindowState,
+    onFocus: () => void,
+    onMove: (x: number, y: number) => void,
+    onResize: (w: number, h: number) => void,
+    onClose: () => void,
+    onMinimize: (val: boolean) => void,
+    onDock: (mode: any) => void
 }) {
-  const state: Record<string, WindowState> = {};
-  // Scan registry (bundle blocks) for windows
-  Object.values(params.registry).forEach((block: any) => {
-    const blockType = typeof block.blockType === 'string' ? block.blockType : '';
-    const blockId = typeof block.id === 'string' ? block.id : '';
+    // Drag
+    const startDrag = (e: React.MouseEvent) => {
+        onFocus();
+        if (win.dockMode !== 'none') return; // Cannot drag docked windows
+        e.preventDefault();
+        const startX = e.clientX;
+        const startY = e.clientY;
+        const startLeft = win.x;
+        const startTop = win.y;
 
-    // Heuristic: if block type has 'window' or is implicitly a window
-    if (blockType.includes('window') || blockId.includes('win')) {
-      state[blockId] = {
-        id: blockId,
-        x: 100,
-        y: 100,
-        width: 400,
-        height: 300,
-        isMinimized: false,
-        dockMode: 'none',
-        zOrder: 1
-      };
-    }
-  });
-  return state;
+        const onMouseMove = (me: MouseEvent) => {
+            const dx = me.clientX - startX;
+            const dy = me.clientY - startY;
+            onMove(startLeft + dx, startTop + dy);
+        };
+        const onMouseUp = () => {
+            document.removeEventListener('mousemove', onMouseMove);
+            document.removeEventListener('mouseup', onMouseUp);
+        };
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+    };
+
+    // Resize
+    const startResize = (e: React.MouseEvent) => {
+        onFocus();
+        if (win.isMinimized) return;
+        e.preventDefault();
+        e.stopPropagation();
+        const startX = e.clientX;
+        const startY = e.clientY;
+        const startW = win.width;
+        const startH = win.height;
+
+        const onMouseMove = (me: MouseEvent) => {
+            const dx = me.clientX - startX;
+            const dy = me.clientY - startY;
+            onResize(startW + dx, startH + dy);
+        };
+        const onMouseUp = () => {
+            document.removeEventListener('mousemove', onMouseMove);
+            document.removeEventListener('mouseup', onMouseUp);
+        };
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+    };
+
+    const isDocked = win.dockMode !== 'none';
+
+    return (
+        <div 
+            onMouseDown={onFocus}
+            style={{
+                position: 'absolute',
+                left: win.x,
+                top: win.y,
+                width: win.isMinimized ? 200 : win.width,
+                height: win.isMinimized ? 40 : win.height,
+                zIndex: win.zOrder,
+                backgroundColor: 'white',
+                border: '1px solid #999',
+                boxShadow: win.zOrder > 100 ? '0 4px 12px rgba(0,0,0,0.2)' : '0 2px 5px rgba(0,0,0,0.1)',
+                display: 'flex',
+                flexDirection: 'column',
+                overflow: 'hidden'
+            }}
+        >
+            {/* Title Bar */}
+            <div 
+                onMouseDown={startDrag}
+                style={{
+                    height: '30px',
+                    backgroundColor: win.zOrder > 100 ? '#007acc' : '#ccc',
+                    color: win.zOrder > 100 ? 'white' : '#333',
+                    display: 'flex',
+                    alignItems: 'center',
+                    padding: '0 8px',
+                    cursor: isDocked ? 'default' : 'move',
+                    userSelect: 'none',
+                    justifyContent: 'space-between'
+                }}
+            >
+                <div style={{fontWeight: 'bold', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:'120px'}}>{win.title}</div>
+                <div style={{display:'flex', gap:'4px'}} onMouseDown={(e) => e.stopPropagation()}>
+                    {!win.isMinimized && (
+                         <>
+                           <button onClick={() => onDock('left')}>&lt;</button>
+                           <button onClick={() => onDock('right')}>&gt;</button>
+                           <button onClick={() => onDock('none')}>O</button>
+                         </>
+                    )}
+                    <button onClick={() => onMinimize(!win.isMinimized)}>{win.isMinimized ? '□' : '_'}</button>
+                    <button onClick={onClose} style={{background: '#c00', color:'white'}}>X</button>
+                </div>
+            </div>
+
+            {/* Content Area */}
+            {!win.isMinimized && (
+                <div style={{flex: 1, padding: '10px', overflow:'auto', position:'relative'}}>
+                    <p>Window ID: {win.id}</p>
+                    <div style={{fontSize:'0.8em', color:'#666'}}>
+                        Dock: {win.dockMode} | ({Math.round(win.x)},{Math.round(win.y)})
+                    </div>
+                    {/* Render Content Here Later */}
+                    
+                    {/* Resize Handle */}
+                    {!isDocked && (
+                        <div 
+                           onMouseDown={startResize}
+                           style={{
+                               position: 'absolute',
+                               right: 0,
+                               bottom: 0,
+                               width: '15px',
+                               height: '15px',
+                               cursor: 'nwse-resize',
+                               background: 'linear-gradient(135deg, transparent 50%, #999 50%)' 
+                           }}
+                        />
+                    )}
+                </div>
+            )}
+        </div>
+    );
 }
 
-function buildActionIndex(bundle: BundleResponse) {
-  const actions: ActionDefinition[] = [];
-  const blocks = bundle.blocks || {};
-  Object.values(blocks).forEach((block: any) => {
-    const blockType = typeof block.blockType === 'string' ? block.blockType : '';
-    const blockId = typeof block.id === 'string' ? block.id : '';
-    
-    // Heuristic: Generate actions for buttons or clickable things
-    if (Array.isArray(block.actions)) {
-       block.actions.forEach((act: string) => {
-         actions.push({ id: `${blockId}:${act}`, actionName: act, sourceBlockId: blockId });
-       });
-    } else if (blockType.includes('button')) {
-       // Implicit 'click' for buttons
-       actions.push({ id: `${blockId}:click`, actionName: 'click', sourceBlockId: blockId });
-       actions.push({ id: `${blockId}:context`, actionName: 'context', sourceBlockId: blockId });
-    }
-  });
-  return actions;
-}
+function OverlayLayer({ overlays, onClose, onDismissCtx }: { 
+    overlays: OverlayState[], 
+    onClose: (id: string) => void,
+    onDismissCtx: () => void
+}) {
+    const activeOverlays = overlays.filter(o => o.isOpen).sort((a,b) => a.zOrder - b.zOrder);
+    if (activeOverlays.length === 0) return null;
 
+    return (
+        <div style={{
+            position: 'absolute', top: 0, left: 0, width: '100%', height: '100%',
+            zIndex: 2000,
+            pointerEvents: 'none' // Allow pass through if backdrop issues? No, backdrop handles blocking
+        }}>
+            {/* Backdrop for the top-most overlay context */}
+            <div 
+                onClick={onDismissCtx}
+                style={{
+                    position: 'absolute', top: 0, left: 0, width: '100%', height: '100%',
+                    backgroundColor: 'rgba(0,0,0,0.4)',
+                    pointerEvents: 'auto'
+                }}
+            />
+            {activeOverlays.map(o => (
+                <div key={o.id} style={{
+                    position: 'absolute',
+                    top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
+                    width: '400px', height: '300px',
+                    backgroundColor: 'white',
+                    border: '1px solid #777',
+                    boxShadow: '0 10px 25px rgba(0,0,0,0.5)',
+                    pointerEvents: 'auto',
+                    padding: '20px',
+                    display: 'flex', flexDirection: 'column'
+                }}>
+                     <h3>Overlay: {o.id}</h3>
+                     <div style={{flex:1}}>
+                        Content...
+                     </div>
+                     <button onClick={() => onClose(o.id)}>Close Modal</button>
+                </div>
+            ))}
+        </div>
+    );
+}
 
 function App() {
   // Configured via vite proxy in dev
-  const [baseUrl, setBaseUrl] = useState('');
-  const [devMode, setDevMode] = useState(false);
+  const [baseUrl] = useState('');
+  
   const [bundleData, setBundleData] = useState<BundleResponse | null>(null);
   const [pingData, setPingData] = useState<PingResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Runtime State
+  // Runtime
+  const runtimeRef = useRef<WindowSystemRuntime>(new WindowSystemRuntime());
   const [runtimePlan, setRuntimePlan] = useState<RuntimePlan | null>(null);
 
   // Debug Action State
@@ -127,33 +424,30 @@ function App() {
   const [actionPerms, setActionPerms] = useState('can_click');
   const [actionResult, setActionResult] = useState<any>(null);
 
+  // Sync state helper
+  const syncRuntime = () => {
+    setRuntimePlan(runtimeRef.current.getSnapshot());
+  };
+
   // Initialize Runtime when bundle loads
   useEffect(() => {
     if (bundleData && pingData) {
-        const blocks = bundleData.blocks || {};
-        // A) Overlays
-        const overlaysList = Object.values(blocks).filter((b: any) => b.blockType?.includes('overlay'));
-        const overlayState = createOverlayRuntime({ overlays: overlaysList });
-
-        // B) Windows
-        const windowState = createWindowSystemRuntime({
-            tabId: 'ui_tab',
-            viewport: { width: 800, height: 600 },
-            registry: blocks
-        });
-
-        // C) Actions
-        const actionIdx = buildActionIndex(bundleData);
-
-        setRuntimePlan({
-            entrySlug: 'ping', // derived from pingData really
-            targetBlockId: pingData.targetBlockId || 'unknown',
-            windows: windowState,
-            overlays: overlayState,
-            actions: actionIdx
-        });
+        runtimeRef.current.init(bundleData, pingData);
+        syncRuntime();
     }
   }, [bundleData, pingData]);
+
+  // Handle Esc for overlays
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') {
+            runtimeRef.current.dismissTop();
+            syncRuntime();
+        }
+    };
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, []);
 
   const fetchBundle = async () => {
     setLoading(true);
@@ -164,16 +458,9 @@ function App() {
       if (!bundleRes.ok) throw new Error(`Bundle fetch failed: ${bundleRes.status} ${bundleRes.statusText}`);
       const rawJson = await bundleRes.json();
       
-      // Normalize: bundle endpoint might return { bundle: { ... } } or just { manifest, blocks }
       const bundleObj = rawJson.bundle?.bundle ?? rawJson.bundle ?? rawJson;
-      // Ensure blocks is at least an empty object
-      if (!bundleObj.blocks) {
-        bundleObj.blocks = {};
-      }
-      // Ensure manifest exists
-      if (!bundleObj.manifest) {
-        bundleObj.manifest = { title: "Unknown Manifest" };
-      }
+      if (!bundleObj.blocks) bundleObj.blocks = {};
+      if (!bundleObj.manifest) bundleObj.manifest = { title: "Unknown Manifest" };
 
       setBundleData(bundleObj);
     } catch (err: any) {
@@ -217,13 +504,9 @@ function App() {
       });
 
       if (res.status === 403) {
-        setActionResult({ 
-            error: "Access Denied (403)", 
-            message: "Enable debug endpoints on server (FOLE_DEV_ENABLE_DEBUG_ENDPOINTS=1 etc.)" 
-        });
+        setActionResult({ error: "Access Denied (403)", message: "Use FOLE_DEV_ENABLE_DEBUG_ENDPOINTS=1 env var" });
         return;
       }
-
       const data = await res.json();
       setActionResult(data);
     } catch (err: any) {
@@ -233,186 +516,106 @@ function App() {
     }
   };
 
-  // --- Runtime Interactions ---
-
-  const toggleOverlay = () => {
-     if (!runtimePlan) return;
-     const keys = Object.keys(runtimePlan.overlays);
-     if (keys.length === 0) return;
-     const key = keys[0]; // Just toggle first one
-     setRuntimePlan(prev => {
-         if (!prev) return null;
-         return {
-             ...prev,
-             overlays: {
-                 ...prev.overlays,
-                 [key]: { ...prev.overlays[key], isOpen: !prev.overlays[key].isOpen }
-             }
-         };
-     });
+  // UI Handlers wiring to Runtime
+  const winOps = {
+      focus: (id: string) => { runtimeRef.current.focusWindow(id); syncRuntime(); },
+      move: (id: string, x: number, y: number) => { runtimeRef.current.moveWindow(id, x, y); syncRuntime(); },
+      resize: (id: string, w: number, h: number) => { runtimeRef.current.resizeWindow(id, w, h); syncRuntime(); },
+      close: (id: string) => { runtimeRef.current.closeWindow(id); syncRuntime(); },
+      minimize: (id: string, v: boolean) => { runtimeRef.current.setMinimized(id, v); syncRuntime(); },
+      dock: (id: string, m: any) => { runtimeRef.current.dockWindow(id, m); syncRuntime(); }
   };
 
-  const updateFirstWindow = (updater: (w: WindowState) => Partial<WindowState>) => {
-      if (!runtimePlan) return;
-      const keys = Object.keys(runtimePlan.windows);
-      if (keys.length === 0) return;
-      const key = keys[0];
-      setRuntimePlan(prev => {
-          if (!prev) return null;
-          const w = prev.windows[key];
-          return {
-              ...prev,
-              windows: {
-                  ...prev.windows,
-                  [key]: { ...w, ...updater(w) }
-              }
-          };
-      });
+  const overlayOps = {
+      open: (id: string) => { runtimeRef.current.setOverlayOpen(id, true); syncRuntime(); },
+      close: (id: string) => { runtimeRef.current.setOverlayOpen(id, false); syncRuntime(); },
+      dismiss: () => { runtimeRef.current.dismissTop(); syncRuntime(); }
   };
 
   return (
-    <div style={{ padding: '20px', fontFamily: 'sans-serif' }}>
+    <div style={{ padding: '20px', fontFamily: 'sans-serif', display: 'flex', flexDirection: 'column', height: '100vh', boxSizing:'border-box' }}>
       <h1>ShellRuntime Bootstrap UI</h1>
       
-      <div style={{ marginBottom: '20px', border: '1px solid #ccc', padding: '10px' }}>
-        <h3>Connection Settings</h3>
-        <label>
-          Base URL: 
-          <input 
-            type="text" 
-            value={baseUrl} 
-            onChange={e => setBaseUrl(e.target.value)} 
-            placeholder="(relative)"
-            style={{ width: '300px', marginLeft: '10px' }}
-          />
-        </label>
-        <br />
-        <label>
-          <input 
-            type="checkbox" 
-            checked={devMode} 
-            onChange={e => setDevMode(e.target.checked)} 
-          />
-          Dev Mode (Enable Debug Actions)
-        </label>
-        <br />
-        <div style={{ marginTop: '10px', display: 'flex', gap: '10px' }}>
-            <button onClick={fetchBundle} disabled={loading}>Fetch Bundle</button>
-            <button onClick={resolvePing} disabled={loading}>Resolve Ping</button>
+      {/* Top Controls */}
+      <div style={{ marginBottom: '10px', border: '1px solid #ccc', padding: '10px', flexShrink: 0 }}>
+        <div style={{display:'flex', gap:'10px', alignItems:'center'}}>
+            <strong>Setup:</strong>
+            <button onClick={fetchBundle} disabled={loading}>1. Fetch Bundle</button>
+            <button onClick={resolvePing} disabled={loading || !bundleData}>2. Resolve Ping</button>
+            <span>{loading ? '(Loading...)' : ''}</span>
+            <span style={{color: error ? 'red': 'black'}}>{error}</span>
         </div>
-        
-        {error && <div style={{ color: 'red', marginTop: '10px' }}>Error: {error}</div>}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(300px, 1fr) 2fr', gap: '20px' }}>
+      <div style={{display:'flex', gap:'20px', flex:1, overflow:'hidden'}}>
           
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-            {/* Bundle Info Column */}
-            <div style={{ border: '1px solid #eee', padding: '10px' }}>
-                <h3>Bundle Info</h3>
-                {bundleData ? (
-                    <>
-                        <div><strong>Blocks:</strong> {Object.keys(bundleData.blocks).length}</div>
-                        <div><strong>Manifest Title:</strong> {bundleData.manifest?.title}</div>
-                        <details style={{ marginTop: '10px' }}>
-                            <summary>Raw JSON</summary>
-                            <pre style={{ fontSize: '10px', background: '#f9f9f9', overflow: 'auto', maxHeight: '200px' }}>
-                                {JSON.stringify(bundleData, null, 2)}
-                            </pre>
-                        </details>
-                    </>
-                ) : ( <div>No bundle loaded</div> )}
-            </div>
-
-            {/* Ping Info Column */}
-            <div style={{ border: '1px solid #eee', padding: '10px' }}>
-                <h3>Ping Resolve</h3>
-                {pingData ? (
-                    <>
-                        <div><strong>Allowed:</strong> {pingData.allowed ? 'YES' : 'NO'}</div>
-                        <div><strong>Status:</strong> {pingData.status}</div>
-                        <div><strong>Target Block:</strong> {pingData.targetBlockId || 'N/A'}</div>
-                    </>
-                ) : ( <div>No ping data</div> )}
-            </div>
-          </div>
-
-          {/* Runtime Panel */}
-          <div style={{ border: '2px solid #2196F3', padding: '10px', background: '#E3F2FD' }}>
-              <h3>🖥 Runtime Panel (Local Sim)</h3>
-              {runtimePlan ? (
-                  <div>
-                      <div style={{ display: 'flex', gap: '5px', marginBottom: '10px', flexWrap: 'wrap' }}>
-                          <button onClick={toggleOverlay}>Toggle Overlay (First)</button>
-                          <button onClick={() => updateFirstWindow(w => ({ isMinimized: false, zOrder: w.zOrder + 1 }))}>Open Window</button>
-                          <button onClick={() => updateFirstWindow(w => ({ zOrder: w.zOrder + 10 }))}>Focus Window</button>
-                          <button onClick={() => updateFirstWindow(() => ({ isMinimized: true }))}>Minimize Window</button>
-                          <button onClick={() => updateFirstWindow(w => ({ dockMode: w.dockMode === 'left' ? 'none' : 'left' }))}>Dock Left</button>
-                          <button onClick={() => updateFirstWindow(w => ({ dockMode: w.dockMode === 'right' ? 'none' : 'right' }))}>Dock Right</button>
-                      </div>
-
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                          <div>
-                              <h4>🪟 Windows ({Object.keys(runtimePlan.windows).length})</h4>
-                              <pre style={{ fontSize: '11px', background: 'white', padding: '5px', borderRadius: '4px' }}>
-                                  {JSON.stringify(runtimePlan.windows, null, 2)}
-                              </pre>
-                          </div>
-                          <div>
-                              <h4>🥞 Overlays ({Object.keys(runtimePlan.overlays).length})</h4>
-                              <pre style={{ fontSize: '11px', background: 'white', padding: '5px', borderRadius: '4px' }}>
-                                  {JSON.stringify(runtimePlan.overlays, null, 2)}
-                              </pre>
-                          </div>
-                      </div>
-
-                      <div style={{ marginTop: '10px', borderTop: '1px solid #ccc', paddingTop: '10px' }}>
-                          <h4>⚡ Available Actions ({runtimePlan.actions.length})</h4>
-                          <select 
-                            style={{ padding: '5px', width: '100%' }} 
-                            onChange={(e) => {
-                                if (!e.target.value) return;
-                                const act = runtimePlan.actions.find(a => a.id === e.target.value);
-                                if (act) {
-                                    setSourceBlockId(act.sourceBlockId);
-                                    setActionName(act.actionName);
-                                }
-                            }}
-                          >
-                            <option value="">Select an action to prep debug...</option>
-                            {runtimePlan.actions.map(a => (
-                                <option key={a.id} value={a.id}>{a.actionName} (on {a.sourceBlockId})</option>
-                            ))}
-                          </select>
-                      </div>
-                  </div>
-              ) : (
-                  <div>Load Bundle + Ping to initialize Runtime</div>
-              )}
-          </div>
-      
-      </div>
-
-      {devMode && (
-        <div style={{ marginTop: '20px', border: '2px solid orange', padding: '10px' }}>
-          <h3>🛠 Debug Actions</h3>
-          <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-            <input placeholder="Source Block ID" value={sourceBlockId} onChange={e => setSourceBlockId(e.target.value)} />
-            <input placeholder="Action Name" value={actionName} onChange={e => setActionName(e.target.value)} />
-            <input placeholder="Permissions" value={actionPerms} onChange={e => setActionPerms(e.target.value)} />
-            <button onClick={handleDispatch} disabled={loading}>Dispatch</button>
-          </div>
-          {actionResult && (
-             <div style={{ marginTop: '10px', background: '#f0f0f0', padding: '5px' }}>
-               <strong>Result:</strong>
-               <pre>{JSON.stringify(actionResult, null, 2)}</pre>
+          {/* Left Panel: Logic & Debug */}
+          <div style={{width: '300px', overflowY: 'auto', borderRight: '1px solid #ddd', paddingRight:'10px'}}>
+             <h4>Debug Controls</h4>
+             <div style={{marginBottom:'20px'}}>
+                <input type="text" placeholder="Block ID" value={sourceBlockId} onChange={e=>setSourceBlockId(e.target.value)} style={{width:'100%'}}/>
+                <input type="text" placeholder="Action (e.g. click)" value={actionName} onChange={e=>setActionName(e.target.value)} style={{width:'100%', marginTop:'5px'}}/>
+                <input type="text" placeholder="Permissions" value={actionPerms} onChange={e=>setActionPerms(e.target.value)} style={{width:'100%', marginTop:'5px'}}/>
+                <button onClick={handleDispatch} style={{marginTop:'5px', width:'100%'}}>Dispatch Action</button>
+                {actionResult && <pre style={{fontSize:'10px', background:'#eee', padding:'5px'}}>{JSON.stringify(actionResult, null, 2)}</pre>}
              </div>
-          )}
-        </div>
-      )}
+
+             <h4>Available Windows</h4>
+             <ul>
+                 {runtimePlan && Object.values(runtimePlan.windows).map(w => (
+                     <li key={w.id} style={{fontSize:'0.9em'}}>
+                         <span style={{fontWeight: w.zOrder > 100 ? 'bold' : 'normal'}}>{w.id}</span>
+                         <button onClick={() => winOps.focus(w.id)} style={{marginLeft:'5px', fontSize:'0.7em'}}>Focus</button>
+                     </li>
+                 ))}
+             </ul>
+
+             <h4>Available Overlays</h4>
+             <ul>
+                 {runtimePlan && Object.values(runtimePlan.overlays).map(o => (
+                     <li key={o.id} style={{fontSize:'0.9em'}}>
+                         {o.id} [{o.isOpen ? 'OPEN' : 'closed'}]
+                         <button onClick={() => overlayOps.open(o.id)} style={{marginLeft:'5px', fontSize:'0.7em'}}>Open</button>
+                     </li>
+                 ))}
+             </ul>
+          </div>
+
+          {/* Right Panel: The Viewport */}
+          <div style={{flex:1, position:'relative', backgroundColor:'#f0f0f0', overflow:'hidden', border:'2px solid #333', borderRadius:'4px', boxShadow:'inset 0 0 10px rgba(0,0,0,0.1)'}}>
+             {/* The "Desktop" */}
+             {runtimePlan ? (
+                 <>
+                    {/* Windows */}
+                    {Object.values(runtimePlan.windows).map(w => (
+                        <WindowFrame 
+                           key={w.id} 
+                           win={w}
+                           onFocus={() => winOps.focus(w.id)}
+                           onMove={(x,y) => winOps.move(w.id, x, y)}
+                           onResize={(width,height) => winOps.resize(w.id, width, height)}
+                           onClose={() => winOps.close(w.id)}
+                           onMinimize={(v) => winOps.minimize(w.id, v)}
+                           onDock={(m) => winOps.dock(w.id, m)}
+                        />
+                    ))}
+
+                    {/* Overlays */}
+                    <OverlayLayer 
+                        overlays={Object.values(runtimePlan.overlays)} 
+                        onClose={overlayOps.close}
+                        onDismissCtx={overlayOps.dismiss}
+                    />
+                 </>
+             ) : (
+                <div style={{padding: '20px', color: '#999', textAlign:'center', marginTop:'100px'}}>
+                   Load Bundle & Resolve Ping to Start Runtime
+                </div>
+             )}
+          </div>
+      </div>
     </div>
   );
 }
 
 export default App;
-
