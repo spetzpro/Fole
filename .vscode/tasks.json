@@ -1,0 +1,66 @@
+{
+	// VS Code tasks for unified debug backend + UI
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Start Debug Backend",
+			"type": "shell",
+			"command": "npm run dev:server",
+			"options": {
+				"cwd": "${workspaceFolder}",
+				"env": {
+					"FOLE_DEV_ALLOW_MODE_OVERRIDES": "1",
+					"FOLE_DEV_ENABLE_DEBUG_ENDPOINTS": "1"
+				}
+			},
+			"isBackground": true,
+			"problemMatcher": {
+				"owner": "custom",
+				"pattern": {
+					"regexp": ".*"
+				},
+				"background": {
+					"activeOnStart": true,
+					"beginsPattern": ".*dev:server.*",
+					"endsPattern": ".*Server listening on http://127.0.0.1:3000.*"
+				}
+			}
+		},
+		{
+			"label": "Start Debug Frontend",
+			"type": "shell",
+			"command": "npm run dev:ui",
+			"options": {
+				"cwd": "${workspaceFolder}"
+			},
+			"isBackground": true,
+			"problemMatcher": {
+				"owner": "custom",
+				"pattern": {
+					"regexp": ".*"
+				},
+				"background": {
+					"activeOnStart": true,
+					"beginsPattern": ".*VITE v.*",
+					"endsPattern": ".*Local:.*http://localhost:5173.*"
+				}
+			}
+		},
+		{
+			"label": "Start Debug Environment",
+			"dependsOn": [
+				"Start Debug Backend",
+				"Start Debug Frontend"
+			],
+			"dependsOrder": "parallel",
+			"problemMatcher": []
+		},
+		{
+			"label": "Stop Debug Environment",
+			"type": "shell",
+			"command": "taskkill /F /IM node.exe /T",
+			"isBackground": false,
+			"problemMatcher": []
+		}
+	]
+}
