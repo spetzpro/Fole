@@ -26,25 +26,33 @@ function App() {
   const [actionPerms, setActionPerms] = useState('can_click');
   const [actionResult, setActionResult] = useState<any>(null);
 
-  const handleLoadPlan = async () => {
+  const fetchBundle = async () => {
     setLoading(true);
     setError(null);
     setBundleData(null);
-    setPingData(null);
-
     try {
-      // 1. Fetch Bundle
       const bundleRes = await fetch(`${baseUrl}/api/config/shell/bundle`);
       if (!bundleRes.ok) throw new Error(`Bundle fetch failed: ${bundleRes.status} ${bundleRes.statusText}`);
       const bundleJson = await bundleRes.json();
       setBundleData(bundleJson);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-      // 2. Fetch Resolve Ping
+  const resolvePing = async () => {
+    setLoading(true);
+    setError(null);
+    setPingData(null);
+    try {
       const pingRes = await fetch(`${baseUrl}/api/routing/resolve/ping`);
-      // Note: Endpoint might return 401/403 which is valid data in this context, but here we expect JSON
+      if (!pingRes.ok && pingRes.status !== 401 && pingRes.status !== 403) {
+         throw new Error(`Ping failed: ${pingRes.status} ${pingRes.statusText}`);
+      }
       const pingJson = await pingRes.json();
       setPingData(pingJson);
-
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -66,6 +74,15 @@ function App() {
            permissions: permsArray
         })
       });
+
+      if (res.status === 403) {
+        setActionResult({ 
+            error: "Access Denied (403)", 
+            message: "Enable debug endpoints on server (FOLE_DEV_ENABLE_DEBUG_ENDPOINTS=1 etc.)" 
+        });
+        return;
+      }
+
       const data = await res.json();
       setActionResult(data);
     } catch (err: any) {
@@ -100,31 +117,50 @@ function App() {
           Dev Mode (Enable Debug Actions)
         </label>
         <br />
-        <button onClick={handleLoadPlan} disabled={loading} style={{ marginTop: '10px' }}>
-          {loading ? 'Loading...' : 'Load Plan'}
-        </button>
+        <div style={{ marginTop: '10px', display: 'flex', gap: '10px' }}>
+            <button onClick={fetchBundle} disabled={loading}>Fetch Bundle</button>
+            <button onClick={resolvePing} disabled={loading}>Resolve Ping</button>
+        </div>
+        
         {error && <div style={{ color: 'red', marginTop: '10px' }}>Error: {error}</div>}
       </div>
 
-      {bundleData && pingData && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+          {/* Bundle Info Column */}
           <div style={{ border: '1px solid #eee', padding: '10px' }}>
-            <h3>Routing Info (Ping)</h3>
-            <div><strong>Allowed:</strong> {pingData.allowed ? 'YES' : 'NO'}</div>
-            <div><strong>Status:</strong> {pingData.status}</div>
-            <div><strong>Target Block:</strong> {pingData.targetBlockId || 'N/A'}</div>
-            
-            <h3 style={{ marginTop: '20px' }}>Bundle Stats</h3>
-            <div><strong>Blocks:</strong> {Object.keys(bundleData.blocks).length}</div>
-            <div><strong>Manifest Title:</strong> {bundleData.manifest?.title}</div>
+            <h3>Bundle Info</h3>
+            {bundleData ? (
+                <>
+                    <div><strong>Blocks:</strong> {Object.keys(bundleData.blocks).length}</div>
+                    <div><strong>Manifest Title:</strong> {bundleData.manifest?.title}</div>
+                    <details style={{ marginTop: '10px' }}>
+                        <summary>Raw JSON</summary>
+                        <pre style={{ fontSize: '12px', background: '#f9f9f9', overflow: 'auto' }}>
+                            {JSON.stringify(bundleData, null, 2)}
+                        </pre>
+                    </details>
+                </>
+            ) : ( <div>No bundle loaded</div> )}
           </div>
-          
-          <div style={{ border: '1px solid #eee', padding: '10px', maxHeight: '400px', overflow: 'auto' }}>
-            <h3>Raw Plan Data</h3>
-            <pre style={{ fontSize: '12px' }}>{JSON.stringify({ ping: pingData, bundleManifest: bundleData.manifest }, null, 2)}</pre>
+
+          {/* Ping Info Column */}
+          <div style={{ border: '1px solid #eee', padding: '10px' }}>
+            <h3>Ping Resolve</h3>
+            {pingData ? (
+                <>
+                    <div><strong>Allowed:</strong> {pingData.allowed ? 'YES' : 'NO'}</div>
+                    <div><strong>Status:</strong> {pingData.status}</div>
+                    <div><strong>Target Block:</strong> {pingData.targetBlockId || 'N/A'}</div>
+                    <details style={{ marginTop: '10px' }}>
+                        <summary>Raw JSON</summary>
+                        <pre style={{ fontSize: '12px', background: '#f9f9f9', overflow: 'auto' }}>
+                            {JSON.stringify(pingData, null, 2)}
+                        </pre>
+                    </details>
+                </>
+            ) : ( <div>No ping data</div> )}
           </div>
-        </div>
-      )}
+      </div>
 
       {devMode && (
         <div style={{ marginTop: '20px', border: '2px solid orange', padding: '10px' }}>

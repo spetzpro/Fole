@@ -31,7 +31,9 @@
     "test:overlay-runtime": "npx ts-node --project tsconfig.json app-repo/scripts/test_overlay_runtime_unit.ts",
     "test:shell-runtime": "npx ts-node --project tsconfig.json app-repo/scripts/test_shell_runtime_headless_e2e.ts",
     "test:session-prod-derived": "npx ts-node --project tsconfig.json app-repo/scripts/test_session_runtime_prod_derived_local.ts",
-    "run:shell-cli": "npx ts-node --project tsconfig.json app-repo/scripts/run_shell_runtime_cli.ts"
+    "run:shell-cli": "npx ts-node --project tsconfig.json app-repo/scripts/run_shell_runtime_cli.ts",
+    "dev:ui": "npm --prefix app-ui run dev",
+    "build:ui": "npm --prefix app-ui run build"
   },
   "devDependencies": {
     "ajv": "^8.17.1",
