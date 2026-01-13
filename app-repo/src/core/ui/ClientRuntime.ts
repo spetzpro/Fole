@@ -95,25 +95,7 @@ export function createClientRuntime(config: ClientRuntimeConfig): ClientRuntime 
              };
         }
 
-        try {
-            return await makeRequest("POST", "/api/debug/action/dispatch", req);
-        } catch (err: any) {
-            if (err.status) {
-                // If the server returns 403/400/500, we return it as an object per prompt 'assert response has applied/skipped/logs' implies we want the response body, even if error?
-                // Actually prompt says "dispatchDebugAction must refuse unless config.devMode === true... return {error, status: 403}". 
-                // For server errors, makeRequest rejects.
-                // If strict parity with 'fetch' style is desired where 4xx is not thrown, we might want to catch here.
-                // However, "determinism" suggests throwing on network/protocol failure, but returning result on logic failure?
-                // The prompt says "Fail-closed... return object... without throwing".
-                // I will catch errors that have a status code and return the data object, simulating a non-throwing client for 4xx replies.
-                return {
-                    status: err.status,
-                    error: err.message,
-                    ...err.data
-                };
-            }
-            throw err;
-        }
+        return makeRequest("POST", "/api/debug/action/dispatch", req);
     };
 
     return {
