@@ -86,7 +86,8 @@ function createWindowSystemRuntime(params: {
 
 function buildActionIndex(bundle: BundleResponse) {
   const actions: ActionDefinition[] = [];
-  Object.values(bundle.blocks).forEach((block: any) => {
+  const blocks = bundle.blocks || {};
+  Object.values(blocks).forEach((block: any) => {
     // Heuristic: Generate actions for buttons or clickable things
     if (block.actions) {
        block.actions.forEach((act: string) => {
@@ -123,15 +124,16 @@ function App() {
   // Initialize Runtime when bundle loads
   useEffect(() => {
     if (bundleData && pingData) {
+        const blocks = bundleData.blocks || {};
         // A) Overlays
-        const overlaysList = Object.values(bundleData.blocks).filter((b: any) => b.blockType?.includes('overlay'));
+        const overlaysList = Object.values(blocks).filter((b: any) => b.blockType?.includes('overlay'));
         const overlayState = createOverlayRuntime({ overlays: overlaysList });
 
         // B) Windows
         const windowState = createWindowSystemRuntime({
             tabId: 'ui_tab',
             viewport: { width: 800, height: 600 },
-            registry: bundleData.blocks
+            registry: blocks
         });
 
         // C) Actions
@@ -154,8 +156,20 @@ function App() {
     try {
       const bundleRes = await fetch(`${baseUrl}/api/config/shell/bundle`);
       if (!bundleRes.ok) throw new Error(`Bundle fetch failed: ${bundleRes.status} ${bundleRes.statusText}`);
-      const bundleJson = await bundleRes.json();
-      setBundleData(bundleJson);
+      const rawJson = await bundleRes.json();
+      
+      // Normalize: bundle endpoint might return { bundle: { ... } } or just { manifest, blocks }
+      const bundleObj = rawJson.bundle?.bundle ?? rawJson.bundle ?? rawJson;
+      // Ensure blocks is at least an empty object
+      if (!bundleObj.blocks) {
+        bundleObj.blocks = {};
+      }
+      // Ensure manifest exists
+      if (!bundleObj.manifest) {
+        bundleObj.manifest = { title: "Unknown Manifest" };
+      }
+
+      setBundleData(bundleObj);
     } catch (err: any) {
       setError(err.message);
     } finally {
