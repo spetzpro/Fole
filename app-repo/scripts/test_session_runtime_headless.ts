@@ -158,10 +158,10 @@ async function runTest() {
 
             // Test derived tick in prod
             const tick2 = await sessionProd.applyDerivedTick();
-            // It is now implemented locally. Since this bundle has no derived bindings, didWork should be false.
+            // In prod mode, local evaluator runs. Since this bundle has no derived bindings, didWork should be false.
             if (tick2.ok !== true || tick2.didWork !== false) {
-                console.log("Tick2 result:", tick2);
-                throw new Error("applyDerivedTick prod check failed (expected ok=true, didWork=false)");
+                console.log("Prod tick result:", tick2);
+                throw new Error("applyDerivedTick failed checks in prod (expected ok=true, didWork=false)");
             }
             
             // Should return 403 object (not throw) because of client-side guard in ClientRuntime.ts
