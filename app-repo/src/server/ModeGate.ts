@@ -21,6 +21,19 @@ export class ModeGate {
     return false;
   }
 
+  static canUseDebugEndpoints(ctx: RequestContext): boolean {
+    // Fail-Closed: Must be localhost, must define ALLOW_MODE_OVERRIDES, must define ENABLE_DEBUG_ENDPOINTS
+    if (!this.isLocalhost(ctx.remoteAddress)) {
+        return false;
+    }
+
+    const allowOverrides = process.env.FOLE_DEV_ALLOW_MODE_OVERRIDES === "1" || process.env.FOLE_DEV_ALLOW_MODE_OVERRIDES === "true";
+    if (!allowOverrides) return false;
+
+    const enableDebug = process.env.FOLE_DEV_ENABLE_DEBUG_ENDPOINTS === "1" || process.env.FOLE_DEV_ENABLE_DEBUG_ENDPOINTS === "true";
+    return enableDebug;
+  }
+
   private static isLocalhost(ip: string): boolean {
     return ip === "127.0.0.1" || ip === "::1" || ip === "::ffff:127.0.0.1";
   }

@@ -207,14 +207,20 @@ async function runTest() {
             }
             log("SUCCESS: Tick 2 applied change.");
 
-            // 6. Verify Prod Mode is No-Op
+            // 6. Verify Prod Mode is Safety
+            // REVISED: With separate debug gating, we expect a 403 Forbidden because we aren't sending dev/debug headers to the *client runtime*
+            // The client runtime will try to call the endpoint, receive 403, and report error.
+            
             log("Verifying Prod Mode Safety...");
             const clientProd = createClientRuntime({ baseUrl, devMode: false });
             const sessionProd = await createSessionRuntime(clientProd, "ping"); // can still load public route
             
             const tickProd = await sessionProd.applyDerivedTick();
-            if (tickProd.ok !== true || tickProd.didWork !== false || (tickProd as any).reason !== "not-implemented") {
-                throw new Error("Prod mode should return not-implemented stub");
+            // ClientRuntime.ts applyDerivedTick handles error by returning { ok: false, error: ... }
+            
+            if (tickProd.ok !== false || !(tickProd as any).error.includes("Forbidden")) {
+                 console.log("TickProd:", tickProd);
+                 throw new Error("Prod mode should return Forbidden (403)");
             }
             log("SUCCESS: Prod mode safe.");
 

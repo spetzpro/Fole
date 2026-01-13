@@ -226,8 +226,8 @@ async function main() {
   // Debug Action Dispatch Endpoint
   router.post("/api/debug/action/dispatch", async (req, res, _params, ctx) => {
     // 1. Strict Gating
-    if (!ModeGate.canUseDeveloperMode(ctx)) {
-       return router.json(res, 403, { error: "Forbidden: Developer Mode required" });
+    if (!ModeGate.canUseDebugEndpoints(ctx)) {
+       return router.json(res, 403, { error: "Forbidden: Debug endpoints require Debug Mode" });
     }
 
     try {
@@ -267,8 +267,8 @@ async function main() {
   // Debug Derived Tick Endpoint
   router.post("/api/debug/bindings/derived-tick", async (req, res, _params, ctx) => {
     // 1. Strict Gating
-    if (!ModeGate.canUseDeveloperMode(ctx)) {
-       return router.json(res, 403, { error: "Forbidden: Developer Mode required" });
+    if (!ModeGate.canUseDebugEndpoints(ctx)) {
+       return router.json(res, 403, { error: "Forbidden: Debug endpoints require Debug Mode" });
     }
 
     try {
