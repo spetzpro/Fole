@@ -9,6 +9,7 @@ export interface TemplateSessionModel {
     windowRegistry: any;    // shell.infra.window_registry block
     routingInfra: any;      // shell.infra.routing block
     themeTokensInfra: any;  // shell.infra.theme_tokens block
+    routeResolution: any;   // The resolution response
 }
 
 export type TemplateRuntimeResult =
@@ -94,7 +95,8 @@ export function assembleTemplateSession(bundleContainer: any, entrySlug: string,
             overlays,
             windowRegistry,
             routingInfra,
-            themeTokensInfra
+            themeTokensInfra,
+            routeResolution: resolveResponse
         }
     };
 }

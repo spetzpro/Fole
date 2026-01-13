@@ -199,6 +199,16 @@ async function runTest() {
                  } else {
                      throw new Error("Theme Tokens Infra missing or invalid");
                  }
+
+                 // Check routeResolution
+                 if (result.model.routeResolution) {
+                     if (result.model.routeResolution.status !== 200) throw new Error("routeResolution.status incorrect");
+                     if (result.model.routeResolution.allowed !== true) throw new Error("routeResolution.allowed incorrect");
+                     if (result.model.routeResolution.targetBlockId !== "view") throw new Error("routeResolution.targetBlockId incorrect");
+                     log("SUCCESS: Route Resolution present and correct");
+                 } else {
+                     throw new Error("Route Resolution missing");
+                 }
         
              } else {
                  throw new Error(`Assemble failed unexpectedly: ${result.error}`);
