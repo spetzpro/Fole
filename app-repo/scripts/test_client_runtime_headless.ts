@@ -129,7 +129,17 @@ async function runTest() {
             "head": { schemaVersion: "1.0.0", blockId: "head", blockType: "shell.region.header", data: { title: "Test" } },
             "view": { schemaVersion: "1.0.0", blockId: "view", blockType: "shell.rules.viewport", data: { allowZoom: true } },
             "foot": { schemaVersion: "1.0.0", blockId: "foot", blockType: "shell.region.footer", data: { copyrightText: "Test" } },
-            "infra_routing": { schemaVersion: "1.0.0", blockId: "infra_routing", blockType: "shell.infra.routing", data: { routes: {}, publishedLinks: {} } },
+            "infra_routing": { 
+                schemaVersion: "1.0.0", 
+                blockId: "infra_routing", 
+                blockType: "shell.infra.routing", 
+                data: { 
+                    routes: {
+                        "ping": { enabled: true, targetBlockId: "view", label: "Ping", accessPolicy: { anonymous: true } }
+                    }, 
+                    publishedLinks: {} 
+                } 
+            },
             "infra_theme": { schemaVersion: "1.0.0", blockId: "infra_theme", blockType: "shell.infra.theme_tokens", data: { tokens: {} } },
             "infra_windows": { schemaVersion: "1.0.0", blockId: "infra_windows", blockType: "shell.infra.window_registry", data: { windows: {} } },
             "overlay_menu": { schemaVersion: "1.0.0", blockId: "overlay_menu", blockType: "shell.overlay.main_menu", data: { items: [] } },
@@ -182,7 +192,16 @@ async function runTest() {
      }
      log("loadActiveBundle passed.");
 
-     // 4. Test dispatchDebugAction
+     // 4. Test resolveRoute
+     log("Testing resolveRoute()...");
+     const rr = await runtime.resolveRoute("ping");
+     if (rr.allowed !== true || rr.status !== 200 || rr.targetBlockId !== "view") {
+         console.log("Response:", rr);
+         throw new Error("resolveRoute failed validation");
+     }
+     log("resolveRoute passed.");
+
+     // 5. Test dispatchDebugAction
      log("Testing dispatchDebugAction()...");
      // First with devMode=true (configured above)
      const res = await runtime.dispatchDebugAction({
@@ -191,7 +210,7 @@ async function runTest() {
          payload: {},
          permissions: ["can_ping"]
      });
-     
+     6
      if (res.error) {
          throw new Error(`Dispatch error: ${res.error}`);
      }
