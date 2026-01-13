@@ -68,7 +68,7 @@ export function createWindowSystemRuntime(args: {
             const e = entry as any;
             registry.set(key, {
                 windowKey: e.windowKey || key,
-                singleton: !!e.singleton,
+                singleton: !!e.singleton || e.mode === 'singleton',
                 defaultSize: e.defaultSize,
                 minSize: e.minSize
             });
