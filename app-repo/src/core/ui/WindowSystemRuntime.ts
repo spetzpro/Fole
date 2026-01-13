@@ -42,6 +42,7 @@ export interface WindowSystemRuntime {
     moveWindow(identity: WindowIdentity, pos: { x: number; y: number }): { ok: true; state: CanonicalWindowState } | { ok: false; error: string };
     resizeWindow(identity: WindowIdentity, size: { width: number; height: number }): { ok: true; state: CanonicalWindowState } | { ok: false; error: string };
     setMinimized(identity: WindowIdentity, minimized: boolean): { ok: true; state: CanonicalWindowState } | { ok: false; error: string };
+    dockWindow(identity: WindowIdentity, dock: "left" | "right" | "top" | "bottom" | null): { ok: true; state: CanonicalWindowState } | { ok: false; error: string };
     setViewport(bounds: ViewportBounds): void;
     loadFromPersistence(): Promise<void>;
     saveToPersistence(): Promise<void>;
@@ -52,6 +53,7 @@ export function createWindowSystemRuntime(args: {
     viewport: ViewportBounds;
     windowRegistryBlockEnvelope: any;
     persistence: WindowSystemPersistence;
+    autoPersist?: boolean;
 }): WindowSystemRuntime {
 
     let viewport = { ...args.viewport };
@@ -78,7 +80,56 @@ export function createWindowSystemRuntime(args: {
         return Math.max(...windows.map(w => w.zOrder)) + 1;
     }
 
+    // Helper to trigger auto-persistence
+    function persistIfAuto() {
+        if (args.autoPersist) {
+            runtime.saveToPersistence().catch(err => {
+                console.error("WindowSystemRuntime: Auto-persist failed", err);
+            });
+        }
+    }
+
+    function applyDockConstraints(state: CanonicalWindowState) {
+        if (!state.docked) return;
+        
+        const dw = Math.round(viewport.width / 3);
+        const dh = Math.round(viewport.height / 3);
+
+        switch (state.docked) {
+            case "left":
+                state.x = 0;
+                state.y = 0;
+                state.width = dw;
+                state.height = viewport.height;
+                break;
+            case "right":
+                state.width = dw;
+                state.height = viewport.height;
+                state.x = viewport.width - dw;
+                state.y = 0;
+                break;
+            case "top":
+                state.x = 0;
+                state.y = 0;
+                state.width = viewport.width;
+                state.height = dh;
+                break;
+            case "bottom":
+                state.width = viewport.width;
+                state.height = dh;
+                state.x = 0;
+                state.y = viewport.height - dh;
+                break;
+        }
+    }
+
     function clampBounds(state: CanonicalWindowState) {
+        // If docked, dock rules take precedence over clamping logic
+        if (state.docked) {
+            applyDockConstraints(state);
+            return;
+        }
+
         // First clamp size against minSize
         const defaults = registry.get(state.windowKey);
         if (defaults && defaults.minSize) {
@@ -130,6 +181,7 @@ export function createWindowSystemRuntime(args: {
                     // Bring to front
                     existing.zOrder = getNextZ();
                     sortWindows();
+                    persistIfAuto();
                     return { ok: true, state: { ...existing } };
                 }
             }
@@ -137,13 +189,11 @@ export function createWindowSystemRuntime(args: {
             const instanceId = opts?.instanceId || (regEntry.singleton ? windowKey : `win-${idCounter++}`);
             
             // Check existence logic for manual ID provided?
-            // If manual ID matches existing that is not singleton, allow re-use? 
-            // The spec implies singleton means max 1. Multi means multiple.
-            // If user provides instanceId for multi-instance, check collision.
             const existing = windows.find(w => w.windowKey === windowKey && w.instanceId === instanceId);
             if (existing) {
                  existing.zOrder = getNextZ();
                  sortWindows();
+                 persistIfAuto();
                  return { ok: true, state: { ...existing } };
             }
 
@@ -165,6 +215,7 @@ export function createWindowSystemRuntime(args: {
             clampBounds(newState);
             windows.push(newState);
             sortWindows();
+            persistIfAuto();
 
             return { ok: true, state: { ...newState } };
         },
@@ -173,6 +224,7 @@ export function createWindowSystemRuntime(args: {
             const idx = windows.findIndex(w => w.windowKey === id.windowKey && w.instanceId === id.instanceId);
             if (idx === -1) return { ok: false, error: "Window not found" };
             windows.splice(idx, 1);
+            persistIfAuto();
             return { ok: true };
         },
 
@@ -181,24 +233,60 @@ export function createWindowSystemRuntime(args: {
             if (!w) return { ok: false, error: "Window not found" };
             w.zOrder = getNextZ();
             sortWindows();
+            persistIfAuto();
             return { ok: true, state: { ...w } };
         },
 
         moveWindow: (id, pos) => {
             const w = findWindow(id);
             if (!w) return { ok: false, error: "Window not found" };
+            
             w.x = pos.x;
             w.y = pos.y;
+            
+            if (w.docked) {
+                // automatic undock
+                w.docked = null;
+            }
+            
             clampBounds(w);
+            persistIfAuto();
             return { ok: true, state: { ...w } };
         },
 
         resizeWindow: (id, size) => {
             const w = findWindow(id);
             if (!w) return { ok: false, error: "Window not found" };
-            w.width = size.width;
-            w.height = size.height;
-            clampBounds(w);
+
+            if (w.docked) {
+                // If docked, we simply re-enforce the dock constraints 
+                // effectively ignoring the resize request.
+                applyDockConstraints(w);
+            } else {
+                w.width = size.width;
+                w.height = size.height;
+                clampBounds(w);
+            }
+            
+            persistIfAuto();
+            return { ok: true, state: { ...w } };
+        },
+
+        dockWindow: (id, dock) => {
+            const w = findWindow(id);
+            if (!w) return { ok: false, error: "Window not found" };
+
+            // dock=null means undock
+            if (dock === null) {
+                w.docked = null;
+                // keep current x/y/size clamped
+                clampBounds(w);
+            } else {
+                w.docked = dock;
+                applyDockConstraints(w);
+            }
+
+            persistIfAuto();
             return { ok: true, state: { ...w } };
         },
 
@@ -206,6 +294,7 @@ export function createWindowSystemRuntime(args: {
             const w = findWindow(id);
             if (!w) return { ok: false, error: "Window not found" };
             w.minimized = min;
+            persistIfAuto();
             return { ok: true, state: { ...w } };
         },
 
