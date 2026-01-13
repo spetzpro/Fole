@@ -13,7 +13,8 @@ interface BundleResponse {
 }
 
 function App() {
-  const [baseUrl, setBaseUrl] = useState('http://127.0.0.1:3000');
+  // Configured via vite proxy in dev
+  const [baseUrl, setBaseUrl] = useState('');
   const [devMode, setDevMode] = useState(false);
   const [bundleData, setBundleData] = useState<BundleResponse | null>(null);
   const [pingData, setPingData] = useState<PingResponse | null>(null);
