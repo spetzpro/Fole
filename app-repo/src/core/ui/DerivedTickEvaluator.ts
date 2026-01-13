@@ -69,7 +69,6 @@ export function applyDerivedTickFromBundle(bundle: any, runtimeState: Record<str
             const { kind } = data.mapping;
 
             if (kind === 'copy') {
-                const startVal = result.applied;
                 // Get endpoints
                 const fromEpId = data.mapping.from;
                 const toEpId = data.mapping.to;

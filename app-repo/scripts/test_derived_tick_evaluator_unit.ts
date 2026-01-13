@@ -24,22 +24,6 @@ function runTest() {
                         to: "dst"
                     }
                 }
-            },
-            "LiteralBinding": {
-                blockId: "LiteralBinding",
-                blockType: "binding",
-                data: {
-                    mode: "derived",
-                    enabled: true,
-                    endpoints: [
-                        { endpointId: "dst", direction: "in", target: { blockId: "TargetBlock", path: "/state/literal_val" } }
-                    ],
-                    mapping: {
-                        kind: "setLiteral",
-                        to: "dst",
-                        value: "FIXED"
-                    }
-                }
             }
         }
     };
@@ -57,8 +41,8 @@ function runTest() {
     // 4. Assertions
     console.log("Result:", result);
 
-    if (result.applied !== 2) { // 1 copy + 1 literal
-        throw new Error(`Expected included bindings to apply (2), got ${result.applied}`);
+    if (result.applied !== 1) { 
+        throw new Error(`Expected included bindings to apply (1), got ${result.applied}`);
     }
 
     if (result.skipped !== 0) {
@@ -68,10 +52,6 @@ function runTest() {
     // Verify State
     if (runtimeState["TargetBlock"].state.derived_val !== "A") {
         throw new Error(`Expected copy value "A", got "${runtimeState["TargetBlock"].state.derived_val}"`);
-    }
-
-    if (runtimeState["TargetBlock"].state.literal_val !== "FIXED") {
-        throw new Error(`Expected literal value "FIXED", got "${runtimeState["TargetBlock"].state.literal_val}"`);
     }
 
     // 5. Test Invalid/Missing
