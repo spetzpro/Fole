@@ -13,6 +13,7 @@
     "test:debug-action-403": "npx ts-node --project tsconfig.json app-repo/scripts/test_debug_action_dispatch_403.ts",
     "test:debug-action-e2e": "npx ts-node --project tsconfig.json app-repo/scripts/test_debug_action_dispatch_e2e.ts",
     "test:client-runtime": "npx ts-node --project tsconfig.json app-repo/scripts/test_client_runtime_headless.ts",
+    "test:template-runtime": "npx ts-node --project tsconfig.json app-repo/scripts/test_template_runtime_headless.ts",
     "spec:check:inventory": "node app-repo/scripts/specs/validateInventory.js",
     "spec:check:deps": "node app-repo/scripts/specs/validateDependencies.js",
     "spec:check:perf": "node app-repo/scripts/specs/validatePerformanceBudget.js",
