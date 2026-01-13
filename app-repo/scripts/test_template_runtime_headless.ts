@@ -78,7 +78,31 @@ async function runTest() {
                    },
                    "infra_theme": { schemaVersion: "1.0.0", blockId: "infra_theme", blockType: "shell.infra.theme_tokens", data: { tokens: {} } },
                    "infra_windows": { schemaVersion: "1.0.0", blockId: "infra_windows", blockType: "shell.infra.window_registry", data: { windows: {} } },
-                   "overlay_menu": { schemaVersion: "1.0.0", blockId: "overlay_menu", blockType: "shell.overlay.main_menu", data: { items: [] } }
+                   "overlay_menu": { schemaVersion: "1.0.0", blockId: "overlay_menu", blockType: "shell.overlay.main_menu", data: { items: [] } },
+                   
+                   // ADDED: Binding Block
+                   "MyBinding": {
+                       schemaVersion: "1.0.0",
+                       blockId: "MyBinding",
+                       blockType: "binding",
+                       data: {
+                           mode: "triggered",
+                           enabled: true,
+                           endpoints: [
+                               { endpointId: "src", direction: "out", target: { blockId: "head", path: "/data/title" } },
+                               { endpointId: "dst", direction: "in", target: { blockId: "foot", path: "/data/copyrightText" } }
+                           ],
+                           mapping: {
+                               trigger: { sourceBlockId: "head", name: "ping" },
+                               kind: "setLiteral",
+                               to: "dst",
+                               value: "pong"
+                           },
+                           accessPolicy: { 
+                               expr: { kind: "ref", refType: "permission", key: "can_ping" } 
+                           }
+                       }
+                   }
                }
             };
             
@@ -123,6 +147,21 @@ async function runTest() {
                      log("SUCCESS: targetBlock envelope present");
                  } else {
                      throw new Error("Target block envelope missing or invalid");
+                 }
+
+                 // Check bindings
+                 if (Array.isArray(result.model.bindings)) {
+                     log(`SUCCESS: Bindings array present (length=${result.model.bindings.length})`);
+                     if (result.model.bindings.length !== 1) {
+                         throw new Error(`Expected 1 binding, got ${result.model.bindings.length}`);
+                     }
+                     if (result.model.bindings[0].blockId === "MyBinding") {
+                        log("SUCCESS: Binding blockId match");
+                     } else {
+                        throw new Error(`Expected binding blockId 'MyBinding', got ${result.model.bindings[0].blockId}`);
+                     }
+                 } else {
+                     throw new Error("Bindings array missing from model");
                  }
         
              } else {

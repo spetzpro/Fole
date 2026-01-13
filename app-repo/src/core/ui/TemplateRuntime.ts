@@ -4,6 +4,7 @@ export interface TemplateSessionModel {
     targetBlockId: string;
     manifest: any;          // from bundle.bundle.manifest (or equivalent)
     targetBlock: any;       // the block envelope for targetBlockId
+    bindings: any[];        // All binding blocks in the bundle
 }
 
 export type TemplateRuntimeResult =
@@ -41,14 +42,25 @@ export function assembleTemplateSession(bundleContainer: any, entrySlug: string,
         };
     }
 
-    // 5. Assemble and return model
+    // 5. Collect Bindings
+    const bindings: any[] = [];
+    for (const [key, block] of Object.entries(blocks)) {
+        if ((block as any).blockType === "binding") {
+            bindings.push(block);
+        }
+    }
+    // Sort for determinism
+    bindings.sort((a, b) => a.blockId.localeCompare(b.blockId));
+
+    // 6. Assemble and return model
     return {
         ok: true,
         model: {
             entrySlug,
             targetBlockId,
             manifest: actualBundle.manifest,
-            targetBlock
+            targetBlock,
+            bindings
         }
     };
 }
