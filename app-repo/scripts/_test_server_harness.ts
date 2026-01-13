@@ -2,6 +2,8 @@
 import { spawn } from 'child_process';
 import * as net from 'net';
 import * as http from 'http';
+import * as fs from 'fs';
+import * as path from 'path';
 import { platform } from 'os';
 import { execSync } from 'child_process';
 
@@ -22,6 +24,17 @@ export async function withTestServer(
 ): Promise<void> {
     const startupTimeout = opts.startupTimeoutMs || 15000;
     const testTimeout = opts.testTimeoutMs || 30000;
+    
+    // 0. Take snapshot of active.json to prevent dirty state
+    const activeJsonPath = path.join(process.cwd(), 'app-repo', 'config', 'shell', 'active.json');
+    let activeJsonSnapshot: string | null = null;
+    try {
+        if (fs.existsSync(activeJsonPath)) {
+            activeJsonSnapshot = fs.readFileSync(activeJsonPath, 'utf8');
+        }
+    } catch (e) {
+        console.warn("[HARNESS] Warning: Failed to snapshot active.json", e);
+    }
     
     // 1. Find free port
     const port = await new Promise<number>((resolve, reject) => {
@@ -160,5 +173,21 @@ export async function withTestServer(
 
     } finally {
         await killServer();
+
+        // Restore snapshot
+        try {
+            if (activeJsonSnapshot !== null) {
+                fs.writeFileSync(activeJsonPath, activeJsonSnapshot);
+                console.log("[HARNESS] Restored active.json");
+            } else {
+                 if (fs.existsSync(activeJsonPath)) {
+                     console.log("[HARNESS] active.json created by test (leaving it per policy)");
+                 } else {
+                     console.log("[HARNESS] active.json unchanged (did not exist)");
+                 }
+            }
+        } catch (e) {
+            console.error("[HARNESS] Failed to restore active.json", e);
+        }
     }
 }
