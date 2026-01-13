@@ -1,3 +1,4 @@
+// NOTE: Test harness must never delete files. Always edit in-place. No Remove-Item.
 import { spawn } from 'child_process';
 import * as net from 'net';
 import * as http from 'http';
