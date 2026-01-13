@@ -46,6 +46,7 @@ async function startServer(): Promise<ChildProcess> {
             PORT: String(SERVER_PORT),
             // ENABLE DEV MODE FOR TESTS
             FOLE_DEV_ALLOW_MODE_OVERRIDES: "1",
+            FOLE_DEV_ENABLE_DEBUG_ENDPOINTS: "1", // Hardened requirement for debug endpoints
             FOLE_DEV_FORCE_INVALID_CONFIG: "1" // This combo allows dev mode according to ModeGate logic
         },
         stdio: "inherit",

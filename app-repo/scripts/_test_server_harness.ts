@@ -61,7 +61,11 @@ export async function withTestServer(
 
     if (opts.devMode) {
         env['FOLE_DEV_ALLOW_MODE_OVERRIDES'] = "1";
-        env['FOLE_DEV_FORCE_INVALID_CONFIG'] = "1";
+        // Enable debug endpoints expressly
+        env['FOLE_DEV_ENABLE_DEBUG_ENDPOINTS'] = "1";
+        // Note: We deliberately do NOT enable FORCE_INVALID here automatically.
+        // Tests that need force-invalid will fail deployment if the bundle is bad,
+        // which is correct behavior unless we add a separate flag.
     }
 
     const cmd = platform() === 'win32' ? 'npx.cmd' : 'npx';
