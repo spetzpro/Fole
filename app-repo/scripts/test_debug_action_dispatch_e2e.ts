@@ -1,10 +1,6 @@
-import { spawn } from 'child_process';
+import { withTestServer } from './_test_server_harness';
 import http from 'http';
-import { platform } from 'os';
-
-const SERVER_PORT = 3012;
-const SERVER_HOST = '127.0.0.1';
-const STARTUP_TIMEOUT_MS = 15000;
+import * as url from 'url';
 
 function log(msg: string) {
   console.log(`[E2E] ${msg}`);
@@ -14,13 +10,14 @@ function error(msg: string) {
   console.error(`[E2E FAIL] ${msg}`);
 }
 
-async function makeRequest(path: string, body: any): Promise<{ statusCode: number, data: any }> {
+async function makeRequest(baseUrl: string, path: string, body: any): Promise<{ statusCode: number, data: any }> {
   return new Promise((resolve, reject) => {
+    const u = url.parse(baseUrl + path);
     const postData = JSON.stringify(body);
     const options = {
-      hostname: SERVER_HOST,
-      port: SERVER_PORT,
-      path: path,
+      hostname: u.hostname || '127.0.0.1',
+      port: u.port,
+      path: u.path,
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -52,80 +49,12 @@ async function makeRequest(path: string, body: any): Promise<{ statusCode: numbe
   });
 }
 
-function killProcess(child: any) {
-  log("Stopping server...");
-  child.kill();
-  
-  // Give it a moment, then force kill on Windows if needed
-  if (platform() === 'win32') {
-     setTimeout(() => {
-        try {
-            // Using taskkill to ensure the tree (including ts-node -> node) is dead
-            const pid = child.pid;
-            if (pid) {
-                const { execSync } = require('child_process');
-                execSync(`taskkill /F /T /PID ${pid}`, { stdio: 'ignore' });
-            }
-        } catch (e) {
-            // Ignore if already dead
-        }
-     }, 2000);
-  }
-}
-
 async function runTest() {
-  log("Starting server process...");
-  
-  const env = { 
-      ...process.env, 
-      PORT: String(SERVER_PORT),
-      FOLE_DEV_ALLOW_MODE_OVERRIDES: "1",
-      FOLE_DEV_FORCE_INVALID_CONFIG: "1"
-  };
-
-  // On Windows, npx is a cmd file.
-  const cmd = platform() === 'win32' ? 'npx.cmd' : 'npx';
-  const args = ['ts-node', '--project', 'tsconfig.json', 'app-repo/src/server/serverMain.ts'];
-
-  const serverProcess = spawn(cmd, args, {
-    env,
-    cwd: process.cwd(),
-    stdio: ['ignore', 'pipe', 'pipe'],
-    shell: platform() === 'win32' // Fix EINVAL on Windows by enabling shellMode for cmd files
-  });
-
-  let serverReady = false;
-  let serverOutput = '';
-
-  serverProcess.stdout.on('data', (data) => {
-    const str = data.toString();
-    serverOutput += str;
-    process.stdout.write(`[SERVER] ${str}`); // DEBUG: Enable live logging
-    if (str.includes(`Server listening on http://127.0.0.1:${SERVER_PORT}`)) {
-      serverReady = true;
-    }
-  });
-
-  serverProcess.stderr.on('data', (data) => {
-      process.stderr.write(`[SERVER ERR] ${data}`);
-  });
-
-  // Wait for startup
-  const start = Date.now();
-  while (!serverReady) {
-    if (Date.now() - start > STARTUP_TIMEOUT_MS) {
-      error("Server startup timeout");
-      console.log("Partial Output:\n" + serverOutput);
-      killProcess(serverProcess);
-      process.exit(1);
-    }
-    await new Promise(r => setTimeout(r, 100));
-  }
-  
-  log("Server is ready. Preparing deployment...");
-
   try {
-     const bundle = {
+    await withTestServer({ devMode: true }, async ({ baseUrl }) => {
+      log(`Server is ready at ${baseUrl}. Preparing deployment...`);
+
+      const bundle = {
         manifest: {
             schemaVersion: "1.0.0",
             // Minimal manifest with required empty regions
@@ -195,7 +124,7 @@ async function runTest() {
 
      // 1. Deploy
      log("Step 1: Deploying Bundle (valid)...");
-     const deployRes = await makeRequest('/api/config/shell/deploy', {
+     const deployRes = await makeRequest(baseUrl, '/api/config/shell/deploy', {
          bundle: bundle,
          message: "E2E Test Deploy",
          forceInvalid: false // Valid bundle
@@ -211,7 +140,7 @@ async function runTest() {
 
     // 2. Dispatch
     log("Step 2: Dispatching 'ping' action...");
-    const res1 = await makeRequest('/api/debug/action/dispatch', {
+    const res1 = await makeRequest(baseUrl, '/api/debug/action/dispatch', {
        sourceBlockId: "X",
        actionName: "ping",
        payload: {},
@@ -242,7 +171,7 @@ async function runTest() {
 
     // 3. Validation Check
     log("Step 3: Invalid Payload Check...");
-    const res2 = await makeRequest('/api/debug/action/dispatch', {
+    const res2 = await makeRequest(baseUrl, '/api/debug/action/dispatch', {
         sourceBlockId: "123",
         actionName: null
     });
@@ -254,12 +183,11 @@ async function runTest() {
     log("PASS: Step 3 (Validation Error)");
 
     log("All tests passed.");
-    killProcess(serverProcess);
+    });
+    
     process.exit(0);
-
   } catch (err: any) {
     error(err.message);
-    killProcess(serverProcess);
     process.exit(1);
   }
 }
