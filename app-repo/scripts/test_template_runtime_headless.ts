@@ -185,6 +185,20 @@ async function runTest() {
                  } else {
                      throw new Error("Window Registry missing or invalid");
                  }
+
+                 // Check routingInfra
+                 if (result.model.routingInfra && result.model.routingInfra.blockId === "infra_routing") {
+                     log("SUCCESS: Routing Infra present and correct");
+                 } else {
+                     throw new Error("Routing Infra missing or invalid");
+                 }
+
+                 // Check themeTokensInfra
+                 if (result.model.themeTokensInfra && result.model.themeTokensInfra.blockId === "infra_theme") {
+                     log("SUCCESS: Theme Tokens Infra present and correct");
+                 } else {
+                     throw new Error("Theme Tokens Infra missing or invalid");
+                 }
         
              } else {
                  throw new Error(`Assemble failed unexpectedly: ${result.error}`);
@@ -218,6 +232,42 @@ async function runTest() {
                  }
             } else {
                 throw new Error("Expected failure for missing window registry, but got success");
+            }
+
+            // 8. Negative Case (Missing Routing Infra)
+            log("Testing Negative Case (Missing Routing Infra)...");
+            const clonedBundleNoRouting = JSON.parse(JSON.stringify(loadedBundle));
+            if (clonedBundleNoRouting.bundle && clonedBundleNoRouting.bundle.blocks) {
+                delete clonedBundleNoRouting.bundle.blocks["infra_routing"];
+            }
+            
+            const noRoutingResult = assembleTemplateSession(clonedBundleNoRouting, "ping", resolveResponse);
+            if (noRoutingResult.ok === false) {
+                 if (noRoutingResult.error === "Routing infra missing") {
+                    log(`SUCCESS: Got expected failure for missing routing`);
+                 } else {
+                    throw new Error(`Expected 'Routing infra missing', got: ${noRoutingResult.error}`);
+                 }
+            } else {
+                throw new Error("Expected failure for missing routing infra, but got success");
+            }
+
+            // 9. Negative Case (Missing Theme Tokens Infra)
+            log("Testing Negative Case (Missing Theme Tokens Infra)...");
+            const clonedBundleNoTheme = JSON.parse(JSON.stringify(loadedBundle));
+            if (clonedBundleNoTheme.bundle && clonedBundleNoTheme.bundle.blocks) {
+                delete clonedBundleNoTheme.bundle.blocks["infra_theme"];
+            }
+            
+            const noThemeResult = assembleTemplateSession(clonedBundleNoTheme, "ping", resolveResponse);
+            if (noThemeResult.ok === false) {
+                 if (noThemeResult.error === "Theme tokens infra missing") {
+                    log(`SUCCESS: Got expected failure for missing theme tokens`);
+                 } else {
+                    throw new Error(`Expected 'Theme tokens infra missing', got: ${noThemeResult.error}`);
+                 }
+            } else {
+                throw new Error("Expected failure for missing theme tokens, but got success");
             }
 
             log("ALL TESTS PASSED");

@@ -7,6 +7,8 @@ export interface TemplateSessionModel {
     bindings: any[];        // All binding blocks in the bundle
     overlays: any[];        // All overlay blocks in the bundle
     windowRegistry: any;    // shell.infra.window_registry block
+    routingInfra: any;      // shell.infra.routing block
+    themeTokensInfra: any;  // shell.infra.theme_tokens block
 }
 
 export type TemplateRuntimeResult =
@@ -48,6 +50,8 @@ export function assembleTemplateSession(bundleContainer: any, entrySlug: string,
     const bindings: any[] = [];
     const overlays: any[] = [];
     let windowRegistry: any = null;
+    let routingInfra: any = null;
+    let themeTokensInfra: any = null;
     
     for (const [key, block] of Object.entries(blocks)) {
         const b = block as any;
@@ -57,11 +61,21 @@ export function assembleTemplateSession(bundleContainer: any, entrySlug: string,
             overlays.push(b);
         } else if (b.blockType === "shell.infra.window_registry") {
             windowRegistry = b;
+        } else if (b.blockType === "shell.infra.routing") {
+            routingInfra = b;
+        } else if (b.blockType === "shell.infra.theme_tokens") {
+            themeTokensInfra = b;
         }
     }
 
     if (!windowRegistry) {
         return { ok: false, error: "Window registry missing" };
+    }
+    if (!routingInfra) {
+        return { ok: false, error: "Routing infra missing" };
+    }
+    if (!themeTokensInfra) {
+        return { ok: false, error: "Theme tokens infra missing" };
     }
 
     // Sort for determinism
@@ -78,7 +92,9 @@ export function assembleTemplateSession(bundleContainer: any, entrySlug: string,
             targetBlock,
             bindings,
             overlays,
-            windowRegistry
+            windowRegistry,
+            routingInfra,
+            themeTokensInfra
         }
     };
 }
