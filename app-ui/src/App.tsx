@@ -448,10 +448,12 @@ type OverlayLayerProps = {
     onToggleRunLogs: (id: string) => void;
     actionSearch: string;
     onChangeActionSearch: (val: string) => void;
+    recentRuns?: ActionRunRecord[];
 };
 
 function OverlayLayer(props: OverlayLayerProps) {
-    const { overlays, onClose, onDismissCtx, actions, onRunAction, lastRun, expandedRunIds, onToggleRunLogs, actionSearch, onChangeActionSearch } = props;
+    const { overlays, onClose, onDismissCtx, actions, onRunAction, lastRun, recentRuns, expandedRunIds, onToggleRunLogs, actionSearch, onChangeActionSearch } = props;
+    const [recentError, setRecentError] = useState<string | null>(null);
     
     const activeOverlays = overlays.filter(o => o.isOpen).sort((a,b) => a.zOrder - b.zOrder);
     if (activeOverlays.length === 0) return null;
@@ -520,6 +522,36 @@ function OverlayLayer(props: OverlayLayerProps) {
                         <div style={{flex:1, overflowY:'auto'}}>
                             {isMenu ? (
                                 <div style={{display:'flex', flexDirection:'column', gap:'5px'}}>
+                                    {recentRuns && recentRuns.length > 0 && (
+                                        <div style={{marginBottom:'10px'}}>
+                                            <div style={{fontSize:'0.85em', fontWeight:'bold', color:'#555', marginBottom:'4px', borderBottom:'1px solid #eee'}}>
+                                                Recent Actions
+                                            </div>
+                                            <div style={{display:'flex', flexDirection:'column', gap:'3px'}}>
+                                                {recentRuns.map(run => (
+                                                    <button 
+                                                        key={run.id}
+                                                        onClick={() => {
+                                                            setRecentError(null);
+                                                            const parts = run.actionId.split('::');
+                                                            const src = parts[0];
+                                                            const name = parts[1];
+                                                            const def = actions.find(a => a.sourceBlockId === src && a.actionName === name) 
+                                                                     || actions.find(a => a.id === run.actionId);
+                                                            if (def) onRunAction(def);
+                                                            else setRecentError("Recent action not found in current bundle");
+                                                        }}
+                                                        style={{padding:'4px 8px', textAlign:'left', border:'1px solid #ddd', background:'#f9f9f9', cursor:'pointer', fontSize:'0.9em'}}
+                                                    >
+                                                        {run.actionId}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                            {recentError && <div style={{color:'#999', fontSize:'0.8em', marginTop:'2px', fontStyle:'italic'}}>{recentError}</div>}
+                                            <hr style={{border:'none', borderTop:'1px solid #eee', margin:'8px 0'}} />
+                                        </div>
+                                    )}
+
                                     <input 
                                        type="text" 
                                        value={actionSearch}
@@ -921,6 +953,7 @@ function App() {
                         actions={runtimePlan.actions}
                         onRunAction={runAction}
                         lastRun={actionRuns[0]}
+                        recentRuns={actionRuns.slice(0, 5)}
                         expandedRunIds={expandedRunIds}
                         onToggleRunLogs={toggleRunLogs}
                         actionSearch={actionSearch}
