@@ -786,15 +786,9 @@ function App() {
              <h4>Available Overlays</h4>
              <ul>
                  {runtimePlan && Object.values(runtimePlan.overlays).map(o => (
-                     <li key={o.id} 
-             <ul style={{ paddingLeft: '0', listStyle: 'none' }}>
-                {actionRuns.map(run => (
-                    <li key={run.id} style={{ marginBottom: '10px', borderBottom: '1px solid #eee', paddingBottom: '5px' }}>
-                        <div style={{ fontWeight: 'bold', display: 'flex', justifyContent: 'space-between' }}>
-                           <span>{run.actionId}</span>
-                           <span stystyle={{ fontSize: '0.9em' }}>
-                        {o.id} [{o.isOpen ? 'OPEN' : 'closed'}]
-                        <button onClick={() => overlayOps.open(o.id)} style={{ marginLeft: '5px', fontSize: '0.7em' }}>Open</button>
+                     <li key={o.id} style={{fontSize:'0.9em'}}>
+                         {o.id} [{o.isOpen ? 'OPEN' : 'closed'}]
+                         <button onClick={() => overlayOps.open(o.id)} style={{marginLeft:'5px', fontSize:'0.7em'}}>Open</button>
                      </li>
                  ))}
              </ul>
@@ -846,7 +840,13 @@ function App() {
                 ))}
                 {actionRuns.length === 0 && (
                     <li><span style={{ color: '#999' }}>No actions run yet.</span></li>
-                )
+                )}
+             </ul>
+          </div>
+
+          {/* Right Panel: The Viewport */}
+          <div ref={viewportRef} style={{flex:1, position:'relative', backgroundColor:'#f0f0f0', overflow:'auto', minWidth: 0, minHeight: 0, border:'2px solid #333', borderRadius:'4px', boxShadow:'inset 0 0 10px rgba(0,0,0,0.1)'}}>
+             {/* The "Desktop" */}
              {runtimePlan ? (
                  <>
                     {/* Windows */}
