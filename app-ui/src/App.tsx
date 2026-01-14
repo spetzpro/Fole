@@ -75,14 +75,22 @@ class WindowSystemRuntime {
     this.zCounter = 100;
 
     const blocks = bundle.blocks || {};
+    let blocksArray: unknown[] = [];
+    
+    if (Array.isArray(blocks)) {
+        blocksArray = blocks;
+    } else if (typeof blocks === 'object' && blocks !== null) {
+        blocksArray = Object.values(blocks);
+    }
 
     // 1. Scan for Windows & Overlays
-    Object.values(blocks).forEach((block: unknown) => {
+    blocksArray.forEach((block: unknown) => {
         if (!block || typeof block !== 'object') return;
         const b = block as Record<string, unknown>;
         
         const blockType = typeof b.blockType === 'string' ? b.blockType : '';
-        const blockId = typeof b.id === 'string' ? b.id : '';
+        // Fallback to blockId if id is missing
+        const blockId = (typeof b.id === 'string' ? b.id : '') || (typeof b.blockId === 'string' ? b.blockId : '');
         const title = (typeof b.title === 'string' ? b.title : '') || 
                       (typeof b.name === 'string' ? b.name : '') || 
                       blockId;
@@ -115,16 +123,24 @@ class WindowSystemRuntime {
 
     // 2. Build Actions
     const actionIdx: ActionDefinition[] = [];
-    Object.values(blocks).forEach((block: unknown) => {
+    blocksArray.forEach((block: unknown) => {
         if (!block || typeof block !== 'object') return;
         const b = block as Record<string, unknown>;
 
        const blockType = typeof b.blockType === 'string' ? b.blockType : '';
-       const blockId = typeof b.id === 'string' ? b.id : '';
+       const blockId = (typeof b.id === 'string' ? b.id : '') || (typeof b.blockId === 'string' ? b.blockId : '');
        if (!blockId) return;
 
+       // Check top-level actions or data.actions
+       let actionsList: unknown[] = [];
        if (Array.isArray(b.actions)) {
-          b.actions.forEach((act: unknown) => {
+           actionsList = b.actions;
+       } else if (b.data && typeof b.data === 'object' && Array.isArray((b.data as Record<string, unknown>).actions)) {
+           actionsList = (b.data as Record<string, unknown>).actions as unknown[];
+       }
+
+       if (actionsList.length > 0) {
+          actionsList.forEach((act: unknown) => {
              if (typeof act === 'string') {
                  actionIdx.push({ id: `${blockId}:${act}`, actionName: act, sourceBlockId: blockId });
              }
