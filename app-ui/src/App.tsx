@@ -530,9 +530,8 @@ function App() {
             });
         }
     };
-    update();
-    const t = setInterval(update, 500); 
-    return () => clearInterval(t);
+    // Use rAF instead of polling to capture post-layout state
+    requestAnimationFrame(update);
   }, [bundleData, pingData, runtimePlan]);
 
   // Debug Action State
@@ -689,7 +688,7 @@ function App() {
   };
 
   return (
-    <div style={{ padding: '20px', fontFamily: 'sans-serif', display: 'flex', flexDirection: 'column', height: '100vh', boxSizing:'border-box' }}>
+    <div style={{ padding: '20px', fontFamily: 'sans-serif', display: 'flex', flexDirection: 'column', height: '100vh', width: '100%', overflow: 'hidden', boxSizing:'border-box' }}>
       <h1>ShellRuntime Bootstrap UI</h1>
       
       {/* Top Controls */}
@@ -703,13 +702,13 @@ function App() {
         </div>
       </div>
 
-      <div ref={rootRef} style={{display:'flex', gap:'20px', flex:1, overflow:'hidden'}}>
+      <div ref={rootRef} style={{display:'flex', gap:'20px', flex:1, width: '100%', height:'100%', overflow:'hidden'}}>
           
           {/* Left Panel: Logic & Debug */}
           <div ref={leftRef} style={{width: '300px', overflowY: 'auto', borderRight: '1px solid #ddd', paddingRight:'10px'}}>
              <h4>Debug Controls</h4>
              {/* // TEMP layout metrics — remove after diagnosing viewport sizing */}
-             <div style={{fontSize:'0.7em', fontFamily:'monospace', marginBottom:'10px', background:'#eee', padding:'5px'}}>
+             <div style={{fontSize:'0.7em', fontFamily:'monospace', marginBottom:'10px', background:'#eee', color:'#111', padding:'5px'}}>
                  R: {layoutMetrics.rootW}x{layoutMetrics.rootH} | L: {layoutMetrics.leftW} | V: {layoutMetrics.rightW}x{layoutMetrics.rightH}
              </div>
              <div style={{marginBottom:'20px'}}>
