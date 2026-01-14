@@ -779,7 +779,16 @@ function App() {
                 <input type="text" placeholder="Action (e.g. click)" value={actionName} onChange={e=>setActionName(e.target.value)} style={{width:'100%', marginTop:'5px'}}/>
                 <input type="text" placeholder="Permissions" value={actionPerms} onChange={e=>setActionPerms(e.target.value)} style={{width:'100%', marginTop:'5px'}}/>
                 <button onClick={handleDispatch} style={{marginTop:'5px', width:'100%'}}>Dispatch Action</button>
-                {actionResult && <pre style={{fontSize:'10px', background:'#eee', padding:'5px'}}>{JSON.stringify(actionResult, null, 2)}</pre>}
+                {actionResult && <pre style={{
+                    fontSize:'10px',
+                    background:'#f7f7f7',
+                    color: '#111',
+                    padding:'5px',
+                    border: '1px solid #ddd',
+                    whiteSpace: 'pre-wrap',
+                    wordBreak: 'break-word',
+                    fontFamily: 'monospace'
+                }}>{JSON.stringify(actionResult, null, 2)}</pre>}
              </div>
 
              <h4>Available Windows</h4>
