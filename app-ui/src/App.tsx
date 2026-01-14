@@ -402,6 +402,13 @@ function WindowFrame({
                                background: 'linear-gradient(135deg, transparent 50%, #999 50%)' 
                            }}
                         />
+                    )}
+                </div>
+            )}
+        </div>
+    );
+}
+
 type OverlayLayerProps = { 
     overlays: OverlayState[]; 
     onClose: (id: string) => void;
@@ -785,30 +792,27 @@ function App() {
              <h4>Available Overlays</h4>
              <ul>
                  {runtimePlan && Object.values(runtimePlan.overlays).map(o => (
-                     <li key={o.id} style={{fontSize:'0.9em'}}>
-                         {o.id} [{o.isOpen ? 'OPEN' : 'closed'}]
-                         <button onClick={() => overlayOps.open(o.id)} style={{marginLeft:'5px', fontSize:'0.7em'}}>Open</button>
-                     </li>
-                 ))}
-             </ul>
-
-             <h4>Action History</h4>10px', listStyle:'none', borderBottom:'1px solid #eee', paddingBottom:'5px'}}>
-                        <div style={{fontWeight:'bold', display:'flex', justifyContent:'space-between'}}>
+                     <li key={o.id} 
+             <ul style={{ paddingLeft: '0', listStyle: 'none' }}>
+                {actionRuns.map(run => (
+                    <li key={run.id} style={{ marginBottom: '10px', borderBottom: '1px solid #eee', paddingBottom: '5px' }}>
+                        <div style={{ fontWeight: 'bold', display: 'flex', justifyContent: 'space-between' }}>
                            <span>{run.actionId}</span>
-                           <span style={{fontWeight:'normal', color:'#999'}}>{new Date(run.timestamp).toLocaleTimeString()}</span>
+                           <span style={{ fontWeight: 'normal', color: '#999' }}>{new Date(run.timestamp).toLocaleTimeString()}</span>
                         </div>
-                        <div style={{color: run.result.error ? 'red' : 'green', margin:'2px 0'}}>
+                        <div style={{ color: run.result.error ? 'red' : 'green', margin: '2px 0' }}>
                             {run.result.error ? 'ERROR' : 'OK'}
                         </div>
                         
-                        <div style={{fontSize:'0.9em'}}>
+                        <div style={{ fontSize: '0.9em' }}>
                             <span>Applied: {run.result.applied} | Skipped: {run.result.skipped}</span>
                             
                             {(run.result.logs.length > 0 || run.result.error) && (
-                                <div style={{marginTop:'2px'}}>
+                                <div style={{ marginTop: '2px' }}>
                                     <button 
+                                        type="button"
                                         onClick={() => toggleRunLogs(run.id)}
-                                        style={{cursor:'pointer', fontSize:'0.9em', border:'none', background:'none', color:'#007acc', padding:0, textDecoration:'underline'}}
+                                        style={{ cursor: 'pointer', fontSize: '0.9em', border: 'none', background: 'none', color: '#007acc', padding: 0, textDecoration: 'underline' }}
                                     >
                                         {expandedRunIds[run.id] ? 'Hide Details' : 'Show Details'}
                                     </button>
@@ -825,12 +829,15 @@ function App() {
                                             margin: '4px 0 0 0',
                                             fontSize: '0.85em'
                                         }}>
-                                            {run.result.error && `Error: ${run.result.error}\n`}
-                                            {run.result.logs.join('\n')}
+                                            {run.result.error ? `Error: ${run.result.error}\n` : ''}{run.result.logs.join('\n')}
                                         </pre>
                                     )}
                                 </div>
-                            )
+                            )}
+                        </div>
+                    </li>
+                ))}
+                {actionRuns.length === 0 && <li><span style={{ color: '#999' 
                         <div><strong>{run.actionId}</strong></div>
                         <div style={{color: run.result?.error ? 'red' : 'green'}}>
                             {run.result?.error ? 'Failed' : `OK (Applied: ${run.result?.applied})`}
