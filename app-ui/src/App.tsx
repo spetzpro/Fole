@@ -660,6 +660,39 @@ function App() {
                 {actionResult && <pre style={{fontSize:'10px', background:'#eee', padding:'5px'}}>{JSON.stringify(actionResult, null, 2)}</pre>}
              </div>
 
+             {/* TEMP diagnostics — remove after bundle shape confirmed */}
+             <div style={{marginBottom:'20px', fontSize: '0.8em', border: '1px dashed #999', padding: '5px'}}>
+                <strong>Diagnostics:</strong>
+                <div>Bundle Loaded: {bundleData ? 'Yes' : 'No'}</div>
+                {bundleData && (
+                    <>
+                        <div>Type: {typeof bundleData}</div>
+                        <div>Keys: {Object.keys(bundleData).join(", ")}</div>
+                        {bundleData.blocks && (
+                            <>
+                                <div>Total Blocks: {Object.keys(bundleData.blocks).length}</div>
+                                {Object.values(bundleData.blocks).length > 0 && (
+                                    <div style={{overflow:'hidden', textOverflow:'ellipsis'}}>
+                                        First Block Keys: {Object.keys((Object.values(bundleData.blocks)[0] as object) || {}).join(", ")}
+                                    </div>
+                                )}
+                            </>
+                        )}
+                    </>
+                )}
+                {pingData && (
+                    <>
+                        <div style={{marginTop:'5px'}}>Ping Loaded</div>
+                        {'overlays' in pingData && Array.isArray((pingData as unknown as Record<string, unknown>).overlays) && (
+                            <div>Ping Overlays: {((pingData as unknown as Record<string, unknown>).overlays as unknown[]).length}</div>
+                        )}
+                        {'windows' in pingData && Array.isArray((pingData as unknown as Record<string, unknown>).windows) && (
+                            <div>Ping Windows: {((pingData as unknown as Record<string, unknown>).windows as unknown[]).length}</div>
+                        )}
+                    </>
+                )}
+             </div>
+
              <h4>Available Windows</h4>
              <ul>
                  {runtimePlan && Object.values(runtimePlan.windows).map(w => (
