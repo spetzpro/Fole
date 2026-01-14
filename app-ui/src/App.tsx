@@ -505,43 +505,37 @@ function OverlayLayer(props: OverlayLayerProps) {
 
                                     {/* Inline Feedback in Menu */}
                                     {lastRun ? (
-                                        <div style={{marginTop:'10px', padding:'5px', background:'#eee', fontSize:'0.8em', borderLeft:'3px solid #666'}}>
-                                            <div style={{display:'flex', justifyContent:'space-between'}}>
-                                                <strong>Last Result:</strong> 
-                                                <span>{lastRun.actionId}</span>
-                                            </div>
-                                            
-                                            <div style={{marginTop: '5px'}}>
-                                                {lastRun.result.error ? (
-                                                    <span style={{color:'red'}}>Error: {lastRun.result.error}</span>
-                                                ) : (
-                                                    <span style={{color:'green'}}>
-                                                        Applied: {lastRun.result.applied}, Skipped: {lastRun.result.skipped}
-                                                    </span>
-                                                )}
-                                            </div>
+                                      <div style={{ marginTop: '10px', padding: '5px', background: '#eee', fontSize: '0.8em', borderLeft: '3px solid #666' }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                          <strong>Last Result:</strong>
+                                          <span>{lastRun.actionId}</span>
+                                        </div>
 
-                                            {(lastRun.result.logs.length > 0 || lastRun.result.error) && (
-                                                <div style={{marginTop:'5px'}}>
-                                                    <button 
-                                                        style={{fontSize: '0.9em', cursor: 'pointer', textDecoration: 'underline', border: 'none', background: 'none', color: '#007acc', padding: 0}}
-                                                        onClick={() => onToggleRunLogs(lastRun.id)}
-                                                    >
-                                                        {expandedRunIds[lastRun.id] ? 'Hide Details' : 'Show Details'}
-                                                    </button>
-                                                    
-                                                    {expandedRunIds[lastRun.id] && renderRawLogs(lastRun.result)}
-                                                </div>
-                                            )}
+                                        <div style={{ marginTop: '5px' }}>
+                                          {lastRun.result.error ? (
+                                            <span style={{ color: 'red' }}>Error: {lastRun.result.error}</span>
+                                          ) : (
+                                            <span style={{ color: 'green' }}>
+                                              Applied: {lastRun.result.applied}, Skipped: {lastRun.result.skipped}
+                                            </span>
+                                          )}
                                         </div>
-                                    ) : null       <strong>Last Result:</strong> {lastRun.actionId} <br/>
-                                            {lastRun.result?.error ? (
-                                                <span style={{color:'red'}}>Error: {lastRun.result.error}</span>
-                                            ) : (
-                                                <span>Applied: {lastRun.result?.applied}, Skipped: {lastRun.result?.skipped}</span>
-                                            )}
-                                        </div>
-                                    )}
+
+                                        {(lastRun.result.logs.length > 0 || lastRun.result.error) && (
+                                          <div style={{ marginTop: '5px' }}>
+                                            <button
+                                              type="button"
+                                              style={{ fontSize: '0.9em', cursor: 'pointer', textDecoration: 'underline', border: 'none', background: 'none', color: '#007acc', padding: 0 }}
+                                              onClick={() => onToggleRunLogs(lastRun.id)}
+                                            >
+                                              {expandedRunIds[lastRun.id] ? 'Hide Details' : 'Show Details'}
+                                            </button>
+
+                                            {expandedRunIds[lastRun.id] && renderRawLogs(lastRun.result)}
+                                          </div>
+                                        )}
+                                      </div>
+                                    ) : null}
                                 </div>
                             ) : (
                                 <div>Content...</div>
@@ -798,6 +792,19 @@ function App() {
                     <li key={run.id} style={{ marginBottom: '10px', borderBottom: '1px solid #eee', paddingBottom: '5px' }}>
                         <div style={{ fontWeight: 'bold', display: 'flex', justifyContent: 'space-between' }}>
                            <span>{run.actionId}</span>
+                           <span stystyle={{ fontSize: '0.9em' }}>
+                        {o.id} [{o.isOpen ? 'OPEN' : 'closed'}]
+                        <button onClick={() => overlayOps.open(o.id)} style={{ marginLeft: '5px', fontSize: '0.7em' }}>Open</button>
+                     </li>
+                 ))}
+             </ul>
+
+             <h4>Action History</h4>
+             <ul style={{ paddingLeft: '0', listStyle: 'none' }}>
+                {actionRuns.map(run => (
+                    <li key={run.id} style={{ marginBottom: '10px', borderBottom: '1px solid #eee', paddingBottom: '5px' }}>
+                        <div style={{ fontWeight: 'bold', display: 'flex', justifyContent: 'space-between' }}>
+                           <span>{run.actionId}</span>
                            <span style={{ fontWeight: 'normal', color: '#999' }}>{new Date(run.timestamp).toLocaleTimeString()}</span>
                         </div>
                         <div style={{ color: run.result.error ? 'red' : 'green', margin: '2px 0' }}>
@@ -837,20 +844,9 @@ function App() {
                         </div>
                     </li>
                 ))}
-                {actionRuns.length === 0 && <li><span style={{ color: '#999' 
-                        <div><strong>{run.actionId}</strong></div>
-                        <div style={{color: run.result?.error ? 'red' : 'green'}}>
-                            {run.result?.error ? 'Failed' : `OK (Applied: ${run.result?.applied})`}
-                        </div>
-                    </li>
-                ))}
-                {actionRuns.length === 0 && <li><span style={{color:'#999'}}>No actions run yet.</span></li>}
-             </ul>
-          </div>
-
-          {/* Right Panel: The Viewport */}
-          <div ref={viewportRef} style={{flex:1, position:'relative', backgroundColor:'#f0f0f0', overflow:'auto', minWidth: 0, minHeight: 0, border:'2px solid #333', borderRadius:'4px', boxShadow:'inset 0 0 10px rgba(0,0,0,0.1)'}}>
-             {/* The "Desktop" */}
+                {actionRuns.length === 0 && (
+                    <li><span style={{ color: '#999' }}>No actions run yet.</span></li>
+                )
              {runtimePlan ? (
                  <>
                     {/* Windows */}
