@@ -471,6 +471,17 @@ function OverlayLayer(props: OverlayLayerProps) {
                       ) 
                     : actions;
 
+                // Group actions by sourceBlockId
+                const groups = new Map<string, ActionDefinition[]>();
+                if (isMenu) {
+                    filteredActions.forEach(act => {
+                        const k = act.sourceBlockId;
+                        if (!groups.has(k)) groups.set(k, []);
+                        groups.get(k)!.push(act);
+                    });
+                }
+                const sortedGroupKeys = Array.from(groups.keys()).sort();
+
                 return (
                     <div key={o.id} 
                         onClick={onDismissCtx}
@@ -516,18 +527,34 @@ function OverlayLayer(props: OverlayLayerProps) {
                                        onChange={e => onChangeActionSearch(e.target.value)}
                                        style={{ width: '100%', padding: '8px', border: '1px solid #ccc', borderRadius: '6px', marginBottom: '8px', boxSizing: 'border-box' }}
                                     />
-                                    {filteredActions.map(act => (
-                                        <button 
-                                            key={act.id} 
-                                            onClick={() => onRunAction(act)}
-                                            style={{padding:'8px', textAlign:'left', border:'1px solid #ccc', cursor:'pointer'}}
-                                        >
-                                            <strong>{act.actionName}</strong> 
-                                            <span style={{color:'#666', fontSize:'0.8em', marginLeft:'5px'}}>
-                                                ({act.sourceBlockId})
-                                            </span>
-                                        </button>
+                                    
+                                    {sortedGroupKeys.map(groupKey => (
+                                        <div key={groupKey}>
+                                            <div style={{
+                                                fontSize: '0.85em', 
+                                                fontWeight: 'bold', 
+                                                color: '#555', 
+                                                marginTop: '10px', 
+                                                marginBottom: '4px',
+                                                paddingBottom: '2px',
+                                                borderBottom: '1px solid #eee'
+                                            }}>
+                                                {groupKey}
+                                            </div>
+                                            <div style={{display:'flex', flexDirection:'column', gap:'5px'}}>
+                                                {groups.get(groupKey)!.sort((a,b) => a.actionName.localeCompare(b.actionName)).map(act => (
+                                                    <button 
+                                                        key={act.id} 
+                                                        onClick={() => onRunAction(act)}
+                                                        style={{padding:'8px', textAlign:'left', border:'1px solid #ccc', cursor:'pointer'}}
+                                                    >
+                                                        <strong>{act.actionName}</strong> 
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
                                     ))}
+
                                     {filteredActions.length === 0 && <p style={{color:'#999'}}>No actions match your search.</p>}
 
                                     {/* Inline Feedback in Menu */}
