@@ -676,6 +676,7 @@ function SysadminPanel({ isOpen, onClose, bundleData, runtimePlan, actionRuns = 
     const [filter, setFilter] = useState('');
     const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
     const [selectedBindingId, setSelectedBindingId] = useState<string | null>(null);
+    const [selectedActionId, setSelectedActionId] = useState<string | null>(null);
 
     if (!isOpen) return null;
 
@@ -854,29 +855,98 @@ function SysadminPanel({ isOpen, onClose, bundleData, runtimePlan, actionRuns = 
             case 'ActionIndex': {
                 const actions = runtimePlan?.actions || [];
                 const f = filter.toLowerCase();
-                const filtered = actions.filter(a => !f || a.actionName.toLowerCase().includes(f) || a.sourceBlockId.toLowerCase().includes(f));
+                const filtered = actions.filter(a => {
+                    const id = a.id || '';
+                    const name = a.actionName || '';
+                    const src = a.sourceBlockId || '';
+                    return !f || 
+                           id.toLowerCase().includes(f) || 
+                           name.toLowerCase().includes(f) || 
+                           src.toLowerCase().includes(f);
+                });
                 
-                // Group by source
+                // Group by source (Map<sourceBlockId, ActionDefinition[]>)
                 const groups = new Map<string, ActionDefinition[]>();
                 filtered.forEach(a => {
                     if (!groups.has(a.sourceBlockId)) groups.set(a.sourceBlockId, []);
                     groups.get(a.sourceBlockId)!.push(a);
                 });
                 const sortedKeys = Array.from(groups.keys()).sort();
+                
+                // Stats
+                const totalVisible = filtered.length;
+                const totalSources = sortedKeys.length;
+
+                const selectedAction = selectedActionId 
+                    ? actions.find(a => a.id === selectedActionId) 
+                    : null;
 
                 return (
-                    <div>
-                         <input type="text" placeholder="Filter actions..." value={filter} onChange={e=>setFilter(e.target.value)} style={{width:'100%', marginBottom:'10px'}}/>
-                         {sortedKeys.map(k => (
-                             <div key={k} style={{marginBottom:'10px'}}>
-                                 <div style={{fontWeight:'bold', borderBottom:'1px solid #eee'}}>{k} <span style={{fontWeight:'normal', fontSize:'0.8em', color:'#888'}}>({groups.get(k)?.length})</span></div>
-                                 <div style={{paddingLeft:'10px'}}>
-                                     {groups.get(k)?.map(a => (
-                                         <div key={a.id} style={{fontSize:'0.9em', padding:'2px 0'}}>{a.actionName}</div>
-                                     ))}
-                                 </div>
+                    <div style={{display:'flex', flexDirection:'column', height:'100%'}}>
+                         <div style={{fontSize:'0.85em', color:'#555', marginBottom:'5px'}}>
+                             Total actions: <strong>{totalVisible}</strong> | Sources: <strong>{totalSources}</strong>
+                         </div>
+                         <input 
+                            type="text" 
+                            placeholder="Filter actions (id/name/source)..." 
+                            value={filter} 
+                            onChange={e=>setFilter(e.target.value)} 
+                            style={{width:'100%', marginBottom:'10px', padding:'6px', boxSizing:'border-box', border:'1px solid #ccc'}}
+                         />
+                         
+                         <div style={{display:'flex', flex:1, overflow:'hidden', gap:'10px'}}>
+                             {/* Left Column: Groups & Lists */}
+                             <div style={{flex: '0 0 45%', overflowY:'auto', borderRight:'1px solid #ddd', paddingRight:'5px'}}>
+                                 {sortedKeys.map(k => (
+                                     <div key={k} style={{marginBottom:'10px'}}>
+                                         <div style={{
+                                             fontWeight:'bold', 
+                                             borderBottom:'1px solid #eee', 
+                                             background:'#fafafa', 
+                                             padding:'4px',
+                                             fontSize:'0.9em',
+                                             color:'#333'
+                                         }}>
+                                             {k} <span style={{fontWeight:'normal', fontSize:'0.8em', color:'#888'}}>({groups.get(k)?.length})</span>
+                                         </div>
+                                         <div style={{paddingLeft:'5px'}}>
+                                             {groups.get(k)?.map(a => {
+                                                 const isSel = a.id === selectedActionId;
+                                                 return (
+                                                     <div 
+                                                        key={a.id} 
+                                                        onClick={() => setSelectedActionId(a.id)}
+                                                        style={{
+                                                            fontSize:'0.9em', 
+                                                            padding:'4px 6px',
+                                                            margin:'2px 0',
+                                                            cursor:'pointer',
+                                                            background: isSel ? '#e6f7ff' : 'transparent',
+                                                            color: isSel ? '#007acc' : '#111',
+                                                            borderLeft: isSel ? '3px solid #007acc' : '3px solid transparent'
+                                                        }}
+                                                        onMouseEnter={e => { if(!isSel) e.currentTarget.style.background = '#f5f5f5'; }}
+                                                        onMouseLeave={e => { if(!isSel) e.currentTarget.style.background = 'transparent'; }}
+                                                     >
+                                                         {a.actionName}
+                                                     </div>
+                                                 );
+                                             })}
+                                         </div>
+                                     </div>
+                                 ))}
+                                 {sortedKeys.length === 0 && <div style={{fontStyle:'italic', padding:'10px'}}>No matching actions.</div>}
                              </div>
-                         ))}
+
+                             {/* Right Column: Details */}
+                             <div style={{flex:1, overflowY:'auto', paddingLeft:'5px'}}>
+                                 {selectedAction ? (
+                                    <pre style={preStyle}>{JSON.stringify(selectedAction, null, 2)}</pre>
+                                 ) : (
+                                    <div style={{fontStyle:'italic', color:'#666', padding:'10px'}}>Select an action to view details.</div>
+                                 )}
+                             </div>
+                         </div>
                     </div>
                 );
             }
@@ -920,7 +990,13 @@ function SysadminPanel({ isOpen, onClose, bundleData, runtimePlan, actionRuns = 
                     return (
                         <button 
                             key={t} 
-                            onClick={() => { setActiveTab(t); setFilter(''); setSelectedBlockId(null); setSelectedBindingId(null); }}
+                            onClick={() => { 
+                                setActiveTab(t); 
+                                setFilter(''); 
+                                setSelectedBlockId(null); 
+                                setSelectedBindingId(null); 
+                                setSelectedActionId(null);
+                            }}
                             style={{
                                 flex: 1,  
                                 padding:'8px 10px', 
