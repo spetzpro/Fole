@@ -66,7 +66,7 @@ class WindowSystemRuntime {
 
   constructor() {}
 
-  public init(bundle: BundleResponse, ping: PingResponse) {
+  public init(bundle: BundleResponse, ping: PingResponse, viewWidth: number = 900, viewHeight: number = 600) {
     this.entrySlug = 'ping';
     this.targetBlockId = ping.targetBlockId || 'unknown';
     this.windows.clear();
@@ -82,6 +82,9 @@ class WindowSystemRuntime {
     } else if (typeof blocks === 'object' && blocks !== null) {
         blocksArray = Object.values(blocks);
     }
+
+    const minVisibleW = 100;
+    const minVisibleH = 50;
 
     // 1. Scan for Windows & Overlays
     blocksArray.forEach((block: unknown) => {
@@ -107,11 +110,14 @@ class WindowSystemRuntime {
         });
       } else if (blockType.includes('window') || blockId.includes('win') || blockType.includes('panel')) {
          // Default Window Layout
+         const startX = 50 + (this.windows.size * 30);
+         const startY = 50 + (this.windows.size * 30);
+
          this.windows.set(blockId, {
             id: blockId,
             title,
-            x: 50 + (this.windows.size * 30),
-            y: 50 + (this.windows.size * 30),
+            x: Math.max(0, Math.min(startX, viewWidth - minVisibleW)),
+            y: Math.max(0, Math.min(startY, viewHeight - minVisibleH)),
             width: 400,
             height: 300,
             isMinimized: false,
@@ -503,6 +509,9 @@ function App() {
   // Runtime
   const runtimeRef = useRef<WindowSystemRuntime>(new WindowSystemRuntime());
   const [runtimePlan, setRuntimePlan] = useState<RuntimePlan | null>(null);
+  
+  // Viewport Ref for clamping
+  const viewportRef = useRef<HTMLDivElement>(null);
 
   // Debug Action State
   const [sourceBlockId, setSourceBlockId] = useState('');
@@ -521,7 +530,13 @@ function App() {
   // Initialize Runtime when bundle loads
   useEffect(() => {
     if (bundleData && pingData) {
-        runtimeRef.current.init(bundleData, pingData);
+        let width = 800; // Default fallback
+        let height = 600;
+        if (viewportRef.current) {
+            width = viewportRef.current.clientWidth;
+            height = viewportRef.current.clientHeight;
+        }
+        runtimeRef.current.init(bundleData, pingData, width, height);
         syncRuntime();
     }
   }, [bundleData, pingData]);
@@ -714,7 +729,7 @@ function App() {
           </div>
 
           {/* Right Panel: The Viewport */}
-          <div style={{flex:1, position:'relative', backgroundColor:'#f0f0f0', overflow:'auto', minHeight: 0, border:'2px solid #333', borderRadius:'4px', boxShadow:'inset 0 0 10px rgba(0,0,0,0.1)'}}>
+          <div ref={viewportRef} style={{flex:1, position:'relative', backgroundColor:'#f0f0f0', overflow:'auto', minWidth: 0, minHeight: 0, border:'2px solid #333', borderRadius:'4px', boxShadow:'inset 0 0 10px rgba(0,0,0,0.1)'}}>
              {/* The "Desktop" */}
              {runtimePlan ? (
                  <>
