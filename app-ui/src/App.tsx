@@ -454,6 +454,21 @@ type OverlayLayerProps = {
 function OverlayLayer(props: OverlayLayerProps) {
     const { overlays, onClose, onDismissCtx, actions, onRunAction, lastRun, recentRuns, expandedRunIds, onToggleRunLogs, actionSearch, onChangeActionSearch } = props;
     const [recentError, setRecentError] = useState<string | null>(null);
+
+    // Deduplicate recent runs (max 5)
+    const uniqueRecentRuns = (() => {
+        if (!recentRuns) return [];
+        const unique: typeof recentRuns = [];
+        const seen = new Set<string>();
+        for (const r of recentRuns) {
+            if (!seen.has(r.actionId)) {
+                seen.add(r.actionId);
+                unique.push(r);
+                if (unique.length >= 5) break;
+            }
+        }
+        return unique;
+    })();
     
     const activeOverlays = overlays.filter(o => o.isOpen).sort((a,b) => a.zOrder - b.zOrder);
     if (activeOverlays.length === 0) return null;
@@ -522,13 +537,13 @@ function OverlayLayer(props: OverlayLayerProps) {
                         <div style={{flex:1, overflowY:'auto'}}>
                             {isMenu ? (
                                 <div style={{display:'flex', flexDirection:'column', gap:'5px'}}>
-                                    {recentRuns && recentRuns.length > 0 && (
+                                    {uniqueRecentRuns.length > 0 && (
                                         <div style={{marginBottom:'10px'}}>
                                             <div style={{fontSize:'0.85em', fontWeight:'bold', color:'#555', marginBottom:'4px', borderBottom:'1px solid #eee'}}>
                                                 Recent Actions
                                             </div>
                                             <div style={{display:'flex', flexDirection:'column', gap:'3px'}}>
-                                                {recentRuns.map(run => (
+                                                {uniqueRecentRuns.map(run => (
                                                     <button 
                                                         key={run.id}
                                                         onClick={() => {
@@ -541,13 +556,25 @@ function OverlayLayer(props: OverlayLayerProps) {
                                                             if (def) onRunAction(def);
                                                             else setRecentError("Recent action not found in current bundle");
                                                         }}
-                                                        style={{padding:'4px 8px', textAlign:'left', border:'1px solid #ddd', background:'#f9f9f9', cursor:'pointer', fontSize:'0.9em'}}
+                                                        style={{
+                                                            padding:'6px 10px', 
+                                                            textAlign:'left', 
+                                                            border:'1px solid #555', 
+                                                            borderRadius:'4px',
+                                                            background:'#444', 
+                                                            color: 'white',
+                                                            cursor:'pointer', 
+                                                            fontSize:'0.9em',
+                                                            fontWeight: 'bold'
+                                                        }}
+                                                        onMouseEnter={e => e.currentTarget.style.background = '#333'}
+                                                        onMouseLeave={e => e.currentTarget.style.background = '#444'}
                                                     >
                                                         {run.actionId}
                                                     </button>
                                                 ))}
                                             </div>
-                                            {recentError && <div style={{color:'#999', fontSize:'0.8em', marginTop:'2px', fontStyle:'italic'}}>{recentError}</div>}
+                                            {recentError && <div style={{color:'#d32f2f', fontSize:'0.8em', marginTop:'2px', fontStyle:'italic'}}>{recentError}</div>}
                                             <hr style={{border:'none', borderTop:'1px solid #eee', margin:'8px 0'}} />
                                         </div>
                                     )}
@@ -953,7 +980,7 @@ function App() {
                         actions={runtimePlan.actions}
                         onRunAction={runAction}
                         lastRun={actionRuns[0]}
-                        recentRuns={actionRuns.slice(0, 5)}
+                        recentRuns={actionRuns}
                         expandedRunIds={expandedRunIds}
                         onToggleRunLogs={toggleRunLogs}
                         actionSearch={actionSearch}
