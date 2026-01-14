@@ -402,6 +402,13 @@ function WindowFrame({
                                background: 'linear-gradient(135deg, transparent 50%, #999 50%)' 
                            }}
                         />
+                    )}
+                </div>
+            )}
+        </div>
+    );
+}
+
 type OverlayLayerProps = { 
     overlays: OverlayState[]; 
     onClose: (id: string) => void;
@@ -524,10 +531,15 @@ function OverlayLayer(props: OverlayLayerProps) {
                                                             {expandedRunIds[lastRun.id] ? 'Hide Details' : 'Show Details'}
                                                         </button>
                                                     )}
+ActionDispatchResult | null>(null);
+  
+  // Action Menu State
+  const [actionRuns, setActionRuns] = useState<ActionRunRecord[]>([]);
+  const [expandedRunIds, setExpandedRunIds] = useState<Record<string, boolean>>({});
 
-                                                    {expandedRunIds[lastRun.id] && (
-                                                        <div style={{marginTop: '5px'}}>
-                                                            {lastRun.result.error && <div style={{color:'red', marginBottom:'5px'}}>{lastRun.result.error}</div>}
+  const toggleRunLogs = (id: string) => {
+    setExpandedRunIds(prev => ({...prev, [id]: !prev[id]}));
+  }result.error && <div style={{color:'red', marginBottom:'5px'}}>{lastRun.result.error}</div>}
                                                             {renderRawLogs(lastRun.result)}
                                                         </div>
                                                     )}
@@ -616,16 +628,24 @@ function App() {
   const fetchBundle = async () => {
     setLoading(true);
     setError(null);
-    setBundleData(null);
-    try {
-      const bundleRes = await fetch(`${baseUrl}/api/config/shell/bundle`);
-      if (!bundleRes.ok) throw new Error(`Bundle fetch failed: ${bundleRes.status} ${bundleRes.statusText}`);
-      const rawJson = await bundleRes.json();
+    setBundleData: ActionDispatchResult = { error: "Access Denied (403)", logs: ["Use FOLE_DEV_ENABLE_DEBUG_ENDPOINTS=1 env var"], applied: 0, skipped: 0 };
+        setActionResult(err);
+        return err;
+      }
       
-      const bundleObj = rawJson.bundle?.bundle ?? rawJson.bundle ?? rawJson;
-      if (!bundleObj.blocks) bundleObj.blocks = {};
-      if (!bundleObj.manifest) bundleObj.manifest = { title: "Unknown Manifest" };
-
+      const raw = await res.json() as any;
+      const data: ActionDispatchResult = {
+          applied: typeof raw.applied === 'number' ? raw.applied : 0,
+          skipped: typeof raw.skipped === 'number' ? raw.skipped : 0,
+          logs: Array.isArray(raw.logs) ? raw.logs : [],
+          error: typeof raw.error === 'string' ? raw.error : undefined
+      };
+      
+      setActionResult(data);
+      return data;
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      const errObj: ActionDispatchResult = { error: msg, applied: 0, skipped: 0, logs: [msg]
       setBundleData(bundleObj);
     } catch (err: unknown) {
       if (err instanceof Error) setError(err.message);
@@ -762,26 +782,49 @@ function App() {
                          <button onClick={() => winOps.focus(w.id)} style={{marginLeft:'5px', fontSize:'0.7em'}}>Focus</button>
                      </li>
                  ))}
-             </ul>
-
-             <h4>Available Overlays</h4>
-             <ul>
-                 {runtimePlan && Object.values(runtimePlan.overlays).map(o => (
-                     <li key={o.id} style={{fontSize:'0.9em'}}>
-                         {o.id} [{o.isOpen ? 'OPEN' : 'closed'}]
-                         <button onClick={() => overlayOps.open(o.id)} style={{marginLeft:'5px', fontSize:'0.7em'}}>Open</button>
-                     </li>
-                 ))}
-             </ul>
-
-             <h4>Action History</h4>
-             <ul style={{fontSize:'0.8em', paddingLeft:'15px', maxHeight:'200px', overflowY:'auto'}}>
+             </ul>0', maxHeight:'300px', overflowY:'auto', listStyleType:'none'}}>
                 {actionRuns.map(run => (
-                    <li key={run.id} style={{marginBottom:'5px'}}>
-                        <div><strong>{run.actionId}</strong></div>
-                        <div style={{color: run.result?.error ? 'red' : 'green'}}>
-                            {run.result?.error ? 'Failed' : `OK (Applied: ${run.result?.applied})`}
+                    <li key={run.id} style={{marginBottom:'10px', borderBottom:'1px solid #eee', paddingBottom:'5px'}}>
+                        <div style={{fontWeight:'bold', display:'flex', justifyContent:'space-between'}}>
+                           <span>{run.actionId}</span>
+                           <span style={{fontWeight:'normal', color:'#999'}}>{new Date(run.timestamp).toLocaleTimeString()}</span>
                         </div>
+                        <div style={{color: run.result?.error ? 'red' : 'green', margin:'2px 0'}}>
+                            {run.result?.error ? 'ERROR' : 'OK'}
+                        </div>
+                        {run.result && (
+                            <div style={{fontSize:'0.9em'}}>
+                                <span>Applied: {run.result.applied} | Skipped: {run.result.skipped}</span>
+                                {(run.result.logs.length > 0 || run.result.error) && (
+                                    <button 
+                                        onClick={() => toggleRunLogs(run.id)}
+                                        style={{marginLeft:'10px', fontSize:'0.8em', cursor:'pointer', border:'none', background:'transparent', color:'#007acc', textDecoration:'underline'}}
+                                    >
+                                        {expandedRunIds[run.id] ? 'Hide' : 'Details'}
+                                    </button>
+                                )}
+                                {expandedRunIds[run.id] && (
+                                    <div style={{marginTop:'5px'}}>
+                                        {run.result.error && <div style={{color:'red'}}>{run.result.error}</div>}
+                                        {run.result.logs.length > 0 && (
+                                            <pre style={{
+                                                background: '#f7f7f7', 
+                                                border: '1px solid #ddd', 
+                                                padding: '5px', 
+                                                marginTop: '5px',
+                                                whiteSpace: 'pre-wrap',
+                                                wordBreak: 'break-word',
+                                                maxHeight: '150px',
+                                                overflow: 'auto',
+                                                fontSize: '0.9em'
+                                            }}>
+                                                {run.result.logs.join('\n')}
+                                            </pre>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </li>
                 ))}
                 {actionRuns.length === 0 && <li><span style={{color:'#999'}}>No actions run yet.</span></li>}
@@ -802,6 +845,21 @@ function App() {
                            onMove={(x,y) => winOps.move(w.id, x, y)}
                            onResize={(width,height) => winOps.resize(w.id, width, height)}
                            onClose={() => winOps.close(w.id)}
+                           onMinimize={(v) => winOps.minimize(w.id, v)}
+                           onDock={(m) => winOps.dock(w.id, m)}
+                        />
+                    ))}
+
+                    {/* Overlays */}
+                    <OverlayLayer 
+                        overlays={Object.values(runtimePlan.overlays)} 
+                        onClose={overlayOps.close}
+                        onDismissCtx={overlayOps.dismiss}
+                        actions={runtimePlan.actions}
+                        onRunAction={runAction}
+                        lastRun={actionRuns[0]}
+                        expandedRunIds={expandedRunIds}
+                        onToggleRunLogs={toggleRunLogsps.close(w.id)}
                            onMinimize={(v) => winOps.minimize(w.id, v)}
                            onDock={(m) => winOps.dock(w.id, m)}
                         />
