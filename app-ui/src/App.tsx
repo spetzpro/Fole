@@ -678,6 +678,14 @@ function SysadminPanel({ isOpen, onClose, bundleData, runtimePlan, actionRuns = 
     const [selectedBindingId, setSelectedBindingId] = useState<string | null>(null);
     const [selectedActionId, setSelectedActionId] = useState<string | null>(null);
 
+    // Runtime Toggle State
+    const [runtimeSections, setRuntimeSections] = useState({ 
+        windows: true, 
+        overlays: true, 
+        lastResult: true, 
+        plan: false 
+    });
+
     // --- ActionIndex Memoization ---
     const allActions = runtimePlan?.actions || [];
     
@@ -970,20 +978,151 @@ function SysadminPanel({ isOpen, onClose, bundleData, runtimePlan, actionRuns = 
                 );
             }
             case 'Runtime': {
-                if (!runtimePlan) return <div>Runtime not initialized.</div>;
-                const summary = {
-                    windows: Object.keys(runtimePlan.windows).length,
-                    overlays: Object.keys(runtimePlan.overlays).length,
-                    actions: runtimePlan.actions.length,
-                    actionRuns: actionRuns.length
+                if (!runtimePlan) return <div style={{padding:'20px', color:'#666'}}>Runtime not initialized.</div>;
+                
+                const winCount = Object.keys(runtimePlan.windows || {}).length;
+                const ovCount = Object.keys(runtimePlan.overlays || {}).length;
+                const actCount = (runtimePlan.actions || []).length;
+                const runCount = actionRuns.length;
+                
+                const lastRun = actionRuns[0];
+                const lastStatus = lastRun 
+                    ? (lastRun.result.error ? 'ERROR' : 'OK') 
+                    : 'NONE';
+
+                const toggleSection = (key: keyof typeof runtimeSections) => {
+                    setRuntimeSections(prev => ({ ...prev, [key]: !prev[key] }));
                 };
+
+                const sectionHeaderStyle = {
+                    background:'#eaeaea', 
+                    padding:'8px', 
+                    cursor:'pointer', 
+                    fontWeight:'bold' as const, 
+                    borderBottom:'1px solid #ccc',
+                    display:'flex',
+                    alignItems:'center',
+                    justifyContent:'space-between',
+                    marginTop:'10px'
+                };
+
+                const pillStyle = {
+                    background:'#f0f0f0', 
+                    border:'1px solid #ccc', 
+                    borderRadius:'4px', 
+                    padding:'5px 10px', 
+                    fontSize:'0.85em', 
+                    textAlign:'center' as const,
+                    flex:1
+                };
+
                 return (
                     <div>
-                        <div style={{marginBottom:'10px', padding:'5px', background:'#eef'}}>
-                            <strong>Overview:</strong> {JSON.stringify(summary)}
+                        {/* Status Strip */}
+                        <div style={{display:'flex', gap:'8px', marginBottom:'15px'}}>
+                            <div style={pillStyle}>
+                                <div style={{fontWeight:'bold'}}>{winCount}</div>
+                                <div style={{color:'#666', fontSize:'0.9em'}}>Windows</div>
+                            </div>
+                            <div style={pillStyle}>
+                                <div style={{fontWeight:'bold'}}>{ovCount}</div>
+                                <div style={{color:'#666', fontSize:'0.9em'}}>Overlays</div>
+                            </div>
+                            <div style={pillStyle}>
+                                <div style={{fontWeight:'bold'}}>{actCount}</div>
+                                <div style={{color:'#666', fontSize:'0.9em'}}>Actions</div>
+                            </div>
+                            <div style={pillStyle}>
+                                <div style={{fontWeight:'bold'}}>{runCount}</div>
+                                <div style={{color:'#666', fontSize:'0.9em'}}>Runs</div>
+                            </div>
+                            {lastStatus !== 'NONE' && (
+                                <div style={{...pillStyle, background: lastStatus==='ERROR' ? '#ffebe6' : '#e6ffec', borderColor: lastStatus==='ERROR' ? '#ffbdad' : '#acf2bd'}}>
+                                    <div style={{fontWeight:'bold', color: lastStatus==='ERROR' ? '#c00' : '#006600'}}>{lastStatus}</div>
+                                    <div style={{color:'#666', fontSize:'0.9em'}}>Last Result</div>
+                                </div>
+                            )}
                         </div>
-                        <h4>Full Snapshot</h4>
-                        <pre style={preStyle}>{JSON.stringify(runtimePlan, null, 2)}</pre>
+
+                        {/* Windows Section */}
+                        <div style={sectionHeaderStyle} onClick={() => toggleSection('windows')}>
+                            <span>Windows</span>
+                            <span>{runtimeSections.windows ? '▾' : '▸'}</span>
+                        </div>
+                        {runtimeSections.windows && (
+                            <div style={{padding:'10px', border:'1px solid #eee', borderTop:'none'}}>
+                                {winCount === 0 ? <div style={{fontStyle:'italic', color:'#888'}}>No open windows.</div> : (
+                                    <div style={{display:'flex', flexDirection:'column', gap:'5px', marginBottom:'10px'}}>
+                                        {Object.values(runtimePlan.windows).map(w => (
+                                            <div key={w.id} style={{padding:'5px', border:'1px solid #eee', background:'#fafafa', fontSize:'0.9em'}}>
+                                                <strong>{w.id}</strong> <span style={{color:'#666'}}>({w.title})</span>
+                                                <div style={{fontSize:'0.8em', color:'#888'}}>
+                                                    Bounds: {Math.round(w.x)},{Math.round(w.y)} {w.width}x{w.height} | Z:{w.zOrder} | {w.dockMode !== 'none' ? `Docked: ${w.dockMode}` : 'Floating'}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                                <div style={{marginTop:'5px', fontSize:'0.8em', color:'#aaa', cursor:'pointer'}} onClick={(e) => {
+                                    // simple toggle for raw details could go here, but for now just show if filtered list is empty or for advanced debug
+                                }}>
+                                    <span style={{textDecoration:'underline'}}>Raw JSON</span>:
+                                    <pre style={{...preStyle, marginTop:'2px'}}>{JSON.stringify(runtimePlan.windows, null, 2)}</pre>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Overlays Section */}
+                        <div style={sectionHeaderStyle} onClick={() => toggleSection('overlays')}>
+                            <span>Overlays</span>
+                            <span>{runtimeSections.overlays ? '▾' : '▸'}</span>
+                        </div>
+                        {runtimeSections.overlays && (
+                            <div style={{padding:'10px', border:'1px solid #eee', borderTop:'none'}}>
+                                {ovCount === 0 ? <div style={{fontStyle:'italic', color:'#888'}}>No open overlays.</div> : (
+                                     <div style={{display:'flex', flexDirection:'column', gap:'5px', marginBottom:'10px'}}>
+                                        {Object.values(runtimePlan.overlays).map(o => (
+                                            <div key={o.id} style={{padding:'5px', border:'1px solid #eee', background: o.isOpen ? '#fff' : '#f9f9f9', fontSize:'0.9em', color: o.isOpen ? '#000' : '#888'}}>
+                                                <strong>{o.id}</strong> {o.isOpen ? <span style={{color:'green', fontWeight:'bold'}}>OPEN</span> : <span>(closed)</span>}
+                                                <div style={{fontSize:'0.8em', color:'#888'}}>Z:{o.zOrder} Type:{o.blockType || 'n/a'}</div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                                <pre style={preStyle}>{JSON.stringify(runtimePlan.overlays, null, 2)}</pre>
+                            </div>
+                        )}
+
+                        {/* Last Result Section */}
+                        <div style={sectionHeaderStyle} onClick={() => toggleSection('lastResult')}>
+                            <span>Last Action Result</span>
+                            <span>{runtimeSections.lastResult ? '▾' : '▸'}</span>
+                        </div>
+                        {runtimeSections.lastResult && (
+                            <div style={{padding:'10px', border:'1px solid #eee', borderTop:'none'}}>
+                                {lastRun ? (
+                                    <>
+                                        <div style={{fontSize:'0.9em', marginBottom:'5px'}}>
+                                            <strong>{lastRun.actionId}</strong> at {new Date(lastRun.timestamp).toLocaleTimeString()}
+                                        </div>
+                                        <pre style={preStyle}>{JSON.stringify(lastRun.result, null, 2)}</pre>
+                                    </>
+                                ) : (
+                                    <div style={{fontStyle:'italic', color:'#888'}}>No actions run yet.</div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* Runtime Plan Section */}
+                        <div style={sectionHeaderStyle} onClick={() => toggleSection('plan')}>
+                            <span>Full Runtime Plan</span>
+                            <span>{runtimeSections.plan ? '▾' : '▸'}</span>
+                        </div>
+                        {runtimeSections.plan && (
+                            <div style={{padding:'10px', border:'1px solid #eee', borderTop:'none'}}>
+                                <pre style={preStyle}>{JSON.stringify(runtimePlan, null, 2)}</pre>
+                            </div>
+                        )}
                     </div>
                 );
             }
