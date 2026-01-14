@@ -671,6 +671,8 @@ function App() {
                         {bundleData.blocks && (
                             <>
                                 <div>Total Blocks: {Object.keys(bundleData.blocks).length}</div>
+                                <div>Blocks Is Array: {Array.isArray(bundleData.blocks) ? 'Yes' : 'No'}</div>
+                                <div>Blocks Values Count: {Object.values(bundleData.blocks as object).length}</div>
                                 {Object.values(bundleData.blocks).length > 0 && (
                                     <div style={{overflow:'hidden', textOverflow:'ellipsis'}}>
                                         First Block Keys: {Object.keys((Object.values(bundleData.blocks)[0] as object) || {}).join(", ")}
