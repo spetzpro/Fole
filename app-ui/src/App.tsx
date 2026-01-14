@@ -8,8 +8,8 @@ interface PingResponse {
 }
 
 interface BundleResponse {
-  manifest: any;
-  blocks: Record<string, any>;
+  manifest: unknown;
+  blocks: Record<string, unknown>;
 }
 
 // --- Minimal In-Browser Runtime Models ---
@@ -44,7 +44,7 @@ interface ActionRunRecord {
   id: string;
   timestamp: number;
   actionId: string;
-  result?: any;
+  result?: { error?: string, applied?: number, skipped?: number };
 }
 
 interface RuntimePlan {
@@ -77,10 +77,15 @@ class WindowSystemRuntime {
     const blocks = bundle.blocks || {};
 
     // 1. Scan for Windows & Overlays
-    Object.values(blocks).forEach((block: any) => {
-      const blockType = typeof block.blockType === 'string' ? block.blockType : '';
-      const blockId = typeof block.id === 'string' ? block.id : '';
-      const title = block.title || block.name || blockId;
+    Object.values(blocks).forEach((block: unknown) => {
+        if (!block || typeof block !== 'object') return;
+        const b = block as Record<string, unknown>;
+        
+        const blockType = typeof b.blockType === 'string' ? b.blockType : '';
+        const blockId = typeof b.id === 'string' ? b.id : '';
+        const title = (typeof b.title === 'string' ? b.title : '') || 
+                      (typeof b.name === 'string' ? b.name : '') || 
+                      blockId;
 
       if (!blockId) return;
 
@@ -110,14 +115,19 @@ class WindowSystemRuntime {
 
     // 2. Build Actions
     const actionIdx: ActionDefinition[] = [];
-    Object.values(blocks).forEach((block: any) => {
-       const blockType = typeof block.blockType === 'string' ? block.blockType : '';
-       const blockId = typeof block.id === 'string' ? block.id : '';
+    Object.values(blocks).forEach((block: unknown) => {
+        if (!block || typeof block !== 'object') return;
+        const b = block as Record<string, unknown>;
+
+       const blockType = typeof b.blockType === 'string' ? b.blockType : '';
+       const blockId = typeof b.id === 'string' ? b.id : '';
        if (!blockId) return;
 
-       if (Array.isArray(block.actions)) {
-          block.actions.forEach((act: string) => {
-             actionIdx.push({ id: `${blockId}:${act}`, actionName: act, sourceBlockId: blockId });
+       if (Array.isArray(b.actions)) {
+          b.actions.forEach((act: unknown) => {
+             if (typeof act === 'string') {
+                 actionIdx.push({ id: `${blockId}:${act}`, actionName: act, sourceBlockId: blockId });
+             }
           });
        } else if (blockType.includes('button')) {
           actionIdx.push({ id: `${blockId}:click`, actionName: 'click', sourceBlockId: blockId });
@@ -242,7 +252,7 @@ function WindowFrame({
     onResize: (w: number, h: number) => void,
     onClose: () => void,
     onMinimize: (val: boolean) => void,
-    onDock: (mode: any) => void
+    onDock: (mode: WindowState['dockMode']) => void
 }) {
     // Drag
     const startDrag = (e: React.MouseEvent) => {
@@ -523,8 +533,9 @@ function App() {
       if (!bundleObj.manifest) bundleObj.manifest = { title: "Unknown Manifest" };
 
       setBundleData(bundleObj);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      if (err instanceof Error) setError(err.message);
+      else setError(String(err));
     } finally {
       setLoading(false);
     }
@@ -542,12 +553,10 @@ function App() {
       const pingJson = await pingRes.json();
       setPingData(pingJson);
       
-      // Auto-open menu if present for convenience in dev
-      if (pingJson.overlays?.some((o:any) => o.blockId === 'overlay_menu')) {
-          setTimeout(() => runtimeRef.current.setOverlayOpen('overlay_menu', true), 500);
-      }
-    } catch (err: any) {
-      setError(err.message);
+      // Auto-open menu logic removed
+    } catch (err: unknown) {
+      if (err instanceof Error) setError(err.message);
+      else setError(String(err));
     } finally {
       setLoading(false);
     }
@@ -575,11 +584,12 @@ function App() {
         setActionResult(err);
         return err;
       }
-      const data = await res.json();
+      const data: unknown = await res.json();
       setActionResult(data);
       return data;
-    } catch (err: any) {
-      const errObj = { error: err.message };
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      const errObj = { error: msg };
       setActionResult(errObj);
       return errObj;
     } finally {
@@ -613,7 +623,7 @@ function App() {
       resize: (id: string, w: number, h: number) => { runtimeRef.current.resizeWindow(id, w, h); syncRuntime(); },
       close: (id: string) => { runtimeRef.current.closeWindow(id); syncRuntime(); },
       minimize: (id: string, v: boolean) => { runtimeRef.current.setMinimized(id, v); syncRuntime(); },
-      dock: (id: string, m: any) => { runtimeRef.current.dockWindow(id, m); syncRuntime(); }
+      dock: (id: string, m: WindowState['dockMode']) => { runtimeRef.current.dockWindow(id, m); syncRuntime(); }
   };
 
   const overlayOps = {
