@@ -408,37 +408,39 @@ function OverlayLayer({ overlays, onClose, onDismissCtx, actions, onRunAction, l
     if (activeOverlays.length === 0) return null;
 
     return (
-        <div style={{
-            position: 'absolute', top: 0, left: 0, width: '100%', height: '100%',
-            zIndex: 2000,
-            pointerEvents: 'none' // Allow pass through if backdrop issues? No, backdrop handles blocking
-        }}>
-            {/* Backdrop for the top-most overlay context */}
-            <div 
-                onClick={onDismissCtx}
-                style={{
-                    position: 'absolute', top: 0, left: 0, width: '100%', height: '100%',
-                    backgroundColor: 'rgba(0,0,0,0.4)',
-                    pointerEvents: 'auto'
-                }}
-            />
+        <>
             {activeOverlays.map(o => {
                 // Check if this is a menu overlay
                 const isMenu = o.blockType?.includes('overlay_menu') || o.id === 'overlay_menu' || o.id.toLowerCase().includes('menu');
                 
                 return (
-                    <div key={o.id} style={{
-                        position: 'absolute',
-                        top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
-                        width: '400px', height: isMenu ? 'auto' : '300px',
-                        maxHeight: '80vh',
-                        backgroundColor: 'white',
-                        border: '1px solid #777',
-                        boxShadow: '0 10px 25px rgba(0,0,0,0.5)',
-                        pointerEvents: 'auto',
-                        padding: '20px',
-                        display: 'flex', flexDirection: 'column'
-                    }}>
+                    <div key={o.id} 
+                        onClick={onDismissCtx}
+                        style={{
+                            position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+                            zIndex: o.zOrder,
+                            backgroundColor: 'rgba(0,0,0,0.4)',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center'
+                        }}
+                    >
+                        <div 
+                            onClick={(e) => e.stopPropagation()}
+                            style={{
+                                backgroundColor: '#fff',
+                                color: '#111',
+                                border: '1px solid #ccc',
+                                borderRadius: '8px',
+                                padding: '12px',
+                                maxWidth: 'min(720px, 90vw)',
+                                maxHeight: '80vh',
+                                overflowY: 'auto',
+                                display: 'flex', flexDirection: 'column',
+                                boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                                // Keep basic sizing nicely bounded
+                                width: isMenu ? 'auto' : '400px',
+                                height: isMenu ? 'auto' : '300px'
+                            }}
+                        >
                         <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'10px'}}>
                              <h3 style={{margin:0}}>
                                 {isMenu ? 'Available Actions' : `Overlay: ${o.id}`}
@@ -482,9 +484,10 @@ function OverlayLayer({ overlays, onClose, onDismissCtx, actions, onRunAction, l
                         
                         {!isMenu && <button onClick={() => onClose(o.id)} style={{marginTop:'10px'}}>Close Modal</button>}
                     </div>
+                    </div>
                 );
             })}
-        </div>
+        </>
     );
 }
 
@@ -711,7 +714,7 @@ function App() {
           </div>
 
           {/* Right Panel: The Viewport */}
-          <div style={{flex:1, position:'relative', backgroundColor:'#f0f0f0', overflow:'hidden', border:'2px solid #333', borderRadius:'4px', boxShadow:'inset 0 0 10px rgba(0,0,0,0.1)'}}>
+          <div style={{flex:1, position:'relative', backgroundColor:'#f0f0f0', overflow:'auto', minHeight: 0, border:'2px solid #333', borderRadius:'4px', boxShadow:'inset 0 0 10px rgba(0,0,0,0.1)'}}>
              {/* The "Desktop" */}
              {runtimePlan ? (
                  <>
