@@ -446,10 +446,12 @@ type OverlayLayerProps = {
     lastRun?: ActionRunRecord;
     expandedRunIds: Record<string, boolean>;
     onToggleRunLogs: (id: string) => void;
+    actionSearch: string;
+    onChangeActionSearch: (val: string) => void;
 };
 
 function OverlayLayer(props: OverlayLayerProps) {
-    const { overlays, onClose, onDismissCtx, actions, onRunAction, lastRun, expandedRunIds, onToggleRunLogs } = props;
+    const { overlays, onClose, onDismissCtx, actions, onRunAction, lastRun, expandedRunIds, onToggleRunLogs, actionSearch, onChangeActionSearch } = props;
     
     const activeOverlays = overlays.filter(o => o.isOpen).sort((a,b) => a.zOrder - b.zOrder);
     if (activeOverlays.length === 0) return null;
@@ -460,6 +462,15 @@ function OverlayLayer(props: OverlayLayerProps) {
                 // Check if this is a menu overlay
                 const isMenu = o.blockType?.includes('overlay_menu') || o.id === 'overlay_menu' || o.id.toLowerCase().includes('menu');
                 
+                const q = actionSearch.trim().toLowerCase();
+                const filteredActions = isMenu && q 
+                    ? actions.filter(a => 
+                        a.id.toLowerCase().includes(q) || 
+                        a.actionName.toLowerCase().includes(q) || 
+                        a.sourceBlockId.toLowerCase().includes(q)
+                      ) 
+                    : actions;
+
                 return (
                     <div key={o.id} 
                         onClick={onDismissCtx}
@@ -498,7 +509,14 @@ function OverlayLayer(props: OverlayLayerProps) {
                         <div style={{flex:1, overflowY:'auto'}}>
                             {isMenu ? (
                                 <div style={{display:'flex', flexDirection:'column', gap:'5px'}}>
-                                    {actions.map(act => (
+                                    <input 
+                                       type="text" 
+                                       value={actionSearch}
+                                       placeholder="Search actions..." 
+                                       onChange={e => onChangeActionSearch(e.target.value)}
+                                       style={{ width: '100%', padding: '8px', border: '1px solid #ccc', borderRadius: '6px', marginBottom: '8px', boxSizing: 'border-box' }}
+                                    />
+                                    {filteredActions.map(act => (
                                         <button 
                                             key={act.id} 
                                             onClick={() => onRunAction(act)}
@@ -510,7 +528,7 @@ function OverlayLayer(props: OverlayLayerProps) {
                                             </span>
                                         </button>
                                     ))}
-                                    {actions.length === 0 && <p style={{color:'#999'}}>No actions available</p>}
+                                    {filteredActions.length === 0 && <p style={{color:'#999'}}>No actions match your search.</p>}
 
                                     {/* Inline Feedback in Menu */}
                                     {lastRun ? (
@@ -585,6 +603,7 @@ function App() {
   // Action Menu State
   const [actionRuns, setActionRuns] = useState<ActionRunRecord[]>([]);
   const [expandedRunIds, setExpandedRunIds] = useState<Record<string, boolean>>({});
+  const [actionSearch, setActionSearch] = useState('');
 
   const toggleRunLogs = (id: string) => setExpandedRunIds(prev => ({...prev, [id]: !prev[id]}));
 
@@ -877,6 +896,8 @@ function App() {
                         lastRun={actionRuns[0]}
                         expandedRunIds={expandedRunIds}
                         onToggleRunLogs={toggleRunLogs}
+                        actionSearch={actionSearch}
+                        onChangeActionSearch={setActionSearch}
                     />
                  </>
              ) : (
