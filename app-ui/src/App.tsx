@@ -513,27 +513,6 @@ function App() {
   // Viewport Ref for clamping
   const viewportRef = useRef<HTMLDivElement>(null);
 
-  // TEMP: Layout Refs & State
-  const rootRef = useRef<HTMLDivElement>(null);
-  const leftRef = useRef<HTMLDivElement>(null);
-  const [layoutMetrics, setLayoutMetrics] = useState({ rootW: 0, rootH: 0, leftW: 0, rightW: 0, rightH: 0 });
-
-  useEffect(() => {
-    const update = () => {
-        if (rootRef.current && leftRef.current && viewportRef.current) {
-            setLayoutMetrics({
-                rootW: rootRef.current.clientWidth,
-                rootH: rootRef.current.clientHeight,
-                leftW: leftRef.current.clientWidth,
-                rightW: viewportRef.current.clientWidth,
-                rightH: viewportRef.current.clientHeight
-            });
-        }
-    };
-    // Use rAF instead of polling to capture post-layout state
-    requestAnimationFrame(update);
-  }, [bundleData, pingData, runtimePlan]);
-
   // Debug Action State
   const [sourceBlockId, setSourceBlockId] = useState('');
   const [actionName, setActionName] = useState('');
@@ -702,15 +681,11 @@ function App() {
         </div>
       </div>
 
-      <div ref={rootRef} style={{display:'flex', gap:'20px', flex:1, width: '100%', height:'100%', overflow:'hidden'}}>
+      <div style={{display:'flex', gap:'20px', flex:1, width: '100%', height:'100%', overflow:'hidden'}}>
           
           {/* Left Panel: Logic & Debug */}
-          <div ref={leftRef} style={{width: '300px', overflowY: 'auto', borderRight: '1px solid #ddd', paddingRight:'10px'}}>
+          <div style={{width: '300px', overflowY: 'auto', borderRight: '1px solid #ddd', paddingRight:'10px'}}>
              <h4>Debug Controls</h4>
-             {/* // TEMP layout metrics — remove after diagnosing viewport sizing */}
-             <div style={{fontSize:'0.7em', fontFamily:'monospace', marginBottom:'10px', background:'#eee', color:'#111', padding:'5px'}}>
-                 R: {layoutMetrics.rootW}x{layoutMetrics.rootH} | L: {layoutMetrics.leftW} | V: {layoutMetrics.rightW}x{layoutMetrics.rightH}
-             </div>
              <div style={{marginBottom:'20px'}}>
                 <input type="text" placeholder="Block ID" value={sourceBlockId} onChange={e=>setSourceBlockId(e.target.value)} style={{width:'100%'}}/>
                 <input type="text" placeholder="Action (e.g. click)" value={actionName} onChange={e=>setActionName(e.target.value)} style={{width:'100%', marginTop:'5px'}}/>
