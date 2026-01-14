@@ -40,11 +40,18 @@ interface ActionDefinition {
   sourceBlockId: string;
 }
 
+type ActionDispatchResult = {
+  applied: number;
+  skipped: number;
+  logs: string[];
+  error?: string;
+};
+
 interface ActionRunRecord {
   id: string;
   timestamp: number;
   actionId: string;
-  result?: { error?: string, applied?: number, skipped?: number };
+  result?: ActionDispatchResult;
 }
 
 interface RuntimePlan {
@@ -395,23 +402,41 @@ function WindowFrame({
                                background: 'linear-gradient(135deg, transparent 50%, #999 50%)' 
                            }}
                         />
-                    )}
-                </div>
-            )}
-        </div>
-    );
-}
+type OverlayLayerProps = { 
+    overlays: OverlayState[]; 
+    onClose: (id: string) => void;
+    onDismissCtx: () => void;
+    actions: ActionDefinition[];
+    onRunAction: (def: ActionDefinition) => void;
+    lastRun?: ActionRunRecord;
+    expandedRunIds: Record<string, boolean>;
+    onToggleRunLogs: (id: string) => void;
+};
 
-function OverlayLayer({ overlays, onClose, onDismissCtx, actions, onRunAction, lastRun }: { 
-    overlays: OverlayState[], 
-    onClose: (id: string) => void,
-    onDismissCtx: () => void,
-    actions: ActionDefinition[],
-    onRunAction: (def: ActionDefinition) => void,
-    lastRun?: ActionRunRecord
-}) {
+function OverlayLayer(props: OverlayLayerProps) {
+    const { overlays, onClose, onDismissCtx, actions, onRunAction, lastRun, expandedRunIds, onToggleRunLogs } = props;
+    
     const activeOverlays = overlays.filter(o => o.isOpen).sort((a,b) => a.zOrder - b.zOrder);
     if (activeOverlays.length === 0) return null;
+
+    const renderRawLogs = (res: ActionDispatchResult) => {
+        if (!res.logs || res.logs.length === 0) return <div style={{fontStyle:'italic', color:'#999'}}>No logs.</div>;
+        return (
+            <pre style={{
+                whiteSpace: 'pre-wrap', 
+                wordBreak: 'break-word', 
+                maxHeight: '200px', 
+                overflow: 'auto', 
+                background: '#f7f7f7', 
+                padding: '8px', 
+                border: '1px solid #ddd',
+                margin: '5px 0 0 0',
+                fontSize: '0.85em'
+            }}>
+                {res.logs.join('\n')}
+            </pre>
+        );
+    };
 
     return (
         <>
@@ -472,6 +497,41 @@ function OverlayLayer({ overlays, onClose, onDismissCtx, actions, onRunAction, l
                                     {actions.length === 0 && <p style={{color:'#999'}}>No actions available</p>}
 
                                     {/* Inline Feedback in Menu */}
+                                    {lastRun && (
+                                        <div style={{marginTop:'10px', padding:'5px', background:'#eee', fontSize:'0.8em', borderLeft:'3px solid #666'}}>
+                                            <div style={{display:'flex', justifyContent:'space-between'}}>
+                                                <strong>Last Result:</strong> 
+                                                <span>{lastRun.actionId}</span>
+                                            </div>
+                                            
+                                            {lastRun.result && (
+                                                <div style={{marginTop: '5px'}}>
+                                                    <div>
+                                                        {lastRun.result.error ? (
+                                                            <span style={{color:'red'}}>Error: {lastRun.result.error}</span>
+                                                        ) : (
+                                                            <span style={{color:'green'}}>
+                                                                Applied: {lastRun.result.applied}, Skipped: {lastRun.result.skipped}
+                                                            </span>
+                                                        )}
+                                                    </div>
+
+                                                    {(lastRun.result.logs.length > 0 || lastRun.result.error) && (
+                                                        <button 
+                                                            style={{marginTop: '5px', fontSize: '0.9em', cursor: 'pointer', textDecoration: 'underline', border: 'none', background: 'none', color: '#007acc', padding: 0}}
+                                                            onClick={() => onToggleRunLogs(lastRun.id)}
+                                                        >
+                                                            {expandedRunIds[lastRun.id] ? 'Hide Details' : 'Show Details'}
+                                                        </button>
+                                                    )}
+
+                                                    {expandedRunIds[lastRun.id] && (
+                                                        <div style={{marginTop: '5px'}}>
+                                                            {lastRun.result.error && <div style={{color:'red', marginBottom:'5px'}}>{lastRun.result.error}</div>}
+                                                            {renderRawLogs(lastRun.result)}
+                                                        </div>
+                                                    )}
+                                                </div
                                     {lastRun && (
                                         <div style={{marginTop:'10px', padding:'5px', background:'#eee', fontSize:'0.8em', borderLeft:'3px solid #666'}}>
                                             <strong>Last Result:</strong> {lastRun.actionId} <br/>
