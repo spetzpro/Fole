@@ -664,6 +664,161 @@ function OverlayLayer(props: OverlayLayerProps) {
     );
 }
 
+function SysadminPanel({ isOpen, onClose, bundleData, runtimePlan, actionRuns = [] }: { 
+    isOpen: boolean; 
+    onClose: () => void; 
+    bundleData: BundleResponse | null; 
+    runtimePlan: RuntimePlan | null; 
+    actionRuns: ActionRunRecord[];
+}) {
+    // Tabs: ShellConfig, Blocks, Bindings, ActionIndex, Runtime
+    const [activeTab, setActiveTab] = useState('ShellConfig');
+    const [filter, setFilter] = useState('');
+
+    if (!isOpen) return null;
+
+    const tabs = ['ShellConfig', 'Blocks', 'Bindings', 'ActionIndex', 'Runtime'];
+
+    // Render Logic per Tab
+    const renderContent = () => {
+        const preStyle = {
+            whiteSpace:'pre-wrap' as const, 
+            wordBreak:'break-word' as const, 
+            fontSize:'11px', 
+            background:'#f4f4f4', 
+            color: '#222', 
+            padding:'10px',
+            border: '1px solid #ddd'
+        };
+        
+        switch(activeTab) {
+            case 'ShellConfig': {
+                if (!bundleData) return <div style={{padding:'20px', color:'#666'}}>No bundle/config loaded yet.</div>;
+                return <pre style={preStyle}>{JSON.stringify(bundleData, null, 2)}</pre>;
+            }
+            case 'Blocks': {
+                 if (!bundleData || !bundleData.blocks) return <div>No blocks data found.</div>;
+                 const blocks = Array.isArray(bundleData.blocks) ? bundleData.blocks : Object.values(bundleData.blocks);
+                 const f = filter.toLowerCase();
+                 const filtered = blocks.filter((b: any) => 
+                    !f || (b.id && b.id.toLowerCase().includes(f)) || (b.blockType && b.blockType.toLowerCase().includes(f))
+                 );
+                 return (
+                     <div>
+                         <input type="text" placeholder="Filter blocks..." value={filter} onChange={e=>setFilter(e.target.value)} style={{width:'100%', marginBottom:'10px'}}/>
+                         <div style={{display:'flex', flexDirection:'column', gap:'5px'}}>
+                             {filtered.map((b: any, i: number) => (
+                                 <div key={b.id || i} style={{border:'1px solid #ddd', padding:'5px', fontSize:'0.9em'}}>
+                                     <strong>{b.id}</strong> <span style={{color:'#666'}}>({b.blockType || 'unknown'})</span>
+                                 </div>
+                             ))}
+                             {filtered.length === 0 && <div style={{fontStyle:'italic'}}>No matching blocks.</div>}
+                         </div>
+                     </div>
+                 );
+            }
+             case 'Bindings': {
+                 const bindings = (bundleData as any)?.bindings || (bundleData as any)?.bundle?.bindings;
+                 if (!bindings || Object.keys(bindings).length === 0) return <div>No bindings found in config.</div>;
+                 return <pre style={preStyle}>{JSON.stringify(bindings, null, 2)}</pre>;
+            }
+            case 'ActionIndex': {
+                const actions = runtimePlan?.actions || [];
+                const f = filter.toLowerCase();
+                const filtered = actions.filter(a => !f || a.actionName.toLowerCase().includes(f) || a.sourceBlockId.toLowerCase().includes(f));
+                
+                // Group by source
+                const groups = new Map<string, ActionDefinition[]>();
+                filtered.forEach(a => {
+                    if (!groups.has(a.sourceBlockId)) groups.set(a.sourceBlockId, []);
+                    groups.get(a.sourceBlockId)!.push(a);
+                });
+                const sortedKeys = Array.from(groups.keys()).sort();
+
+                return (
+                    <div>
+                         <input type="text" placeholder="Filter actions..." value={filter} onChange={e=>setFilter(e.target.value)} style={{width:'100%', marginBottom:'10px'}}/>
+                         {sortedKeys.map(k => (
+                             <div key={k} style={{marginBottom:'10px'}}>
+                                 <div style={{fontWeight:'bold', borderBottom:'1px solid #eee'}}>{k} <span style={{fontWeight:'normal', fontSize:'0.8em', color:'#888'}}>({groups.get(k)?.length})</span></div>
+                                 <div style={{paddingLeft:'10px'}}>
+                                     {groups.get(k)?.map(a => (
+                                         <div key={a.id} style={{fontSize:'0.9em', padding:'2px 0'}}>{a.actionName}</div>
+                                     ))}
+                                 </div>
+                             </div>
+                         ))}
+                    </div>
+                );
+            }
+            case 'Runtime': {
+                if (!runtimePlan) return <div>Runtime not initialized.</div>;
+                const summary = {
+                    windows: Object.keys(runtimePlan.windows).length,
+                    overlays: Object.keys(runtimePlan.overlays).length,
+                    actions: runtimePlan.actions.length,
+                    actionRuns: actionRuns.length
+                };
+                return (
+                    <div>
+                        <div style={{marginBottom:'10px', padding:'5px', background:'#eef'}}>
+                            <strong>Overview:</strong> {JSON.stringify(summary)}
+                        </div>
+                        <h4>Full Snapshot</h4>
+                        <pre style={preStyle}>{JSON.stringify(runtimePlan, null, 2)}</pre>
+                    </div>
+                );
+            }
+            default: return null;
+        }
+    };
+
+    return (
+        <div style={{
+            position: 'absolute', top: '50px', right: '20px', width: '520px', maxHeight: '80vh',
+            backgroundColor: 'white', color: '#222', 
+            border: '2px solid #333', boxShadow: '0 5px 20px rgba(0,0,0,0.3)',
+            zIndex: 9000, display: 'flex', flexDirection: 'column', overflow: 'hidden'
+        }}>
+            <div style={{background: '#333', color:'white', padding:'8px 12px', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+                <h3 style={{margin:0, fontSize:'1em'}}>Sysadmin (read-only)</h3>
+                <button onClick={onClose} style={{background:'transparent', color:'white', border:'none', fontSize:'1.2em', cursor:'pointer'}}>×</button>
+            </div>
+            
+            <div style={{display:'flex', background: '#e5e5e5', color: '#111', borderBottom:'1px solid #ccc', paddingTop:'5px', paddingLeft:'5px'}}>
+                {tabs.map(t => {
+                    const isActive = activeTab === t;
+                    return (
+                        <button 
+                            key={t} 
+                            onClick={() => { setActiveTab(t); setFilter(''); }}
+                            style={{
+                                flex: 1, 
+                                padding:'8px 10px', 
+                                border: isActive ? '1px solid #ccc' : '1px solid transparent',
+                                borderBottom: isActive ? '1px solid #fff' : '1px solid transparent',
+                                background: isActive ? '#fff' : 'transparent',
+                                color: isActive ? '#111' : '#333',
+                                fontWeight: isActive ? 700 : 600, 
+                                cursor:'pointer',
+                                borderTopLeftRadius: 8,
+                                borderTopRightRadius: 8,
+                                marginBottom: '-1px' // Overlap border
+                            }}
+                        >
+                            {t}
+                        </button>
+                    );
+                })}
+            </div>
+
+            <div style={{flex:1, overflowY:'auto', padding:'10px'}}>
+                {renderContent()}
+            </div>
+        </div>
+    );
+}
+
 function App() {
   // Configured via vite proxy in dev
   const [baseUrl] = useState('');
@@ -676,6 +831,9 @@ function App() {
   // Runtime
   const runtimeRef = useRef<WindowSystemRuntime>(new WindowSystemRuntime());
   const [runtimePlan, setRuntimePlan] = useState<RuntimePlan | null>(null);
+
+  // Sysadmin Toggle
+  const [sysadminOpen, setSysadminOpen] = useState(false);
   
   // Viewport Ref for clamping
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -884,6 +1042,9 @@ function App() {
                 <input type="text" placeholder="Action (e.g. click)" value={actionName} onChange={e=>setActionName(e.target.value)} style={{width:'100%', marginTop:'5px'}}/>
                 <input type="text" placeholder="Permissions" value={actionPerms} onChange={e=>setActionPerms(e.target.value)} style={{width:'100%', marginTop:'5px'}}/>
                 <button onClick={handleDispatch} style={{marginTop:'5px', width:'100%'}}>Dispatch Action</button>
+                <button onClick={() => setSysadminOpen(!sysadminOpen)} style={{marginTop:'10px', width:'100%', background: sysadminOpen ? '#333' : '#eee', color: sysadminOpen ? 'white' : 'black'}}>
+                    {sysadminOpen ? 'Close Sysadmin' : 'Open Sysadmin'}
+                </button>
                 {actionResult && <pre style={{
                     fontSize:'10px',
                     background:'#f7f7f7',
@@ -992,6 +1153,14 @@ function App() {
                    Load Bundle & Resolve Ping to Start Runtime
                 </div>
              )}
+            
+             <SysadminPanel 
+                 isOpen={sysadminOpen} 
+                 onClose={() => setSysadminOpen(false)}
+                 bundleData={bundleData}
+                 runtimePlan={runtimePlan}
+                 actionRuns={actionRuns}
+             />
           </div>
       </div>
     </div>
