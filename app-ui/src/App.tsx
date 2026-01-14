@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import './App.css';
 
 interface PingResponse {
@@ -678,6 +678,49 @@ function SysadminPanel({ isOpen, onClose, bundleData, runtimePlan, actionRuns = 
     const [selectedBindingId, setSelectedBindingId] = useState<string | null>(null);
     const [selectedActionId, setSelectedActionId] = useState<string | null>(null);
 
+    // --- ActionIndex Memoization ---
+    const allActions = runtimePlan?.actions || [];
+    
+    // Guard: Clear stale selection if action disappears
+    useEffect(() => {
+        if (selectedActionId && !allActions.find(a => a.id === selectedActionId)) {
+             setSelectedActionId(null);
+        }
+    }, [allActions, selectedActionId]);
+
+    const { filteredActions, groupedActions, sortedKeys, totalVisible, totalSources } = useMemo(() => {
+        if (activeTab !== 'ActionIndex') {
+            return { filteredActions: [], groupedActions: new Map(), sortedKeys: [], totalVisible: 0, totalSources: 0 };
+        }
+
+        const f = filter.toLowerCase();
+        const filtered = allActions.filter(a => {
+            const id = a.id || '';
+            const name = a.actionName || '';
+            const src = a.sourceBlockId || '';
+            return !f || 
+                    id.toLowerCase().includes(f) || 
+                    name.toLowerCase().includes(f) || 
+                    src.toLowerCase().includes(f);
+        });
+        
+        const groups = new Map<string, ActionDefinition[]>();
+        filtered.forEach(a => {
+            if (!groups.has(a.sourceBlockId)) groups.set(a.sourceBlockId, []);
+            groups.get(a.sourceBlockId)!.push(a);
+        });
+        const keys = Array.from(groups.keys()).sort();
+
+        return {
+            filteredActions: filtered,
+            groupedActions: groups,
+            sortedKeys: keys,
+            totalVisible: filtered.length,
+            totalSources: keys.length
+        };
+    }, [activeTab, filter, allActions]);
+
+
     if (!isOpen) return null;
 
     const tabs = ['ShellConfig', 'Blocks', 'Bindings', 'ActionIndex', 'Runtime'];
@@ -853,32 +896,8 @@ function SysadminPanel({ isOpen, onClose, bundleData, runtimePlan, actionRuns = 
                  );
             }
             case 'ActionIndex': {
-                const actions = runtimePlan?.actions || [];
-                const f = filter.toLowerCase();
-                const filtered = actions.filter(a => {
-                    const id = a.id || '';
-                    const name = a.actionName || '';
-                    const src = a.sourceBlockId || '';
-                    return !f || 
-                           id.toLowerCase().includes(f) || 
-                           name.toLowerCase().includes(f) || 
-                           src.toLowerCase().includes(f);
-                });
-                
-                // Group by source (Map<sourceBlockId, ActionDefinition[]>)
-                const groups = new Map<string, ActionDefinition[]>();
-                filtered.forEach(a => {
-                    if (!groups.has(a.sourceBlockId)) groups.set(a.sourceBlockId, []);
-                    groups.get(a.sourceBlockId)!.push(a);
-                });
-                const sortedKeys = Array.from(groups.keys()).sort();
-                
-                // Stats
-                const totalVisible = filtered.length;
-                const totalSources = sortedKeys.length;
-
                 const selectedAction = selectedActionId 
-                    ? actions.find(a => a.id === selectedActionId) 
+                    ? allActions.find(a => a.id === selectedActionId) 
                     : null;
 
                 return (
@@ -907,10 +926,10 @@ function SysadminPanel({ isOpen, onClose, bundleData, runtimePlan, actionRuns = 
                                              fontSize:'0.9em',
                                              color:'#333'
                                          }}>
-                                             {k} <span style={{fontWeight:'normal', fontSize:'0.8em', color:'#888'}}>({groups.get(k)?.length})</span>
+                                             {k} <span style={{fontWeight:'normal', fontSize:'0.8em', color:'#888'}}>({groupedActions.get(k)?.length})</span>
                                          </div>
                                          <div style={{paddingLeft:'5px'}}>
-                                             {groups.get(k)?.map(a => {
+                                             {groupedActions.get(k)?.map(a => {
                                                  const isSel = a.id === selectedActionId;
                                                  return (
                                                      <div 
