@@ -428,16 +428,20 @@ function OverlayLayer({ overlays, onClose, onDismissCtx, actions, onRunAction, l
                 
                 return (
                     <div key={o.id} style={{
+                        // TEMP: center overlay_menu for interaction testing — revert later
                         position: 'absolute',
                         top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
-                        width: '400px', height: isMenu ? 'auto' : '300px',
+                        minWidth: isMenu ? '300px' : undefined,
+                        width: isMenu ? 'auto' : '400px', 
+                        height: isMenu ? 'auto' : '300px',
                         maxHeight: '80vh',
                         backgroundColor: 'white',
                         border: '1px solid #777',
                         boxShadow: '0 10px 25px rgba(0,0,0,0.5)',
                         pointerEvents: 'auto',
                         padding: '20px',
-                        display: 'flex', flexDirection: 'column'
+                        display: 'flex', flexDirection: 'column',
+                        zIndex: isMenu ? 2100 : undefined
                     }}>
                         <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'10px'}}>
                              <h3 style={{margin:0}}>
