@@ -423,11 +423,13 @@ function LogViewer({ result }: { result: ActionDispatchResult }) {
             wordBreak: 'break-word', 
             maxHeight: '200px', 
             overflow: 'auto', 
-            background: '#f7f7f7', 
+            background: '#f7f7f7',
+            color: '#111',
             padding: '8px', 
             border: '1px solid #ddd',
             margin: '5px 0 0 0',
-            fontSize: '0.85em'
+            fontSize: '0.85em',
+            fontFamily: 'monospace'
         }}>
             {result.error && `Error: ${result.error}\n`}
             {hasLogs && result.logs.join('\n')}
