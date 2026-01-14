@@ -409,6 +409,32 @@ function WindowFrame({
     );
 }
 
+function LogViewer({ result }: { result: ActionDispatchResult }) {
+    const hasLogs = result.logs && result.logs.length > 0;
+    const hasError = !!result.error;
+
+    if (!hasLogs && !hasError) {
+        return <div style={{fontStyle:'italic', color:'#999', fontSize:'0.85em', marginTop:'5px'}}>No details.</div>;
+    }
+
+    return (
+        <pre style={{
+            whiteSpace: 'pre-wrap', 
+            wordBreak: 'break-word', 
+            maxHeight: '200px', 
+            overflow: 'auto', 
+            background: '#f7f7f7', 
+            padding: '8px', 
+            border: '1px solid #ddd',
+            margin: '5px 0 0 0',
+            fontSize: '0.85em'
+        }}>
+            {result.error && `Error: ${result.error}\n`}
+            {hasLogs && result.logs.join('\n')}
+        </pre>
+    );
+}
+
 type OverlayLayerProps = { 
     overlays: OverlayState[]; 
     onClose: (id: string) => void;
@@ -425,25 +451,6 @@ function OverlayLayer(props: OverlayLayerProps) {
     
     const activeOverlays = overlays.filter(o => o.isOpen).sort((a,b) => a.zOrder - b.zOrder);
     if (activeOverlays.length === 0) return null;
-
-    const renderRawLogs = (res: ActionDispatchResult) => {
-        if (!res.logs || res.logs.length === 0) return <div style={{fontStyle:'italic', color:'#999'}}>No logs.</div>;
-        return (
-            <pre style={{
-                whiteSpace: 'pre-wrap', 
-                wordBreak: 'break-word', 
-                maxHeight: '200px', 
-                overflow: 'auto', 
-                background: '#f7f7f7', 
-                padding: '8px', 
-                border: '1px solid #ddd',
-                margin: '5px 0 0 0',
-                fontSize: '0.85em'
-            }}>
-                {res.logs.join('\n')}
-            </pre>
-        );
-    };
 
     return (
         <>
@@ -531,7 +538,7 @@ function OverlayLayer(props: OverlayLayerProps) {
                                               {expandedRunIds[lastRun.id] ? 'Hide Details' : 'Show Details'}
                                             </button>
 
-                                            {expandedRunIds[lastRun.id] && renderRawLogs(lastRun.result)}
+                                            {expandedRunIds[lastRun.id] && <LogViewer result={lastRun.result} />}
                                           </div>
                                         )}
                                       </div>
@@ -571,7 +578,7 @@ function App() {
   const [sourceBlockId, setSourceBlockId] = useState('');
   const [actionName, setActionName] = useState('');
   const [actionPerms, setActionPerms] = useState('can_click');
-  const [actionResult, setActionResult] = useState<any>(null);
+  const [actionResult, setActionResult] = useState<unknown>(null);
   
   // Action Menu State
   const [actionRuns, setActionRuns] = useState<ActionRunRecord[]>([]);
@@ -818,21 +825,7 @@ function App() {
                                         {expandedRunIds[run.id] ? 'Hide Details' : 'Show Details'}
                                     </button>
                                     
-                                    {expandedRunIds[run.id] && (
-                                        <pre style={{
-                                            whiteSpace: 'pre-wrap', 
-                                            wordBreak: 'break-word', 
-                                            maxHeight: '150px', 
-                                            overflow: 'auto', 
-                                            background: '#f7f7f7', 
-                                            padding: '5px', 
-                                            border: '1px solid #ddd',
-                                            margin: '4px 0 0 0',
-                                            fontSize: '0.85em'
-                                        }}>
-                                            {run.result.error ? `Error: ${run.result.error}\n` : ''}{run.result.logs.join('\n')}
-                                        </pre>
-                                    )}
+                                    {expandedRunIds[run.id] && <LogViewer result={run.result} />}
                                 </div>
                             )}
                         </div>
