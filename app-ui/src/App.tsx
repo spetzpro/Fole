@@ -18,6 +18,8 @@ interface OverlayState {
   id: string;
   isOpen: boolean;
   zOrder: number;
+  blockType?: string;
+  title?: string;
 }
 
 interface WindowState {
@@ -36,6 +38,13 @@ interface ActionDefinition {
   id: string;
   actionName: string;
   sourceBlockId: string;
+}
+
+interface ActionRunRecord {
+  id: string;
+  timestamp: number;
+  actionId: string;
+  result?: any;
 }
 
 interface RuntimePlan {
@@ -79,7 +88,9 @@ class WindowSystemRuntime {
         this.overlays.set(blockId, {
           id: blockId,
           isOpen: false,
-          zOrder: 2000 // Overlays sit above windows
+          zOrder: 2000, // Overlays sit above windows
+          blockType,
+          title
         });
       } else if (blockType.includes('window') || blockId.includes('win') || blockType.includes('panel')) {
          // Default Window Layout
@@ -359,10 +370,13 @@ function WindowFrame({
     );
 }
 
-function OverlayLayer({ overlays, onClose, onDismissCtx }: { 
+function OverlayLayer({ overlays, onClose, onDismissCtx, actions, onRunAction, lastRun }: { 
     overlays: OverlayState[], 
     onClose: (id: string) => void,
-    onDismissCtx: () => void
+    onDismissCtx: () => void,
+    actions: ActionDefinition[],
+    onRunAction: (def: ActionDefinition) => void,
+    lastRun?: ActionRunRecord
 }) {
     const activeOverlays = overlays.filter(o => o.isOpen).sort((a,b) => a.zOrder - b.zOrder);
     if (activeOverlays.length === 0) return null;
@@ -382,25 +396,68 @@ function OverlayLayer({ overlays, onClose, onDismissCtx }: {
                     pointerEvents: 'auto'
                 }}
             />
-            {activeOverlays.map(o => (
-                <div key={o.id} style={{
-                    position: 'absolute',
-                    top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
-                    width: '400px', height: '300px',
-                    backgroundColor: 'white',
-                    border: '1px solid #777',
-                    boxShadow: '0 10px 25px rgba(0,0,0,0.5)',
-                    pointerEvents: 'auto',
-                    padding: '20px',
-                    display: 'flex', flexDirection: 'column'
-                }}>
-                     <h3>Overlay: {o.id}</h3>
-                     <div style={{flex:1}}>
-                        Content...
-                     </div>
-                     <button onClick={() => onClose(o.id)}>Close Modal</button>
-                </div>
-            ))}
+            {activeOverlays.map(o => {
+                // Check if this is a menu overlay
+                const isMenu = o.blockType?.includes('overlay_menu') || o.id === 'overlay_menu' || o.id.toLowerCase().includes('menu');
+                
+                return (
+                    <div key={o.id} style={{
+                        position: 'absolute',
+                        top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
+                        width: '400px', height: isMenu ? 'auto' : '300px',
+                        maxHeight: '80vh',
+                        backgroundColor: 'white',
+                        border: '1px solid #777',
+                        boxShadow: '0 10px 25px rgba(0,0,0,0.5)',
+                        pointerEvents: 'auto',
+                        padding: '20px',
+                        display: 'flex', flexDirection: 'column'
+                    }}>
+                        <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'10px'}}>
+                             <h3 style={{margin:0}}>
+                                {isMenu ? 'Available Actions' : `Overlay: ${o.id}`}
+                             </h3>
+                             <button onClick={() => onClose(o.id)}>×</button>
+                        </div>
+                        
+                        <div style={{flex:1, overflowY:'auto'}}>
+                            {isMenu ? (
+                                <div style={{display:'flex', flexDirection:'column', gap:'5px'}}>
+                                    {actions.map(act => (
+                                        <button 
+                                            key={act.id} 
+                                            onClick={() => onRunAction(act)}
+                                            style={{padding:'8px', textAlign:'left', border:'1px solid #ccc', cursor:'pointer'}}
+                                        >
+                                            <strong>{act.actionName}</strong> 
+                                            <span style={{color:'#666', fontSize:'0.8em', marginLeft:'5px'}}>
+                                                ({act.sourceBlockId})
+                                            </span>
+                                        </button>
+                                    ))}
+                                    {actions.length === 0 && <p style={{color:'#999'}}>No actions available</p>}
+
+                                    {/* Inline Feedback in Menu */}
+                                    {lastRun && (
+                                        <div style={{marginTop:'10px', padding:'5px', background:'#eee', fontSize:'0.8em', borderLeft:'3px solid #666'}}>
+                                            <strong>Last Result:</strong> {lastRun.actionId} <br/>
+                                            {lastRun.result?.error ? (
+                                                <span style={{color:'red'}}>Error: {lastRun.result.error}</span>
+                                            ) : (
+                                                <span>Applied: {lastRun.result?.applied}, Skipped: {lastRun.result?.skipped}</span>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            ) : (
+                                <div>Content...</div>
+                            )}
+                        </div>
+                        
+                        {!isMenu && <button onClick={() => onClose(o.id)} style={{marginTop:'10px'}}>Close Modal</button>}
+                    </div>
+                );
+            })}
         </div>
     );
 }
@@ -423,6 +480,9 @@ function App() {
   const [actionName, setActionName] = useState('');
   const [actionPerms, setActionPerms] = useState('can_click');
   const [actionResult, setActionResult] = useState<any>(null);
+  
+  // Action Menu State
+  const [actionRuns, setActionRuns] = useState<ActionRunRecord[]>([]);
 
   // Sync state helper
   const syncRuntime = () => {
@@ -481,6 +541,11 @@ function App() {
       }
       const pingJson = await pingRes.json();
       setPingData(pingJson);
+      
+      // Auto-open menu if present for convenience in dev
+      if (pingJson.overlays?.some((o:any) => o.blockId === 'overlay_menu')) {
+          setTimeout(() => runtimeRef.current.setOverlayOpen('overlay_menu', true), 500);
+      }
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -488,32 +553,57 @@ function App() {
     }
   };
 
-  const handleDispatch = async () => {
+  const handleDispatch = async (override?: {sourceBlockId: string, actionName: string, permissions?: string[]}) => {
     setLoading(true);
     setActionResult(null);
     try {
-      const permsArray = actionPerms.split(',').map(s => s.trim()).filter(Boolean);
+      const permsArray = override?.permissions ?? actionPerms.split(',').map(s => s.trim()).filter(Boolean);
+      const reqBody = {
+           sourceBlockId: override?.sourceBlockId ?? sourceBlockId,
+           actionName: override?.actionName ?? actionName,
+           permissions: permsArray
+      };
+      
       const res = await fetch(`${baseUrl}/api/debug/action/dispatch`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-           sourceBlockId,
-           actionName,
-           permissions: permsArray
-        })
+        body: JSON.stringify(reqBody)
       });
 
       if (res.status === 403) {
-        setActionResult({ error: "Access Denied (403)", message: "Use FOLE_DEV_ENABLE_DEBUG_ENDPOINTS=1 env var" });
-        return;
+        const err = { error: "Access Denied (403)", message: "Use FOLE_DEV_ENABLE_DEBUG_ENDPOINTS=1 env var" };
+        setActionResult(err);
+        return err;
       }
       const data = await res.json();
       setActionResult(data);
+      return data;
     } catch (err: any) {
-      setActionResult({ error: err.message });
+      const errObj = { error: err.message };
+      setActionResult(errObj);
+      return errObj;
     } finally {
       setLoading(false);
     }
+  };
+
+  const runAction = async (def: ActionDefinition) => {
+      // 1. Run Dispatch
+      console.log('Running Action:', def);
+      const result = await handleDispatch({
+          sourceBlockId: def.sourceBlockId,
+          actionName: def.actionName,
+          permissions: ['can_click'] // Default permission for menu clicks
+      });
+
+      // 2. Log Result
+      const record: ActionRunRecord = {
+          id: Date.now().toString(),
+          timestamp: Date.now(),
+          actionId: `${def.sourceBlockId}::${def.actionName}`,
+          result
+      };
+      setActionRuns(prev => [record, ...prev].slice(0, 50)); // Keep last 50
   };
 
   // UI Handlers wiring to Runtime
@@ -579,6 +669,19 @@ function App() {
                      </li>
                  ))}
              </ul>
+
+             <h4>Action History</h4>
+             <ul style={{fontSize:'0.8em', paddingLeft:'15px', maxHeight:'200px', overflowY:'auto'}}>
+                {actionRuns.map(run => (
+                    <li key={run.id} style={{marginBottom:'5px'}}>
+                        <div><strong>{run.actionId}</strong></div>
+                        <div style={{color: run.result?.error ? 'red' : 'green'}}>
+                            {run.result?.error ? 'Failed' : `OK (Applied: ${run.result?.applied})`}
+                        </div>
+                    </li>
+                ))}
+                {actionRuns.length === 0 && <li><span style={{color:'#999'}}>No actions run yet.</span></li>}
+             </ul>
           </div>
 
           {/* Right Panel: The Viewport */}
@@ -605,6 +708,9 @@ function App() {
                         overlays={Object.values(runtimePlan.overlays)} 
                         onClose={overlayOps.close}
                         onDismissCtx={overlayOps.dismiss}
+                        actions={runtimePlan.actions}
+                        onRunAction={runAction}
+                        lastRun={actionRuns[0]}
                     />
                  </>
              ) : (
