@@ -428,20 +428,16 @@ function OverlayLayer({ overlays, onClose, onDismissCtx, actions, onRunAction, l
                 
                 return (
                     <div key={o.id} style={{
-                        // TEMP: center overlay_menu for interaction testing — revert later
                         position: 'absolute',
                         top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
-                        minWidth: isMenu ? '300px' : undefined,
-                        width: isMenu ? 'auto' : '400px', 
-                        height: isMenu ? 'auto' : '300px',
+                        width: '400px', height: isMenu ? 'auto' : '300px',
                         maxHeight: '80vh',
                         backgroundColor: 'white',
                         border: '1px solid #777',
                         boxShadow: '0 10px 25px rgba(0,0,0,0.5)',
                         pointerEvents: 'auto',
                         padding: '20px',
-                        display: 'flex', flexDirection: 'column',
-                        zIndex: isMenu ? 2100 : undefined
+                        display: 'flex', flexDirection: 'column'
                     }}>
                         <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'10px'}}>
                              <h3 style={{margin:0}}>
@@ -670,8 +666,7 @@ function App() {
       <div style={{display:'flex', gap:'20px', flex:1, overflow:'hidden'}}>
           
           {/* Left Panel: Logic & Debug */}
-          {/* // TEMP: widen viewport for overlay inspection — revert later */}
-          <div style={{width: '240px', overflowY: 'auto', borderRight: '1px solid #ddd', paddingRight:'10px'}}>
+          <div style={{width: '300px', overflowY: 'auto', borderRight: '1px solid #ddd', paddingRight:'10px'}}>
              <h4>Debug Controls</h4>
              <div style={{marginBottom:'20px'}}>
                 <input type="text" placeholder="Block ID" value={sourceBlockId} onChange={e=>setSourceBlockId(e.target.value)} style={{width:'100%'}}/>
@@ -679,41 +674,6 @@ function App() {
                 <input type="text" placeholder="Permissions" value={actionPerms} onChange={e=>setActionPerms(e.target.value)} style={{width:'100%', marginTop:'5px'}}/>
                 <button onClick={handleDispatch} style={{marginTop:'5px', width:'100%'}}>Dispatch Action</button>
                 {actionResult && <pre style={{fontSize:'10px', background:'#eee', padding:'5px'}}>{JSON.stringify(actionResult, null, 2)}</pre>}
-             </div>
-
-             {/* TEMP diagnostics — remove after bundle shape confirmed */}
-             <div style={{marginBottom:'20px', fontSize: '0.8em', border: '1px dashed #999', padding: '5px'}}>
-                <strong>Diagnostics:</strong>
-                <div>Bundle Loaded: {bundleData ? 'Yes' : 'No'}</div>
-                {bundleData && (
-                    <>
-                        <div>Type: {typeof bundleData}</div>
-                        <div>Keys: {Object.keys(bundleData).join(", ")}</div>
-                        {bundleData.blocks && (
-                            <>
-                                <div>Total Blocks: {Object.keys(bundleData.blocks).length}</div>
-                                <div>Blocks Is Array: {Array.isArray(bundleData.blocks) ? 'Yes' : 'No'}</div>
-                                <div>Blocks Values Count: {Object.values(bundleData.blocks as object).length}</div>
-                                {Object.values(bundleData.blocks).length > 0 && (
-                                    <div style={{overflow:'hidden', textOverflow:'ellipsis'}}>
-                                        First Block Keys: {Object.keys((Object.values(bundleData.blocks)[0] as object) || {}).join(", ")}
-                                    </div>
-                                )}
-                            </>
-                        )}
-                    </>
-                )}
-                {pingData && (
-                    <>
-                        <div style={{marginTop:'5px'}}>Ping Loaded</div>
-                        {'overlays' in pingData && Array.isArray((pingData as unknown as Record<string, unknown>).overlays) && (
-                            <div>Ping Overlays: {((pingData as unknown as Record<string, unknown>).overlays as unknown[]).length}</div>
-                        )}
-                        {'windows' in pingData && Array.isArray((pingData as unknown as Record<string, unknown>).windows) && (
-                            <div>Ping Windows: {((pingData as unknown as Record<string, unknown>).windows as unknown[]).length}</div>
-                        )}
-                    </>
-                )}
              </div>
 
              <h4>Available Windows</h4>
