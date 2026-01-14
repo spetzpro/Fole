@@ -674,6 +674,7 @@ function SysadminPanel({ isOpen, onClose, bundleData, runtimePlan, actionRuns = 
     // Tabs: ShellConfig, Blocks, Bindings, ActionIndex, Runtime
     const [activeTab, setActiveTab] = useState('ShellConfig');
     const [filter, setFilter] = useState('');
+    const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
 
     if (!isOpen) return null;
 
@@ -697,22 +698,71 @@ function SysadminPanel({ isOpen, onClose, bundleData, runtimePlan, actionRuns = 
                 return <pre style={preStyle}>{JSON.stringify(bundleData, null, 2)}</pre>;
             }
             case 'Blocks': {
-                 if (!bundleData || !bundleData.blocks) return <div>No blocks data found.</div>;
-                 const blocks = Array.isArray(bundleData.blocks) ? bundleData.blocks : Object.values(bundleData.blocks);
+                 if (!bundleData) return <div style={{padding:'20px', color:'#666'}}>No bundle/config loaded yet.</div>;
+                 const blocksMap = (bundleData as any).blocks;
+                 if (!blocksMap) return <div style={{padding:'20px', color:'#666'}}>No blocks found in bundleData.blocks.</div>;
+                 
+                 const blocksArr = Array.isArray(blocksMap) 
+                    ? blocksMap 
+                    : typeof blocksMap === 'object' 
+                        ? Object.values(blocksMap) 
+                        : [];
+
                  const f = filter.toLowerCase();
-                 const filtered = blocks.filter((b: any) => 
-                    !f || (b.id && b.id.toLowerCase().includes(f)) || (b.blockType && b.blockType.toLowerCase().includes(f))
-                 );
+                 const filtered = blocksArr.filter((b: any) => {
+                    const bid = b.blockId || b.id || '';
+                    const btype = b.blockType || '';
+                    const bfile = b.filename || '';
+                    return !f || bid.toLowerCase().includes(f) || btype.toLowerCase().includes(f) || bfile.toLowerCase().includes(f);
+                 });
+                 
+                 const selectedBlock = selectedBlockId ? blocksArr.find((b:any) => (b.blockId === selectedBlockId || b.id === selectedBlockId)) : null;
+
                  return (
-                     <div>
-                         <input type="text" placeholder="Filter blocks..." value={filter} onChange={e=>setFilter(e.target.value)} style={{width:'100%', marginBottom:'10px'}}/>
-                         <div style={{display:'flex', flexDirection:'column', gap:'5px'}}>
-                             {filtered.map((b: any, i: number) => (
-                                 <div key={b.id || i} style={{border:'1px solid #ddd', padding:'5px', fontSize:'0.9em'}}>
-                                     <strong>{b.id}</strong> <span style={{color:'#666'}}>({b.blockType || 'unknown'})</span>
-                                 </div>
-                             ))}
-                             {filtered.length === 0 && <div style={{fontStyle:'italic'}}>No matching blocks.</div>}
+                     <div style={{display:'flex', flexDirection:'column', height:'100%'}}>
+                         <input 
+                            type="text" 
+                            placeholder="Filter blocks (id/type/filename)..." 
+                            value={filter} 
+                            onChange={e=>setFilter(e.target.value)} 
+                            style={{width:'100%', marginBottom:'10px', padding:'6px', boxSizing:'border-box', border:'1px solid #ccc'}}
+                         />
+                         <div style={{display:'flex', flex:1, overflow:'hidden', gap:'10px'}}>
+                             {/* Left Column: List */}
+                             <div style={{flex: '0 0 45%', overflowY:'auto', borderRight:'1px solid #ddd', paddingRight:'5px'}}>
+                                 {filtered.map((b: any, i: number) => {
+                                     const bid = b.blockId || b.id || `unknown-${i}`;
+                                     const isSel = bid === selectedBlockId;
+                                     return (
+                                        <div 
+                                            key={bid} 
+                                            onClick={() => setSelectedBlockId(bid)}
+                                            style={{
+                                                border: isSel ? '1px solid #007acc' : '1px solid #ddd', 
+                                                background: isSel ? '#e6f7ff' : 'white',
+                                                padding:'6px', 
+                                                marginBottom:'5px', 
+                                                cursor:'pointer',
+                                                fontSize:'0.9em'
+                                            }}
+                                        >
+                                            <div style={{fontWeight:'bold', color:'#222'}}>{bid}</div>
+                                            <div style={{fontSize:'0.85em', color:'#555'}}>{b.blockType}</div>
+                                            {b.filename && <div style={{fontSize:'0.8em', color:'#888'}}>{b.filename}</div>}
+                                        </div>
+                                     );
+                                 })}
+                                 {filtered.length === 0 && <div style={{fontStyle:'italic', padding:'10px'}}>No matching blocks.</div>}
+                             </div>
+                             
+                             {/* Right Column: Details */}
+                             <div style={{flex:1, overflowY:'auto', paddingLeft:'5px'}}>
+                                 {selectedBlock ? (
+                                    <pre style={preStyle}>{JSON.stringify(selectedBlock, null, 2)}</pre>
+                                 ) : (
+                                    <div style={{fontStyle:'italic', color:'#666', padding:'10px'}}>Select a block to view details.</div>
+                                 )}
+                             </div>
                          </div>
                      </div>
                  );
@@ -791,9 +841,9 @@ function SysadminPanel({ isOpen, onClose, bundleData, runtimePlan, actionRuns = 
                     return (
                         <button 
                             key={t} 
-                            onClick={() => { setActiveTab(t); setFilter(''); }}
+                            onClick={() => { setActiveTab(t); setFilter(''); setSelectedBlockId(null); }}
                             style={{
-                                flex: 1, 
+                                flex: 1,  
                                 padding:'8px 10px', 
                                 border: isActive ? '1px solid #ccc' : '1px solid transparent',
                                 borderBottom: isActive ? '1px solid #fff' : '1px solid transparent',
