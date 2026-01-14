@@ -677,6 +677,53 @@ function SysadminPanel({ isOpen, onClose, bundleData, runtimePlan, actionRuns = 
     const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
     const [selectedBindingId, setSelectedBindingId] = useState<string | null>(null);
     const [selectedActionId, setSelectedActionId] = useState<string | null>(null);
+    const [copiedKey, setCopiedKey] = useState<string | null>(null);
+
+    // Helpers
+    const safeJsonStringify = (val: any) => {
+        try { return JSON.stringify(val, null, 2); } 
+        catch { return String(val ?? ''); }
+    };
+
+    const copyText = async (key: string, text: string) => {
+        try {
+            await navigator.clipboard.writeText(text);
+            setCopiedKey(key);
+            setTimeout(() => setCopiedKey(null), 1200);
+        } catch (err) {
+            // Fallback
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand('copy');
+            document.body.removeChild(ta);
+            setCopiedKey(key);
+            setTimeout(() => setCopiedKey(null), 1200);
+        }
+    };
+
+    // Shared Copy Button Style
+    const CopyBtn = ({ k, text, label = 'Copy JSON' }: { k: string, text: any, label?: string }) => {
+        const isCopied = copiedKey === k;
+        return (
+            <button 
+                onClick={(e) => { e.stopPropagation(); copyText(k, typeof text === 'string' ? text : safeJsonStringify(text)); }}
+                style={{
+                    padding:'2px 8px', 
+                    fontSize:'11px', 
+                    cursor:'pointer', 
+                    border: isCopied ? '1px solid #4caf50' : '1px solid #ccc',
+                    background: isCopied ? '#e8f5e9' : 'white',
+                    color: isCopied ? '#2e7d32' : '#333',
+                    borderRadius: '4px',
+                    marginLeft: 'auto'
+                }}
+            >
+                {isCopied ? 'Copied!' : label}
+            </button>
+        );
+    };
 
     // Runtime Toggle State
     const [runtimeSections, setRuntimeSections] = useState({ 
@@ -748,7 +795,15 @@ function SysadminPanel({ isOpen, onClose, bundleData, runtimePlan, actionRuns = 
         switch(activeTab) {
             case 'ShellConfig': {
                 if (!bundleData) return <div style={{padding:'20px', color:'#666'}}>No bundle/config loaded yet.</div>;
-                return <pre style={preStyle}>{JSON.stringify(bundleData, null, 2)}</pre>;
+                return (
+                    <div>
+                        <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'5px'}}>
+                             <strong style={{fontSize:'0.9em'}}>Bundle Configuration</strong>
+                             <CopyBtn k="shellconfig" text={bundleData} />
+                        </div>
+                        <pre style={preStyle}>{JSON.stringify(bundleData, null, 2)}</pre>
+                    </div>
+                );
             }
             case 'Blocks': {
                  if (!bundleData) return <div style={{padding:'20px', color:'#666'}}>No bundle/config loaded yet.</div>;
@@ -811,7 +866,13 @@ function SysadminPanel({ isOpen, onClose, bundleData, runtimePlan, actionRuns = 
                              {/* Right Column: Details */}
                              <div style={{flex:1, overflowY:'auto', paddingLeft:'5px'}}>
                                  {selectedBlock ? (
-                                    <pre style={preStyle}>{JSON.stringify(selectedBlock, null, 2)}</pre>
+                                    <>
+                                        <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'5px'}}>
+                                            <strong style={{fontSize:'0.9em'}}>Block Details</strong>
+                                            <CopyBtn k="block" text={selectedBlock} />
+                                        </div>
+                                        <pre style={preStyle}>{JSON.stringify(selectedBlock, null, 2)}</pre>
+                                    </>
                                  ) : (
                                     <div style={{fontStyle:'italic', color:'#666', padding:'10px'}}>Select a block to view details.</div>
                                  )}
@@ -894,7 +955,13 @@ function SysadminPanel({ isOpen, onClose, bundleData, runtimePlan, actionRuns = 
                              {/* Right Column: Details */}
                              <div style={{flex:1, overflowY:'auto', paddingLeft:'5px'}}>
                                  {selectedBinding ? (
-                                    <pre style={preStyle}>{JSON.stringify(selectedBinding, null, 2)}</pre>
+                                    <>
+                                        <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'5px'}}>
+                                            <strong style={{fontSize:'0.9em'}}>Binding Details</strong>
+                                            <CopyBtn k="binding" text={selectedBinding} />
+                                        </div>
+                                        <pre style={preStyle}>{JSON.stringify(selectedBinding, null, 2)}</pre>
+                                    </>
                                  ) : (
                                     <div style={{fontStyle:'italic', color:'#666', padding:'10px'}}>Select a binding to view details.</div>
                                  )}
@@ -968,7 +1035,13 @@ function SysadminPanel({ isOpen, onClose, bundleData, runtimePlan, actionRuns = 
                              {/* Right Column: Details */}
                              <div style={{flex:1, overflowY:'auto', paddingLeft:'5px'}}>
                                  {selectedAction ? (
-                                    <pre style={preStyle}>{JSON.stringify(selectedAction, null, 2)}</pre>
+                                    <>
+                                        <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'5px'}}>
+                                            <strong style={{fontSize:'0.9em'}}>Action Details</strong>
+                                            <CopyBtn k="action" text={selectedAction} />
+                                        </div>
+                                        <pre style={preStyle}>{JSON.stringify(selectedAction, null, 2)}</pre>
+                                    </>
                                  ) : (
                                     <div style={{fontStyle:'italic', color:'#666', padding:'10px'}}>Select an action to view details.</div>
                                  )}
@@ -1102,8 +1175,9 @@ function SysadminPanel({ isOpen, onClose, bundleData, runtimePlan, actionRuns = 
                             <div style={{padding:'10px', border:'1px solid #eee', borderTop:'none'}}>
                                 {lastRun ? (
                                     <>
-                                        <div style={{fontSize:'0.9em', marginBottom:'5px'}}>
-                                            <strong>{lastRun.actionId}</strong> at {new Date(lastRun.timestamp).toLocaleTimeString()}
+                                        <div style={{fontSize:'0.9em', marginBottom:'5px', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+                                            <span><strong>{lastRun.actionId}</strong> at {new Date(lastRun.timestamp).toLocaleTimeString()}</span>
+                                            <CopyBtn k="lastresult" text={lastRun.result} />
                                         </div>
                                         <pre style={preStyle}>{JSON.stringify(lastRun.result, null, 2)}</pre>
                                     </>
@@ -1120,6 +1194,9 @@ function SysadminPanel({ isOpen, onClose, bundleData, runtimePlan, actionRuns = 
                         </div>
                         {runtimeSections.plan && (
                             <div style={{padding:'10px', border:'1px solid #eee', borderTop:'none'}}>
+                                <div style={{display:'flex', justifyContent:'flex-end', marginBottom:'5px'}}>
+                                    <CopyBtn k="runtimeplan" text={runtimePlan} />
+                                </div>
                                 <pre style={preStyle}>{JSON.stringify(runtimePlan, null, 2)}</pre>
                             </div>
                         )}
