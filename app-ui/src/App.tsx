@@ -666,7 +666,8 @@ function App() {
       <div style={{display:'flex', gap:'20px', flex:1, overflow:'hidden'}}>
           
           {/* Left Panel: Logic & Debug */}
-          <div style={{width: '300px', overflowY: 'auto', borderRight: '1px solid #ddd', paddingRight:'10px'}}>
+          {/* // TEMP: widen viewport for overlay inspection — revert later */}
+          <div style={{width: '240px', overflowY: 'auto', borderRight: '1px solid #ddd', paddingRight:'10px'}}>
              <h4>Debug Controls</h4>
              <div style={{marginBottom:'20px'}}>
                 <input type="text" placeholder="Block ID" value={sourceBlockId} onChange={e=>setSourceBlockId(e.target.value)} style={{width:'100%'}}/>
