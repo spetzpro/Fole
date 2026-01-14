@@ -675,6 +675,7 @@ function SysadminPanel({ isOpen, onClose, bundleData, runtimePlan, actionRuns = 
     const [activeTab, setActiveTab] = useState('ShellConfig');
     const [filter, setFilter] = useState('');
     const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
+    const [selectedBindingId, setSelectedBindingId] = useState<string | null>(null);
 
     if (!isOpen) return null;
 
@@ -767,10 +768,88 @@ function SysadminPanel({ isOpen, onClose, bundleData, runtimePlan, actionRuns = 
                      </div>
                  );
             }
-             case 'Bindings': {
-                 const bindings = (bundleData as any)?.bindings || (bundleData as any)?.bundle?.bindings;
-                 if (!bindings || Object.keys(bindings).length === 0) return <div>No bindings found in config.</div>;
-                 return <pre style={preStyle}>{JSON.stringify(bindings, null, 2)}</pre>;
+            case 'Bindings': {
+                 if (!bundleData) return <div style={{padding:'20px', color:'#666'}}>No bundle/config loaded yet.</div>;
+                 const blocksMap = (bundleData as any).blocks;
+                 if (!blocksMap) return <div style={{padding:'20px', color:'#666'}}>No blocks found in bundleData.blocks to scan for bindings.</div>;
+                 
+                 const blocksArr = Array.isArray(blocksMap) 
+                    ? blocksMap 
+                    : typeof blocksMap === 'object' 
+                        ? Object.values(blocksMap) 
+                        : [];
+
+                 // Filter for bindings (blockType="binding")
+                 const bindingsArr = blocksArr.filter((b: any) => b.blockType === 'binding');
+
+                 if (bindingsArr.length === 0) {
+                     return (
+                        <div style={{padding:'20px'}}>
+                            <div style={{fontWeight:'bold'}}>No bindings found.</div>
+                            <div style={{fontSize:'0.85em', color:'#888', marginTop:'10px'}}>
+                                Searched in: bundleData.blocks where blockType === "binding"
+                            </div>
+                        </div>
+                     );
+                 }
+
+                 const f = filter.toLowerCase();
+                 const filtered = bindingsArr.filter((b: any) => {
+                    const bid = b.blockId || b.id || '';
+                    const mode = b.data?.mode || 'unknown';
+                    return !f || bid.toLowerCase().includes(f) || mode.toLowerCase().includes(f);
+                 });
+                 
+                 const selectedBinding = selectedBindingId ? bindingsArr.find((b:any) => (b.blockId === selectedBindingId || b.id === selectedBindingId)) : null;
+
+                 return (
+                     <div style={{display:'flex', flexDirection:'column', height:'100%'}}>
+                         <input 
+                            type="text" 
+                            placeholder="Filter bindings (id/mode)..." 
+                            value={filter} 
+                            onChange={e=>setFilter(e.target.value)} 
+                            style={{width:'100%', marginBottom:'10px', padding:'6px', boxSizing:'border-box', border:'1px solid #ccc'}}
+                         />
+                         <div style={{display:'flex', flex:1, overflow:'hidden', gap:'10px'}}>
+                             {/* Left Column: List */}
+                             <div style={{flex: '0 0 45%', overflowY:'auto', borderRight:'1px solid #ddd', paddingRight:'5px'}}>
+                                 {filtered.map((b: any, i: number) => {
+                                     const bid = b.blockId || b.id || `binding-${i}`;
+                                     const isSel = bid === selectedBindingId;
+                                     const mode = b.data?.mode || 'unknown';
+                                     return (
+                                        <div 
+                                            key={bid} 
+                                            onClick={() => setSelectedBindingId(bid)}
+                                            style={{
+                                                border: isSel ? '1px solid #007acc' : '1px solid #ddd', 
+                                                background: isSel ? '#e6f7ff' : 'white',
+                                                padding:'6px', 
+                                                marginBottom:'5px', 
+                                                cursor:'pointer',
+                                                fontSize:'0.9em'
+                                            }}
+                                        >
+                                            <div style={{fontWeight:'bold', color:'#222'}}>{bid}</div>
+                                            <div style={{fontSize:'0.85em', color: mode === 'triggered' ? '#c00' : '#007'}}>{mode.toUpperCase()}</div>
+                                        </div>
+                                     );
+                                 })}
+                                 {filtered.length === 0 && <div style={{fontStyle:'italic', padding:'10px'}}>No matching bindings.</div>}
+                             </div>
+                             
+                             {/* Right Column: Details */}
+                             <div style={{flex:1, overflowY:'auto', paddingLeft:'5px'}}>
+                                 {selectedBinding ? (
+                                    <pre style={preStyle}>{JSON.stringify(selectedBinding, null, 2)}</pre>
+                                 ) : (
+                                    <div style={{fontStyle:'italic', color:'#666', padding:'10px'}}>Select a binding to view details.</div>
+                                 )}
+                             </div>
+                         </div>
+                     </div>
+                 );
             }
             case 'ActionIndex': {
                 const actions = runtimePlan?.actions || [];
@@ -841,7 +920,7 @@ function SysadminPanel({ isOpen, onClose, bundleData, runtimePlan, actionRuns = 
                     return (
                         <button 
                             key={t} 
-                            onClick={() => { setActiveTab(t); setFilter(''); setSelectedBlockId(null); }}
+                            onClick={() => { setActiveTab(t); setFilter(''); setSelectedBlockId(null); setSelectedBindingId(null); }}
                             style={{
                                 flex: 1,  
                                 padding:'8px 10px', 
