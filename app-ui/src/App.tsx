@@ -697,11 +697,11 @@ function App() {
            return err;
       }
 
-      const raw = await res.json() as any;
+      const raw = await res.json() as { applied?: unknown; skipped?: unknown; logs?: unknown; error?: unknown };
       const data: ActionDispatchResult = {
           applied: typeof raw.applied === 'number' ? raw.applied : 0,
           skipped: typeof raw.skipped === 'number' ? raw.skipped : 0,
-          logs: Array.isArray(raw.logs) ? raw.logs : [],
+          logs: Array.isArray(raw.logs) ? (raw.logs as string[]) : [],
           error: typeof raw.error === 'string' ? raw.error : undefined
       };
       
