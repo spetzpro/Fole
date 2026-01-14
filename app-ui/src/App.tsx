@@ -51,7 +51,7 @@ interface ActionRunRecord {
   id: string;
   timestamp: number;
   actionId: string;
-  result?: ActionDispatchResult;
+  result: ActionDispatchResult;
 }
 
 interface RuntimePlan {
@@ -402,13 +402,6 @@ function WindowFrame({
                                background: 'linear-gradient(135deg, transparent 50%, #999 50%)' 
                            }}
                         />
-                    )}
-                </div>
-            )}
-        </div>
-    );
-}
-
 type OverlayLayerProps = { 
     overlays: OverlayState[]; 
     onClose: (id: string) => void;
@@ -504,49 +497,37 @@ function OverlayLayer(props: OverlayLayerProps) {
                                     {actions.length === 0 && <p style={{color:'#999'}}>No actions available</p>}
 
                                     {/* Inline Feedback in Menu */}
-                                    {lastRun && (
+                                    {lastRun ? (
                                         <div style={{marginTop:'10px', padding:'5px', background:'#eee', fontSize:'0.8em', borderLeft:'3px solid #666'}}>
                                             <div style={{display:'flex', justifyContent:'space-between'}}>
                                                 <strong>Last Result:</strong> 
                                                 <span>{lastRun.actionId}</span>
                                             </div>
                                             
-                                            {lastRun.result && (
-                                                <div style={{marginTop: '5px'}}>
-                                                    <div>
-                                                        {lastRun.result.error ? (
-                                                            <span style={{color:'red'}}>Error: {lastRun.result.error}</span>
-                                                        ) : (
-                                                            <span style={{color:'green'}}>
-                                                                Applied: {lastRun.result.applied}, Skipped: {lastRun.result.skipped}
-                                                            </span>
-                                                        )}
-                                                    </div>
+                                            <div style={{marginTop: '5px'}}>
+                                                {lastRun.result.error ? (
+                                                    <span style={{color:'red'}}>Error: {lastRun.result.error}</span>
+                                                ) : (
+                                                    <span style={{color:'green'}}>
+                                                        Applied: {lastRun.result.applied}, Skipped: {lastRun.result.skipped}
+                                                    </span>
+                                                )}
+                                            </div>
 
-                                                    {(lastRun.result.logs.length > 0 || lastRun.result.error) && (
-                                                        <button 
-                                                            style={{marginTop: '5px', fontSize: '0.9em', cursor: 'pointer', textDecoration: 'underline', border: 'none', background: 'none', color: '#007acc', padding: 0}}
-                                                            onClick={() => onToggleRunLogs(lastRun.id)}
-                                                        >
-                                                            {expandedRunIds[lastRun.id] ? 'Hide Details' : 'Show Details'}
-                                                        </button>
-                                                    )}
-ActionDispatchResult | null>(null);
-  
-  // Action Menu State
-  const [actionRuns, setActionRuns] = useState<ActionRunRecord[]>([]);
-  const [expandedRunIds, setExpandedRunIds] = useState<Record<string, boolean>>({});
-
-  const toggleRunLogs = (id: string) => {
-    setExpandedRunIds(prev => ({...prev, [id]: !prev[id]}));
-  }result.error && <div style={{color:'red', marginBottom:'5px'}}>{lastRun.result.error}</div>}
-                                                            {renderRawLogs(lastRun.result)}
-                                                        </div>
-                                                    )}
-                                                </div
-                                    {lastRun && (
-                                        <div style={{marginTop:'10px', padding:'5px', background:'#eee', fontSize:'0.8em', borderLeft:'3px solid #666'}}>
-                                            <strong>Last Result:</strong> {lastRun.actionId} <br/>
+                                            {(lastRun.result.logs.length > 0 || lastRun.result.error) && (
+                                                <div style={{marginTop:'5px'}}>
+                                                    <button 
+                                                        style={{fontSize: '0.9em', cursor: 'pointer', textDecoration: 'underline', border: 'none', background: 'none', color: '#007acc', padding: 0}}
+                                                        onClick={() => onToggleRunLogs(lastRun.id)}
+                                                    >
+                                                        {expandedRunIds[lastRun.id] ? 'Hide Details' : 'Show Details'}
+                                                    </button>
+                                                    
+                                                    {expandedRunIds[lastRun.id] && renderRawLogs(lastRun.result)}
+                                                </div>
+                                            )}
+                                        </div>
+                                    ) : null       <strong>Last Result:</strong> {lastRun.actionId} <br/>
                                             {lastRun.result?.error ? (
                                                 <span style={{color:'red'}}>Error: {lastRun.result.error}</span>
                                             ) : (
@@ -593,6 +574,9 @@ function App() {
   
   // Action Menu State
   const [actionRuns, setActionRuns] = useState<ActionRunRecord[]>([]);
+  const [expandedRunIds, setExpandedRunIds] = useState<Record<string, boolean>>({});
+
+  const toggleRunLogs = (id: string) => setExpandedRunIds(prev => ({...prev, [id]: !prev[id]}));
 
   // Sync state helper
   const syncRuntime = () => {
@@ -628,24 +612,16 @@ function App() {
   const fetchBundle = async () => {
     setLoading(true);
     setError(null);
-    setBundleData: ActionDispatchResult = { error: "Access Denied (403)", logs: ["Use FOLE_DEV_ENABLE_DEBUG_ENDPOINTS=1 env var"], applied: 0, skipped: 0 };
-        setActionResult(err);
-        return err;
-      }
+    setBundleData(null);
+    try {
+      const bundleRes = await fetch(`${baseUrl}/api/config/shell/bundle`);
+      if (!bundleRes.ok) throw new Error(`Bundle fetch failed: ${bundleRes.status} ${bundleRes.statusText}`);
+      const rawJson = await bundleRes.json();
       
-      const raw = await res.json() as any;
-      const data: ActionDispatchResult = {
-          applied: typeof raw.applied === 'number' ? raw.applied : 0,
-          skipped: typeof raw.skipped === 'number' ? raw.skipped : 0,
-          logs: Array.isArray(raw.logs) ? raw.logs : [],
-          error: typeof raw.error === 'string' ? raw.error : undefined
-      };
-      
-      setActionResult(data);
-      return data;
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      const errObj: ActionDispatchResult = { error: msg, applied: 0, skipped: 0, logs: [msg]
+      const bundleObj = rawJson.bundle?.bundle ?? rawJson.bundle ?? rawJson;
+      if (!bundleObj.blocks) bundleObj.blocks = {};
+      if (!bundleObj.manifest) bundleObj.manifest = { title: "Unknown Manifest" };
+
       setBundleData(bundleObj);
     } catch (err: unknown) {
       if (err instanceof Error) setError(err.message);
@@ -676,7 +652,7 @@ function App() {
     }
   };
 
-  const handleDispatch = async (override?: {sourceBlockId: string, actionName: string, permissions?: string[]}) => {
+  const handleDispatch = async (override?: {sourceBlockId: string, actionName: string, permissions?: string[]}): Promise<ActionDispatchResult> => {
     setLoading(true);
     setActionResult(null);
     try {
@@ -694,16 +670,39 @@ function App() {
       });
 
       if (res.status === 403) {
-        const err = { error: "Access Denied (403)", message: "Use FOLE_DEV_ENABLE_DEBUG_ENDPOINTS=1 env var" };
+        const err: ActionDispatchResult = { 
+            applied: 0, skipped: 0, logs: [], 
+            error: "Access Denied (403): Use FOLE_DEV_ENABLE_DEBUG_ENDPOINTS=1 env var" 
+        };
         setActionResult(err);
         return err;
       }
-      const data: unknown = await res.json();
+
+      if (!res.ok) {
+           const err: ActionDispatchResult = {
+               applied: 0, skipped: 0, logs: [],
+               error: `HTTP Error ${res.status} ${res.statusText}`
+           };
+           setActionResult(err);
+           return err;
+      }
+
+      const raw = await res.json() as any;
+      const data: ActionDispatchResult = {
+          applied: typeof raw.applied === 'number' ? raw.applied : 0,
+          skipped: typeof raw.skipped === 'number' ? raw.skipped : 0,
+          logs: Array.isArray(raw.logs) ? raw.logs : [],
+          error: typeof raw.error === 'string' ? raw.error : undefined
+      };
+      
       setActionResult(data);
       return data;
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
-      const errObj = { error: msg };
+      const errObj: ActionDispatchResult = { 
+          applied: 0, skipped: 0, logs: [msg], 
+          error: msg 
+      };
       setActionResult(errObj);
       return errObj;
     } finally {
@@ -713,7 +712,6 @@ function App() {
 
   const runAction = async (def: ActionDefinition) => {
       // 1. Run Dispatch
-      console.log('Running Action:', def);
       const result = await handleDispatch({
           sourceBlockId: def.sourceBlockId,
           actionName: def.actionName,
@@ -727,7 +725,7 @@ function App() {
           actionId: `${def.sourceBlockId}::${def.actionName}`,
           result
       };
-      setActionRuns(prev => [record, ...prev].slice(0, 50)); // Keep last 50
+      setActionRuns(prev => [record, ...prev].slice(0, 50)); 
   };
 
   // UI Handlers wiring to Runtime
@@ -782,49 +780,61 @@ function App() {
                          <button onClick={() => winOps.focus(w.id)} style={{marginLeft:'5px', fontSize:'0.7em'}}>Focus</button>
                      </li>
                  ))}
-             </ul>0', maxHeight:'300px', overflowY:'auto', listStyleType:'none'}}>
-                {actionRuns.map(run => (
-                    <li key={run.id} style={{marginBottom:'10px', borderBottom:'1px solid #eee', paddingBottom:'5px'}}>
+             </ul>
+
+             <h4>Available Overlays</h4>
+             <ul>
+                 {runtimePlan && Object.values(runtimePlan.overlays).map(o => (
+                     <li key={o.id} style={{fontSize:'0.9em'}}>
+                         {o.id} [{o.isOpen ? 'OPEN' : 'closed'}]
+                         <button onClick={() => overlayOps.open(o.id)} style={{marginLeft:'5px', fontSize:'0.7em'}}>Open</button>
+                     </li>
+                 ))}
+             </ul>
+
+             <h4>Action History</h4>10px', listStyle:'none', borderBottom:'1px solid #eee', paddingBottom:'5px'}}>
                         <div style={{fontWeight:'bold', display:'flex', justifyContent:'space-between'}}>
                            <span>{run.actionId}</span>
                            <span style={{fontWeight:'normal', color:'#999'}}>{new Date(run.timestamp).toLocaleTimeString()}</span>
                         </div>
-                        <div style={{color: run.result?.error ? 'red' : 'green', margin:'2px 0'}}>
-                            {run.result?.error ? 'ERROR' : 'OK'}
+                        <div style={{color: run.result.error ? 'red' : 'green', margin:'2px 0'}}>
+                            {run.result.error ? 'ERROR' : 'OK'}
                         </div>
-                        {run.result && (
-                            <div style={{fontSize:'0.9em'}}>
-                                <span>Applied: {run.result.applied} | Skipped: {run.result.skipped}</span>
-                                {(run.result.logs.length > 0 || run.result.error) && (
+                        
+                        <div style={{fontSize:'0.9em'}}>
+                            <span>Applied: {run.result.applied} | Skipped: {run.result.skipped}</span>
+                            
+                            {(run.result.logs.length > 0 || run.result.error) && (
+                                <div style={{marginTop:'2px'}}>
                                     <button 
                                         onClick={() => toggleRunLogs(run.id)}
-                                        style={{marginLeft:'10px', fontSize:'0.8em', cursor:'pointer', border:'none', background:'transparent', color:'#007acc', textDecoration:'underline'}}
+                                        style={{cursor:'pointer', fontSize:'0.9em', border:'none', background:'none', color:'#007acc', padding:0, textDecoration:'underline'}}
                                     >
-                                        {expandedRunIds[run.id] ? 'Hide' : 'Details'}
+                                        {expandedRunIds[run.id] ? 'Hide Details' : 'Show Details'}
                                     </button>
-                                )}
-                                {expandedRunIds[run.id] && (
-                                    <div style={{marginTop:'5px'}}>
-                                        {run.result.error && <div style={{color:'red'}}>{run.result.error}</div>}
-                                        {run.result.logs.length > 0 && (
-                                            <pre style={{
-                                                background: '#f7f7f7', 
-                                                border: '1px solid #ddd', 
-                                                padding: '5px', 
-                                                marginTop: '5px',
-                                                whiteSpace: 'pre-wrap',
-                                                wordBreak: 'break-word',
-                                                maxHeight: '150px',
-                                                overflow: 'auto',
-                                                fontSize: '0.9em'
-                                            }}>
-                                                {run.result.logs.join('\n')}
-                                            </pre>
-                                        )}
-                                    </div>
-                                )}
-                            </div>
-                        )}
+                                    
+                                    {expandedRunIds[run.id] && (
+                                        <pre style={{
+                                            whiteSpace: 'pre-wrap', 
+                                            wordBreak: 'break-word', 
+                                            maxHeight: '150px', 
+                                            overflow: 'auto', 
+                                            background: '#f7f7f7', 
+                                            padding: '5px', 
+                                            border: '1px solid #ddd',
+                                            margin: '4px 0 0 0',
+                                            fontSize: '0.85em'
+                                        }}>
+                                            {run.result.error && `Error: ${run.result.error}\n`}
+                                            {run.result.logs.join('\n')}
+                                        </pre>
+                                    )}
+                                </div>
+                            )
+                        <div><strong>{run.actionId}</strong></div>
+                        <div style={{color: run.result?.error ? 'red' : 'green'}}>
+                            {run.result?.error ? 'Failed' : `OK (Applied: ${run.result?.applied})`}
+                        </div>
                     </li>
                 ))}
                 {actionRuns.length === 0 && <li><span style={{color:'#999'}}>No actions run yet.</span></li>}
@@ -859,20 +869,7 @@ function App() {
                         onRunAction={runAction}
                         lastRun={actionRuns[0]}
                         expandedRunIds={expandedRunIds}
-                        onToggleRunLogs={toggleRunLogsps.close(w.id)}
-                           onMinimize={(v) => winOps.minimize(w.id, v)}
-                           onDock={(m) => winOps.dock(w.id, m)}
-                        />
-                    ))}
-
-                    {/* Overlays */}
-                    <OverlayLayer 
-                        overlays={Object.values(runtimePlan.overlays)} 
-                        onClose={overlayOps.close}
-                        onDismissCtx={overlayOps.dismiss}
-                        actions={runtimePlan.actions}
-                        onRunAction={runAction}
-                        lastRun={actionRuns[0]}
+                        onToggleRunLogs={toggleRunLogs}
                     />
                  </>
              ) : (
