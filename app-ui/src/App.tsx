@@ -437,6 +437,24 @@ function LogViewer({ result }: { result: ActionDispatchResult }) {
     );
 }
 
+// --- Status Helper ---
+const getActionStatus = (res: ActionDispatchResult) => {
+    if (res.error) return 'ERROR';
+    if (res.applied > 0) return 'APPLIED';
+    if (res.skipped > 0) return 'SKIPPED';
+    return 'NO-OP';
+};
+
+const getStatusColor = (status: string) => {
+    switch(status) {
+        case 'ERROR': return '#c62828';
+        case 'APPLIED': return '#2e7d32';
+        case 'SKIPPED': return '#ef6c00';
+        case 'NO-OP': return '#616161';
+        default: return '#333';
+    }
+};
+
 type OverlayLayerProps = { 
     overlays: OverlayState[]; 
     onClose: (id: string) => void;
@@ -1175,7 +1193,7 @@ function SysadminPanel({ isOpen, onClose, bundleData, runtimePlan, actionRuns = 
                 
                 const lastRun = actionRuns[0];
                 const lastStatus = lastRun 
-                    ? (lastRun.result.error ? 'ERROR' : 'OK') 
+                    ? getActionStatus(lastRun.result)
                     : 'NONE';
 
                 const toggleSection = (key: keyof typeof runtimeSections) => {
@@ -1225,8 +1243,8 @@ function SysadminPanel({ isOpen, onClose, bundleData, runtimePlan, actionRuns = 
                                 <div style={{color:'#666', fontSize:'0.9em'}}>Runs</div>
                             </div>
                             {lastStatus !== 'NONE' && (
-                                <div style={{...pillStyle, background: lastStatus==='ERROR' ? '#ffebe6' : '#e6ffec', borderColor: lastStatus==='ERROR' ? '#ffbdad' : '#acf2bd'}}>
-                                    <div style={{fontWeight:'bold', color: lastStatus==='ERROR' ? '#c00' : '#006600'}}>{lastStatus}</div>
+                                <div style={{...pillStyle, background: '#fafafa', borderColor: '#ccc'}}>
+                                    <div style={{fontWeight:'bold', color: getStatusColor(lastStatus)}}>{lastStatus}</div>
                                     <div style={{color:'#666', fontSize:'0.9em'}}>Last Result</div>
                                 </div>
                             )}
@@ -1291,7 +1309,12 @@ function SysadminPanel({ isOpen, onClose, bundleData, runtimePlan, actionRuns = 
                                 {lastRun ? (
                                     <>
                                         <div style={{fontSize:'0.9em', marginBottom:'5px', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
-                                            <span><strong>{lastRun.actionId}</strong> at {new Date(lastRun.timestamp).toLocaleTimeString()}</span>
+                                            <span>
+                                                <strong>{lastRun.actionId}</strong> at {new Date(lastRun.timestamp).toLocaleTimeString()}
+                                                <span style={{marginLeft:'8px', fontSize:'0.85em', fontWeight:'bold', padding:'1px 5px', borderRadius:'4px', color:'white', background: getStatusColor(lastStatus)}}>
+                                                    {lastStatus}
+                                                </span>
+                                            </span>
                                             <CopyBtn k="lastresult" text={lastRun.result} />
                                         </div>
                                         <pre style={preStyle}>{JSON.stringify(lastRun.result, null, 2)}</pre>
@@ -1634,14 +1657,16 @@ function App() {
 
              <h4>Action History</h4>
              <ul style={{ paddingLeft: '0', listStyle: 'none' }}>
-                {actionRuns.map(run => (
+                {actionRuns.map(run => {
+                    const status = getActionStatus(run.result);
+                    return (
                     <li key={run.id} style={{ marginBottom: '10px', borderBottom: '1px solid #eee', paddingBottom: '5px' }}>
                         <div style={{ fontWeight: 'bold', display: 'flex', justifyContent: 'space-between' }}>
                            <span>{run.actionId}</span>
                            <span style={{ fontWeight: 'normal', color: '#999' }}>{new Date(run.timestamp).toLocaleTimeString()}</span>
                         </div>
-                        <div style={{ color: run.result.error ? 'red' : 'green', margin: '2px 0' }}>
-                            {run.result.error ? 'ERROR' : 'OK'}
+                        <div style={{ color: getStatusColor(status), margin: '2px 0', fontWeight:'bold' }}>
+                            {status}
                         </div>
                         
                         <div style={{ fontSize: '0.9em' }}>
@@ -1662,7 +1687,8 @@ function App() {
                             )}
                         </div>
                     </li>
-                ))}
+                    );
+                })}
                 {actionRuns.length === 0 && (
                     <li><span style={{ color: '#999' }}>No actions run yet.</span></li>
                 )}
