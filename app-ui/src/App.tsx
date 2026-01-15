@@ -754,7 +754,20 @@ function OverlayLayer(props: OverlayLayerProps) {
                                       <div style={{ marginTop: '10px', padding: '5px', background: '#eee', fontSize: '0.8em', borderLeft: '3px solid #666' }}>
                                         <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                                           <strong>Last Result:</strong>
-                                          <span>{lastRun.actionId}</span>
+                                          <span>
+                                            {lastRun.actionId}
+                                            <span style={{ 
+                                              marginLeft: '6px', 
+                                              fontWeight: 'bold', 
+                                              color: 'white', 
+                                              padding: '1px 4px', 
+                                              borderRadius: '3px',
+                                              fontSize: '0.85em',
+                                              background: getStatusColor(getActionStatus(lastRun.result))
+                                            }}>
+                                              {getActionStatus(lastRun.result)}
+                                            </span>
+                                          </span>
                                         </div>
 
                                         <div style={{ marginTop: '5px' }}>
@@ -1311,7 +1324,15 @@ function SysadminPanel({ isOpen, onClose, bundleData, runtimePlan, actionRuns = 
                                         <div style={{fontSize:'0.9em', marginBottom:'5px', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
                                             <span>
                                                 <strong>{lastRun.actionId}</strong> at {new Date(lastRun.timestamp).toLocaleTimeString()}
-                                                <span style={{marginLeft:'8px', fontSize:'0.85em', fontWeight:'bold', padding:'1px 5px', borderRadius:'4px', color:'white', background: getStatusColor(lastStatus)}}>
+                                                <span style={{ margin: '0 8px', color: '#ccc' }}>|</span>
+                                                <span style={{ 
+                                                    fontWeight:'bold', 
+                                                    padding:'1px 5px', 
+                                                    borderRadius:'4px', 
+                                                    color:'white', 
+                                                    background: getStatusColor(lastStatus),
+                                                    fontSize: '0.85em'
+                                                }}>
                                                     {lastStatus}
                                                 </span>
                                             </span>
