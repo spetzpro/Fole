@@ -1057,7 +1057,7 @@ function SysadminPanel({ isOpen, onClose, bundleData, runtimePlan, actionRuns = 
         return res;
     }, [draftBundle]);
 
-    const [validationExpanded, setValidationExpanded] = useState(false);
+    const [showValidationDetails, setShowValidationDetails] = useState(false);
 
     // Shared Copy Button Style
     const CopyBtn = ({ k, text, label = 'Copy JSON' }: { k: string, text: any, label?: string }) => {
@@ -1636,16 +1636,45 @@ function SysadminPanel({ isOpen, onClose, bundleData, runtimePlan, actionRuns = 
                                          {errors.length} Errors, {warnings.length} Warnings
                                      </span>
                                  </div>
-                                 <button onClick={() => setValidationExpanded(!validationExpanded)} style={{background:'none', border:'none', cursor:'pointer', fontSize:'0.9em', textDecoration:'underline'}}>
-                                     {validationExpanded ? 'Hide Details' : 'Show Details'}
-                                 </button>
+                                 {(errors.length > 0 || warnings.length > 0) && (
+                                     <button 
+                                        onClick={() => setShowValidationDetails(!showValidationDetails)} 
+                                        style={{
+                                            color: '#111',
+                                            background: '#ffffff',
+                                            border: '1px solid #ccc',
+                                            borderRadius: '6px',
+                                            padding: '4px 10px',
+                                            fontWeight: 600,
+                                            fontSize: '0.85em',
+                                            cursor: 'pointer'
+                                        }}
+                                        onMouseEnter={(e) => e.currentTarget.style.background = '#f3f4f6'}
+                                        onMouseLeave={(e) => e.currentTarget.style.background = '#ffffff'}
+                                     >
+                                         {showValidationDetails ? 'Hide Details' : 'Show Details'}
+                                     </button>
+                                 )}
                              </div>
                              
-                             {validationExpanded && (
-                                 <div style={{marginTop:'10px', maxHeight:'150px', overflowY:'auto', background:'white', padding:'5px', border:'1px solid #ddd'}}>
-                                     {errors.length === 0 && warnings.length === 0 && <div style={{color:'#666', fontStyle:'italic'}}>No issues detected.</div>}
-                                     {errors.map((e, i) => <div key={'e'+i} style={{color:'#d32f2f', fontSize:'0.9em'}}>• <b>ERROR:</b> {e}</div>)}
-                                     {warnings.map((w, i) => <div key={'w'+i} style={{color:'#ef6c00', fontSize:'0.9em'}}>• <b>WARN:</b> {w}</div>)}
+                             {showValidationDetails && (errors.length > 0 || warnings.length > 0) && (
+                                 <div style={{marginTop:'10px', maxHeight:'200px', overflowY:'auto', background:'white', padding:'8px', border:'1px solid #ddd'}}>
+                                     {errors.length > 0 && (
+                                         <div style={{marginBottom:'8px'}}>
+                                             <div style={{fontWeight:'bold', color:'#d32f2f', marginBottom:'2px', fontSize:'0.9em'}}>Errors</div>
+                                             <ul style={{margin:0, paddingLeft:'20px', color:'#d32f2f', fontSize:'0.9em'}}>
+                                                 {errors.map((e, i) => <li key={'e'+i}>{e}</li>)}
+                                             </ul>
+                                         </div>
+                                     )}
+                                     {warnings.length > 0 && (
+                                         <div>
+                                             <div style={{fontWeight:'bold', color:'#ef6c00', marginBottom:'2px', fontSize:'0.9em'}}>Warnings</div>
+                                             <ul style={{margin:0, paddingLeft:'20px', color:'#ef6c00', fontSize:'0.9em'}}>
+                                                 {warnings.map((w, i) => <li key={'w'+i}>{w}</li>)}
+                                             </ul>
+                                         </div>
+                                     )}
                                  </div>
                              )}
                              <div style={{marginTop:'5px', fontSize:'0.8em', color:'#666'}}>
