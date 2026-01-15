@@ -1007,6 +1007,58 @@ function SysadminPanel({ isOpen, onClose, bundleData, runtimePlan, actionRuns = 
         return { added, removed, modified };
     }, [bundleData, draftBundle]);
 
+    const validationResult = useMemo(() => {
+        const res = { errors: [] as string[], warnings: [] as string[], status: 'SAFE' };
+        if (!draftBundle) {
+             res.status = 'No draft';
+             return res;
+        }
+
+        const blocks = draftBundle.blocks || {};
+        const blockIds = Object.keys(blocks);
+        const seenIds = new Set<string>();
+
+        blockIds.forEach(key => {
+            const b = blocks[key];
+            const bid = b.blockId || b.id;
+            
+            // Core fields
+            if (!bid) res.errors.push(`Block at key "${key}" missing blockId`);
+            if (!b.blockType) res.errors.push(`Block "${key}" missing blockType`);
+            if (!b.schemaVersion) res.warnings.push(`Block "${bid || key}" missing schemaVersion`);
+
+            // ID mismatch check
+            if (bid && bid !== key) res.warnings.push(`Block key "${key}" matches blockId "${bid}"? Mismatch can cause issues.`);
+            
+            // Type specific checks
+            if (b.blockType === 'binding') {
+                const data = b.data || {};
+                // Trigger source check
+                const triggerSrc = data.mapping?.trigger?.sourceBlockId;
+                if (triggerSrc && !blocks[triggerSrc]) {
+                    res.warnings.push(`Binding "${bid}" references missing sourceBlockId "${triggerSrc}"`);
+                }
+                
+                // Endpoint targets check
+                if (Array.isArray(data.endpoints)) {
+                    data.endpoints.forEach((ep: any, idx: number) => {
+                        const tgt = ep.target?.blockId;
+                        if (tgt && !blocks[tgt]) {
+                             res.warnings.push(`Binding "${bid}" endpoint[${idx}] references missing target blockId "${tgt}"`);
+                        }
+                    });
+                }
+            }
+        });
+
+        if (res.errors.length > 0) res.status = 'BLOCKED';
+        else if (res.warnings.length > 0) res.status = 'WARNINGS';
+        
+        return res;
+    }, [draftBundle]);
+
+    const [validationExpanded, setValidationExpanded] = useState(false);
+
     // Shared Copy Button Style
     const CopyBtn = ({ k, text, label = 'Copy JSON' }: { k: string, text: any, label?: string }) => {
         const isCopied = copiedKey === k;
@@ -1554,8 +1606,53 @@ function SysadminPanel({ isOpen, onClose, bundleData, runtimePlan, actionRuns = 
                  
                  const selectedBlock = draftSelectedBlockId ? draftBlocksMap[draftSelectedBlockId] : null;
 
+                 const { status, errors, warnings } = validationResult;
+                 const statusColors: Record<string,string> = { 
+                     SAFE: '#2e7d32', 
+                     WARNINGS: '#f57c00', 
+                     BLOCKED: '#d32f2f',
+                     'No draft': '#666'
+                 };
+
                  return (
                      <div style={{display:'flex', flexDirection:'column', height:'100%'}}>
+                         {/* Validation Summary */}
+                         <div style={{
+                             padding:'10px', marginBottom:'10px', 
+                             border:'1px solid #ccc', borderRadius:'4px',
+                             background: status === 'SAFE' ? '#e8f5e9' : status === 'BLOCKED' ? '#ffebee' : '#fff3e0'
+                         }}>
+                             <div style={{display:'flex', alignItems:'center', justifyContent:'space-between'}}>
+                                 <div style={{display:'flex', alignItems:'center', gap:'10px'}}>
+                                     <strong style={{fontSize:'1em'}}>Validation Summary</strong>
+                                     <span style={{
+                                         background: statusColors[status] || '#666',
+                                         color: 'white', fontWeight:'bold',
+                                         padding:'2px 8px', borderRadius:'4px', fontSize:'0.85em'
+                                     }}>
+                                         {status}
+                                     </span>
+                                     <span style={{fontSize:'0.9em', color:'#555'}}>
+                                         {errors.length} Errors, {warnings.length} Warnings
+                                     </span>
+                                 </div>
+                                 <button onClick={() => setValidationExpanded(!validationExpanded)} style={{background:'none', border:'none', cursor:'pointer', fontSize:'0.9em', textDecoration:'underline'}}>
+                                     {validationExpanded ? 'Hide Details' : 'Show Details'}
+                                 </button>
+                             </div>
+                             
+                             {validationExpanded && (
+                                 <div style={{marginTop:'10px', maxHeight:'150px', overflowY:'auto', background:'white', padding:'5px', border:'1px solid #ddd'}}>
+                                     {errors.length === 0 && warnings.length === 0 && <div style={{color:'#666', fontStyle:'italic'}}>No issues detected.</div>}
+                                     {errors.map((e, i) => <div key={'e'+i} style={{color:'#d32f2f', fontSize:'0.9em'}}>• <b>ERROR:</b> {e}</div>)}
+                                     {warnings.map((w, i) => <div key={'w'+i} style={{color:'#ef6c00', fontSize:'0.9em'}}>• <b>WARN:</b> {w}</div>)}
+                                 </div>
+                             )}
+                             <div style={{marginTop:'5px', fontSize:'0.8em', color:'#666'}}>
+                                 Apply is disabled in this phase. This summary is informational only.
+                             </div>
+                         </div>
+
                          {/* Draft Toolbar */}
                          <div style={{paddingBottom:'10px', marginBottom:'10px', borderBottom:'1px solid #ccc', display:'flex', alignItems:'center', justifyContent:'space-between'}}>
                              <div style={{display:'flex', alignItems:'center', gap:'15px'}}>
