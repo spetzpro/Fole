@@ -454,6 +454,7 @@ type OverlayLayerProps = {
 function OverlayLayer(props: OverlayLayerProps) {
     const { overlays, onClose, onDismissCtx, actions, onRunAction, lastRun, recentRuns, expandedRunIds, onToggleRunLogs, actionSearch, onChangeActionSearch } = props;
     const [recentError, setRecentError] = useState<string | null>(null);
+    const [pinnedActionIds, setPinnedActionIds] = useState<Set<string>>(new Set());
 
     // Deduplicate recent runs (max 5)
     const uniqueRecentRuns = (() => {
@@ -601,32 +602,47 @@ function OverlayLayer(props: OverlayLayerProps) {
                                                 {groupKey}
                                             </div>
                                             <div style={{display:'flex', flexDirection:'column', gap:'5px'}}>
-                                                {groups.get(groupKey)!.sort((a,b) => a.actionName.localeCompare(b.actionName)).map(act => (
+                                                {groups.get(groupKey)!.sort((a,b) => a.actionName.localeCompare(b.actionName)).map(act => {
+                                                    const isPinned = pinnedActionIds.has(act.id);
+                                                    return (
                                                     <button 
                                                         key={act.id} 
                                                         onClick={() => onRunAction(act)}
                                                         style={{
                                                             padding:'8px', 
                                                             textAlign:'left', 
-                                                            border:'1px solid #ccc', 
+                                                            border: isPinned ? '1px solid #ff9800' : '1px solid #ccc', 
                                                             cursor:'pointer',
                                                             display: 'flex',
                                                             justifyContent: 'space-between',
-                                                            alignItems: 'center'
+                                                            alignItems: 'center',
+                                                            background: isPinned ? '#fff8e1' : 'white'
                                                         }}
                                                     >
                                                         <strong>{act.actionName}</strong> 
                                                         <span 
-                                                            onClick={(e) => { e.stopPropagation(); }} 
-                                                            style={{ fontSize: '1.2em', marginLeft: '8px', cursor: 'pointer', lineHeight: '1', opacity: 0.5 }}
-                                                            title="Pin action (coming soon)"
-                                                            onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
-                                                            onMouseLeave={(e) => e.currentTarget.style.opacity = '0.5'}
+                                                            onClick={(e) => { 
+                                                                e.stopPropagation(); 
+                                                                const newSet = new Set(pinnedActionIds);
+                                                                if (newSet.has(act.id)) newSet.delete(act.id);
+                                                                else newSet.add(act.id);
+                                                                setPinnedActionIds(newSet);
+                                                            }} 
+                                                            style={{ 
+                                                                fontSize: '1.2em', 
+                                                                marginLeft: '8px', 
+                                                                cursor: 'pointer', 
+                                                                lineHeight: '1', 
+                                                                opacity: isPinned ? 1 : 0.5 
+                                                            }}
+                                                            title={isPinned ? "Unpin action" : "Pin action"}
+                                                            onMouseEnter={(e) => { if(!isPinned) e.currentTarget.style.opacity = '1'; }}
+                                                            onMouseLeave={(e) => { if(!isPinned) e.currentTarget.style.opacity = '0.5'; }}
                                                         >
-                                                            📌
+                                                            {isPinned ? '⭐' : '📌'}
                                                         </span>
                                                     </button>
-                                                ))}
+                                                )})}
                                             </div>
                                         </div>
                                     ))}
