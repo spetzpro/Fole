@@ -812,12 +812,13 @@ function OverlayLayer(props: OverlayLayerProps) {
     );
 }
 
-function SysadminPanel({ isOpen, onClose, bundleData, runtimePlan, actionRuns = [] }: { 
+function SysadminPanel({ isOpen, onClose, bundleData, runtimePlan, actionRuns = [], runningSource = 'ACTIVE' }: { 
     isOpen: boolean; 
     onClose: () => void; 
     bundleData: BundleResponse | null; 
     runtimePlan: RuntimePlan | null; 
     actionRuns: ActionRunRecord[];
+    runningSource?: 'ACTIVE' | 'DRAFT';
 }) {
     // Tabs: ShellConfig, Blocks, Bindings, ActionIndex, Runtime
     const [activeTab, setActiveTab] = useState('ShellConfig');
@@ -1054,6 +1055,10 @@ function SysadminPanel({ isOpen, onClose, bundleData, runtimePlan, actionRuns = 
 
     const [showValidationDetails, setShowValidationDetails] = useState(false);
     const [showDataDiff, setShowDataDiff] = useState(false);
+    
+    // Safety Kit State
+    const [ackWarnings, setAckWarnings] = useState(false);
+    const [draftValidateOk, setDraftValidateOk] = useState(false);
 
     // Diff Helper
     const diffData = (obj1: unknown, obj2: unknown, path = '', results: any[] = []) => {
@@ -1720,7 +1725,7 @@ function SysadminPanel({ isOpen, onClose, bundleData, runtimePlan, actionRuns = 
                              </div>
                          </div>
 
-                         {/* Apply Preview Section (New) */}
+                         {/* Apply Preview Section (Safety Kit) */}
                          <div style={{
                              marginBottom:'10px', padding:'10px', 
                              border:'1px solid #ccc', borderRadius:'4px',
@@ -1732,7 +1737,7 @@ function SysadminPanel({ isOpen, onClose, bundleData, runtimePlan, actionRuns = 
                                      <div style={{marginBottom:'3px'}}>
                                          <strong>Status: </strong>
                                          {status === 'BLOCKED' ? <span style={{color:'#d32f2f', fontWeight:'bold'}}>Not eligible (BLOCKED)</span> :
-                                          status === 'WARNINGS' ? <span style={{color:'#f57c00', fontWeight:'bold'}}>Eligible with warnings</span> :
+                                          status === 'WARNINGS' ? <span style={{color:'#f57c00', fontWeight:'bold'}}>Eligible with warnings {ackWarnings ? '(acknowledged)' : '(ack required)'}</span> :
                                           status === 'SAFE' ? <span style={{color:'#2e7d32', fontWeight:'bold'}}>Eligible (SAFE)</span> :
                                           <span>{status}</span>}
                                      </div>
@@ -1740,31 +1745,60 @@ function SysadminPanel({ isOpen, onClose, bundleData, runtimePlan, actionRuns = 
                                          <strong>Plan: </strong>
                                          <span>Add {draftDiff.added.length}, Remove {draftDiff.removed.length}, Modify {draftDiff.modified.length}</span>
                                      </div>
+                                     
+                                     {/* Warning Acknowledgement Checkbox */}
+                                     {status === 'WARNINGS' && (
+                                         <div style={{marginTop:'5px', padding:'4px', background:'#fff3e0', border:'1px solid #ffe0b2', borderRadius:'3px'}}>
+                                             <label style={{display:'flex', alignItems:'center', cursor:'pointer', fontSize:'0.9em'}}>
+                                                 <input 
+                                                     type="checkbox" 
+                                                     checked={ackWarnings} 
+                                                     onChange={e => setAckWarnings(e.target.checked)}
+                                                     style={{marginRight:'6px'}}
+                                                 />
+                                                 I understand the warnings and wish to proceed.
+                                             </label>
+                                         </div>
+                                     )}
+
                                      {selectedBlock && draftDiff.modified.includes(selectedBlock.blockId) && (
-                                         <div style={{fontStyle:'italic', color:'#555'}}>
+                                         <div style={{fontStyle:'italic', color:'#555', marginTop:'5px'}}>
                                              * Selected block "{selectedBlock.blockId}" has pending changes.
                                          </div>
                                      )}
                                  </div>
 
-                                 <div style={{textAlign:'right'}}>
-                                     <button 
-                                         disabled={true} 
-                                         style={{
-                                             background: '#ccc',
-                                             color: 'white',
-                                             padding:'6px 14px',
-                                             border:'none',
-                                             borderRadius:'4px',
-                                             cursor: 'not-allowed',
-                                             fontWeight: 'bold'
-                                         }}
-                                         title="Apply is not enabled yet. Next phase will implement apply + rollback."
-                                     >
-                                         Apply Draft (Disabled)
-                                     </button>
-                                     <div style={{fontSize:'0.75em', color:'#666', marginTop:'4px', maxWidth:'200px'}}>
-                                         When enabled, we’ll keep a last-known-good snapshot for rollback.
+                                 <div style={{textAlign:'right', display:'flex', flexDirection:'column', alignItems:'flex-end', gap:'5px'}}>
+                                     <div style={{display:'flex', gap:'5px'}}>
+                                        <button 
+                                            disabled={true} 
+                                            style={{
+                                                background: '#f5f5f5', color:'gray', border:'1px solid #ccc',
+                                                padding:'6px 10px', borderRadius:'4px', cursor: 'not-allowed', fontSize:'0.9em'
+                                            }}
+                                            title="Rollback will restore last active snapshot after Apply is enabled."
+                                        >
+                                            Rollback (disabled)
+                                        </button>
+                                        <button 
+                                            disabled={true} 
+                                            style={{
+                                                background: (status === 'SAFE' || (status === 'WARNINGS' && ackWarnings)) ? '#ccc' : '#e0e0e0', // Visual enabled state prep
+                                                color: 'white',
+                                                padding:'6px 14px',
+                                                border:'none',
+                                                borderRadius:'4px',
+                                                cursor: 'not-allowed',
+                                                fontWeight: 'bold',
+                                                opacity: (status === 'BLOCKED' || (status === 'WARNINGS' && !ackWarnings)) ? 0.6 : 1
+                                            }}
+                                            title="Apply is not enabled yet. Next phase will implement apply + rollback."
+                                        >
+                                            Apply Draft (Disabled)
+                                        </button>
+                                     </div>
+                                     <div style={{fontSize:'0.75em', color:'#666', maxWidth:'250px'}}>
+                                         Wait for next phase: Apply Logic + Rollback.
                                      </div>
                                  </div>
                              </div>
@@ -1879,16 +1913,25 @@ function SysadminPanel({ isOpen, onClose, bundleData, runtimePlan, actionRuns = 
                                              </div>
                                          )}
                                          
-                                         <div style={{marginTop:'10px', display:'flex', gap:'10px'}}>
+                                         <div style={{marginTop:'10px', display:'flex', gap:'10px', alignItems:'center'}}>
                                              <button
                                                  onClick={() => {
-                                                     try { JSON.parse(draftEditorText); setDraftEditorError(null); alert("Valid JSON"); } 
-                                                     catch(e:any) { setDraftEditorError("Invalid: " + e.message); }
+                                                     try { 
+                                                         JSON.parse(draftEditorText); 
+                                                         setDraftEditorError(null); 
+                                                         setDraftValidateOk(true);
+                                                         setTimeout(() => setDraftValidateOk(false), 2000);
+                                                     } 
+                                                     catch(e:unknown) { 
+                                                         setDraftEditorError("Invalid: " + (e instanceof Error ? e.message : String(e))); 
+                                                     }
                                                  }}
                                                  style={{padding:'6px 12px', cursor:'pointer'}}
                                              >
                                                  Validate
                                              </button>
+                                             {draftValidateOk && <span style={{color:'green', fontSize:'0.9em', fontWeight:'bold'}}>✓ Valid JSON</span>}
+                                             
                                              <button 
                                                  onClick={handleSaveDraftBlock}
                                                  disabled={!draftEditorDirty || !!draftEditorError}
@@ -2000,7 +2043,17 @@ function SysadminPanel({ isOpen, onClose, bundleData, runtimePlan, actionRuns = 
             zIndex: 9000, display: 'flex', flexDirection: 'column', overflow: 'hidden'
         }}>
             <div style={{background: '#333', color:'white', padding:'8px 12px', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
-                <h3 style={{margin:0, fontSize:'1em'}}>Sysadmin (read-only)</h3>
+                <div style={{display:'flex', alignItems:'center', gap:'10px'}}>
+                    <h3 style={{margin:0, fontSize:'1em'}}>Sysadmin (read-only)</h3>
+                    <span style={{
+                        fontSize:'0.75em', fontWeight:'bold', 
+                        padding:'1px 6px', borderRadius:'10px',
+                        background: runningSource === 'ACTIVE' ? '#2e7d32' : '#f57c00',
+                        color: 'white', border: '1px solid rgba(255,255,255,0.3)'
+                    }}>
+                        Running: {runningSource}
+                    </span>
+                </div>
                 <button onClick={onClose} style={{background:'transparent', color:'white', border:'none', fontSize:'1.2em', cursor:'pointer'}}>×</button>
             </div>
             
@@ -2060,6 +2113,10 @@ function App() {
   // Sysadmin Toggle
   const [sysadminOpen, setSysadminOpen] = useState(false);
   
+  // Runtime Source State (Prep for Apply phase)
+  const [runningSource, setRunningSource] = useState<'ACTIVE' | 'DRAFT'>('ACTIVE');
+  const [lastActiveBundle, setLastActiveBundle] = useState<BundleResponse | null>(null);
+
   // Viewport Ref for clamping
   const viewportRef = useRef<HTMLDivElement>(null);
 
@@ -2270,6 +2327,19 @@ function App() {
                 <button onClick={() => setSysadminOpen(!sysadminOpen)} style={{marginTop:'10px', width:'100%', background: sysadminOpen ? '#333' : '#eee', color: sysadminOpen ? 'white' : 'black'}}>
                     {sysadminOpen ? 'Close Sysadmin' : 'Open Sysadmin'}
                 </button>
+                <button 
+                  onClick={() => {
+                     if (runtimePlan && runtimePlan.overlays && runtimePlan.overlays['overlay_menu']) {
+                         overlayOps.open('overlay_menu');
+                     } else {
+                         console.warn("overlay_menu not available in current plan");
+                     }
+                  }}
+                  style={{marginTop:'5px', width:'100%', background:'#ffebee', color: '#b71c1c', border:'1px solid #ef5350', cursor:'pointer', fontSize:'0.9em', fontWeight: 'bold'}}
+                  title="Force open standard menu overlay if available"
+                >
+                  Force open overlay_menu
+                </button>
                 {actionResult && <pre style={{
                     fontSize:'10px',
                     background:'#f7f7f7',
@@ -2388,6 +2458,7 @@ function App() {
                  bundleData={bundleData}
                  runtimePlan={runtimePlan}
                  actionRuns={actionRuns}
+                 runningSource={runningSource}
              />
           </div>
       </div>
