@@ -1720,6 +1720,56 @@ function SysadminPanel({ isOpen, onClose, bundleData, runtimePlan, actionRuns = 
                              </div>
                          </div>
 
+                         {/* Apply Preview Section (New) */}
+                         <div style={{
+                             marginBottom:'10px', padding:'10px', 
+                             border:'1px solid #ccc', borderRadius:'4px',
+                             background: '#f8f9fa'
+                         }}>
+                             <div style={{fontWeight:'bold', marginBottom:'5px', color:'#333'}}>Apply Preview</div>
+                             <div style={{display:'flex', justifyContent:'space-between', alignItems:'flex-start'}}>
+                                 <div style={{fontSize:'0.9em', color:'#444'}}>
+                                     <div style={{marginBottom:'3px'}}>
+                                         <strong>Status: </strong>
+                                         {status === 'BLOCKED' ? <span style={{color:'#d32f2f', fontWeight:'bold'}}>Not eligible (BLOCKED)</span> :
+                                          status === 'WARNINGS' ? <span style={{color:'#f57c00', fontWeight:'bold'}}>Eligible with warnings</span> :
+                                          status === 'SAFE' ? <span style={{color:'#2e7d32', fontWeight:'bold'}}>Eligible (SAFE)</span> :
+                                          <span>{status}</span>}
+                                     </div>
+                                     <div style={{marginBottom:'3px'}}>
+                                         <strong>Plan: </strong>
+                                         <span>Add {draftDiff.added.length}, Remove {draftDiff.removed.length}, Modify {draftDiff.modified.length}</span>
+                                     </div>
+                                     {selectedBlock && draftDiff.modified.includes(selectedBlock.blockId) && (
+                                         <div style={{fontStyle:'italic', color:'#555'}}>
+                                             * Selected block "{selectedBlock.blockId}" has pending changes.
+                                         </div>
+                                     )}
+                                 </div>
+
+                                 <div style={{textAlign:'right'}}>
+                                     <button 
+                                         disabled={true} 
+                                         style={{
+                                             background: '#ccc',
+                                             color: 'white',
+                                             padding:'6px 14px',
+                                             border:'none',
+                                             borderRadius:'4px',
+                                             cursor: 'not-allowed',
+                                             fontWeight: 'bold'
+                                         }}
+                                         title="Apply is not enabled yet. Next phase will implement apply + rollback."
+                                     >
+                                         Apply Draft (Disabled)
+                                     </button>
+                                     <div style={{fontSize:'0.75em', color:'#666', marginTop:'4px', maxWidth:'200px'}}>
+                                         When enabled, we’ll keep a last-known-good snapshot for rollback.
+                                     </div>
+                                 </div>
+                             </div>
+                         </div>
+
                          {/* Draft Toolbar */}
                          <div style={{paddingBottom:'10px', marginBottom:'10px', borderBottom:'1px solid #ccc', display:'flex', alignItems:'center', justifyContent:'space-between'}}>
                              <div style={{display:'flex', alignItems:'center', gap:'15px'}}>
