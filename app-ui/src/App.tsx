@@ -2448,15 +2448,16 @@ function App() {
                  ))}
              </ul>
 
-             <h4>Action History</h4>
-             <div style={{marginBottom:'10px'}}>
+             <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+                 <h4>Action History</h4>
                  <button 
                     onClick={() => { setActionRuns([]); setExpandedRunIds({}); }}
                     style={{
-                        padding:'4px 8px', fontSize:'0.8em', background:'#fff', color:'#333', border:'1px solid #ccc', borderRadius:'3px', cursor:'pointer'
+                        padding:'2px 6px', fontSize:'0.75em', background:'#fff', color:'#333', border:'1px solid #ccc', borderRadius:'3px', cursor:'pointer'
                     }}
+                    title="Clear all action history logs"
                  >
-                    Clear Action History
+                    Clear
                  </button>
              </div>
              <ul style={{ paddingLeft: '0', listStyle: 'none' }}>
