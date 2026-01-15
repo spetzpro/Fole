@@ -454,7 +454,33 @@ type OverlayLayerProps = {
 function OverlayLayer(props: OverlayLayerProps) {
     const { overlays, onClose, onDismissCtx, actions, onRunAction, lastRun, recentRuns, expandedRunIds, onToggleRunLogs, actionSearch, onChangeActionSearch } = props;
     const [recentError, setRecentError] = useState<string | null>(null);
-    const [pinnedActionIds, setPinnedActionIds] = useState<Set<string>>(new Set());
+    
+    // Persistence Key
+    const PINS_KEY = 'fole.bootstrap.pinnedActionIds';
+
+    // Initialize State from Storage
+    const [pinnedActionIds, setPinnedActionIds] = useState<Set<string>>(() => {
+        try {
+            const raw = localStorage.getItem(PINS_KEY);
+            if (!raw) return new Set();
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed) && parsed.every(s => typeof s === 'string')) {
+                return new Set(parsed);
+            }
+        } catch (e) {
+            // ignore bad storage
+        }
+        return new Set();
+    });
+
+    // Write to Storage on Change
+    useEffect(() => {
+        if (pinnedActionIds.size === 0) {
+            localStorage.removeItem(PINS_KEY);
+        } else {
+            localStorage.setItem(PINS_KEY, JSON.stringify(Array.from(pinnedActionIds)));
+        }
+    }, [pinnedActionIds]);
 
     // Deduplicate recent runs (max 5)
     const uniqueRecentRuns = (() => {
