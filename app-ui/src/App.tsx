@@ -825,6 +825,16 @@ function SysadminPanel({ isOpen, onClose, bundleData, runtimePlan, actionRuns = 
     const [selectedActionId, setSelectedActionId] = useState<string | null>(null);
     const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
+    // Draft State (Phase 2)
+    const [draftBundle, setDraftBundle] = useState<any | null>(null);
+    const [draftError, setDraftError] = useState<string | null>(null);
+    const [draftSelectedBlockId, setDraftSelectedBlockId] = useState<string | null>(null);
+    const [draftBlockFilter, setDraftBlockFilter] = useState<string>('');
+    const [draftEditorText, setDraftEditorText] = useState<string>('');
+    const [draftEditorError, setDraftEditorError] = useState<string | null>(null);
+    const [draftEditorDirty, setDraftEditorDirty] = useState<boolean>(false);
+    const [draftShowFullJson, setDraftShowFullJson] = useState<boolean>(false);
+
     // Helpers
     const safeJsonStringify = (val: any) => {
         try { return JSON.stringify(val, null, 2); } 
@@ -848,6 +858,121 @@ function SysadminPanel({ isOpen, onClose, bundleData, runtimePlan, actionRuns = 
             setTimeout(() => setCopiedKey(null), 1200);
         }
     };
+
+    const deepClone = (obj: any) => {
+        if (typeof structuredClone === 'function') {
+            return structuredClone(obj);
+        }
+        return JSON.parse(JSON.stringify(obj));
+    };
+
+    const handleDraftSelectBlock = (id: string, currentDraft = draftBundle) => {
+         if (!currentDraft) return;
+         const block = currentDraft.blocks?.[id];
+         setDraftSelectedBlockId(id);
+         setDraftEditorText(block ? JSON.stringify(block.data ?? {}, null, 2) : '{}');
+         setDraftEditorDirty(false);
+         setDraftEditorError(null);
+    };
+
+    const handleCreateDraft = () => {
+        if (!bundleData) {
+            setDraftError("No active bundle to clone.");
+            return;
+        }
+        try {
+            const clone = deepClone(bundleData);
+            setDraftBundle(clone);
+            setDraftError(null);
+            setDraftSelectedBlockId(null);
+            setDraftEditorText('');
+            setDraftEditorDirty(false);
+            
+            const blocks = clone.blocks || {};
+            const ids = Object.keys(blocks).sort();
+            if (ids.length > 0) {
+                handleDraftSelectBlock(ids[0], clone);
+            }
+        } catch (e: any) {
+            setDraftError("Failed to clone bundle: " + e.message);
+        }
+    };
+
+    const handleResetDraft = () => {
+         setDraftBundle(null);
+         setDraftError(null);
+         setDraftSelectedBlockId(null);
+         setDraftEditorText('');
+         setDraftEditorDirty(false);
+         setDraftEditorError(null);
+         setDraftShowFullJson(false);
+    };
+
+    const handleSaveDraftBlock = () => {
+        if (!draftSelectedBlockId || !draftBundle) return;
+        try {
+            const parsed = JSON.parse(draftEditorText);
+            const newDraft = { ...draftBundle };
+            if (!newDraft.blocks) newDraft.blocks = {};
+            
+            if (!newDraft.blocks[draftSelectedBlockId]) {
+                 newDraft.blocks[draftSelectedBlockId] = { id: draftSelectedBlockId, blockId: draftSelectedBlockId, blockType: 'unknown', data: parsed };
+            } else {
+                 newDraft.blocks[draftSelectedBlockId] = {
+                     ...newDraft.blocks[draftSelectedBlockId],
+                     data: parsed
+                 };
+            }
+            setDraftBundle(newDraft);
+            setDraftEditorDirty(false);
+            setDraftEditorError(null);
+        } catch (e: any) {
+            setDraftEditorError("Invalid JSON: " + e.message);
+        }
+    };
+    
+    const handleRevertBlock = () => {
+        if (!draftSelectedBlockId) return;
+        
+        let targetData = {};
+        const activeBlock = (bundleData as any)?.blocks?.[draftSelectedBlockId];
+
+        if (activeBlock) {
+            // Revert to Active
+            targetData = activeBlock.data ?? {};
+            if (draftBundle) {
+                 const newDraft = { ...draftBundle };
+                 if (newDraft.blocks && newDraft.blocks[draftSelectedBlockId]) {
+                      newDraft.blocks[draftSelectedBlockId] = deepClone(activeBlock);
+                 }
+                 setDraftBundle(newDraft);
+            }
+        } else {
+            // Revert to Saved Draft (undo text changes)
+            const savedDraftBlock = draftBundle?.blocks?.[draftSelectedBlockId];
+            if (savedDraftBlock) {
+                 targetData = savedDraftBlock.data ?? {};
+            }
+        }
+        
+        setDraftEditorText(JSON.stringify(targetData, null, 2));
+        setDraftEditorDirty(false);
+        setDraftEditorError(null);
+    };
+
+    const draftDiff = useMemo(() => {
+        if (!bundleData || !draftBundle) return { added: [], removed: [], modified: [] };
+        const activeBlocks = (bundleData as any).blocks || {};
+        const draftBlocks = draftBundle.blocks || {};
+        const activeKeys = Object.keys(activeBlocks);
+        const draftKeys = Object.keys(draftBlocks);
+        
+        const added = draftKeys.filter(k => !activeBlocks[k]);
+        const removed = activeKeys.filter(k => !draftBlocks[k]);
+        const modified = draftKeys.filter(k => activeBlocks[k] && JSON.stringify(activeBlocks[k]) !== JSON.stringify(draftBlocks[k]));
+        
+        return { added, removed, modified };
+    }, [bundleData, draftBundle]);
 
     // Shared Copy Button Style
     const CopyBtn = ({ k, text, label = 'Copy JSON' }: { k: string, text: any, label?: string }) => {
@@ -924,7 +1049,7 @@ function SysadminPanel({ isOpen, onClose, bundleData, runtimePlan, actionRuns = 
 
     if (!isOpen) return null;
 
-    const tabs = ['ShellConfig', 'Blocks', 'Bindings', 'ActionIndex', 'Runtime'];
+    const tabs = ['ShellConfig', 'Blocks', 'Bindings', 'ActionIndex', 'Runtime', 'Draft'];
 
     // Render Logic per Tab
     const renderContent = () => {
@@ -1361,6 +1486,207 @@ function SysadminPanel({ isOpen, onClose, bundleData, runtimePlan, actionRuns = 
                         )}
                     </div>
                 );
+            }
+            case 'Draft': {
+                 if (!bundleData) return <div style={{padding:'20px', color:'#666'}}>Load active bundle first.</div>;
+
+                 if (!draftBundle) {
+                     return (
+                         <div style={{padding:'40px', textAlign:'center', color:'#555'}}>
+                             <h3>Draft Mode</h3>
+                             <p>Create a draft from the current active configuration to start editing.</p>
+                             {draftError && <div style={{color:'red', marginBottom:'10px'}}>{draftError}</div>}
+                             <button 
+                                onClick={handleCreateDraft}
+                                style={{
+                                    padding:'10px 20px', fontSize:'1em', background:'#007acc', color:'white', 
+                                    border:'none', borderRadius:'4px', cursor:'pointer'
+                                }}
+                             >
+                                Create Draft from Active
+                             </button>
+                         </div>
+                     );
+                 }
+
+                 const draftBlocksMap = draftBundle.blocks || {};
+                 const draftBlocksArr = (Object.values(draftBlocksMap) as any[]).sort((a,b) => (a.blockId||'').localeCompare(b.blockId||''));
+                 
+                 const f = draftBlockFilter.toLowerCase();
+                 const filtered = draftBlocksArr.filter(b => {
+                     const bid = b.blockId || b.id || '';
+                     const btype = b.blockType || '';
+                     return !f || bid.toLowerCase().includes(f) || btype.toLowerCase().includes(f);
+                 });
+                 
+                 const selectedBlock = draftSelectedBlockId ? draftBlocksMap[draftSelectedBlockId] : null;
+
+                 return (
+                     <div style={{display:'flex', flexDirection:'column', height:'100%'}}>
+                         {/* Draft Toolbar */}
+                         <div style={{paddingBottom:'10px', marginBottom:'10px', borderBottom:'1px solid #ccc', display:'flex', alignItems:'center', justifyContent:'space-between'}}>
+                             <div style={{display:'flex', alignItems:'center', gap:'15px'}}>
+                                 <strong style={{color:'#007acc'}}>Draft Active</strong>
+                                 <span style={{fontSize:'0.9em', color:'#555'}}>
+                                     Added: <b>{draftDiff.added.length}</b> | Removed: <b>{draftDiff.removed.length}</b> | Modified: <b>{draftDiff.modified.length}</b>
+                                 </span>
+                             </div>
+                             <button 
+                                onClick={handleResetDraft}
+                                style={{padding:'4px 10px', fontSize:'0.9em', background:'#d32f2f', color:'white', border:'none', borderRadius:'4px', cursor:'pointer'}}
+                             >
+                                Discard / Reset
+                             </button>
+                         </div>
+                         
+                         <div style={{display:'flex', flex:1, overflow:'hidden', gap:'10px'}}>
+                             {/* Left: Block List */}
+                             <div style={{flex: '0 0 40%', display:'flex', flexDirection:'column', borderRight:'1px solid #ddd', paddingRight:'5px'}}>
+                                 <input 
+                                    type="text" 
+                                    placeholder="Filter draft blocks..." 
+                                    value={draftBlockFilter} 
+                                    onChange={e=>setDraftBlockFilter(e.target.value)} 
+                                    style={{width:'100%', marginBottom:'10px', padding:'6px', boxSizing:'border-box', border:'1px solid #ccc'}}
+                                 />
+                                 <div style={{flex:1, overflowY:'auto'}}>
+                                     {filtered.map((b, i) => {
+                                         const bid = b.blockId || b.id || `draft-block-${i}`;
+                                         const isSel = bid === draftSelectedBlockId;
+                                         
+                                         // Status Badge logic
+                                         let batchStatus = null;
+                                         if (draftDiff.added.includes(bid)) batchStatus = 'ADDED';
+                                         else if (draftDiff.modified.includes(bid)) batchStatus = 'MODIFIED';
+
+                                         return (
+                                            <div 
+                                                key={bid} 
+                                                onClick={() => handleDraftSelectBlock(bid)}
+                                                style={{
+                                                    border: isSel ? '1px solid #007acc' : '1px solid #ddd', 
+                                                    background: isSel ? '#e6f7ff' : 'white',
+                                                    padding:'6px', 
+                                                    marginBottom:'5px', 
+                                                    cursor:'pointer',
+                                                    fontSize:'0.9em',
+                                                    display:'flex', justifyContent:'space-between', alignItems:'center'
+                                                }}
+                                            >
+                                                <div>
+                                                    <div style={{fontWeight:'bold', color:'#222'}}>{bid}</div>
+                                                    <div style={{fontSize:'0.85em', color:'#555'}}>{b.blockType}</div>
+                                                </div>
+                                                {batchStatus && (
+                                                    <span style={{
+                                                        fontSize:'0.7em', fontWeight:'bold', 
+                                                        color:'white', padding:'2px 4px', borderRadius:'3px',
+                                                        background: batchStatus === 'ADDED' ? '#2e7d32' : '#f57c00'
+                                                    }}>
+                                                        {batchStatus}
+                                                    </span>
+                                                )}
+                                            </div>
+                                         );
+                                     })}
+                                     {filtered.length === 0 && <div style={{fontStyle:'italic', padding:'10px'}}>No matching blocks.</div>}
+                                 </div>
+                             </div>
+                             
+                             {/* Right: Editor */}
+                             <div style={{flex:1, display:'flex', flexDirection:'column', paddingLeft:'5px'}}>
+                                 {selectedBlock ? (
+                                     <>
+                                         <div style={{marginBottom:'10px', borderBottom:'1px solid #eee', paddingBottom:'5px'}}>
+                                             <div style={{fontWeight:'bold', fontSize:'1em'}}>{selectedBlock.blockId}</div>
+                                             <div style={{fontSize:'0.8em', color:'#666'}}>
+                                                 Type: {selectedBlock.blockType} | Schema: {selectedBlock.schemaVersion || 'v1'}
+                                                 {draftDiff.modified.includes(selectedBlock.blockId) && <span style={{color:'#f57c00', marginLeft:'10px', fontWeight:'bold'}}>MODIFIED (Data changed)</span>}
+                                                 {draftDiff.added.includes(selectedBlock.blockId) && <span style={{color:'#2e7d32', marginLeft:'10px', fontWeight:'bold'}}>NEW BLOCK</span>}
+                                                 {draftEditorDirty && <span style={{color:'#d32f2f', marginLeft:'10px', fontWeight:'bold'}}>Unsaved changes</span>}
+                                             </div>
+                                         </div>
+                                         
+                                         <textarea 
+                                             value={draftEditorText}
+                                             onChange={(e) => {
+                                                 setDraftEditorText(e.target.value);
+                                                 setDraftEditorDirty(true);
+                                                 setDraftEditorError(null);
+                                             }}
+                                             style={{
+                                                 flex:1, width:'100%', fontFamily:'monospace', fontSize:'12px',
+                                                 border: draftEditorError ? '1px solid red' : '1px solid #ccc',
+                                                 padding:'8px', boxSizing:'border-box',
+                                                 resize:'none'
+                                             }}
+                                             spellCheck={false}
+                                         />
+                                         
+                                         {draftEditorError && (
+                                             <div style={{color:'red', fontSize:'0.85em', marginTop:'5px', maxHeight:'40px', overflowY:'auto'}}>
+                                                 {draftEditorError}
+                                             </div>
+                                         )}
+                                         
+                                         <div style={{marginTop:'10px', display:'flex', gap:'10px'}}>
+                                             <button
+                                                 onClick={() => {
+                                                     try { JSON.parse(draftEditorText); setDraftEditorError(null); alert("Valid JSON"); } 
+                                                     catch(e:any) { setDraftEditorError("Invalid: " + e.message); }
+                                                 }}
+                                                 style={{padding:'6px 12px', cursor:'pointer'}}
+                                             >
+                                                 Validate
+                                             </button>
+                                             <button 
+                                                 onClick={handleSaveDraftBlock}
+                                                 disabled={!draftEditorDirty || !!draftEditorError}
+                                                 style={{
+                                                     padding:'6px 12px', cursor:'pointer', fontWeight:'bold',
+                                                     background: (!draftEditorDirty || !!draftEditorError) ? '#ccc' : '#007acc',
+                                                     color: 'white', border:'none', borderRadius:'3px'
+                                                 }}
+                                             >
+                                                 Save to Draft
+                                             </button>
+                                             <button 
+                                                 onClick={handleRevertBlock}
+                                                 style={{padding:'6px 12px', cursor:'pointer', marginLeft:'auto'}}
+                                                 title="Revert modifications to original"
+                                             >
+                                                 Revert Block
+                                             </button>
+                                         </div>
+                                     </>
+                                 ) : (
+                                     <div style={{padding:'20px', color:'#888', fontStyle:'italic'}}>Select a block to edit its data.</div>
+                                 )}
+                             </div>
+                         </div>
+                         
+                         {/* Footer: Full Draft JSON */}
+                         <div style={{marginTop:'10px', paddingTop:'10px', borderTop:'1px solid #ccc'}}>
+                             <button 
+                                 onClick={() => setDraftShowFullJson(!draftShowFullJson)}
+                                 style={{background:'none', border:'none', color:'#007acc', cursor:'pointer', padding:0, textDecoration:'underline'}}
+                             >
+                                 {draftShowFullJson ? 'Hide Full Draft JSON' : 'View Full Draft JSON'}
+                             </button>
+                             {draftShowFullJson && (
+                                 <div style={{marginTop:'5px', position:'relative'}}>
+                                     <div style={{position:'absolute', top:0, right:0}}>
+                                         <CopyBtn k="draftbundle" text={draftBundle} />
+                                     </div>
+                                     <pre style={preStyle}>{JSON.stringify(draftBundle, null, 2)}</pre>
+                                 </div>
+                             )}
+                             <div style={{marginTop:'5px', fontSize:'0.8em', color:'#666', fontStyle:'italic'}}>
+                                 Draft is local-only. Apply is not implemented in this phase.
+                             </div>
+                         </div>
+                     </div>
+                 );
             }
             default: return null;
         }
