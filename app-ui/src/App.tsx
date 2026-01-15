@@ -812,13 +812,34 @@ function OverlayLayer(props: OverlayLayerProps) {
     );
 }
 
-function SysadminPanel({ isOpen, onClose, bundleData, runtimePlan, actionRuns = [], runningSource = 'ACTIVE' }: { 
+// --- Shared Helpers ---
+const deepClone = (obj: unknown) => {
+    if (typeof structuredClone === 'function') {
+        return structuredClone(obj);
+    }
+    return JSON.parse(JSON.stringify(obj));
+};
+
+function SysadminPanel({ 
+    isOpen, 
+    onClose, 
+    bundleData, 
+    runtimePlan, 
+    actionRuns = [], 
+    runningSource = 'ACTIVE',
+    onApplyDraft,
+    onRollback,
+    canRollback
+}: { 
     isOpen: boolean; 
     onClose: () => void; 
     bundleData: BundleResponse | null; 
     runtimePlan: RuntimePlan | null; 
     actionRuns: ActionRunRecord[];
     runningSource?: 'ACTIVE' | 'DRAFT';
+    onApplyDraft: (draft: BundleResponse) => void;
+    onRollback: () => void;
+    canRollback: boolean;
 }) {
     // Tabs: ShellConfig, Blocks, Bindings, ActionIndex, Runtime
     const [activeTab, setActiveTab] = useState('ShellConfig');
@@ -885,13 +906,6 @@ function SysadminPanel({ isOpen, onClose, bundleData, runtimePlan, actionRuns = 
             setCopiedKey(key);
             setTimeout(() => setCopiedKey(null), 1200);
         }
-    };
-
-    const deepClone = (obj: unknown) => {
-        if (typeof structuredClone === 'function') {
-            return structuredClone(obj);
-        }
-        return JSON.parse(JSON.stringify(obj));
     };
 
     const handleDraftSelectBlock = (id: string, currentDraftArg: unknown = draftBundle) => {
@@ -1771,34 +1785,49 @@ function SysadminPanel({ isOpen, onClose, bundleData, runtimePlan, actionRuns = 
                                  <div style={{textAlign:'right', display:'flex', flexDirection:'column', alignItems:'flex-end', gap:'5px'}}>
                                      <div style={{display:'flex', gap:'5px'}}>
                                         <button 
-                                            disabled={true} 
-                                            style={{
-                                                background: '#f5f5f5', color:'gray', border:'1px solid #ccc',
-                                                padding:'6px 10px', borderRadius:'4px', cursor: 'not-allowed', fontSize:'0.9em'
+                                            disabled={!canRollback} 
+                                            onClick={() => {
+                                                if (window.confirm('Rollback to last ACTIVE bundle? This will reinitialize runtime.')) {
+                                                    onRollback();
+                                                }
                                             }}
-                                            title="Rollback will restore last active snapshot after Apply is enabled."
+                                            style={{
+                                                background: canRollback ? '#f44336' : '#f5f5f5', 
+                                                color: canRollback ? 'white' : 'gray', 
+                                                border: canRollback ? '1px solid #d32f2f' : '1px solid #ccc',
+                                                padding:'6px 10px', borderRadius:'4px', 
+                                                cursor: canRollback ? 'pointer' : 'not-allowed', 
+                                                fontSize:'0.9em',
+                                                fontWeight: 'bold'
+                                            }}
+                                            title="Rollback will restore last active snapshot."
                                         >
-                                            Rollback (disabled)
+                                            Rollback
                                         </button>
                                         <button 
-                                            disabled={true} 
+                                            disabled={status === 'BLOCKED' || (status === 'WARNINGS' && !ackWarnings)} 
+                                            onClick={() => {
+                                                if (window.confirm('Apply Draft? This will reinitialize runtime. You can Rollback afterward.')) {
+                                                    onApplyDraft(draftBundle as BundleResponse);
+                                                }
+                                            }}
                                             style={{
-                                                background: (status === 'SAFE' || (status === 'WARNINGS' && ackWarnings)) ? '#ccc' : '#e0e0e0', // Visual enabled state prep
+                                                background: (status === 'SAFE' || (status === 'WARNINGS' && ackWarnings)) ? '#2e7d32' : '#e0e0e0',
                                                 color: 'white',
                                                 padding:'6px 14px',
-                                                border:'none',
+                                                border: (status === 'SAFE' || (status === 'WARNINGS' && ackWarnings)) ? '1px solid #1b5e20' : '1px solid #ccc',
                                                 borderRadius:'4px',
-                                                cursor: 'not-allowed',
+                                                cursor: (status === 'SAFE' || (status === 'WARNINGS' && ackWarnings)) ? 'pointer' : 'not-allowed',
                                                 fontWeight: 'bold',
                                                 opacity: (status === 'BLOCKED' || (status === 'WARNINGS' && !ackWarnings)) ? 0.6 : 1
                                             }}
-                                            title="Apply is not enabled yet. Next phase will implement apply + rollback."
+                                            title="Apply Draft to Runtime"
                                         >
-                                            Apply Draft (Disabled)
+                                            Apply Draft
                                         </button>
                                      </div>
                                      <div style={{fontSize:'0.75em', color:'#666', maxWidth:'250px'}}>
-                                         Wait for next phase: Apply Logic + Rollback.
+                                         Runtime will re-initialize immediately.
                                      </div>
                                  </div>
                              </div>
@@ -2129,6 +2158,21 @@ function App() {
   // Action Menu State
   const [actionRuns, setActionRuns] = useState<ActionRunRecord[]>([]);
   const [expandedRunIds, setExpandedRunIds] = useState<Record<string, boolean>>({});
+
+  const applyDraft = (draft: BundleResponse) => {
+       if (!lastActiveBundle) {
+           setLastActiveBundle(deepClone(bundleData) as BundleResponse);
+       }
+       setBundleData(deepClone(draft) as BundleResponse);
+       setRunningSource('DRAFT');
+  };
+
+  const rollbackActive = () => {
+      if (lastActiveBundle) {
+          setBundleData(deepClone(lastActiveBundle) as BundleResponse);
+          setRunningSource('ACTIVE');
+      }
+  };
   const [actionSearch, setActionSearch] = useState('');
 
   const toggleRunLogs = (id: string) => setExpandedRunIds(prev => ({...prev, [id]: !prev[id]}));
@@ -2459,6 +2503,9 @@ function App() {
                  runtimePlan={runtimePlan}
                  actionRuns={actionRuns}
                  runningSource={runningSource}
+                 onApplyDraft={applyDraft}
+                 onRollback={rollbackActive}
+                 canRollback={!!lastActiveBundle && runningSource === 'DRAFT'}
              />
           </div>
       </div>
