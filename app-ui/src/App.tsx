@@ -1539,9 +1539,9 @@ function SysadminPanel({ isOpen, onClose, bundleData, runtimePlan, actionRuns = 
                              </button>
                          </div>
                          
-                         <div style={{display:'flex', flex:1, overflow:'hidden', gap:'10px'}}>
+                         <div style={{display:'flex', flex:1, width:'100%', overflow:'hidden', gap:'10px'}}>
                              {/* Left: Block List */}
-                             <div style={{flex: '0 0 40%', display:'flex', flexDirection:'column', borderRight:'1px solid #ddd', paddingRight:'5px'}}>
+                             <div style={{flex: '0 0 260px', display:'flex', flexDirection:'column', borderRight:'1px solid #ddd', paddingRight:'5px'}}>
                                  <input 
                                     type="text" 
                                     placeholder="Filter draft blocks..." 
@@ -1594,7 +1594,7 @@ function SysadminPanel({ isOpen, onClose, bundleData, runtimePlan, actionRuns = 
                              </div>
                              
                              {/* Right: Editor */}
-                             <div style={{flex:1, display:'flex', flexDirection:'column', paddingLeft:'5px'}}>
+                             <div style={{flex:1, minWidth:0, overflow:'auto', display:'flex', flexDirection:'column', paddingLeft:'5px'}}>
                                  {selectedBlock ? (
                                      <>
                                          <div style={{marginBottom:'10px', borderBottom:'1px solid #eee', paddingBottom:'5px'}}>
@@ -1694,7 +1694,7 @@ function SysadminPanel({ isOpen, onClose, bundleData, runtimePlan, actionRuns = 
 
     return (
         <div style={{
-            position: 'absolute', top: '50px', right: '20px', width: '520px', maxHeight: '80vh',
+            position: 'absolute', top: '50px', right: '20px', width: '600px', maxWidth: '95vw', maxHeight: '80vh',
             backgroundColor: 'white', color: '#222', 
             border: '2px solid #333', boxShadow: '0 5px 20px rgba(0,0,0,0.3)',
             zIndex: 9000, display: 'flex', flexDirection: 'column', overflow: 'hidden'
