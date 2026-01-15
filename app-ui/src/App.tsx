@@ -605,9 +605,26 @@ function OverlayLayer(props: OverlayLayerProps) {
                                                     <button 
                                                         key={act.id} 
                                                         onClick={() => onRunAction(act)}
-                                                        style={{padding:'8px', textAlign:'left', border:'1px solid #ccc', cursor:'pointer'}}
+                                                        style={{
+                                                            padding:'8px', 
+                                                            textAlign:'left', 
+                                                            border:'1px solid #ccc', 
+                                                            cursor:'pointer',
+                                                            display: 'flex',
+                                                            justifyContent: 'space-between',
+                                                            alignItems: 'center'
+                                                        }}
                                                     >
                                                         <strong>{act.actionName}</strong> 
+                                                        <span 
+                                                            onClick={(e) => { e.stopPropagation(); }} 
+                                                            style={{ fontSize: '1.2em', marginLeft: '8px', cursor: 'pointer', lineHeight: '1', opacity: 0.5 }}
+                                                            title="Pin action (coming soon)"
+                                                            onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
+                                                            onMouseLeave={(e) => e.currentTarget.style.opacity = '0.5'}
+                                                        >
+                                                            📌
+                                                        </span>
                                                     </button>
                                                 ))}
                                             </div>
