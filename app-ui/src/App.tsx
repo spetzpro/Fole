@@ -1006,6 +1006,36 @@ function SysadminPanel({
         setDraftEditorError(null);
     };
 
+    const handleDuplicateBlock = () => {
+        if (!selectedBlock || !draftBundle) return;
+        
+        const base = selectedBlock.blockId || selectedBlock.id || draftSelectedBlockId || 'unknown';
+        let newId = `${base}_copy`;
+        let counter = 2;
+        const blocks = (draftBundle as any).blocks || {};
+        
+        while (blocks[newId]) {
+            newId = `${base}_copy${counter}`;
+            counter++;
+        }
+        
+        const cloned = deepClone(selectedBlock) as any;
+        cloned.blockId = newId;
+        if (cloned.id) cloned.id = newId;
+        if (cloned.filename) cloned.filename = `${newId}.json`;
+        
+        const newDraft = { 
+            ...(draftBundle as any), 
+            blocks: { 
+                ...blocks, 
+                [newId]: cloned 
+            } 
+        };
+        
+        setDraftBundle(newDraft);
+        handleDraftSelectBlock(newId, newDraft);
+    };
+
     const draftDiff = useMemo(() => {
         if (!bundleData || !draftBundle) return { added: [], removed: [], modified: [] };
         const activeBlocks = (bundleData as any).blocks || {};
@@ -1674,7 +1704,7 @@ function SysadminPanel({
                  };
 
                  return (
-                     <div style={{display:'flex', flexDirection:'column', height:'100%'}}>
+                     <div style={{display:'flex', flexDirection:'column', height:'100%', minHeight: 0}}>
                          {/* Config Status Banner */}
                          <div style={{
                              padding:'10px', marginBottom:'10px', 
@@ -1881,7 +1911,7 @@ function SysadminPanel({
                              </button>
                          </div>
                          
-                         <div style={{display:'flex', flex:1, width:'100%', overflow:'hidden', gap:'10px'}}>
+                         <div style={{display:'flex', flex:1, width:'100%', overflow:'hidden', gap:'10px', minHeight: 0}}>
                              {/* Left: Block List */}
                              <div style={{flex: '0 0 260px', display:'flex', flexDirection:'column', borderRight:'1px solid #ddd', paddingRight:'5px'}}>
                                  <input 
@@ -1936,7 +1966,7 @@ function SysadminPanel({
                              </div>
                              
                              {/* Right: Editor */}
-                             <div style={{flex:1, minWidth:0, overflow:'auto', display:'flex', flexDirection:'column', paddingLeft:'5px'}}>
+                             <div style={{flex:1, minWidth:0, overflow:'auto', display:'flex', flexDirection:'column', paddingLeft:'5px', minHeight: 0}}>
                                  {selectedBlock ? (
                                      <>
                                          <div style={{marginBottom:'10px', borderBottom:'1px solid #eee', paddingBottom:'5px'}}>
@@ -1960,7 +1990,8 @@ function SysadminPanel({
                                                  flex:1, width:'100%', fontFamily:'monospace', fontSize:'12px',
                                                  border: draftEditorError ? '1px solid red' : '1px solid #ccc',
                                                  padding:'8px', boxSizing:'border-box',
-                                                 resize:'none'
+                                                 resize:'none',
+                                                 minHeight: 0
                                              }}
                                              spellCheck={false}
                                          />
@@ -1971,43 +2002,65 @@ function SysadminPanel({
                                              </div>
                                          )}
                                          
-                                         <div style={{marginTop:'10px', display:'flex', gap:'10px', alignItems:'center'}}>
-                                             <button
-                                                 onClick={() => {
-                                                     try { 
-                                                         JSON.parse(draftEditorText); 
-                                                         setDraftEditorError(null); 
-                                                         setDraftValidateOk(true);
-                                                         setTimeout(() => setDraftValidateOk(false), 2000);
-                                                     } 
-                                                     catch(e:unknown) { 
-                                                         setDraftEditorError("Invalid: " + (e instanceof Error ? e.message : String(e))); 
-                                                     }
-                                                 }}
-                                                 style={{padding:'6px 12px', cursor:'pointer'}}
-                                             >
-                                                 Validate
-                                             </button>
-                                             {draftValidateOk && <span style={{color:'green', fontSize:'0.9em', fontWeight:'bold'}}>✓ Valid JSON</span>}
-                                             
-                                             <button 
-                                                 onClick={handleSaveDraftBlock}
-                                                 disabled={!draftEditorDirty || !!draftEditorError}
-                                                 style={{
-                                                     padding:'6px 12px', cursor:'pointer', fontWeight:'bold',
-                                                     background: (!draftEditorDirty || !!draftEditorError) ? '#ccc' : '#007acc',
-                                                     color: 'white', border:'none', borderRadius:'3px'
-                                                 }}
-                                             >
-                                                 Save to Draft
-                                             </button>
-                                             <button 
-                                                 onClick={handleRevertBlock}
-                                                 style={{padding:'6px 12px', cursor:'pointer', marginLeft:'auto'}}
-                                                 title="Revert modifications to original"
-                                             >
-                                                 Revert Block
-                                             </button>
+                                         <div style={{marginTop:'10px', display:'flex', flexWrap:'wrap', gap:'10px', alignItems:'center'}}>
+                                             <div style={{display:'flex', gap:'10px', alignItems:'center'}}>
+                                                 <button
+                                                     onClick={() => {
+                                                         try { 
+                                                             JSON.parse(draftEditorText); 
+                                                             setDraftEditorError(null); 
+                                                             setDraftValidateOk(true);
+                                                             setTimeout(() => setDraftValidateOk(false), 2000);
+                                                         } 
+                                                         catch(e:unknown) { 
+                                                             setDraftEditorError("Invalid: " + (e instanceof Error ? e.message : String(e))); 
+                                                         }
+                                                     }}
+                                                     style={{padding:'6px 12px', cursor:'pointer'}}
+                                                 >
+                                                     Validate
+                                                 </button>
+                                                 {draftValidateOk && <span style={{color:'green', fontSize:'0.9em', fontWeight:'bold'}}>✓ Valid JSON</span>}
+                                                 
+                                                 <button 
+                                                     onClick={handleSaveDraftBlock}
+                                                     disabled={!draftEditorDirty || !!draftEditorError}
+                                                     style={{
+                                                         padding:'6px 12px', cursor:'pointer', fontWeight:'bold',
+                                                         background: (!draftEditorDirty || !!draftEditorError) ? '#ccc' : '#007acc',
+                                                         color: 'white', border:'none', borderRadius:'3px'
+                                                     }}
+                                                 >
+                                                     Save to Draft
+                                                 </button>
+                                             </div>
+
+                                             <div style={{display:'flex', gap:'10px', marginLeft:'auto'}}>
+                                                 <button 
+                                                     onClick={handleRevertBlock}
+                                                     style={{padding:'6px 12px', cursor:'pointer'}}
+                                                     title="Revert modifications to original"
+                                                 >
+                                                     Revert Block
+                                                 </button>
+                                                 
+                                                 <button 
+                                                     onClick={handleDuplicateBlock}
+                                                     disabled={!selectedBlock}
+                                                     style={{
+                                                         padding:'6px 12px', 
+                                                         cursor: !selectedBlock ? 'not-allowed' : 'pointer',
+                                                         border: 'none',
+                                                         background: !selectedBlock ? '#ccc' : '#555',
+                                                         color: !selectedBlock ? '#666' : 'white',
+                                                         borderRadius: '4px',
+                                                         fontWeight: 600
+                                                     }}
+                                                     title="Duplicate this block"
+                                                 >
+                                                     Duplicate Block
+                                                 </button>
+                                             </div>
                                          </div>
 
                                          {selectedBlock && draftDiff.modified.includes(selectedBlock.blockId) && bundleData && (
@@ -2148,7 +2201,7 @@ function SysadminPanel({
                 })}
             </div>
 
-            <div style={{flex:1, overflowY:'auto', padding:'10px'}}>
+            <div style={{flex:1, overflowY:'auto', padding:'10px', minHeight: 0}}>
                 {renderContent()}
             </div>
         </div>
