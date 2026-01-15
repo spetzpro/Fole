@@ -827,6 +827,7 @@ function SysadminPanel({
     runtimePlan, 
     actionRuns = [], 
     runningSource = 'ACTIVE',
+    lastConfigEvent,
     onApplyDraft,
     onRollback,
     canRollback
@@ -837,6 +838,7 @@ function SysadminPanel({
     runtimePlan: RuntimePlan | null; 
     actionRuns: ActionRunRecord[];
     runningSource?: 'ACTIVE' | 'DRAFT';
+    lastConfigEvent?: { kind: 'APPLY' | 'ROLLBACK'; ts: number } | null;
     onApplyDraft: (draft: BundleResponse) => void;
     onRollback: () => void;
     canRollback: boolean;
@@ -1673,6 +1675,33 @@ function SysadminPanel({
 
                  return (
                      <div style={{display:'flex', flexDirection:'column', height:'100%'}}>
+                         {/* Config Status Banner */}
+                         <div style={{
+                             padding:'10px', marginBottom:'10px', 
+                             borderLeft:'4px solid', 
+                             borderColor: runningSource === 'ACTIVE' ? '#2e7d32' : '#f57c00',
+                             background: runningSource === 'ACTIVE' ? '#e8f5e9' : '#fff3e0'
+                         }}>
+                             <div style={{display:'flex', justifyContent:'space-between', alignItems:'flex-start'}}>
+                                 <div>
+                                     <div style={{fontWeight:'bold', fontSize:'1em', marginBottom:'4px', color:'#222'}}>Config Status</div>
+                                     <div style={{fontSize:'0.9em', color:'#444'}}>
+                                         Running: <span style={{fontWeight:'bold', color: runningSource === 'ACTIVE' ? '#2e7d32' : '#f57c00'}}>{runningSource}</span>
+                                         {lastConfigEvent && (
+                                             <span style={{marginLeft:'10px', color:'#666', fontStyle:'italic'}}>
+                                                 ({lastConfigEvent.kind === 'APPLY' ? 'Applied' : 'Rolled back'} at {new Date(lastConfigEvent.ts).toLocaleTimeString()})
+                                             </span>
+                                         )}
+                                     </div>
+                                     <div style={{fontSize:'0.85em', color:'#555', marginTop:'4px'}}>
+                                         {runningSource === 'DRAFT' 
+                                            ? "Runtime is using Draft. Further edits are not live until you Apply again." 
+                                            : "Runtime is using Active. Draft changes are not live."}
+                                     </div>
+                                 </div>
+                             </div>
+                         </div>
+
                          {/* Validation Summary */}
                          <div style={{
                              padding:'10px', marginBottom:'10px', 
@@ -1848,7 +1877,7 @@ function SysadminPanel({
                                 onClick={handleResetDraft}
                                 style={{padding:'4px 10px', fontSize:'0.9em', background:'#d32f2f', color:'white', border:'none', borderRadius:'4px', cursor:'pointer'}}
                              >
-                                Discard / Reset
+                                Discard Draft (clears saved)
                              </button>
                          </div>
                          
@@ -2145,6 +2174,7 @@ function App() {
   // Runtime Source State (Prep for Apply phase)
   const [runningSource, setRunningSource] = useState<'ACTIVE' | 'DRAFT'>('ACTIVE');
   const [lastActiveBundle, setLastActiveBundle] = useState<BundleResponse | null>(null);
+  const [lastConfigEvent, setLastConfigEvent] = useState<null | { kind: 'APPLY' | 'ROLLBACK'; ts: number }>(null);
 
   // Viewport Ref for clamping
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -2165,12 +2195,14 @@ function App() {
        }
        setBundleData(deepClone(draft) as BundleResponse);
        setRunningSource('DRAFT');
+       setLastConfigEvent({ kind: 'APPLY', ts: Date.now() });
   };
 
   const rollbackActive = () => {
       if (lastActiveBundle) {
           setBundleData(deepClone(lastActiveBundle) as BundleResponse);
           setRunningSource('ACTIVE');
+          setLastConfigEvent({ kind: 'ROLLBACK', ts: Date.now() });
       }
   };
   const [actionSearch, setActionSearch] = useState('');
@@ -2417,6 +2449,16 @@ function App() {
              </ul>
 
              <h4>Action History</h4>
+             <div style={{marginBottom:'10px'}}>
+                 <button 
+                    onClick={() => { setActionRuns([]); setExpandedRunIds({}); }}
+                    style={{
+                        padding:'4px 8px', fontSize:'0.8em', background:'#fff', color:'#333', border:'1px solid #ccc', borderRadius:'3px', cursor:'pointer'
+                    }}
+                 >
+                    Clear Action History
+                 </button>
+             </div>
              <ul style={{ paddingLeft: '0', listStyle: 'none' }}>
                 {actionRuns.map(run => {
                     const status = getActionStatus(run.result);
@@ -2503,6 +2545,7 @@ function App() {
                  runtimePlan={runtimePlan}
                  actionRuns={actionRuns}
                  runningSource={runningSource}
+                 lastConfigEvent={lastConfigEvent}
                  onApplyDraft={applyDraft}
                  onRollback={rollbackActive}
                  canRollback={!!lastActiveBundle && runningSource === 'DRAFT'}
