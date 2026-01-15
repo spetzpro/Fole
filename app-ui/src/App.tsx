@@ -835,6 +835,39 @@ function SysadminPanel({ isOpen, onClose, bundleData, runtimePlan, actionRuns = 
     const [draftEditorDirty, setDraftEditorDirty] = useState<boolean>(false);
     const [draftShowFullJson, setDraftShowFullJson] = useState<boolean>(false);
 
+    // Persistence Key
+    const DRAFT_KEY = 'fole.bootstrap.draftShellConfig';
+
+    // Init from Storage
+    useEffect(() => {
+        try {
+            const raw = localStorage.getItem(DRAFT_KEY);
+            if (raw) {
+                const parsed = JSON.parse(raw);
+                if (parsed && typeof parsed === 'object' && parsed.blocks) {
+                    setDraftBundle(parsed);
+                } else {
+                    localStorage.removeItem(DRAFT_KEY);
+                }
+            }
+        } catch (e) {
+            console.warn("Failed to load draft from storage", e);
+        }
+    }, []);
+
+    // Persist to Storage
+    useEffect(() => {
+        try {
+            if (draftBundle) {
+                localStorage.setItem(DRAFT_KEY, JSON.stringify(draftBundle));
+            } else {
+                localStorage.removeItem(DRAFT_KEY);
+            }
+        } catch (e) {
+            console.warn("Failed to save draft to storage", e);
+        }
+    }, [draftBundle]);
+
     // Helpers
     const safeJsonStringify = (val: any) => {
         try { return JSON.stringify(val, null, 2); } 
@@ -1529,6 +1562,9 @@ function SysadminPanel({ isOpen, onClose, bundleData, runtimePlan, actionRuns = 
                                  <strong style={{color:'#007acc'}}>Draft Active</strong>
                                  <span style={{fontSize:'0.9em', color:'#555'}}>
                                      Added: <b>{draftDiff.added.length}</b> | Removed: <b>{draftDiff.removed.length}</b> | Modified: <b>{draftDiff.modified.length}</b>
+                                 </span>
+                                 <span style={{fontSize:'0.8em', color:'#999', fontStyle:'italic'}}>
+                                     (Saved locally)
                                  </span>
                              </div>
                              <button 
