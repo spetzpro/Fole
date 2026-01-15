@@ -481,24 +481,75 @@ function OverlayLayer(props: OverlayLayerProps) {
                 const isMenu = o.blockType?.includes('overlay_menu') || o.id === 'overlay_menu' || o.id.toLowerCase().includes('menu');
                 
                 const q = actionSearch.trim().toLowerCase();
-                const filteredActions = isMenu && q 
-                    ? actions.filter(a => 
+                const baseList = isMenu ? actions : [];
+                
+                // 1. All search matches
+                const allMatches = (isMenu && q)
+                    ? baseList.filter(a => 
                         a.id.toLowerCase().includes(q) || 
                         a.actionName.toLowerCase().includes(q) || 
                         a.sourceBlockId.toLowerCase().includes(q)
                       ) 
-                    : actions;
+                    : baseList;
 
-                // Group actions by sourceBlockId
+                // 2. Split Pinned vs Unpinned
+                const pinnedMatches = allMatches.filter(a => pinnedActionIds.has(a.id));
+                const unpinnedMatches = allMatches.filter(a => !pinnedActionIds.has(a.id));
+
+                // 3. Group UNPINNED only by sourceBlockId
                 const groups = new Map<string, ActionDefinition[]>();
                 if (isMenu) {
-                    filteredActions.forEach(act => {
+                    unpinnedMatches.forEach(act => {
                         const k = act.sourceBlockId;
                         if (!groups.has(k)) groups.set(k, []);
                         groups.get(k)!.push(act);
                     });
                 }
                 const sortedGroupKeys = Array.from(groups.keys()).sort();
+
+                // Helper to render action button
+                const renderActionBtn = (act: ActionDefinition) => {
+                    const isPinned = pinnedActionIds.has(act.id);
+                    return (
+                        <button 
+                            key={act.id} 
+                            onClick={() => onRunAction(act)}
+                            style={{
+                                padding:'8px', 
+                                textAlign:'left', 
+                                border: isPinned ? '1px solid #ff9800' : '1px solid #ccc', 
+                                cursor:'pointer',
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                                background: isPinned ? '#fff8e1' : 'white'
+                            }}
+                        >
+                            <strong>{act.actionName}</strong> 
+                            <span 
+                                onClick={(e) => { 
+                                    e.stopPropagation(); 
+                                    const newSet = new Set(pinnedActionIds);
+                                    if (newSet.has(act.id)) newSet.delete(act.id);
+                                    else newSet.add(act.id);
+                                    setPinnedActionIds(newSet);
+                                }} 
+                                style={{ 
+                                    fontSize: '1.2em', 
+                                    marginLeft: '8px', 
+                                    cursor: 'pointer', 
+                                    lineHeight: '1', 
+                                    opacity: isPinned ? 1 : 0.5 
+                                }}
+                                title={isPinned ? "Unpin action" : "Pin action"}
+                                onMouseEnter={(e) => { if(!isPinned) e.currentTarget.style.opacity = '1'; }}
+                                onMouseLeave={(e) => { if(!isPinned) e.currentTarget.style.opacity = '0.5'; }}
+                            >
+                                {isPinned ? '⭐' : '📌'}
+                            </span>
+                        </button>
+                    );
+                };
 
                 return (
                     <div key={o.id} 
@@ -529,9 +580,28 @@ function OverlayLayer(props: OverlayLayerProps) {
                             }}
                         >
                         <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'10px'}}>
-                             <h3 style={{margin:0}}>
-                                {isMenu ? 'Available Actions' : `Overlay: ${o.id}`}
-                             </h3>
+                             <div style={{display:'flex', alignItems:'center', gap:'10px'}}>
+                                <h3 style={{margin:0}}>
+                                    {isMenu ? 'Available Actions' : `Overlay: ${o.id}`}
+                                </h3>
+                                {isMenu && pinnedActionIds.size > 0 && (
+                                    <button 
+                                        onClick={() => setPinnedActionIds(new Set())}
+                                        style={{
+                                            fontSize:'0.75em', 
+                                            background:'none', 
+                                            border:'1px solid #ccc', 
+                                            borderRadius:'4px', 
+                                            padding:'2px 6px', 
+                                            cursor:'pointer',
+                                            color:'#555'
+                                        }}
+                                        title="Clear all pins"
+                                    >
+                                        Reset Pins
+                                    </button>
+                                )}
+                             </div>
                              <button onClick={() => onClose(o.id)}>×</button>
                         </div>
                         
@@ -588,6 +658,32 @@ function OverlayLayer(props: OverlayLayerProps) {
                                        style={{ width: '100%', padding: '8px', border: '1px solid #ccc', borderRadius: '6px', marginBottom: '8px', boxSizing: 'border-box' }}
                                     />
                                     
+                                    {/* Pinned Section */}
+                                    {pinnedMatches.length > 0 && (
+                                        <div style={{marginBottom:'10px'}}>
+                                            <div style={{
+                                                fontSize: '0.85em', 
+                                                fontWeight: 'bold', 
+                                                color: '#e65100', 
+                                                marginBottom: '4px',
+                                                paddingBottom: '2px', 
+                                                borderBottom: '2px solid #ffcc80',
+                                                display: 'flex', 
+                                                alignItems: 'center', 
+                                                gap:'5px'
+                                            }}>
+                                                <span>Pinned</span> 
+                                                <span style={{fontWeight:'normal', fontSize:'0.9em', background:'#fff3e0', padding:'0 5px', borderRadius:'10px'}}>
+                                                    {pinnedMatches.length}
+                                                </span>
+                                            </div>
+                                            <div style={{display:'flex', flexDirection:'column', gap:'5px', marginTop:'5px'}}>
+                                                {pinnedMatches.map(act => renderActionBtn(act))}
+                                            </div>
+                                            <hr style={{border:'none', borderTop:'1px solid #eee', margin:'10px 0'}} />
+                                        </div>
+                                    )}
+
                                     {sortedGroupKeys.map(groupKey => (
                                         <div key={groupKey}>
                                             <div style={{
@@ -602,52 +698,12 @@ function OverlayLayer(props: OverlayLayerProps) {
                                                 {groupKey}
                                             </div>
                                             <div style={{display:'flex', flexDirection:'column', gap:'5px'}}>
-                                                {groups.get(groupKey)!.sort((a,b) => a.actionName.localeCompare(b.actionName)).map(act => {
-                                                    const isPinned = pinnedActionIds.has(act.id);
-                                                    return (
-                                                    <button 
-                                                        key={act.id} 
-                                                        onClick={() => onRunAction(act)}
-                                                        style={{
-                                                            padding:'8px', 
-                                                            textAlign:'left', 
-                                                            border: isPinned ? '1px solid #ff9800' : '1px solid #ccc', 
-                                                            cursor:'pointer',
-                                                            display: 'flex',
-                                                            justifyContent: 'space-between',
-                                                            alignItems: 'center',
-                                                            background: isPinned ? '#fff8e1' : 'white'
-                                                        }}
-                                                    >
-                                                        <strong>{act.actionName}</strong> 
-                                                        <span 
-                                                            onClick={(e) => { 
-                                                                e.stopPropagation(); 
-                                                                const newSet = new Set(pinnedActionIds);
-                                                                if (newSet.has(act.id)) newSet.delete(act.id);
-                                                                else newSet.add(act.id);
-                                                                setPinnedActionIds(newSet);
-                                                            }} 
-                                                            style={{ 
-                                                                fontSize: '1.2em', 
-                                                                marginLeft: '8px', 
-                                                                cursor: 'pointer', 
-                                                                lineHeight: '1', 
-                                                                opacity: isPinned ? 1 : 0.5 
-                                                            }}
-                                                            title={isPinned ? "Unpin action" : "Pin action"}
-                                                            onMouseEnter={(e) => { if(!isPinned) e.currentTarget.style.opacity = '1'; }}
-                                                            onMouseLeave={(e) => { if(!isPinned) e.currentTarget.style.opacity = '0.5'; }}
-                                                        >
-                                                            {isPinned ? '⭐' : '📌'}
-                                                        </span>
-                                                    </button>
-                                                )})}
+                                                {groups.get(groupKey)!.sort((a,b) => a.actionName.localeCompare(b.actionName)).map(act => renderActionBtn(act))}
                                             </div>
                                         </div>
                                     ))}
 
-                                    {filteredActions.length === 0 && <p style={{color:'#999'}}>No actions match your search.</p>}
+                                    {allMatches.length === 0 && <p style={{color:'#999'}}>No actions match your search.</p>}
 
                                     {/* Inline Feedback in Menu */}
                                     {lastRun ? (
