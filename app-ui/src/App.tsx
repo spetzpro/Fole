@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import './App.css';
 
+type UnknownRecord = Record<string, unknown>;
+
 interface PingResponse {
   allowed: boolean;
   status: number;
@@ -825,8 +827,22 @@ function SysadminPanel({ isOpen, onClose, bundleData, runtimePlan, actionRuns = 
     const [selectedActionId, setSelectedActionId] = useState<string | null>(null);
     const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
+    // Persistence Key
+    const DRAFT_KEY = 'fole.bootstrap.draftShellConfig';
+
     // Draft State (Phase 2)
-    const [draftBundle, setDraftBundle] = useState<any | null>(null);
+    const [draftBundle, setDraftBundle] = useState<unknown | null>(() => {
+        try {
+            const raw = localStorage.getItem(DRAFT_KEY);
+            if (raw) {
+                const parsed = JSON.parse(raw);
+                if (parsed && typeof parsed === 'object' && (parsed as any).blocks) {
+                    return parsed;
+                }
+            }
+        } catch { /* ignore */ }
+        return null;
+    });
     const [draftError, setDraftError] = useState<string | null>(null);
     const [draftSelectedBlockId, setDraftSelectedBlockId] = useState<string | null>(null);
     const [draftBlockFilter, setDraftBlockFilter] = useState<string>('');
@@ -834,26 +850,6 @@ function SysadminPanel({ isOpen, onClose, bundleData, runtimePlan, actionRuns = 
     const [draftEditorError, setDraftEditorError] = useState<string | null>(null);
     const [draftEditorDirty, setDraftEditorDirty] = useState<boolean>(false);
     const [draftShowFullJson, setDraftShowFullJson] = useState<boolean>(false);
-
-    // Persistence Key
-    const DRAFT_KEY = 'fole.bootstrap.draftShellConfig';
-
-    // Init from Storage
-    useEffect(() => {
-        try {
-            const raw = localStorage.getItem(DRAFT_KEY);
-            if (raw) {
-                const parsed = JSON.parse(raw);
-                if (parsed && typeof parsed === 'object' && parsed.blocks) {
-                    setDraftBundle(parsed);
-                } else {
-                    localStorage.removeItem(DRAFT_KEY);
-                }
-            }
-        } catch (e) {
-            console.warn("Failed to load draft from storage", e);
-        }
-    }, []);
 
     // Persist to Storage
     useEffect(() => {
@@ -863,13 +859,11 @@ function SysadminPanel({ isOpen, onClose, bundleData, runtimePlan, actionRuns = 
             } else {
                 localStorage.removeItem(DRAFT_KEY);
             }
-        } catch (e) {
-            console.warn("Failed to save draft to storage", e);
-        }
+        } catch { /* ignore */ }
     }, [draftBundle]);
 
     // Helpers
-    const safeJsonStringify = (val: any) => {
+    const safeJsonStringify = (val: unknown) => {
         try { return JSON.stringify(val, null, 2); } 
         catch { return String(val ?? ''); }
     };
@@ -879,7 +873,7 @@ function SysadminPanel({ isOpen, onClose, bundleData, runtimePlan, actionRuns = 
             await navigator.clipboard.writeText(text);
             setCopiedKey(key);
             setTimeout(() => setCopiedKey(null), 1200);
-        } catch (err) {
+        } catch {
             // Fallback
             const ta = document.createElement('textarea');
             ta.value = text;
@@ -892,16 +886,17 @@ function SysadminPanel({ isOpen, onClose, bundleData, runtimePlan, actionRuns = 
         }
     };
 
-    const deepClone = (obj: any) => {
+    const deepClone = (obj: unknown) => {
         if (typeof structuredClone === 'function') {
             return structuredClone(obj);
         }
         return JSON.parse(JSON.stringify(obj));
     };
 
-    const handleDraftSelectBlock = (id: string, currentDraft = draftBundle) => {
-         if (!currentDraft) return;
-         const block = currentDraft.blocks?.[id];
+    const handleDraftSelectBlock = (id: string, currentDraftArg: unknown = draftBundle) => {
+         const currentDraft = currentDraftArg as { blocks: Record<string, {data?: unknown}> } | null;
+         if (!currentDraft || !currentDraft.blocks) return;
+         const block = currentDraft.blocks[id];
          setDraftSelectedBlockId(id);
          setDraftEditorText(block ? JSON.stringify(block.data ?? {}, null, 2) : '{}');
          setDraftEditorDirty(false);
@@ -926,8 +921,8 @@ function SysadminPanel({ isOpen, onClose, bundleData, runtimePlan, actionRuns = 
             if (ids.length > 0) {
                 handleDraftSelectBlock(ids[0], clone);
             }
-        } catch (e: any) {
-            setDraftError("Failed to clone bundle: " + e.message);
+        } catch (e: unknown) {
+            setDraftError("Failed to clone bundle: " + (e instanceof Error ? e.message : String(e)));
         }
     };
 
@@ -945,7 +940,7 @@ function SysadminPanel({ isOpen, onClose, bundleData, runtimePlan, actionRuns = 
         if (!draftSelectedBlockId || !draftBundle) return;
         try {
             const parsed = JSON.parse(draftEditorText);
-            const newDraft = { ...draftBundle };
+            const newDraft = { ...(draftBundle as Record<string, any>) };
             if (!newDraft.blocks) newDraft.blocks = {};
             
             if (!newDraft.blocks[draftSelectedBlockId]) {
@@ -959,8 +954,8 @@ function SysadminPanel({ isOpen, onClose, bundleData, runtimePlan, actionRuns = 
             setDraftBundle(newDraft);
             setDraftEditorDirty(false);
             setDraftEditorError(null);
-        } catch (e: any) {
-            setDraftEditorError("Invalid JSON: " + e.message);
+        } catch (e: unknown) {
+            setDraftEditorError("Invalid JSON: " + (e instanceof Error ? e.message : String(e)));
         }
     };
     
@@ -974,7 +969,7 @@ function SysadminPanel({ isOpen, onClose, bundleData, runtimePlan, actionRuns = 
             // Revert to Active
             targetData = activeBlock.data ?? {};
             if (draftBundle) {
-                 const newDraft = { ...draftBundle };
+                 const newDraft = { ...(draftBundle as Record<string, any>) };
                  if (newDraft.blocks && newDraft.blocks[draftSelectedBlockId]) {
                       newDraft.blocks[draftSelectedBlockId] = deepClone(activeBlock);
                  }
@@ -982,7 +977,8 @@ function SysadminPanel({ isOpen, onClose, bundleData, runtimePlan, actionRuns = 
             }
         } else {
             // Revert to Saved Draft (undo text changes)
-            const savedDraftBlock = draftBundle?.blocks?.[draftSelectedBlockId];
+            const draftB = draftBundle as Record<string, any>;
+            const savedDraftBlock = draftB?.blocks?.[draftSelectedBlockId];
             if (savedDraftBlock) {
                  targetData = savedDraftBlock.data ?? {};
             }
@@ -996,7 +992,7 @@ function SysadminPanel({ isOpen, onClose, bundleData, runtimePlan, actionRuns = 
     const draftDiff = useMemo(() => {
         if (!bundleData || !draftBundle) return { added: [], removed: [], modified: [] };
         const activeBlocks = (bundleData as any).blocks || {};
-        const draftBlocks = draftBundle.blocks || {};
+        const draftBlocks = (draftBundle as any).blocks || {};
         const activeKeys = Object.keys(activeBlocks);
         const draftKeys = Object.keys(draftBlocks);
         
@@ -1014,9 +1010,8 @@ function SysadminPanel({ isOpen, onClose, bundleData, runtimePlan, actionRuns = 
              return res;
         }
 
-        const blocks = draftBundle.blocks || {};
+        const blocks = (draftBundle as any).blocks || {};
         const blockIds = Object.keys(blocks);
-        const seenIds = new Set<string>();
 
         blockIds.forEach(key => {
             const b = blocks[key];
@@ -1058,9 +1053,50 @@ function SysadminPanel({ isOpen, onClose, bundleData, runtimePlan, actionRuns = 
     }, [draftBundle]);
 
     const [showValidationDetails, setShowValidationDetails] = useState(false);
+    const [showDataDiff, setShowDataDiff] = useState(false);
+
+    // Diff Helper
+    const diffData = (obj1: unknown, obj2: unknown, path = '', results: any[] = []) => {
+        if (results.length > 50) return results; // Guardrail
+
+        const isObj1 = obj1 && typeof obj1 === 'object';
+        const isObj2 = obj2 && typeof obj2 === 'object';
+        
+        // If primitive change or one is obj and other is not
+        if (!isObj1 || !isObj2) {
+             if (JSON.stringify(obj1) !== JSON.stringify(obj2)) {
+                 results.push({ path: path || 'root', before: obj1, after: obj2 });
+             }
+             return results;
+        }
+
+        const o1 = obj1 as Record<string, unknown>;
+        const o2 = obj2 as Record<string, unknown>;
+
+        // Both objects/arrays: recurse keys
+        const keys1 = Object.keys(o1);
+        const keys2 = Object.keys(o2);
+        const allKeys = Array.from(new Set([...keys1, ...keys2]));
+        
+        for (const key of allKeys) {
+             if (results.length > 50) break;
+             const newPath = path ? `${path}.${key}` : key;
+             const val1 = o1[key];
+             const val2 = o2[key];
+             
+             if (JSON.stringify(val1) !== JSON.stringify(val2)) {
+                  if (val1 && typeof val1 === 'object' && val2 && typeof val2 === 'object') {
+                       diffData(val1, val2, newPath, results);
+                  } else {
+                       results.push({ path: newPath, before: val1, after: val2 });
+                  }
+             }
+        }
+        return results;
+    };
 
     // Shared Copy Button Style
-    const CopyBtn = ({ k, text, label = 'Copy JSON' }: { k: string, text: any, label?: string }) => {
+    const CopyBtn = ({ k, text, label = 'Copy JSON' }: { k: string, text: unknown, label?: string }) => {
         const isCopied = copiedKey === k;
         return (
             <button 
@@ -1092,16 +1128,9 @@ function SysadminPanel({ isOpen, onClose, bundleData, runtimePlan, actionRuns = 
     // --- ActionIndex Memoization ---
     const allActions = runtimePlan?.actions || [];
     
-    // Guard: Clear stale selection if action disappears
-    useEffect(() => {
-        if (selectedActionId && !allActions.find(a => a.id === selectedActionId)) {
-             setSelectedActionId(null);
-        }
-    }, [allActions, selectedActionId]);
-
-    const { filteredActions, groupedActions, sortedKeys, totalVisible, totalSources } = useMemo(() => {
+    const { groupedActions, sortedKeys, totalVisible, totalSources } = useMemo(() => {
         if (activeTab !== 'ActionIndex') {
-            return { filteredActions: [], groupedActions: new Map(), sortedKeys: [], totalVisible: 0, totalSources: 0 };
+            return { groupedActions: new Map(), sortedKeys: [], totalVisible: 0, totalSources: 0 };
         }
 
         const f = filter.toLowerCase();
@@ -1330,6 +1359,7 @@ function SysadminPanel({ isOpen, onClose, bundleData, runtimePlan, actionRuns = 
                 const selectedAction = selectedActionId 
                     ? allActions.find(a => a.id === selectedActionId) 
                     : null;
+                const isSelectionStale = !!(selectedActionId && !selectedAction);
 
                 return (
                     <div style={{display:'flex', flexDirection:'column', height:'100%'}}>
@@ -1399,7 +1429,15 @@ function SysadminPanel({ isOpen, onClose, bundleData, runtimePlan, actionRuns = 
                                         <pre style={preStyle}>{JSON.stringify(selectedAction, null, 2)}</pre>
                                     </>
                                  ) : (
-                                    <div style={{fontStyle:'italic', color:'#666', padding:'10px'}}>Select an action to view details.</div>
+                                    <div style={{fontStyle:'italic', color:'#666', padding:'10px'}}>
+                                        {isSelectionStale 
+                                            ? <div>
+                                                <span style={{color:'red'}}>Selected action not found.</span>
+                                                <button onClick={() => setSelectedActionId(null)} style={{marginLeft:'8px', cursor:'pointer', fontSize:'0.9em', border:'1px solid #ccc', borderRadius:'3px'}}>Clear</button>
+                                              </div>
+                                            : "Select an action to view details."
+                                        }
+                                    </div>
                                  )}
                              </div>
                          </div>
@@ -1820,6 +1858,56 @@ function SysadminPanel({ isOpen, onClose, bundleData, runtimePlan, actionRuns = 
                                                  Revert Block
                                              </button>
                                          </div>
+
+                                         {selectedBlock && draftDiff.modified.includes(selectedBlock.blockId) && bundleData && (
+                                              <div style={{marginTop:'20px', border:'1px solid #ccc', borderRadius:'6px', overflow:'hidden'}}>
+                                                  <div 
+                                                     onClick={() => setShowDataDiff(!showDataDiff)}
+                                                     style={{
+                                                         background:'#f1f5f9', padding:'8px 12px', 
+                                                         cursor:'pointer', fontWeight:'bold', fontSize:'0.9em',
+                                                         display:'flex', justifyContent:'space-between', alignItems:'center',
+                                                         color:'#333'
+                                                     }}
+                                                  >
+                                                      <span>Data Diff (vs Active)</span>
+                                                      <span>{showDataDiff ? 'Hide Diff' : 'Show Diff'}</span>
+                                                  </div>
+                                                  
+                                                  {showDataDiff && (
+                                                      <div style={{padding:'10px', background:'white', borderTop:'1px solid #ccc', maxHeight:'300px', overflowY:'auto'}}>
+                                                          {(() => {
+                                                              const activeBlock = (bundleData as any).blocks?.[selectedBlock.blockId];
+                                                              if (!activeBlock) return <div style={{fontStyle:'italic', color:'#666'}}>Original block not found in active bundle.</div>;
+                                                              
+                                                              const diffs = diffData(activeBlock.data, selectedBlock.data);
+                                                              if (diffs.length === 0) return <div style={{fontStyle:'italic', color:'#666'}}>No data differences detected.</div>;
+                                                              
+                                                              return (
+                                                                  <div style={{display:'flex', flexDirection:'column', gap:'8px'}}>
+                                                                      {diffs.map((d, i) => (
+                                                                          <div key={i} style={{fontSize:'0.85em', fontFamily:'monospace', borderBottom:'1px solid #eee', paddingBottom:'6px'}}>
+                                                                              <div style={{fontWeight:'bold', color:'#111', marginBottom:'2px'}}>{d.path}</div>
+                                                                              <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px'}}>
+                                                                                  <div style={{background:'#fef2f2', padding:'4px', borderRadius:'3px', color:'#7f1d1d', overflowX:'auto'}}>
+                                                                                      <div style={{fontSize:'0.8em', fontWeight:'bold', marginBottom:'2px', color:'#991b1b'}}>BEFORE</div>
+                                                                                      <pre style={{margin:0, whiteSpace:'pre-wrap', wordBreak:'break-all'}}>{typeof d.before === 'undefined' ? '(undefined)' : JSON.stringify(d.before)}</pre>
+                                                                                  </div>
+                                                                                  <div style={{background:'#ecfdf5', padding:'4px', borderRadius:'3px', color:'#065f46', overflowX:'auto'}}>
+                                                                                      <div style={{fontSize:'0.8em', fontWeight:'bold', marginBottom:'2px', color:'#064e3b'}}>AFTER</div>
+                                                                                      <pre style={{margin:0, whiteSpace:'pre-wrap', wordBreak:'break-all'}}>{typeof d.after === 'undefined' ? '(undefined)' : JSON.stringify(d.after)}</pre>
+                                                                                  </div>
+                                                                              </div>
+                                                                          </div>
+                                                                      ))}
+                                                                      {diffs.length >= 50 && <div style={{color:'#666', fontStyle:'italic', fontSize:'0.9em'}}>...more changes truncated...</div>}
+                                                                  </div>
+                                                              );
+                                                          })()}
+                                                      </div>
+                                                  )}
+                                              </div>
+                                         )}
                                      </>
                                  ) : (
                                      <div style={{padding:'20px', color:'#888', fontStyle:'italic'}}>Select a block to edit its data.</div>
@@ -2128,7 +2216,7 @@ function App() {
                 <input type="text" placeholder="Block ID" value={sourceBlockId} onChange={e=>setSourceBlockId(e.target.value)} style={{width:'100%'}}/>
                 <input type="text" placeholder="Action (e.g. click)" value={actionName} onChange={e=>setActionName(e.target.value)} style={{width:'100%', marginTop:'5px'}}/>
                 <input type="text" placeholder="Permissions" value={actionPerms} onChange={e=>setActionPerms(e.target.value)} style={{width:'100%', marginTop:'5px'}}/>
-                <button onClick={handleDispatch} style={{marginTop:'5px', width:'100%'}}>Dispatch Action</button>
+                <button onClick={() => { void handleDispatch(); }} style={{marginTop:'5px', width:'100%'}}>Dispatch Action</button>
                 <button onClick={() => setSysadminOpen(!sysadminOpen)} style={{marginTop:'10px', width:'100%', background: sysadminOpen ? '#333' : '#eee', color: sysadminOpen ? 'white' : 'black'}}>
                     {sysadminOpen ? 'Close Sysadmin' : 'Open Sysadmin'}
                 </button>
