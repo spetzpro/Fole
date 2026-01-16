@@ -926,15 +926,30 @@ function SysadminPanel({
         setDraftFixHint(`Fix: ${fixPath}`);
     };
 
-    const handleRegionChange = (slot: 'top'|'main'|'bottom', blockId: string) => {
-        if (!draftBundle) return;
-        const newDraft = deepClone(draftBundle) as BundleResponse;
+    // Region Normalization Helpers
+    type RegionSlot = 'header' | 'viewport' | 'footer';
+    const legacyKeyFor: Record<RegionSlot, 'top' | 'main' | 'bottom'> = { header: 'top', viewport: 'main', footer: 'bottom' };
+
+    const readRegionBlockId = (regions: any, slot: RegionSlot): string => {
+        if (!regions) return '';
+        // Prefer canonical, fallback to legacy
+        return regions[slot]?.blockId || regions[legacyKeyFor[slot]]?.blockId || '';
+    };
+
+    const writeRegionBlockId = (draft: any, slot: RegionSlot, blockId: string): any => {
+        const newDraft = deepClone(draft);
         if (!newDraft.manifest) newDraft.manifest = { title: 'Draft Manifest' };
         if (!newDraft.manifest.regions) newDraft.manifest.regions = {};
-        if (!newDraft.manifest.regions[slot]) newDraft.manifest.regions[slot] = { blockId: '' };
         
+        // Write canonical ONLY
+        if (!newDraft.manifest.regions[slot]) newDraft.manifest.regions[slot] = { blockId: '' };
         newDraft.manifest.regions[slot].blockId = blockId;
-        setDraftBundle(newDraft);
+        return newDraft;
+    };
+
+    const handleRegionChange = (slot: RegionSlot, blockId: string) => {
+        if (!draftBundle) return;
+        setDraftBundle(writeRegionBlockId(draftBundle, slot, blockId));
     };
 
     const handleCreateDraft = () => {
@@ -944,6 +959,18 @@ function SysadminPanel({
         }
         try {
             const clone = deepClone(bundleData);
+            
+            // Normalize regions to canonical on Clone
+            if (clone.manifest) {
+                const srcRegions = clone.manifest.regions || {};
+                const normRegions: any = {};
+                (['header', 'viewport', 'footer'] as RegionSlot[]).forEach(slot => {
+                     const bid = readRegionBlockId(srcRegions, slot);
+                     if (bid) normRegions[slot] = { blockId: bid };
+                });
+                clone.manifest.regions = normRegions;
+            }
+
             setDraftBundle(clone);
             setDraftError(null);
             setDraftSelectedBlockId(null);
@@ -1139,8 +1166,8 @@ function SysadminPanel({
 
         // Regions check
         const regions = (draftBundle as any).manifest?.regions || {};
-        ['top', 'main', 'bottom'].forEach(slot => {
-             const regionBid = regions[slot]?.blockId;
+        (['header', 'viewport', 'footer'] as RegionSlot[]).forEach(slot => {
+             const regionBid = readRegionBlockId(regions, slot);
              if (regionBid && regionBid !== '(none)' && !blocks[regionBid]) {
                  res.warnings.push(`Region "${slot}" references missing blockId "${regionBid}"`);
              }
@@ -1246,8 +1273,8 @@ function SysadminPanel({
         
         // Regions check
         const regions = (draftBundle as any).manifest?.regions || {};
-        ['top', 'main', 'bottom'].forEach(slot => {
-             const regionBid = regions[slot]?.blockId;
+        (['header', 'viewport', 'footer'] as RegionSlot[]).forEach(slot => {
+             const regionBid = readRegionBlockId(regions, slot);
              if (regionBid && regionBid !== '(none)' && !blocks[regionBid]) {
                  issues.push({
                      severity: 'WARN',
@@ -2025,6 +2052,11 @@ function SysadminPanel({
                                              {draftDiff.manifestChanged && <span style={{color:'#f57c00', fontWeight:'bold', marginLeft:'5px'}}>+ Manifest Update</span>}
                                          </span>
                                      </div>
+                                     {draftDiff.manifestChanged && ['top','main','bottom'].some(k => (bundleData as any)?.manifest?.regions?.[k]) && (
+                                         <div style={{fontSize:'0.85em', color:'#666', marginTop:'2px', fontStyle:'italic'}}>
+                                             Note: Active uses legacy keys; Draft is canonicalized.
+                                         </div>
+                                     )}
                                      
                                      {/* Warning Acknowledgement Checkbox */}
                                      {status === 'WARNINGS' && (
@@ -2125,17 +2157,18 @@ function SysadminPanel({
                                  
                                  {/* Regions Editor */}
                                  <div style={{marginBottom:'10px', paddingBottom:'10px', borderBottom:'1px solid #eee'}}>
-                                     <div style={{fontWeight:'bold', marginBottom:'5px', color:'#333', fontSize:'0.9em'}}>Regions (Draft)</div>
-                                     {['top','main','bottom'].map(slot => {
+                                     <div style={{fontWeight:'bold', marginBottom:'5px', color:'#333', fontSize:'0.9em'}}>Shell Regions (Draft)</div>
+                                     {(['header', 'viewport', 'footer'] as RegionSlot[]).map(slot => {
                                          const regions = (draftBundle as any).manifest?.regions || {};
                                          const current = regions[slot]?.blockId || '';
+                                         const label = slot.charAt(0).toUpperCase() + slot.slice(1);
                                          
                                          return (
                                              <div key={slot} style={{marginBottom:'5px', display:'flex', alignItems:'center', justifyContent:'space-between'}}>
-                                                 <span style={{fontSize:'0.85em', color:'#555', width:'45px', textTransform:'capitalize'}}>{slot}</span>
+                                                 <span style={{fontSize:'0.85em', color:'#555', width:'55px'}}>{label}</span>
                                                  <select 
                                                      value={current} 
-                                                     onChange={(e) => handleRegionChange(slot as any, e.target.value)}
+                                                     onChange={(e) => handleRegionChange(slot, e.target.value)}
                                                      style={{fontSize:'0.8em', flex:1, padding:'2px', border:'1px solid #ccc', borderRadius:'3px', maxWidth:'200px'}}
                                                  >
                                                      <option value="">(none)</option>

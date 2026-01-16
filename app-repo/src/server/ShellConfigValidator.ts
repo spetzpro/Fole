@@ -8,10 +8,10 @@ type RegionSlot = 'header' | 'viewport' | 'footer';
 // Helper for region normalization
 function normalizeManifestRegions(regions: Record<string, { blockId: string } | undefined> | undefined): {
     normalized: Partial<Record<RegionSlot, string>>;
-    warnings: string[];
+    warnings: Array<{ message: string; meta: any }>;
 } {
     const result: Partial<Record<RegionSlot, string>> = {};
-    const warnings: string[] = [];
+    const warnings: Array<{ message: string; meta: any }> = [];
     if (!regions) return { normalized: result, warnings };
 
     const slots: RegionSlot[] = ['header', 'viewport', 'footer'];
@@ -27,7 +27,10 @@ function normalizeManifestRegions(regions: Record<string, { blockId: string } | 
 
         if (canonicalId && legacyId) {
             if (canonicalId !== legacyId) {
-                warnings.push(`manifest.regions conflict for ${slot}: canonical="${canonicalId}" legacy="${legacyId}". Canonical wins.`);
+                warnings.push({
+                    message: `manifest.regions conflict for ${slot}: canonical="${canonicalId}" legacy="${legacyId}". Canonical wins.`,
+                    meta: { slot, canonical: canonicalId, legacy: legacyId }
+                });
             }
             chosenId = canonicalId;
         } else {
@@ -162,12 +165,13 @@ export class ShellConfigValidator {
     // Add normalization warnings to errors as warnings (severity B?) 
     // User requested "Include them in logs array or a non-fatal issues list (stay consistent with existing validation outputs)"
     // Existing severity is A1, A2, B. Let's use B (Info/Warn) if valid.
-    regionWarnings.forEach(msg => {
+    regionWarnings.forEach(w => {
         errors.push({
             severity: "B",
             code: "region_conflict",
-            message: msg,
-            path: "/manifest/regions"
+            message: w.message,
+            path: "/manifest/regions",
+            meta: w.meta
         });
     });
 
@@ -452,41 +456,8 @@ export class ShellConfigValidator {
     });
 
     // Manifest Region Wiring Validation
-    const regionExpectations: Record<string, string> = {
-        "top": "shell.region.header",
-        "bottom": "shell.region.footer",
-        "main": "shell.rules.viewport"
-    };
+    // (Consolidated into normalized region check above)
 
-    for (const [regionKey, expectedType] of Object.entries(regionExpectations)) {
-        const regionDef = bundle.manifest.regions && bundle.manifest.regions[regionKey];
-        const blockId = regionDef ? regionDef.blockId : undefined;
-        
-        // Check if referenced block has correct type
-        if (blockId && bundle.blocks[blockId]) {
-            const actualType = bundle.blocks[blockId].blockType;
-            if (actualType !== expectedType) {
-                 errors.push({
-                    severity: "A1",
-                    code: "shell_manifest_wrong_block_type",
-                    message: `Manifest region '${regionKey}' references block '${blockId}' of type '${actualType}', expected '${expectedType}'`,
-                    path: `/manifest/regions/${regionKey}/blockId`,
-                    blockId: blockId
-                 });
-            }
-        }
-        
-        // A1: If required blockType exists but is not referenced where required
-        if (!blockId && blockTypeCounts[expectedType] > 0) {
-              errors.push({
-                severity: "A1",
-                code: "shell_manifest_missing_required_reference",
-                message: `Manifest region '${regionKey}' is not configured, but a block of type '${expectedType}' exists in the bundle.`,
-                path: `/manifest/regions/${regionKey}`,
-                blockId: "global"
-            });          
-        }
-    }
 
     // Template Reference Validation
     const templateBlocks = Object.values(bundle.blocks).filter(b => b.blockType === "template");
@@ -512,23 +483,16 @@ export class ShellConfigValidator {
 
     const errorCount = errors.filter(e => e.severity === "A1").length;
     
-    if (errorCount === 0) {
-      return {
-        status: "valid",
-        validatorVersion: "1.0.0",
-        severityCounts: { A1: 0, A2: 0, B: 0 },
-        errors: []
-      };
-    }
-
-    return {
-      status: "invalid",
-      validatorVersion: "1.0.0",
-      severityCounts: {
+    const severityCounts = {
         A1: errorCount,
         A2: errors.filter(e => e.severity === "A2").length,
         B: errors.filter(e => e.severity === "B").length
-      },
+    };
+
+    return {
+      status: errorCount === 0 ? "valid" : "invalid",
+      validatorVersion: "1.0.0",
+      severityCounts,
       errors
     };
   }

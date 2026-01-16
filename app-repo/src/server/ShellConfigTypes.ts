@@ -19,6 +19,7 @@ export interface ConfigMeta {
 export interface ConfigValidation {
   status: "passed" | "failed" | "warn";
   checkedAt: string;
+  warnings?: ValidationError[];
 }
 
 export type ValidationSeverity = "A1" | "A2" | "B";
@@ -28,6 +29,10 @@ export interface ValidationError {
   code: string;
   message: string;
   path: string;
+  meta?: any;
+  blockId?: string;
+  relatedBlockIds?: string[];
+}
   blockId?: string;
   relatedBlockIds?: string[];
 }

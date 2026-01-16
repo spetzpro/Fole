@@ -123,6 +123,11 @@ async function main() {
         });
       }
 
+      // Populate validation warnings (e.g. region conflicts) if defined
+      if (report.errors && report.errors.length > 0) {
+          bundle.validation.warnings = report.errors;
+      }
+
       router.json(res, 200, bundle);
     } catch (err: any) {
       if (err.message.includes("not found")) {
