@@ -1498,6 +1498,40 @@ function SysadminPanel({
         plan: false 
     });
 
+    // Runtime Data Inspector State
+    const [runtimeDataBlocks, setRuntimeDataBlocks] = useState<Record<string, unknown> | null>(null);
+    const [runtimeDataError, setRuntimeDataError] = useState<string | null>(null);
+
+    // Fetch Runtime Data Helper
+    const refreshRuntimeDataBlocks = async () => {
+        try {
+            const res = await fetch('/api/debug/runtime/data-blocks?ids=SourceBlock,TargetBlock');
+            if (res.status === 403) {
+                 setRuntimeDataError('Debug endpoints disabled (403)');
+                 // Keep stale data or null? Spec says "fall back to bundleData" which happens in render
+                 setRuntimeDataBlocks(null);
+            } else if (!res.ok) {
+                 const txt = await res.text();
+                 setRuntimeDataError(`Error ${res.status}: ${txt}`);
+                 setRuntimeDataBlocks(null);
+            } else {
+                 const json = await res.json();
+                 setRuntimeDataBlocks(json.blocks || null);
+                 setRuntimeDataError(null);
+            }
+        } catch (err: any) {
+            setRuntimeDataError(String(err));
+            setRuntimeDataBlocks(null);
+        }
+    };
+    
+    // Auto-refresh when Data tab is active and actions run
+    useEffect(() => {
+        if (activeTab === 'Data') {
+            refreshRuntimeDataBlocks();
+        }
+    }, [activeTab, actionRuns.length]);
+
     // --- ActionIndex Memoization ---
     const allActions = runtimePlan?.actions || [];
     
@@ -1732,62 +1766,111 @@ function SysadminPanel({
                 if (!bundleData) return <div style={{padding:'20px', color:'#666'}}>No bundle/config loaded yet.</div>;
                 const blocksMap = (bundleData as any).blocks || {};
                 
-                const sourceBlock = blocksMap['SourceBlock'];
-                const targetBlock = blocksMap['TargetBlock'];
+                // Fallback config data
+                const cfgSource = blocksMap['SourceBlock'];
+                const cfgTarget = blocksMap['TargetBlock'];
+
+                // Decide what to show
+                const useLive = !!runtimeDataBlocks;
+                const sourceData = useLive ? runtimeDataBlocks['SourceBlock'] : cfgSource?.data;
+                const targetData = useLive ? runtimeDataBlocks['TargetBlock'] : cfgTarget?.data;
 
                 return (
-                    <div style={{padding:'10px', height:'100%', overflowY:'auto'}}>
-                         <div style={{
-                             padding:'8px', 
-                             marginBottom:'15px', 
-                             background:'#e3f2fd', 
-                             border:'1px solid #90caf9', 
-                             borderRadius:'4px',
-                             fontSize:'0.9em',
-                             color:'#0d47a1'
-                         }}>
-                             <strong>Info:</strong> Click <code>btn1::click</code> in runtime to see changes propagate (Trigger1 writes TargetBlock.state.count).
+                    <div style={{display:'flex', flexDirection:'column', height:'100%', overflow:'hidden'}}>
+                         {/* Header / Toolbar */}
+                         <div style={{padding:'10px', borderBottom:'1px solid #ddd', display:'flex', alignItems:'center', justifyContent:'space-between', background:'#fafafa'}}>
+                             <div style={{display:'flex', alignItems:'center', gap:'10px'}}>
+                                 <strong style={{fontSize:'1.1em'}}>Data Inspector</strong>
+                                 <span style={{
+                                     fontSize:'0.85em', 
+                                     padding:'2px 8px', 
+                                     borderRadius:'10px', 
+                                     background: useLive ? '#e8f5e9' : '#eceff1', 
+                                     color: useLive ? '#2e7d32' : '#546e7a',
+                                     border: '1px solid',
+                                     borderColor: useLive ? '#a5d6a7' : '#cfd8dc'
+                                 }}>
+                                     {useLive ? 'LIVE RUNTIME' : 'STATIC CONFIG'}
+                                 </span>
+                             </div>
+                             <button
+                                onClick={refreshRuntimeDataBlocks}
+                                style={{
+                                    padding:'5px 12px', fontSize:'0.9em', cursor:'pointer',
+                                    background:'white', border:'1px solid #ccc', borderRadius:'3px',
+                                    display:'flex', alignItems:'center', gap:'5px'
+                                }}
+                             >
+                                ↻ Refresh
+                             </button>
                          </div>
 
-                         {/* Source Block */}
-                         <div style={{marginBottom:'20px', border:'1px solid #ddd', borderRadius:'4px'}}>
-                             <div style={{padding:'8px', background:'#f5f5f5', borderBottom:'1px solid #ddd', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
-                                 <span>
-                                     <strong>SourceBlock</strong>
-                                     {sourceBlock && <span style={{marginLeft:'8px', fontSize:'0.85em', color:'#666'}}>({sourceBlock.blockType})</span>}
-                                 </span>
-                                 {sourceBlock && <CopyBtn k="sourceblock" text={sourceBlock.data} label="Copy Data" />}
-                             </div>
-                             <div style={{padding:'10px'}}>
-                                 {sourceBlock ? (
-                                     <pre style={{...preStyle, margin:0, maxHeight:'200px', overflow:'auto'}}>
-                                         {JSON.stringify(sourceBlock.data, null, 2)}
-                                     </pre>
-                                 ) : (
-                                     <div style={{fontStyle:'italic', color:'#888'}}>Block "SourceBlock" not found in active bundle.</div>
-                                 )}
-                             </div>
-                         </div>
+                         <div style={{flex:1, overflowY:'auto', padding:'10px'}}>
+                             {/* Error/Notes */}
+                             {runtimeDataError && (
+                                 <div style={{padding:'8px', marginBottom:'10px', background:'#ffebee', color:'#c62828', fontSize:'0.9em', borderRadius:'4px', border:'1px solid #ffcdd2'}}>
+                                     Warning: {runtimeDataError}. Showing static config data.
+                                 </div>
+                             )}
 
-                         {/* Target Block */}
-                         <div style={{marginBottom:'20px', border:'1px solid #ddd', borderRadius:'4px'}}>
-                             <div style={{padding:'8px', background:'#f5f5f5', borderBottom:'1px solid #ddd', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
-                                 <span>
-                                     <strong>TargetBlock</strong>
-                                     {targetBlock && <span style={{marginLeft:'8px', fontSize:'0.85em', color:'#666'}}>({targetBlock.blockType})</span>}
-                                 </span>
-                                 {targetBlock && <CopyBtn k="targetblock" text={targetBlock.data} label="Copy Data" />}
+                             <div style={{
+                                 padding:'8px', 
+                                 marginBottom:'15px', 
+                                 background:'#e3f2fd', 
+                                 border:'1px solid #90caf9', 
+                                 borderRadius:'4px',
+                                 fontSize:'0.9em',
+                                 color:'#0d47a1'
+                             }}>
+                                 <strong>Info:</strong> Click <code>btn1::click</code> in runtime to see changes propagate (Trigger1 writes TargetBlock.state.count).
                              </div>
-                             <div style={{padding:'10px'}}>
-                                 {targetBlock ? (
-                                     <pre style={{...preStyle, margin:0, maxHeight:'200px', overflow:'auto'}}>
-                                         {JSON.stringify(targetBlock.data, null, 2)}
-                                     </pre>
-                                 ) : (
-                                     <div style={{fontStyle:'italic', color:'#888'}}>Block "TargetBlock" not found in active bundle.</div>
-                                 )}
+
+                             {/* Source Block */}
+                             <div style={{marginBottom:'20px', border:'1px solid #ddd', borderRadius:'4px'}}>
+                                 <div style={{padding:'8px', background:'#f5f5f5', borderBottom:'1px solid #ddd', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+                                     <span>
+                                         <strong>SourceBlock</strong>
+                                         {cfgSource && <span style={{marginLeft:'8px', fontSize:'0.85em', color:'#666'}}>({cfgSource.blockType})</span>}
+                                         {useLive && <span style={{marginLeft:'8px', fontSize:'0.8em', color:'green'}}>(Runtime Value)</span>}
+                                     </span>
+                                     <CopyBtn k="sourceblock" text={sourceData} label="Copy Data" />
+                                 </div>
+                                 <div style={{padding:'10px'}}>
+                                     {sourceData !== undefined ? (
+                                         <pre style={{...preStyle, margin:0, maxHeight:'200px', overflow:'auto'}}>
+                                             {JSON.stringify(sourceData, null, 2)}
+                                         </pre>
+                                     ) : (
+                                         <div style={{fontStyle:'italic', color:'#888'}}>
+                                             Data not available {useLive ? 'in runtime' : 'in config'}.
+                                         </div>
+                                     )}
+                                 </div>
                              </div>
-                         </div>
+
+                             {/* Target Block */}
+                             <div style={{marginBottom:'20px', border:'1px solid #ddd', borderRadius:'4px'}}>
+                                 <div style={{padding:'8px', background:'#f5f5f5', borderBottom:'1px solid #ddd', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+                                     <span>
+                                         <strong>TargetBlock</strong>
+                                         {cfgTarget && <span style={{marginLeft:'8px', fontSize:'0.85em', color:'#666'}}>({cfgTarget.blockType})</span>}
+                                         {useLive && <span style={{marginLeft:'8px', fontSize:'0.8em', color:'green'}}>(Runtime Value)</span>}
+                                     </span>
+                                     <CopyBtn k="targetblock" text={targetData} label="Copy Data" />
+                                 </div>
+                                 <div style={{padding:'10px'}}>
+                                     {targetData !== undefined ? (
+                                         <pre style={{...preStyle, margin:0, maxHeight:'200px', overflow:'auto'}}>
+                                             {JSON.stringify(targetData, null, 2)}
+                                         </pre>
+                                     ) : (
+                                         <div style={{fontStyle:'italic', color:'#888'}}>
+                                              Data not available {useLive ? 'in runtime' : 'in config'}.
+                                         </div>
+                                     )}
+                                 </div>
+                             </div>
+                        </div>
                     </div>
                 );
             }

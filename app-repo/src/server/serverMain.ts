@@ -295,6 +295,39 @@ async function main() {
     }
   });
 
+  // Debug Runtime Data Blocks Endpoint
+  router.get("/api/debug/runtime/data-blocks", async (req, res, _params, ctx) => {
+    // 1. Strict Gating
+    if (!ModeGate.canUseDebugEndpoints(ctx)) {
+       return router.json(res, 403, { error: "Forbidden: Debug endpoints require Debug Mode" });
+    }
+
+    try {
+        const urlParts = parse(req.url || "", true);
+        const idsParam = urlParts.query.ids;
+
+        if (typeof idsParam !== 'string') {
+             return router.json(res, 400, { error: "Missing or invalid 'ids' query parameter" });
+        }
+
+        const ids = idsParam.split(',').map(s => s.trim()).filter(s => s.length > 0);
+        const currentState = runtimeManager.getRuntimeState();
+        
+        const blocks: Record<string, any> = {};
+        for (const id of ids) {
+             // Return null if not found, or the state object if found
+             blocks[id] = currentState[id] || null;
+        }
+
+        router.json(res, 200, { blocks });
+
+    } catch (err: any) {
+        // eslint-disable-next-line no-console
+        console.error("Debug data-blocks error", err);
+        router.json(res, 500, { error: "Internal Server Error" });
+    }
+  });
+
   router.get("/api/routing/resolve/:entrySlug", async (req, res, params) => {
     let entrySlug = params.entrySlug || "";
     entrySlug = entrySlug.trim().toLowerCase();
