@@ -12,11 +12,7 @@
         },
         "regions": {
             "type": "object",
-            "required": [
-                "top",
-                "bottom",
-                "main"
-            ],
+            "required": [],
             "patternProperties": {
                 "^[a-zA-Z0-9]+$": {
                     "type": "object",

@@ -3,6 +3,45 @@ import { promises as fs } from "fs";
 import * as path from "path";
 import { ShellBundle, ValidationReport, ValidationError } from "./ShellConfigTypes";
 
+type RegionSlot = 'header' | 'viewport' | 'footer';
+
+// Helper for region normalization
+function normalizeManifestRegions(regions: Record<string, { blockId: string } | undefined> | undefined): {
+    normalized: Partial<Record<RegionSlot, string>>;
+    warnings: string[];
+} {
+    const result: Partial<Record<RegionSlot, string>> = {};
+    const warnings: string[] = [];
+    if (!regions) return { normalized: result, warnings };
+
+    const slots: RegionSlot[] = ['header', 'viewport', 'footer'];
+    
+    slots.forEach(slot => {
+        const canonicalKey = slot;
+        const legacyKey = slot === 'header' ? 'top' : (slot === 'viewport' ? 'main' : 'bottom');
+        
+        const canonicalId = regions[canonicalKey]?.blockId;
+        const legacyId = regions[legacyKey]?.blockId;
+        
+        let chosenId: string | undefined;
+
+        if (canonicalId && legacyId) {
+            if (canonicalId !== legacyId) {
+                warnings.push(`manifest.regions conflict for ${slot}: canonical="${canonicalId}" legacy="${legacyId}". Canonical wins.`);
+            }
+            chosenId = canonicalId;
+        } else {
+            chosenId = canonicalId || legacyId;
+        }
+
+        if (chosenId) {
+            result[slot] = chosenId;
+        }
+    });
+
+    return { normalized: result, warnings };
+}
+
 export class ShellConfigValidator {
   private ajv: Ajv;
   private schemasLoaded = false;
@@ -112,22 +151,78 @@ export class ShellConfigValidator {
         }
     }
 
-    // Check for missing blocks referenced in manifest
-    // This goes beyond simple schema validation
     const declaredRegions = Object.keys(bundle.manifest.regions || {});
-    for (const region of declaredRegions) {
-      const blockId = bundle.manifest.regions[region].blockId;
-      // console.log(`Checking region ${region} -> blockId ${blockId}. In blocks? ${!!bundle.blocks[blockId]}`);
-      if (!bundle.blocks[blockId]) {
+    // 1. Check for valid keys (legacy vs canonical mix is handled by normalization below, 
+    // but strict schema might still flag unknown keys if additionalProperties is false. 
+    // Assuming schema allows these keys.)
+
+    // Normalize regions for role checking
+    const { normalized, warnings: regionWarnings } = normalizeManifestRegions(bundle.manifest.regions);
+
+    // Add normalization warnings to errors as warnings (severity B?) 
+    // User requested "Include them in logs array or a non-fatal issues list (stay consistent with existing validation outputs)"
+    // Existing severity is A1, A2, B. Let's use B (Info/Warn) if valid.
+    regionWarnings.forEach(msg => {
         errors.push({
-          severity: "A1",
-          code: "missing_block",
-          message: `Manifest references missing blockId: ${blockId}`,
-          path: `/manifest/regions/${region}/blockId`,
-          blockId: blockId
+            severity: "B",
+            code: "region_conflict",
+            message: msg,
+            path: "/manifest/regions"
         });
-      }
-    }
+    });
+
+    // Check normalization entries
+    // Also enforce roles: header->shell.region.header, footer->shell.region.footer, viewport->shell.rules.viewport
+    const roleMap: Record<string, string> = {
+        header: 'shell.region.header',
+        footer: 'shell.region.footer',
+        viewport: 'shell.rules.viewport'
+    };
+
+    // Iterate normalized roles to validate existence and type
+    Object.entries(normalized).forEach(([slot, blockId]) => {
+        if (!bundle.blocks[blockId]) {
+            errors.push({
+                severity: "A1",
+                code: "missing_block",
+                message: `Manifest references missing blockId for region '${slot}' (blockId: ${blockId})`,
+                path: `/manifest/regions/${slot}`,
+                blockId: blockId
+            });
+        } else {
+            // Role Type Enforcement
+            const expectedType = roleMap[slot];
+            const actualType = bundle.blocks[blockId].blockType;
+            if (expectedType && actualType !== expectedType) {
+                errors.push({
+                    severity: "A2", // Use A2 for strictness but maybe not critical crash? Or A1? Using A2 to distinguish from missing block.
+                    code: "region_role_mismatch",
+                    message: `Region '${slot}' expects blockType '${expectedType}', found '${actualType}'`,
+                    path: `/manifest/regions/${slot}`,
+                    blockId: blockId
+                });
+            }
+        }
+    });
+
+    // If schema check was relaxed, we might want to manually ensure 'header', 'viewport', 'footer' existed 
+    // via either legacy or canonical keys.
+    // The prompt says: "If a role is missing entirely, keep current behavior".
+    // Previously schema required ["top", "bottom", "main"].
+    // So we should check if 'header', 'footer', 'viewport' are present in normalized.
+    ['header', 'viewport', 'footer'].forEach(slot => {
+        if (!normalized[slot as RegionSlot]) {
+             // Only report if we want to emulate the previous 'required' schema behavior
+             // The previous schema validation (via AJV) would have failed before reaching here if we didn't change schema.
+             // But we are going to relax schema. So we must report missing required regions here.
+             errors.push({
+                 severity: "A1",
+                 code: "missing_region",
+                 message: `Manifest missing required region: '${slot}' (or legacy alias)`,
+                 path: `/manifest/regions`
+             });
+        }
+    });
 
     // Cross-check: openWindow actions vs Window Registry
     // 1. Build registry

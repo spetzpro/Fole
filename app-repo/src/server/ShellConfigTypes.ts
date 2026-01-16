@@ -52,6 +52,8 @@ export interface BlockEnvelope {
 
 export interface ShellManifest {
   schemaVersion: string;
+  // Regions can use canonical keys (header, viewport, footer) or legacy (top, main, bottom).
+  // Canonical keys take precedence.
   regions: Record<string, { blockId: string; config?: Record<string, unknown> }>;
 }
 
