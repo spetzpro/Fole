@@ -2049,12 +2049,7 @@ function SysadminPanel({
                                                      disabled={!selectedBlock}
                                                      style={{
                                                          padding:'6px 12px', 
-                                                         cursor: !selectedBlock ? 'not-allowed' : 'pointer',
-                                                         border: 'none',
-                                                         background: !selectedBlock ? '#ccc' : '#555',
-                                                         color: !selectedBlock ? '#666' : 'white',
-                                                         borderRadius: '4px',
-                                                         fontWeight: 600
+                                                         cursor: !selectedBlock ? 'not-allowed' : 'pointer'
                                                      }}
                                                      title="Duplicate this block"
                                                  >
