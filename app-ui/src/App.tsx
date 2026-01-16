@@ -879,6 +879,10 @@ function SysadminPanel({
     const [newWinId, setNewWinId] = useState('');
     const [newWinMode, setNewWinMode] = useState<string>('singleton');
 
+    // Overlay Blocks Editor State (Draft)
+    const [newOverlayId, setNewOverlayId] = useState('overlay_new');
+    const [newOverlayType, setNewOverlayType] = useState('shell.overlay.main_menu');
+
     // Persist to Storage
     useEffect(() => {
         try {
@@ -1015,6 +1019,67 @@ function SysadminPanel({
         }
 
         setDraftBundle({ ...(draftBundle as any), blocks: newBlocks });
+    };
+
+    // Overlay Helper
+    const handleCreateOverlay = () => {
+        if (!draftBundle || !newOverlayId.trim()) return;
+        const blocks = (draftBundle as any).blocks || {};
+
+        let proposedId = newOverlayId.trim();
+        // Ensure unique
+        if (blocks[proposedId]) {
+            let counter = 2;
+            while(blocks[`${proposedId}_${counter}`]) counter++;
+            proposedId = `${proposedId}_${counter}`;
+        }
+
+        const newBlock = {
+            schemaVersion: "1.0.0",
+            blockId: proposedId,
+            blockType: newOverlayType,
+            data: { items: [] }, // Default data
+            filename: `${proposedId}.json`
+        };
+
+        const newDraft = deepClone(draftBundle) as any;
+        if (!newDraft.blocks) newDraft.blocks = {};
+        newDraft.blocks[proposedId] = newBlock;
+
+        setDraftBundle(newDraft);
+        setNewOverlayId('overlay_new'); // reset to default
+        handleDraftSelectBlock(proposedId, newDraft);
+    };
+
+    const handleDuplicateDraftBlock = (blockId: string) => {
+         if (!draftBundle) return;
+         const blocks = (draftBundle as any).blocks || {};
+         const src = blocks[blockId];
+         if (!src) return;
+
+         const base = blockId;
+         let newId = `${base}_copy`;
+         let counter = 2;
+         while (blocks[newId]) {
+             newId = `${base}_copy${counter}`;
+             counter++;
+         }
+
+         const cloned = deepClone(src);
+         cloned.blockId = newId;
+         if (cloned.id) cloned.id = newId;
+         if (cloned.filename) cloned.filename = `${newId}.json`;
+         
+         const newDraft = { 
+             ...(draftBundle as any), 
+             blocks: { 
+                 ...blocks, 
+                 [newId]: cloned 
+             } 
+         };
+         
+         setDraftBundle(newDraft);
+         handleDraftSelectBlock(newId, newDraft);
     };
 
     const handleCreateDraft = () => {
@@ -2322,6 +2387,80 @@ function SysadminPanel({
                                                     </button>
                                                 </div>
                                             </div>
+                                         );
+                                     })()}
+                                 </div>
+
+                                 {/* Overlay Blocks (Draft) */}
+                                 <div style={{marginBottom:'10px', paddingBottom:'10px', borderBottom:'1px solid #eee'}}>
+                                     <div style={{fontWeight:'bold', marginBottom:'5px', color:'#333', fontSize:'0.9em'}}>Overlay Blocks (Draft)</div>
+                                     {(() => {
+                                         const blocksMap = (draftBundle as any).blocks || {};
+                                         const overlays = Object.values(blocksMap).filter((b: any) => 
+                                             (b.blockType || '').includes('overlay') || (b.blockId || '').startsWith('overlay_')
+                                         ) as any[];
+                                         
+                                         return (
+                                             <div>
+                                                 <div style={{maxHeight:'150px', overflowY:'auto', overflowX:'hidden', marginBottom:'5px', border:'1px solid #f0f0f0'}}>
+                                                     {overlays.length === 0 && <div style={{fontStyle:'italic', color:'#999', fontSize:'0.8em', padding:'4px'}}>No overlay blocks found.</div>}
+                                                     {overlays.map((ov, i) => {
+                                                         const bid = ov.blockId;
+                                                         return (
+                                                             <div key={bid || i} style={{display:'flex', alignItems:'center', gap:'4px', padding:'2px 0', fontSize:'0.85em', borderBottom:'1px dashed #eee'}}>
+                                                                 <div style={{flex:1, overflow:'hidden'}}>
+                                                                     <div style={{fontWeight:'bold', width:'100%', overflow:'hidden', textOverflow:'ellipsis'}} title={bid}>{bid}</div>
+                                                                     <div style={{fontSize:'0.8em', color:'#666', width:'100%', overflow:'hidden', textOverflow:'ellipsis'}} title={ov.blockType}>{ov.blockType}</div>
+                                                                 </div>
+                                                                 <button 
+                                                                     onClick={() => handleDraftSelectBlock(bid)}
+                                                                     style={{background:'none', border:'1px solid #ccc', borderRadius:'3px', color:'#007acc', cursor:'pointer', fontSize:'0.8em', padding:'1px 4px'}}
+                                                                     title="Go to block"
+                                                                 >
+                                                                     Go
+                                                                 </button>
+                                                                 <button 
+                                                                     onClick={() => handleDuplicateDraftBlock(bid)}
+                                                                     style={{background:'none', border:'1px solid #ccc', borderRadius:'3px', color:'#333', cursor:'pointer', fontSize:'0.8em', padding:'1px 4px'}}
+                                                                     title="Duplicate"
+                                                                 >
+                                                                     Dup
+                                                                 </button>
+                                                             </div>
+                                                         );
+                                                     })}
+                                                 </div>
+                                                 <div style={{display:'flex', flexDirection:'column', gap:'5px', marginTop:'5px'}}>
+                                                     <div style={{display:'flex', gap:'5px'}}>
+                                                         <input 
+                                                             type="text" 
+                                                             value={newOverlayId} 
+                                                             onChange={(e) => setNewOverlayId(e.target.value)}
+                                                             style={{flex:1, fontSize:'0.8em', padding:'2px', border:'1px solid #ccc'}}
+                                                             placeholder="New ID"
+                                                         />
+                                                     </div>
+                                                     <div style={{display:'flex', gap:'5px'}}>
+                                                         <select 
+                                                             value={newOverlayType}
+                                                             onChange={(e) => setNewOverlayType(e.target.value)}
+                                                             style={{flex:1, fontSize:'0.8em', padding:'2px', border:'1px solid #ccc'}}
+                                                         >
+                                                             <option value="shell.overlay.main_menu">main_menu</option>
+                                                             <option value="shell.overlay.modal">modal</option>
+                                                             <option value="shell.overlay.panel">panel</option>
+                                                             {/* User can technically type others if we gave a text input, but dropdown is safer for now */}
+                                                         </select>
+                                                         <button 
+                                                             onClick={handleCreateOverlay}
+                                                             disabled={!newOverlayId}
+                                                             style={{background: newOverlayId ? '#007acc' : '#ccc', color:'white', border:'none', borderRadius:'3px', cursor:'pointer', fontSize:'0.9em', padding:'2px 8px'}}
+                                                         >
+                                                             Create
+                                                         </button>
+                                                     </div>
+                                                 </div>
+                                             </div>
                                          );
                                      })()}
                                  </div>
