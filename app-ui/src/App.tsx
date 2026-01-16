@@ -1036,6 +1036,31 @@ function SysadminPanel({
         handleDraftSelectBlock(newId, newDraft);
     };
 
+    const handleDeleteBlock = () => {
+        if (!draftSelectedBlockId || !draftBundle) return;
+        
+        if (!window.confirm(`Delete block "${draftSelectedBlockId}" from Draft?`)) return;
+
+        const newDraft = deepClone(draftBundle) as any;
+        if (newDraft.blocks) {
+             delete newDraft.blocks[draftSelectedBlockId];
+        }
+        
+        setDraftBundle(newDraft);
+        setShowDeletePreview(false);
+        
+        // Update selection
+        const remaining = Object.keys(newDraft.blocks || {}).sort();
+        if (remaining.length > 0) {
+            // Try to select next or previous, or just first
+            handleDraftSelectBlock(remaining[0], newDraft); 
+        } else {
+            setDraftSelectedBlockId(null);
+            setDraftEditorText('');
+            setDraftEditorDirty(false);
+        }
+    };
+
     const draftDiff = useMemo(() => {
         if (!bundleData || !draftBundle) return { added: [], removed: [], modified: [] };
         const activeBlocks = (bundleData as any).blocks || {};
@@ -1105,6 +1130,47 @@ function SysadminPanel({
     // Safety Kit State
     const [ackWarnings, setAckWarnings] = useState(false);
     const [draftValidateOk, setDraftValidateOk] = useState(false);
+
+    // Delete Preview State
+    const [showDeletePreview, setShowDeletePreview] = useState(false);
+
+    const deleteImpact = useMemo(() => {
+        if (!draftBundle || !draftSelectedBlockId) return { referencedByBindings: [] };
+        
+        const res = { referencedByBindings: [] as Array<{ bindingId: string; kind: 'trigger.sourceBlockId' | 'endpoint.target.blockId'; detail: string }> };
+        const blocks = (draftBundle as any).blocks || {};
+        
+        Object.values(blocks).forEach((b: any) => {
+             if (b.blockType === 'binding') {
+                 const data = b.data || {};
+                 const bid = b.blockId || b.id;
+                 
+                 // Check trigger source
+                 if (data.mapping?.trigger?.sourceBlockId === draftSelectedBlockId) {
+                     res.referencedByBindings.push({ 
+                         bindingId: bid, 
+                         kind: 'trigger.sourceBlockId', 
+                         detail: `Trigger in binding "${bid}"` 
+                     });
+                 }
+                 
+                 // Check endpoints
+                 if (Array.isArray(data.endpoints)) {
+                     data.endpoints.forEach((ep: any, idx: number) => {
+                         if (ep.target?.blockId === draftSelectedBlockId) {
+                             res.referencedByBindings.push({
+                                 bindingId: bid,
+                                 kind: 'endpoint.target.blockId',
+                                 detail: `Endpoint [${idx}] in binding "${bid}"`
+                             });
+                         }
+                     });
+                 }
+             }
+        });
+        
+        return res;
+    }, [draftBundle, draftSelectedBlockId]);
 
     // Diff Helper
     const diffData = (obj1: unknown, obj2: unknown, path = '', results: any[] = []) => {
@@ -2055,8 +2121,62 @@ function SysadminPanel({
                                                  >
                                                      Duplicate Block
                                                  </button>
+                                                 
+                                                 <button 
+                                                     onClick={() => setShowDeletePreview(!showDeletePreview)}
+                                                     disabled={!selectedBlock}
+                                                     style={{
+                                                         padding:'6px 12px', 
+                                                         cursor: !selectedBlock ? 'not-allowed' : 'pointer',
+                                                         background: !selectedBlock ? '#f5f5f5' : '#ffebee',
+                                                         border: !selectedBlock ? '1px solid #ccc' : '1px solid #b71c1c',
+                                                         color: !selectedBlock ? '#aaa' : '#b71c1c',
+                                                         fontWeight: 600,
+                                                         borderRadius:'4px'
+                                                     }}
+                                                     title="Delete this block from Draft"
+                                                 >
+                                                     Delete Block
+                                                 </button>
                                              </div>
                                          </div>
+                                         
+                                         {showDeletePreview && selectedBlock && (
+                                             <div style={{marginTop:'10px', padding:'10px', border:'1px solid #b71c1c', background:'#fff5f5', borderRadius:'4px'}}>
+                                                 <div style={{fontWeight:'bold', color:'#b71c1c', marginBottom:'5px'}}>Execute Deletion?</div>
+                                                 <div style={{marginBottom:'10px', fontSize:'0.9em', color:'#333'}}>
+                                                     Remove block "<strong>{selectedBlock.blockId}</strong>" from draft?
+                                                     <div style={{marginTop:'5px'}}>
+                                                        Impact Analysis:
+                                                        {deleteImpact.referencedByBindings.length > 0 ? (
+                                                            <div style={{marginTop:'5px'}}>
+                                                                <div style={{color:'#d32f2f', fontWeight:'bold'}}>Warning: Referenced by bindings!</div>
+                                                                <ul style={{margin:'5px 0', paddingLeft:'20px', fontSize:'0.9em', color:'#555'}}>
+                                                                    {deleteImpact.referencedByBindings.slice(0, 5).map((ref, idx) => (
+                                                                        <li key={idx}>{ref.detail}</li>
+                                                                    ))}
+                                                                    {deleteImpact.referencedByBindings.length > 5 && <li>...and more</li>}
+                                                                </ul>
+                                                            </div>
+                                                        ) : (
+                                                            <div style={{color:'#2e7d32', fontStyle:'italic', marginTop:'5px'}}>No binding references found.</div>
+                                                        )}
+                                                     </div>
+                                                 </div>
+                                                 <div style={{display:'flex', gap:'10px', justifyContent:'flex-end'}}>
+                                                     <button onClick={() => setShowDeletePreview(false)} style={{padding:'6px 12px', cursor:'pointer'}}>Cancel</button>
+                                                     <button 
+                                                        onClick={handleDeleteBlock} 
+                                                        style={{
+                                                            padding:'6px 12px', cursor:'pointer', 
+                                                            background:'#b71c1c', color:'white', border:'none', borderRadius:'4px', fontWeight:'bold'
+                                                        }}
+                                                     >
+                                                        Confirm Delete
+                                                     </button>
+                                                 </div>
+                                             </div>
+                                         )}
 
                                          {selectedBlock && draftDiff.modified.includes(selectedBlock.blockId) && bundleData && (
                                               <div style={{marginTop:'20px', border:'1px solid #ccc', borderRadius:'6px', overflow:'hidden'}}>
