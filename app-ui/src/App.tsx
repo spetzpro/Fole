@@ -875,6 +875,10 @@ function SysadminPanel({
     const [draftEditorDirty, setDraftEditorDirty] = useState<boolean>(false);
     const [draftShowFullJson, setDraftShowFullJson] = useState<boolean>(false);
 
+    // Windows Registry Editor State
+    const [newWinId, setNewWinId] = useState('');
+    const [newWinMode, setNewWinMode] = useState<string>('singleton');
+
     // Persist to Storage
     useEffect(() => {
         try {
@@ -950,6 +954,67 @@ function SysadminPanel({
     const handleRegionChange = (slot: RegionSlot, blockId: string) => {
         if (!draftBundle) return;
         setDraftBundle(writeRegionBlockId(draftBundle, slot, blockId));
+    };
+
+    // Windows Registry Helpers
+    const handleAddWindow = () => {
+        if (!draftBundle || !newWinId.trim()) return;
+        const blocks = (draftBundle as any).blocks || {};
+        const infra = blocks['infra_windows'];
+        
+        // Safety check: ensure block exists
+        if (!infra || infra.blockType !== 'shell.infra.window_registry') {
+            alert("Error: 'infra_windows' block missing or invalid type.");
+            return;
+        }
+
+        const currentWindows = infra.data?.windows || {};
+        if (currentWindows[newWinId.trim()]) {
+            alert(`Window ID "${newWinId}" already exists.`);
+            return;
+        }
+
+        const newBlocks = deepClone(blocks);
+        // Ensure path exists
+        if (!newBlocks.infra_windows.data) newBlocks.infra_windows.data = {};
+        if (!newBlocks.infra_windows.data.windows) newBlocks.infra_windows.data.windows = {};
+        
+        newBlocks.infra_windows.data.windows[newWinId.trim()] = {
+            id: newWinId.trim(),
+            mode: newWinMode
+        };
+
+        const newDraft = { ...(draftBundle as any), blocks: newBlocks };
+        setDraftBundle(newDraft);
+        setNewWinId(''); // reset input
+    };
+
+    const handleRemoveWindow = (wid: string) => {
+        if (!draftBundle) return;
+        const blocks = (draftBundle as any).blocks || {};
+        if (!blocks['infra_windows']) return;
+
+        if (!confirm(`Remove window definition "${wid}"?`)) return;
+
+        const newBlocks = deepClone(blocks);
+        if (newBlocks.infra_windows?.data?.windows) {
+             delete newBlocks.infra_windows.data.windows[wid];
+        }
+
+        setDraftBundle({ ...(draftBundle as any), blocks: newBlocks });
+    };
+
+    const handleUpdateWindowMode = (wid: string, newMode: string) => {
+        if (!draftBundle) return;
+        const blocks = (draftBundle as any).blocks || {};
+        if (!blocks['infra_windows']) return;
+
+        const newBlocks = deepClone(blocks);
+        if (newBlocks.infra_windows.data?.windows?.[wid]) {
+             newBlocks.infra_windows.data.windows[wid].mode = newMode;
+        }
+
+        setDraftBundle({ ...(draftBundle as any), blocks: newBlocks });
     };
 
     const handleCreateDraft = () => {
@@ -1172,6 +1237,14 @@ function SysadminPanel({
                  res.warnings.push(`Region "${slot}" references missing blockId "${regionBid}"`);
              }
         });
+
+        // Windows Registry Check
+        const infra = blocks['infra_windows'];
+        if (!infra) {
+             res.warnings.push(`Block "infra_windows" is missing. Runtime may fail.`);
+        } else if (!infra.data?.windows) {
+             res.warnings.push(`Block "infra_windows" missing data.windows.`);
+        }
 
         if (res.errors.length > 0) res.status = 'BLOCKED';
         else if (res.warnings.length > 0) res.status = 'WARNINGS';
@@ -2180,6 +2253,77 @@ function SysadminPanel({
                                              </div>
                                          );
                                      })}
+                                 </div>
+
+                                 {/* Windows Registry (Draft) */}
+                                 <div style={{marginBottom:'10px', paddingBottom:'10px', borderBottom:'1px solid #eee'}}>
+                                     <div style={{fontWeight:'bold', marginBottom:'5px', color:'#333', fontSize:'0.9em'}}>Windows Registry (Draft)</div>
+                                     {(() => {
+                                         const blocks = (draftBundle as any).blocks || {};
+                                         const infra = blocks['infra_windows'];
+                                         if (!infra || infra.blockType !== 'shell.infra.window_registry') {
+                                             return <div style={{color:'#d32f2f', fontSize:'0.8em'}}>Missing infra_windows block.</div>;
+                                         }
+                                         
+                                         const windows = infra.data?.windows || {};
+                                         const winIds = Object.keys(windows).sort();
+
+                                         return (
+                                            <div>
+                                                <div style={{maxHeight:'150px', overflowY:'auto', overflowX:'hidden', marginBottom:'5px', border:'1px solid #f0f0f0'}}>
+                                                    {winIds.map(wid => {
+                                                        const w = windows[wid];
+                                                        const mode = w.mode || 'singleton';
+                                                        return (
+                                                            <div key={wid} style={{display:'flex', alignItems:'center', gap:'4px', padding:'2px', fontSize:'0.85em'}}>
+                                                                <div style={{width:'70px', overflow:'hidden', textOverflow:'ellipsis', fontWeight:'bold'}} title={wid}>{wid}</div>
+                                                                <select 
+                                                                    value={mode}
+                                                                    onChange={(e) => handleUpdateWindowMode(wid, e.target.value)}
+                                                                    style={{flex:1, border:'1px solid #ccc', borderRadius:'3px', fontSize:'0.9em', padding:'1px'}}
+                                                                >
+                                                                    <option value="singleton">singleton</option>
+                                                                    <option value="multi">multi</option>
+                                                                    {!['singleton','multi'].includes(mode) && <option value={mode}>(current: {mode})</option>}
+                                                                </select>
+                                                                <button 
+                                                                    onClick={() => handleRemoveWindow(wid)}
+                                                                    style={{background:'none', border:'none', color:'#d32f2f', cursor:'pointer', fontWeight:'bold', fontSize:'1.1em', lineHeight:'1em'}}
+                                                                    title="Remove Window"
+                                                                >
+                                                                    ×
+                                                                </button>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                                <div style={{display:'flex', gap:'5px', alignItems:'center'}}>
+                                                    <input 
+                                                        type="text" 
+                                                        placeholder="New ID..." 
+                                                        value={newWinId} 
+                                                        onChange={(e) => setNewWinId(e.target.value)}
+                                                        style={{width:'60px', fontSize:'0.8em', padding:'2px', border:'1px solid #ccc'}}
+                                                    />
+                                                    <select 
+                                                        value={newWinMode} 
+                                                        onChange={(e) => setNewWinMode(e.target.value)}
+                                                        style={{width:'65px', fontSize:'0.8em', padding:'2px', border:'1px solid #ccc'}}
+                                                    >
+                                                        <option value="singleton">Single</option>
+                                                        <option value="multi">Multi</option>
+                                                    </select>
+                                                    <button 
+                                                        onClick={handleAddWindow}
+                                                        disabled={!newWinId}
+                                                        style={{background: newWinId ? '#007acc' : '#ccc', color:'white', border:'none', borderRadius:'3px', cursor:'pointer', fontSize:'0.9em', padding:'2px 6px'}}
+                                                    >
+                                                        +
+                                                    </button>
+                                                </div>
+                                            </div>
+                                         );
+                                     })()}
                                  </div>
 
                                  <input 
