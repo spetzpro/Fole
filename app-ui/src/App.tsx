@@ -918,6 +918,12 @@ function SysadminPanel({
          setDraftEditorText(block ? JSON.stringify(block.data ?? {}, null, 2) : '{}');
          setDraftEditorDirty(false);
          setDraftEditorError(null);
+         setDraftFixHint(null);
+    };
+
+    const handleGoToIntegrity = (id: string, fixPath: string) => {
+        handleDraftSelectBlock(id);
+        setDraftFixHint(`Fix: ${fixPath}`);
     };
 
     const handleCreateDraft = () => {
@@ -1133,6 +1139,7 @@ function SysadminPanel({
 
     // Delete Preview State
     const [showDeletePreview, setShowDeletePreview] = useState(false);
+    const [draftFixHint, setDraftFixHint] = useState<string | null>(null);
 
     const deleteImpact = useMemo(() => {
         if (!draftBundle || !draftSelectedBlockId) return { referencedByBindings: [] };
@@ -1171,6 +1178,52 @@ function SysadminPanel({
         
         return res;
     }, [draftBundle, draftSelectedBlockId]);
+
+    const draftIntegrityIssues = useMemo(() => {
+        const issues: Array<{ severity: 'WARN' | 'ERROR'; bindingId: string; kind: string; missingBlockId: string; details: string; jsonPath: string }> = [];
+        if (!draftBundle) return issues;
+        
+        const blocks = (draftBundle as any).blocks || {};
+        
+        Object.values(blocks).forEach((b: any) => {
+             if (b.blockType === 'binding') {
+                 const data = b.data || {};
+                 const bid = b.blockId || b.id;
+                 
+                 // Check trigger source
+                 const triggerSrc = data.mapping?.trigger?.sourceBlockId;
+                 if (triggerSrc && !blocks[triggerSrc]) {
+                     issues.push({
+                         severity: 'WARN',
+                         bindingId: bid,
+                         kind: 'missing sourceBlockId',
+                         missingBlockId: triggerSrc,
+                         details: `Binding "${bid}" triggers from missing block "${triggerSrc}"`,
+                         jsonPath: 'data.mapping.trigger.sourceBlockId'
+                     });
+                 }
+                 
+                 // Check endpoints
+                 if (Array.isArray(data.endpoints)) {
+                     data.endpoints.forEach((ep: any, idx: number) => {
+                         const tgt = ep.target?.blockId;
+                         if (tgt && !blocks[tgt]) {
+                             issues.push({
+                                 severity: 'WARN',
+                                 bindingId: bid,
+                                 kind: 'missing endpoint target',
+                                 missingBlockId: tgt,
+                                 details: `Binding "${bid}" endpoint[${idx}] targets missing block "${tgt}"`,
+                                 jsonPath: `data.endpoints[${idx}].target.blockId`
+                             });
+                         }
+                     });
+                 }
+             }
+        });
+        
+        return issues;
+    }, [draftBundle]);
 
     // Diff Helper
     const diffData = (obj1: unknown, obj2: unknown, path = '', results: any[] = []) => {
@@ -1864,6 +1917,53 @@ function SysadminPanel({
                              </div>
                          </div>
 
+                         {/* Draft Integrity Panel */}
+                         <div style={{
+                             padding:'10px', marginBottom:'10px', 
+                             border:'1px solid #ffcc80', borderRadius:'4px',
+                             background: '#fff3e0'
+                         }}>
+                             <div style={{fontWeight:'bold', marginBottom:'5px', color:'#e65100', fontSize:'1em'}}>Draft Integrity</div>
+                             {draftIntegrityIssues.length === 0 ? (
+                                 <div style={{color:'#2e7d32', fontSize:'0.9em', fontStyle:'italic'}}>
+                                     No broken binding references detected.
+                                 </div>
+                             ) : (
+                                 <div>
+                                     <div style={{fontSize:'0.9em', color:'#e65100', marginBottom:'5px', fontWeight:'bold'}}>
+                                         {draftIntegrityIssues.length} broken reference{draftIntegrityIssues.length !== 1 ? 's' : ''} detected:
+                                     </div>
+                                     <div style={{display:'flex', flexDirection:'column', gap:'4px', maxHeight:'150px', overflowY:'auto'}}>
+                                         {draftIntegrityIssues.map((issue, idx) => (
+                                             <div key={idx} style={{
+                                                 display:'flex', justifyContent:'space-between', alignItems:'center',
+                                                 background:'white', padding:'4px 8px', borderRadius:'3px', border:'1px solid #ffe0b2',
+                                                 fontSize:'0.85em'
+                                             }}>
+                                                 <div style={{display:'flex', flexDirection:'column', gap:'2px'}}>
+                                                     <span style={{color:'#333'}}>{issue.details}</span>
+                                                     <div style={{display:'flex', alignItems:'center', gap:'5px', color:'#777', fontSize:'0.9em', fontFamily:'monospace'}}>
+                                                        <span>Path: {issue.jsonPath}</span>
+                                                        <CopyBtn k={`path-${idx}`} text={issue.jsonPath} label="Copy Path" />
+                                                     </div>
+                                                 </div>
+                                                 <button
+                                                     onClick={() => handleGoToIntegrity(issue.bindingId, issue.jsonPath)}
+                                                     style={{
+                                                         background:'none', border:'none', color:'#007acc', 
+                                                         cursor:'pointer', textDecoration:'underline', fontWeight:'bold',
+                                                         padding:'0 5px'
+                                                     }}
+                                                 >
+                                                     Go to
+                                                 </button>
+                                             </div>
+                                         ))}
+                                     </div>
+                                 </div>
+                             )}
+                         </div>
+
                          {/* Apply Preview Section (Safety Kit) */}
                          <div style={{
                              marginBottom:'10px', padding:'10px', 
@@ -2044,6 +2144,16 @@ function SysadminPanel({
                                                  {draftEditorDirty && <span style={{color:'#d32f2f', marginLeft:'10px', fontWeight:'bold'}}>Unsaved changes</span>}
                                              </div>
                                          </div>
+                                         
+                                         {draftFixHint && (
+                                             <div style={{
+                                                 background:'#e3f2fd', color:'#0d47a1', padding:'8px 12px', marginBottom:'10px', 
+                                                 borderRadius:'4px', borderLeft:'4px solid #1976d2', fontSize:'0.9em', display:'flex', alignItems:'center', justifyContent:'space-between'
+                                             }}>
+                                                 <span>{draftFixHint}</span>
+                                                 <button onClick={() => setDraftFixHint(null)} style={{border:'none', background:'none', color:'#0d47a1', cursor:'pointer', fontWeight:'bold'}}>×</button>
+                                             </div>
+                                         )}
                                          
                                          <textarea 
                                              value={draftEditorText}
