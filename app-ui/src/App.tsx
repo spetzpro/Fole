@@ -1536,7 +1536,7 @@ function SysadminPanel({
 
     if (!isOpen) return null;
 
-    const tabs = ['ShellConfig', 'Blocks', 'Bindings', 'ActionIndex', 'Runtime', 'Draft'];
+    const tabs = ['ShellConfig', 'Blocks', 'Bindings', 'Data', 'ActionIndex', 'Runtime', 'Draft'];
 
     // Render Logic per Tab
     const renderContent = () => {
@@ -1727,6 +1727,69 @@ function SysadminPanel({
                          </div>
                      </div>
                  );
+            }
+            case 'Data': {
+                if (!bundleData) return <div style={{padding:'20px', color:'#666'}}>No bundle/config loaded yet.</div>;
+                const blocksMap = (bundleData as any).blocks || {};
+                
+                const sourceBlock = blocksMap['SourceBlock'];
+                const targetBlock = blocksMap['TargetBlock'];
+
+                return (
+                    <div style={{padding:'10px', height:'100%', overflowY:'auto'}}>
+                         <div style={{
+                             padding:'8px', 
+                             marginBottom:'15px', 
+                             background:'#e3f2fd', 
+                             border:'1px solid #90caf9', 
+                             borderRadius:'4px',
+                             fontSize:'0.9em',
+                             color:'#0d47a1'
+                         }}>
+                             <strong>Info:</strong> Click <code>btn1::click</code> in runtime to see changes propagate (Trigger1 writes TargetBlock.state.count).
+                         </div>
+
+                         {/* Source Block */}
+                         <div style={{marginBottom:'20px', border:'1px solid #ddd', borderRadius:'4px'}}>
+                             <div style={{padding:'8px', background:'#f5f5f5', borderBottom:'1px solid #ddd', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+                                 <span>
+                                     <strong>SourceBlock</strong>
+                                     {sourceBlock && <span style={{marginLeft:'8px', fontSize:'0.85em', color:'#666'}}>({sourceBlock.blockType})</span>}
+                                 </span>
+                                 {sourceBlock && <CopyBtn k="sourceblock" text={sourceBlock.data} label="Copy Data" />}
+                             </div>
+                             <div style={{padding:'10px'}}>
+                                 {sourceBlock ? (
+                                     <pre style={{...preStyle, margin:0, maxHeight:'200px', overflow:'auto'}}>
+                                         {JSON.stringify(sourceBlock.data, null, 2)}
+                                     </pre>
+                                 ) : (
+                                     <div style={{fontStyle:'italic', color:'#888'}}>Block "SourceBlock" not found in active bundle.</div>
+                                 )}
+                             </div>
+                         </div>
+
+                         {/* Target Block */}
+                         <div style={{marginBottom:'20px', border:'1px solid #ddd', borderRadius:'4px'}}>
+                             <div style={{padding:'8px', background:'#f5f5f5', borderBottom:'1px solid #ddd', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+                                 <span>
+                                     <strong>TargetBlock</strong>
+                                     {targetBlock && <span style={{marginLeft:'8px', fontSize:'0.85em', color:'#666'}}>({targetBlock.blockType})</span>}
+                                 </span>
+                                 {targetBlock && <CopyBtn k="targetblock" text={targetBlock.data} label="Copy Data" />}
+                             </div>
+                             <div style={{padding:'10px'}}>
+                                 {targetBlock ? (
+                                     <pre style={{...preStyle, margin:0, maxHeight:'200px', overflow:'auto'}}>
+                                         {JSON.stringify(targetBlock.data, null, 2)}
+                                     </pre>
+                                 ) : (
+                                     <div style={{fontStyle:'italic', color:'#888'}}>Block "TargetBlock" not found in active bundle.</div>
+                                 )}
+                             </div>
+                         </div>
+                    </div>
+                );
             }
             case 'ActionIndex': {
                 const selectedAction = selectedActionId 
