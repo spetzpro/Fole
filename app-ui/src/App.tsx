@@ -926,6 +926,17 @@ function SysadminPanel({
         setDraftFixHint(`Fix: ${fixPath}`);
     };
 
+    const handleRegionChange = (slot: 'top'|'main'|'bottom', blockId: string) => {
+        if (!draftBundle) return;
+        const newDraft = deepClone(draftBundle) as BundleResponse;
+        if (!newDraft.manifest) newDraft.manifest = { title: 'Draft Manifest' };
+        if (!newDraft.manifest.regions) newDraft.manifest.regions = {};
+        if (!newDraft.manifest.regions[slot]) newDraft.manifest.regions[slot] = { blockId: '' };
+        
+        newDraft.manifest.regions[slot].blockId = blockId;
+        setDraftBundle(newDraft);
+    };
+
     const handleCreateDraft = () => {
         if (!bundleData) {
             setDraftError("No active bundle to clone.");
@@ -1068,7 +1079,7 @@ function SysadminPanel({
     };
 
     const draftDiff = useMemo(() => {
-        if (!bundleData || !draftBundle) return { added: [], removed: [], modified: [] };
+        if (!bundleData || !draftBundle) return { added: [], removed: [], modified: [], manifestChanged: false };
         const activeBlocks = (bundleData as any).blocks || {};
         const draftBlocks = (draftBundle as any).blocks || {};
         const activeKeys = Object.keys(activeBlocks);
@@ -1078,7 +1089,9 @@ function SysadminPanel({
         const removed = activeKeys.filter(k => !draftBlocks[k]);
         const modified = draftKeys.filter(k => activeBlocks[k] && JSON.stringify(activeBlocks[k]) !== JSON.stringify(draftBlocks[k]));
         
-        return { added, removed, modified };
+        const manifestChanged = JSON.stringify((bundleData as any).manifest) !== JSON.stringify((draftBundle as any).manifest);
+
+        return { added, removed, modified, manifestChanged };
     }, [bundleData, draftBundle]);
 
     const validationResult = useMemo(() => {
@@ -1122,6 +1135,15 @@ function SysadminPanel({
                     });
                 }
             }
+        });
+
+        // Regions check
+        const regions = (draftBundle as any).manifest?.regions || {};
+        ['top', 'main', 'bottom'].forEach(slot => {
+             const regionBid = regions[slot]?.blockId;
+             if (regionBid && regionBid !== '(none)' && !blocks[regionBid]) {
+                 res.warnings.push(`Region "${slot}" references missing blockId "${regionBid}"`);
+             }
         });
 
         if (res.errors.length > 0) res.status = 'BLOCKED';
@@ -1222,6 +1244,22 @@ function SysadminPanel({
              }
         });
         
+        // Regions check
+        const regions = (draftBundle as any).manifest?.regions || {};
+        ['top', 'main', 'bottom'].forEach(slot => {
+             const regionBid = regions[slot]?.blockId;
+             if (regionBid && regionBid !== '(none)' && !blocks[regionBid]) {
+                 issues.push({
+                     severity: 'WARN',
+                     bindingId: 'MANIFEST', // Special ID
+                     kind: `missing region ${slot}`,
+                     missingBlockId: regionBid,
+                     details: `Region "${slot}" references missing block "${regionBid}"`,
+                     jsonPath: `manifest.regions.${slot}.blockId`
+                 });
+             }
+        });
+
         return issues;
     }, [draftBundle]);
 
@@ -1982,7 +2020,10 @@ function SysadminPanel({
                                      </div>
                                      <div style={{marginBottom:'3px'}}>
                                          <strong>Plan: </strong>
-                                         <span>Add {draftDiff.added.length}, Remove {draftDiff.removed.length}, Modify {draftDiff.modified.length}</span>
+                                         <span>
+                                             Add {draftDiff.added.length}, Remove {draftDiff.removed.length}, Modify {draftDiff.modified.length}
+                                             {draftDiff.manifestChanged && <span style={{color:'#f57c00', fontWeight:'bold', marginLeft:'5px'}}>+ Manifest Update</span>}
+                                         </span>
                                      </div>
                                      
                                      {/* Warning Acknowledgement Checkbox */}
@@ -2064,6 +2105,7 @@ function SysadminPanel({
                                  <strong style={{color:'#007acc'}}>Draft Active</strong>
                                  <span style={{fontSize:'0.9em', color:'#555'}}>
                                      Added: <b>{draftDiff.added.length}</b> | Removed: <b>{draftDiff.removed.length}</b> | Modified: <b>{draftDiff.modified.length}</b>
+                                     {draftDiff.manifestChanged && <span style={{marginLeft:'10px', color:'#ef6c00', fontWeight:'bold'}}>(Manifest Changed)</span>}
                                  </span>
                                  <span style={{fontSize:'0.8em', color:'#999', fontStyle:'italic'}}>
                                      (Saved locally)
@@ -2080,6 +2122,33 @@ function SysadminPanel({
                          <div style={{display:'flex', flex:1, width:'100%', overflow:'hidden', gap:'10px', minHeight: 0}}>
                              {/* Left: Block List */}
                              <div style={{flex: '0 0 260px', display:'flex', flexDirection:'column', borderRight:'1px solid #ddd', paddingRight:'5px'}}>
+                                 
+                                 {/* Regions Editor */}
+                                 <div style={{marginBottom:'10px', paddingBottom:'10px', borderBottom:'1px solid #eee'}}>
+                                     <div style={{fontWeight:'bold', marginBottom:'5px', color:'#333', fontSize:'0.9em'}}>Regions (Draft)</div>
+                                     {['top','main','bottom'].map(slot => {
+                                         const regions = (draftBundle as any).manifest?.regions || {};
+                                         const current = regions[slot]?.blockId || '';
+                                         
+                                         return (
+                                             <div key={slot} style={{marginBottom:'5px', display:'flex', alignItems:'center', justifyContent:'space-between'}}>
+                                                 <span style={{fontSize:'0.85em', color:'#555', width:'45px', textTransform:'capitalize'}}>{slot}</span>
+                                                 <select 
+                                                     value={current} 
+                                                     onChange={(e) => handleRegionChange(slot as any, e.target.value)}
+                                                     style={{fontSize:'0.8em', flex:1, padding:'2px', border:'1px solid #ccc', borderRadius:'3px', maxWidth:'200px'}}
+                                                 >
+                                                     <option value="">(none)</option>
+                                                     {draftBlocksArr.map(b => {
+                                                         const bid = b.blockId || b.id;
+                                                         return <option key={bid} value={bid}>{bid}</option>;
+                                                     })}
+                                                 </select>
+                                             </div>
+                                         );
+                                     })}
+                                 </div>
+
                                  <input 
                                     type="text" 
                                     placeholder="Filter draft blocks..." 
