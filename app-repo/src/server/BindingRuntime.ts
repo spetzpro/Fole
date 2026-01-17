@@ -13,6 +13,9 @@ export interface IntegrationInvocation {
     url?: string;
     integrationConfig?: any;
     durationMs?: number;
+    httpStatus?: number;
+    responseSnippet?: string;
+    errorMessage?: string;
 }
 
 export class BindingRuntime {
@@ -20,10 +23,19 @@ export class BindingRuntime {
     private runtimeState: Record<string, any>;
     private lock: boolean = false;
     private integrationInvocations: IntegrationInvocation[] = [];
+    private executeIntegrationsEnabled: boolean = false;
 
     constructor(bundle: ShellBundle["bundle"], runtimeState: Record<string, any>) {
         this.bundle = bundle;
         this.runtimeState = runtimeState;
+    }
+
+    public getExecuteIntegrationsEnabled(): boolean {
+        return this.executeIntegrationsEnabled;
+    }
+
+    public setExecuteIntegrationsEnabled(enabled: boolean) {
+        this.executeIntegrationsEnabled = !!enabled;
     }
 
     public recordIntegrationInvocation(inv: IntegrationInvocation) {
@@ -98,7 +110,8 @@ export class BindingRuntime {
                 evt, 
                 ctx, 
                 0, 
-                (inv) => this.recordIntegrationInvocation(inv)
+                (inv) => this.recordIntegrationInvocation(inv),
+                this.executeIntegrationsEnabled
             );
 
             result.applied = engineResult.applied;

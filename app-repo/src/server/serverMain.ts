@@ -399,12 +399,42 @@ async function main() {
     }
   });
 
-  router.get("/api/routing/resolve/:entrySlug", async (req, res, params) => {
-    let entrySlug = params.entrySlug || "";
-    entrySlug = entrySlug.trim().toLowerCase();
+  // Debug: Execute Mode Toggle
+  router.get("/api/debug/runtime/integrations/execute-mode", async (req, res, _params, ctx) => {
+    if (!ModeGate.canUseDebugEndpoints(ctx)) {
+       return router.json(res, 403, { error: "Forbidden: Debug endpoints require Debug Mode" });
+    }
+    const runtime = runtimeManager.getRuntime();
+    router.json(res, 200, { 
+        enabled: runtime ? runtime.getExecuteIntegrationsEnabled() : false 
+    });
+  });
 
+  router.post("/api/debug/runtime/integrations/execute-mode", async (req, res, _params, ctx) => {
+    if (!ModeGate.canUseDebugEndpoints(ctx)) {
+       return router.json(res, 403, { error: "Forbidden: Debug endpoints require Debug Mode" });
+    }
+    const runtime = runtimeManager.getRuntime();
+    if (!runtime) {
+         return router.json(res, 400, { error: "Runtime not active" });
+    }
     try {
+        const body = await router.readJsonBody(req);
+        runtime.setExecuteIntegrationsEnabled(!!body.enabled);
+        router.json(res, 200, { 
+            enabled: runtime.getExecuteIntegrationsEnabled() 
+        });
+    } catch(err: any) {
+        router.json(res, 400, { error: err.message });
+    }
+  });
+
+  // Routing Resolution Endpoint
+  router.get("/api/runtime/routing/resolve/:entrySlug", async (req, res, params) => {
+    try {
+        const { entrySlug } = params;
         const active = await configRepo.getActivePointer();
+
         if (!active) {
             return router.json(res, 404, { error: "No active configuration" });
         }

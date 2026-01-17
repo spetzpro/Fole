@@ -28,7 +28,8 @@ export function dispatchTriggeredBindings(
   evt: TriggerEvent,
   ctx: TriggerContext,
   depth: number = 0,
-  onIntegrationInvoke?: (inv: any) => void
+  onIntegrationInvoke?: (inv: any) => void,
+  executeIntegrations: boolean = false
 ): TriggeredBindingResult {
   const result: TriggeredBindingResult = { applied: 0, skipped: 0, logs: [] };
   
@@ -109,7 +110,7 @@ export function dispatchTriggeredBindings(
           const integrationBlock = bundle.blocks[integrationId];
           const integrationType = integrationBlock ? integrationBlock.blockType : "unknown";
           
-          // Phase 4.3.1: Dry Run Logic
+          // Phase 4.3.1 & 4.3.2: Dry Run vs Execute Logic
           const integrationConfig = integrationBlock ? integrationBlock.data : {};
           
           let url = undefined;
@@ -119,22 +120,91 @@ export function dispatchTriggeredBindings(
              url = `${base}/${path}`;
           }
 
-          onIntegrationInvoke({
-              integrationId,
-              integrationType,
-              method: mapping.method,
-              path: mapping.path,
-              sourceBindingId: blockId,
-              timestamp: new Date().toISOString(),
-              status: 'dry_run',
-              integrationConfig,
-              url,
-              durationMs: 0
-          });
+          if (executeIntegrations && integrationType === 'shell.infra.api.http' && url) {
+              // Execute Mode (Safe HTTP GET only)
+              (async () => {
+                  const start = Date.now();
+                  try {
+                      // Safety Checks
+                      const parsedUrl = new URL(url);
+                      const hostname = parsedUrl.hostname;
+                      const allowedHosts = ['localhost', '127.0.0.1', 'example.com'];
+                      
+                      if (!allowedHosts.includes(hostname)) {
+                          throw new Error(`Host '${hostname}' not in allowlist.`);
+                      }
+                      
+                      const method = (mapping.method || 'GET').toUpperCase();
+                      if (method !== 'GET') {
+                          throw new Error(`Method '${method}' not allowed in debug execute mode (GET only).`);
+                      }
 
-          result.applied++;
-          result.logs.push(`[${blockId}] Applied: callIntegration -> ${integrationId} (dry_run)`);
-          continue;
+                      const controller = new AbortController();
+                      const timeoutId = setTimeout(() => controller.abort(), 3000); // 3s timeout
+
+                      const response = await fetch(url, {
+                          method: 'GET',
+                          signal: controller.signal
+                      });
+                      clearTimeout(timeoutId);
+
+                      const text = await response.text();
+                      const truncated = text.slice(0, 32 * 1024); // 32KB limit
+
+                      onIntegrationInvoke({
+                        integrationId,
+                        integrationType,
+                        method: mapping.method,
+                        path: mapping.path,
+                        sourceBindingId: blockId,
+                        timestamp: new Date().toISOString(),
+                        status: 'success',
+                        integrationConfig,
+                        url,
+                        durationMs: Date.now() - start,
+                        httpStatus: response.status,
+                        responseSnippet: truncated
+                    });
+                  } catch (err: any) {
+                      onIntegrationInvoke({
+                        integrationId,
+                        integrationType,
+                        method: mapping.method,
+                        path: mapping.path,
+                        sourceBindingId: blockId,
+                        timestamp: new Date().toISOString(),
+                        status: 'error',
+                        integrationConfig,
+                        url,
+                        durationMs: Date.now() - start,
+                        errorMessage: err.message
+                    });
+                  }
+              })();
+
+              result.applied++;
+              result.logs.push(`[${blockId}] Applied: callIntegration -> ${integrationId} (async execute)`);
+              continue;
+
+          } else {
+            // Dry Run Mode (Default)
+            onIntegrationInvoke({
+                integrationId,
+                integrationType,
+                method: mapping.method,
+                path: mapping.path,
+                sourceBindingId: blockId,
+                timestamp: new Date().toISOString(),
+                status: 'dry_run',
+                integrationConfig,
+                url,
+                durationMs: 0
+            });
+
+            result.applied++;
+            result.logs.push(`[${blockId}] Applied: callIntegration -> ${integrationId} (dry_run)`);
+            continue;
+          }
       }
 
       if (mapping.kind !== "setLiteral" && mapping.kind !== "setFromPayload") {
