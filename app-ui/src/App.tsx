@@ -851,6 +851,37 @@ function SysadminPanel({
     const [selectedActionId, setSelectedActionId] = useState<string | null>(null);
     const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
+    // Invocations (Phase 4.2)
+    const [invocations, setInvocations] = useState<any[] | null>(null);
+    const [invocationsError, setInvocationsError] = useState<string | null>(null);
+
+    const refreshInvocations = () => {
+        setInvocationsError(null);
+        fetch('/api/debug/runtime/integrations/invocations')
+            .then(async (res) => {
+                const j = await res.json();
+                if (res.status === 403 || res.status === 404) {
+                    setInvocationsError(`Access Denied or Not Found (${res.status}). Service may not be debug-enabled.`);
+                    setInvocations([]);
+                    return;
+                }
+                if (!res.ok) throw new Error(j.error || 'Unknown Error');
+                // Expect { invocations: any[] }
+                setInvocations(Array.isArray(j.invocations) ? j.invocations : []);
+            })
+            .catch(err => {
+                setInvocationsError(err.message);
+                setInvocations([]);
+            });
+    };
+
+    // Auto-refresh invocations if tab is open, when actionRuns update
+    useEffect(() => {
+        if (activeTab === 'Invocations') {
+            refreshInvocations();
+        }
+    }, [activeTab, actionRuns.length]);
+
     // Persistence Key
     const DRAFT_KEY = 'fole.bootstrap.draftShellConfig';
 
@@ -1619,7 +1650,7 @@ function SysadminPanel({
 
     if (!isOpen) return null;
 
-    const tabs = ['ShellConfig', 'Blocks', 'Bindings', 'Data', 'ActionIndex', 'Runtime', 'Draft'];
+    const tabs = ['ShellConfig', 'Blocks', 'Bindings', 'Data', 'ActionIndex', 'Runtime', 'Draft', 'Invocations'];
 
     // Render Logic per Tab
     const renderContent = () => {
@@ -3028,6 +3059,66 @@ function SysadminPanel({
                              <div style={{marginTop:'5px', fontSize:'0.8em', color:'#666', fontStyle:'italic'}}>
                                  Draft is local-only. Apply is not implemented in this phase.
                              </div>
+                         </div>
+                     </div>
+                 );
+            }
+            case 'Invocations': {
+                 const invs = invocations || [];
+                 if (invocationsError) {
+                     return <div style={{padding:'20px', color:'red'}}>{invocationsError}</div>;
+                 }
+                 if (!invs.length) {
+                     return (
+                         <div style={{padding:'20px'}}>
+                            <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+                                <span>No invocations recorded yet.</span>
+                                <button onClick={refreshInvocations} style={{cursor:'pointer', padding:'4px 8px'}}>Refresh</button>
+                            </div>
+                         </div>
+                     );
+                 }
+
+                 return (
+                     <div style={{display:'flex', flexDirection:'column', height:'100%'}}>
+                         <div style={{padding:'10px', display:'flex', justifyContent:'space-between', alignItems:'center', background:'#f5f5f5', borderBottom:'1px solid #ddd'}}>
+                             <strong>Recent Invocations ({invs.length})</strong>
+                             <button onClick={refreshInvocations} style={{cursor:'pointer', padding:'4px 8px'}}>Refresh</button>
+                         </div>
+                         <div style={{flex:1, overflowY:'auto'}}>
+                             <table style={{width:'100%', borderCollapse:'collapse', fontSize:'0.9em'}}>
+                                 <thead style={{background:'#eee', position:'sticky', top:0}}>
+                                     <tr>
+                                         <th style={{padding:'6px', textAlign:'left', borderBottom:'1px solid #ccc'}}>Time</th>
+                                         <th style={{padding:'6px', textAlign:'left', borderBottom:'1px solid #ccc'}}>Integration</th>
+                                          <th style={{padding:'6px', textAlign:'left', borderBottom:'1px solid #ccc'}}>Method</th>
+                                         <th style={{padding:'6px', textAlign:'left', borderBottom:'1px solid #ccc'}}>Status</th>
+                                         <th style={{padding:'6px', textAlign:'left', borderBottom:'1px solid #ccc'}}>Duration</th>
+                                     </tr>
+                                 </thead>
+                                 <tbody>
+                                     {invs.slice().reverse().map((inv: any) => (
+                                         <tr key={inv.id} style={{borderBottom:'1px solid #eee'}}>
+                                             <td style={{padding:'6px', color:'#555'}}>{new Date(inv.timestamp).toLocaleTimeString()}</td>
+                                             <td style={{padding:'6px'}}>
+                                                <div>{inv.integrationId}</div>
+                                                <div style={{fontSize:'0.8em', color:'#888'}}>{inv.blockId}</div>
+                                             </td>
+                                             <td style={{padding:'6px'}}>{inv.method}</td>
+                                             <td style={{padding:'6px'}}>
+                                                 <span style={{
+                                                     background: inv.status === 'success' ? '#e8f5e9' : '#ffebee',
+                                                     color: inv.status === 'success' ? '#2e7d32' : '#c62828',
+                                                     padding:'2px 6px', borderRadius:'4px', fontSize:'0.85em', fontWeight:'bold'
+                                                 }}>
+                                                     {inv.status}
+                                                 </span>
+                                             </td>
+                                             <td style={{padding:'6px', color:'#555'}}>{inv.durationMs}ms</td>
+                                         </tr>
+                                     ))}
+                                 </tbody>
+                             </table>
                          </div>
                      </div>
                  );
