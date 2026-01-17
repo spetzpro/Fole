@@ -83,4 +83,39 @@ export class BindingRuntime {
 
         return result;
     }
+
+    public getBindingsDebugInfo(): any[] {
+        const bindings: any[] = [];
+        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+        if (!this.bundle || !this.bundle.blocks) return bindings;
+
+        for (const [id, block] of Object.entries(this.bundle.blocks)) {
+            if (block.blockType === 'binding') {
+                const b = block as any;
+                bindings.push({
+                    bindingId: b.blockId || id,
+                    mode: b.data?.mode,
+                    trigger: b.data?.mapping?.trigger,
+                    enabled: b.data?.enabled
+                });
+            }
+        }
+        return bindings;
+    }
+
+    public getBlockStateSnapshot(blockId: string): any {
+        const block = this.bundle.blocks[blockId];
+        if (!block) return null;
+
+        const defaultData = block.data || {};
+        const runData = this.runtimeState[blockId] || {};
+
+        // Simple shallow merge for debugging visibility
+        // If runtime structure was deep, we'd need deep merge
+        return { ...defaultData, ...runData };
+    }
+
+    public getInternalStateDebug(): Record<string, any> {
+        return this.runtimeState;
+    }
 }

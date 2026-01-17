@@ -260,7 +260,14 @@ async function main() {
             triggerCtx
         );
 
-        router.json(res, 200, result);
+        router.json(res, 200, {
+            ...result,
+            emittedTrigger: {
+                sourceBlockId: body.sourceBlockId,
+                name: body.actionName,
+                // These are the key fields used for matching triggers in dispatchTriggeredBindings
+            }
+        });
 
     } catch (err: any) {
         // eslint-disable-next-line no-console
@@ -311,12 +318,20 @@ async function main() {
         }
 
         const ids = idsParam.split(',').map(s => s.trim()).filter(s => s.length > 0);
-        const currentState = runtimeManager.getRuntimeState();
         
+        const runtime = runtimeManager.getRuntime();
         const blocks: Record<string, any> = {};
-        for (const id of ids) {
-             // Return null if not found, or the state object if found
-             blocks[id] = currentState[id] || null;
+
+        if (runtime) {
+             for (const id of ids) {
+                 blocks[id] = runtime.getBlockStateSnapshot(id);
+             }
+        } else {
+             // Fallback if runtime not active, though debatable for "debug/runtime"
+             const rawState = runtimeManager.getRuntimeState();
+             for (const id of ids) {
+                 blocks[id] = rawState[id] || null;
+             }
         }
 
         router.json(res, 200, { blocks });
@@ -324,6 +339,42 @@ async function main() {
     } catch (err: any) {
         // eslint-disable-next-line no-console
         console.error("Debug data-blocks error", err);
+        router.json(res, 500, { error: "Internal Server Error" });
+    }
+  });
+
+  // Debug Runtime Bindings Endpoint
+  router.get("/api/debug/runtime/bindings", async (req, res, _params, ctx) => {
+    if (!ModeGate.canUseDebugEndpoints(ctx)) {
+       return router.json(res, 403, { error: "Forbidden: Debug endpoints require Debug Mode" });
+    }
+
+    try {
+        const runtime = runtimeManager.getRuntime();
+        const bindings = runtime ? runtime.getBindingsDebugInfo() : [];
+        router.json(res, 200, { bindings });
+    } catch (err: any) {
+        // eslint-disable-next-line no-console
+        console.error("Debug bindings error", err);
+        router.json(res, 500, { error: "Internal Server Error" });
+    }
+  });
+
+  // Debug Internal State Store Endpoint
+  router.get("/api/debug/runtime/state-store", async (req, res, _params, ctx) => {
+    if (!ModeGate.canUseDebugEndpoints(ctx)) {
+       return router.json(res, 403, { error: "Forbidden: Debug endpoints require Debug Mode" });
+    }
+
+    try {
+        const runtime = runtimeManager.getRuntime();
+        // If runtime created, use its accessor (wraps same object but cleaner)
+        // If not, fallback to manager's raw object
+        const stateStore = runtime ? runtime.getInternalStateDebug() : runtimeManager.getRuntimeState();
+        router.json(res, 200, { stateStore });
+    } catch (err: any) {
+        // eslint-disable-next-line no-console
+        console.error("Debug state-store error", err);
         router.json(res, 500, { error: "Internal Server Error" });
     }
   });

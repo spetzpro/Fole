@@ -37,8 +37,11 @@ export class JsonPointer {
     // Traverse until second to last
     for (let i = 0; i < tokens.length - 1; i++) {
         const token = this.unescape(tokens[i]);
+        if (current[token] === undefined || current[token] === null) {
+            // Auto-create object if missing
+            current[token] = {};
+        }
         current = current[token];
-        if (current === undefined || current === null) return; // Traversal failed
     }
 
     const lastToken = this.unescape(tokens[tokens.length - 1]);
