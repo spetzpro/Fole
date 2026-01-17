@@ -855,6 +855,48 @@ function SysadminPanel({
     const [invocations, setInvocations] = useState<any[] | null>(null);
     const [invocationsError, setInvocationsError] = useState<string | null>(null);
 
+    // Execute Mode (Phase 4.3.2)
+    const [executeMode, setExecuteMode] = useState<boolean | null>(null);
+    const [executeModeError, setExecuteModeError] = useState<string | null>(null);
+
+    const refreshExecuteMode = () => {
+        setExecuteModeError(null);
+        fetch('/api/debug/runtime/integrations/execute-mode')
+            .then(async (res) => {
+                 const j = await res.json();
+                 if (res.status === 403) {
+                     setExecuteMode(null);
+                     setExecuteModeError("Debug endpoints disabled");
+                     return;
+                 }
+                 setExecuteMode(!!j.enabled);
+            })
+            .catch(err => {
+                setExecuteMode(null);
+                setExecuteModeError(err.message);
+            });
+    };
+
+    const toggleExecuteMode = async () => {
+        setExecuteModeError(null);
+        try {
+            const newState = !executeMode;
+            const res = await fetch('/api/debug/runtime/integrations/execute-mode', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ enabled: newState })
+            });
+            const j = await res.json();
+            if (!res.ok) throw new Error(j.error || "Failed to toggle mode");
+            setExecuteMode(!!j.enabled);
+            
+            // Refresh list to show potential changes if any side-effects occurred
+            refreshInvocations();
+        } catch(err: any) {
+            setExecuteModeError(err.message);
+        }
+    };
+
     const refreshInvocations = () => {
         setInvocationsError(null);
         fetch('/api/debug/runtime/integrations/invocations')
@@ -879,6 +921,7 @@ function SysadminPanel({
     useEffect(() => {
         if (activeTab === 'Invocations') {
             refreshInvocations();
+            refreshExecuteMode();
         }
     }, [activeTab, actionRuns.length]);
 
@@ -3065,60 +3108,116 @@ function SysadminPanel({
             }
             case 'Invocations': {
                  const invs = invocations || [];
+                 
+                 // If major error blocking access
                  if (invocationsError) {
-                     return <div style={{padding:'20px', color:'red'}}>{invocationsError}</div>;
-                 }
-                 if (!invs.length) {
                      return (
                          <div style={{padding:'20px'}}>
-                            <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
-                                <span>No invocations recorded yet.</span>
-                                <button onClick={refreshInvocations} style={{cursor:'pointer', padding:'4px 8px'}}>Refresh</button>
-                            </div>
+                             <div style={{color:'red', fontWeight:'bold'}}>{invocationsError}</div>
+                             <div style={{marginTop:'10px'}}>Ensure backend is running and FOLE_DEV_ENABLE_DEBUG_ENDPOINTS=1 is set.</div>
                          </div>
                      );
                  }
 
                  return (
                      <div style={{display:'flex', flexDirection:'column', height:'100%'}}>
+                         
+                         {/* Execution Mode Header */}
+                         <div style={{padding:'15px', borderBottom:'1px solid #ddd', background:'#eef', display:'flex', flexDirection:'column', gap:'8px'}}>
+                             <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+                                 <strong style={{fontSize:'1.1em', color:'#333'}}>Integration Execution Mode</strong>
+                                 
+                                 <div style={{display:'flex', alignItems:'center', gap:'15px'}}>
+                                     {executeMode === null ? (
+                                         <span style={{color:'#666', fontStyle:'italic'}}>Status unavailable {executeModeError && `(${executeModeError})`}</span>
+                                     ) : (
+                                         <>
+                                            <span style={{
+                                                fontSize:'0.9em', fontWeight:'bold', 
+                                                padding:'4px 10px', borderRadius:'12px',
+                                                background: executeMode ? '#ffebee' : '#e0f7fa',
+                                                color: executeMode ? '#c62828' : '#006064',
+                                                border: '1px solid',
+                                                borderColor: executeMode ? '#ffcdd2' : '#b2ebf2'
+                                            }}>
+                                                {executeMode ? 'EXECUTE' : 'DRY-RUN'}
+                                            </span>
+                                            
+                                            <button 
+                                                onClick={toggleExecuteMode}
+                                                style={{
+                                                    cursor:'pointer', padding:'4px 12px', fontSize:'0.9em',
+                                                    background: executeMode ? 'white' : '#007acc',
+                                                    color: executeMode ? '#c62828' : 'white',
+                                                    border: executeMode ? '1px solid #c62828' : 'none',
+                                                    borderRadius:'4px',
+                                                    fontWeight:'bold'
+                                                }}
+                                            >
+                                                {executeMode ? 'Disable Execution' : 'Enable Execution'}
+                                            </button>
+                                         </>
+                                     )}
+                                 </div>
+                             </div>
+                             
+                             {/* Description / Hint */}
+                             {executeMode !== null && (
+                                 <div style={{fontSize:'0.85em', color: executeMode ? '#b71c1c' : '#555'}}>
+                                     {executeMode 
+                                        ? "⚠️ REAL HTTP REQUESTS ENABLED. Only allowlisted hosts will be contacted." 
+                                        : "ℹ️ Simulation mode. No network calls are made. Requests are logged as 'dry_run'."}
+                                 </div>
+                             )}
+                         </div>
+
+                         {/* List Header */}
                          <div style={{padding:'10px', display:'flex', justifyContent:'space-between', alignItems:'center', background:'#f5f5f5', borderBottom:'1px solid #ddd'}}>
                              <strong>Recent Invocations ({invs.length})</strong>
                              <button onClick={refreshInvocations} style={{cursor:'pointer', padding:'4px 8px'}}>Refresh</button>
                          </div>
+
+                         {/* List Content */}
                          <div style={{flex:1, overflowY:'auto'}}>
-                             <table style={{width:'100%', borderCollapse:'collapse', fontSize:'0.9em'}}>
-                                 <thead style={{background:'#eee', position:'sticky', top:0}}>
-                                     <tr>
-                                         <th style={{padding:'6px', textAlign:'left', borderBottom:'1px solid #ccc'}}>Time</th>
-                                         <th style={{padding:'6px', textAlign:'left', borderBottom:'1px solid #ccc'}}>Integration</th>
-                                          <th style={{padding:'6px', textAlign:'left', borderBottom:'1px solid #ccc'}}>Method</th>
-                                         <th style={{padding:'6px', textAlign:'left', borderBottom:'1px solid #ccc'}}>Status</th>
-                                         <th style={{padding:'6px', textAlign:'left', borderBottom:'1px solid #ccc'}}>Duration</th>
-                                     </tr>
-                                 </thead>
-                                 <tbody>
-                                     {invs.slice().reverse().map((inv: any) => (
-                                         <tr key={inv.id} style={{borderBottom:'1px solid #eee'}}>
-                                             <td style={{padding:'6px', color:'#555'}}>{new Date(inv.timestamp).toLocaleTimeString()}</td>
-                                             <td style={{padding:'6px'}}>
-                                                <div>{inv.integrationId}</div>
-                                                <div style={{fontSize:'0.8em', color:'#888'}}>{inv.blockId}</div>
-                                             </td>
-                                             <td style={{padding:'6px'}}>{inv.method}</td>
-                                             <td style={{padding:'6px'}}>
-                                                 <span style={{
-                                                     background: inv.status === 'success' ? '#e8f5e9' : (inv.status === 'dry_run' ? '#e0f7fa' : '#ffebee'),
-                                                     color: inv.status === 'success' ? '#2e7d32' : (inv.status === 'dry_run' ? '#006064' : '#c62828'),
-                                                     padding:'2px 6px', borderRadius:'4px', fontSize:'0.85em', fontWeight:'bold'
-                                                 }}>
-                                                     {inv.status || '-'}
-                                                 </span>
-                                             </td>
-                                             <td style={{padding:'6px', color:'#555'}}>{inv.durationMs}ms</td>
+                             {invs.length === 0 ? (
+                                 <div style={{padding:'20px', color:'#777', fontStyle:'italic'}}>No invocations recorded yet.</div>
+                             ) : (
+                                 <table style={{width:'100%', borderCollapse:'collapse', fontSize:'0.9em'}}>
+                                     <thead style={{background:'#eee', position:'sticky', top:0}}>
+                                         <tr>
+                                             <th style={{padding:'6px', textAlign:'left', borderBottom:'1px solid #ccc'}}>Time</th>
+                                             <th style={{padding:'6px', textAlign:'left', borderBottom:'1px solid #ccc'}}>Integration</th>
+                                             <th style={{padding:'6px', textAlign:'left', borderBottom:'1px solid #ccc'}}>Method</th>
+                                             <th style={{padding:'6px', textAlign:'left', borderBottom:'1px solid #ccc'}}>Status</th>
+                                             <th style={{padding:'6px', textAlign:'left', borderBottom:'1px solid #ccc'}}>Duration</th>
+                                             <th style={{padding:'6px', textAlign:'left', borderBottom:'1px solid #ccc'}}>URL</th>
                                          </tr>
-                                     ))}
-                                 </tbody>
-                             </table>
+                                     </thead>
+                                     <tbody>
+                                         {invs.slice().reverse().map((inv: any) => (
+                                             <tr key={inv.id} style={{borderBottom:'1px solid #eee'}}>
+                                                 <td style={{padding:'6px', color:'#555'}}>{new Date(inv.timestamp).toLocaleTimeString()}</td>
+                                                 <td style={{padding:'6px'}}>
+                                                    <div>{inv.integrationId}</div>
+                                                    <div style={{fontSize:'0.8em', color:'#888'}}>{inv.blockId}</div>
+                                                 </td>
+                                                 <td style={{padding:'6px'}}>{inv.method}</td>
+                                                 <td style={{padding:'6px'}}>
+                                                     <span style={{
+                                                         background: inv.status === 'success' ? '#e8f5e9' : (inv.status === 'dry_run' ? '#e0f7fa' : '#ffebee'),
+                                                         color: inv.status === 'success' ? '#2e7d32' : (inv.status === 'dry_run' ? '#006064' : '#c62828'),
+                                                         padding:'2px 6px', borderRadius:'4px', fontSize:'0.85em', fontWeight:'bold'
+                                                     }}>
+                                                         {inv.status || '-'}
+                                                     </span>
+                                                 </td>
+                                                 <td style={{padding:'6px', color:'#555'}}>{inv.durationMs}ms</td>
+                                                 <td style={{padding:'6px', fontSize:'0.8em', color:'#555', maxWidth:'200px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}} title={inv.url}>{inv.url}</td>
+                                             </tr>
+                                         ))}
+                                     </tbody>
+                                 </table>
+                             )}
                          </div>
                      </div>
                  );
