@@ -379,6 +379,26 @@ async function main() {
     }
   });
 
+  // Debug Integration Invocations Endpoint
+  router.get("/api/debug/runtime/integrations/invocations", async (req, res, _params, ctx) => {
+    if (!ModeGate.canUseDebugEndpoints(ctx)) {
+       return router.json(res, 403, { error: "Forbidden: Debug endpoints require Debug Mode" });
+    }
+
+    try {
+        const runtime = runtimeManager.getRuntime();
+        if (!runtime) {
+            return router.json(res, 200, { invocations: [] });
+        }
+        const invocations = runtime.getIntegrationInvocations();
+        router.json(res, 200, { invocations });
+    } catch (err: any) {
+        // eslint-disable-next-line no-console
+        console.error("Debug invocations error", err);
+        router.json(res, 500, { error: "Internal Server Error" });
+    }
+  });
+
   router.get("/api/routing/resolve/:entrySlug", async (req, res, params) => {
     let entrySlug = params.entrySlug || "";
     entrySlug = entrySlug.trim().toLowerCase();

@@ -2,14 +2,36 @@ import { ShellBundle } from "./ShellConfigTypes";
 import { applyDerivedBindings, BindingEngineResult } from "./BindingEngine";
 import { dispatchTriggeredBindings, TriggerEvent, TriggerContext, TriggeredBindingResult } from "./TriggeredBindingEngine";
 
+export interface IntegrationInvocation {
+    integrationId: string;
+    integrationType: string;
+    method?: string;
+    path?: string;
+    sourceBindingId: string;
+    timestamp: string;
+}
+
 export class BindingRuntime {
     private bundle: ShellBundle["bundle"];
     private runtimeState: Record<string, any>;
     private lock: boolean = false;
+    private integrationInvocations: IntegrationInvocation[] = [];
 
     constructor(bundle: ShellBundle["bundle"], runtimeState: Record<string, any>) {
         this.bundle = bundle;
         this.runtimeState = runtimeState;
+    }
+
+    public recordIntegrationInvocation(inv: IntegrationInvocation) {
+        this.integrationInvocations.push(inv);
+        // Keep last 10
+        if (this.integrationInvocations.length > 10) {
+            this.integrationInvocations.shift();
+        }
+    }
+
+    public getIntegrationInvocations(): IntegrationInvocation[] {
+        return [...this.integrationInvocations];
     }
 
     /**
@@ -66,7 +88,14 @@ export class BindingRuntime {
 
         try {
             result.logs.push(`[BindingRuntime] Dispatching event '${evt.name}' from '${evt.sourceBlockId}'.`);
-            const engineResult = dispatchTriggeredBindings(this.bundle, this.runtimeState, evt, ctx);
+            const engineResult = dispatchTriggeredBindings(
+                this.bundle, 
+                this.runtimeState, 
+                evt, 
+                ctx, 
+                0, 
+                (inv) => this.recordIntegrationInvocation(inv)
+            );
 
             result.applied = engineResult.applied;
             result.skipped = engineResult.skipped;

@@ -27,7 +27,8 @@ export function dispatchTriggeredBindings(
   runtimeState: Record<string, any>,
   evt: TriggerEvent,
   ctx: TriggerContext,
-  depth: number = 0
+  depth: number = 0,
+  onIntegrationInvoke?: (inv: any) => void
 ): TriggeredBindingResult {
   const result: TriggeredBindingResult = { applied: 0, skipped: 0, logs: [] };
   
@@ -89,6 +90,39 @@ export function dispatchTriggeredBindings(
 
       // 3.3 Action Logic
       // Validate mapping kind
+
+      if (mapping.kind === "callIntegration") {
+          if (!onIntegrationInvoke) {
+              result.skipped++;
+              result.logs.push(`[${blockId}] Skipped: 'callIntegration' requested but no handler provided.`);
+              continue;
+          }
+          
+          const integrationId = mapping.integrationId;
+          if (!integrationId) {
+             result.skipped++;
+             result.logs.push(`[${blockId}] Skipped: 'callIntegration' missing 'integrationId'.`);
+             continue;
+          }
+
+          // Lookup integration type
+          const integrationBlock = bundle.blocks[integrationId];
+          const integrationType = integrationBlock ? integrationBlock.blockType : "unknown";
+
+          onIntegrationInvoke({
+              integrationId,
+              integrationType,
+              method: mapping.method,
+              path: mapping.path,
+              sourceBindingId: blockId,
+              timestamp: new Date().toISOString()
+          });
+
+          result.applied++;
+          result.logs.push(`[${blockId}] Applied: callIntegration -> ${integrationId}`);
+          continue;
+      }
+
       if (mapping.kind !== "setLiteral" && mapping.kind !== "setFromPayload") {
           result.skipped++;
           result.logs.push(`[${blockId}] Skipped: Unsupported triggered mapping kind '${mapping.kind}'.`);
