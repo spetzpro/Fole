@@ -108,6 +108,16 @@ export function dispatchTriggeredBindings(
           // Lookup integration type
           const integrationBlock = bundle.blocks[integrationId];
           const integrationType = integrationBlock ? integrationBlock.blockType : "unknown";
+          
+          // Phase 4.3.1: Dry Run Logic
+          const integrationConfig = integrationBlock ? integrationBlock.data : {};
+          
+          let url = undefined;
+          if (integrationType === 'shell.infra.api.http' && integrationConfig && (integrationConfig as any).baseUrl) {
+             const base = ((integrationConfig as any).baseUrl || '').replace(/\/$/, '');
+             const path = (mapping.path || '').replace(/^\//, '');
+             url = `${base}/${path}`;
+          }
 
           onIntegrationInvoke({
               integrationId,
@@ -115,11 +125,15 @@ export function dispatchTriggeredBindings(
               method: mapping.method,
               path: mapping.path,
               sourceBindingId: blockId,
-              timestamp: new Date().toISOString()
+              timestamp: new Date().toISOString(),
+              status: 'dry_run',
+              integrationConfig,
+              url,
+              durationMs: 0
           });
 
           result.applied++;
-          result.logs.push(`[${blockId}] Applied: callIntegration -> ${integrationId}`);
+          result.logs.push(`[${blockId}] Applied: callIntegration -> ${integrationId} (dry_run)`);
           continue;
       }
 

@@ -9,6 +9,10 @@ export interface IntegrationInvocation {
     path?: string;
     sourceBindingId: string;
     timestamp: string;
+    status?: string; // success, error, dry_run
+    url?: string;
+    integrationConfig?: any;
+    durationMs?: number;
 }
 
 export class BindingRuntime {

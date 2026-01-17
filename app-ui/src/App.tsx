@@ -3107,11 +3107,11 @@ function SysadminPanel({
                                              <td style={{padding:'6px'}}>{inv.method}</td>
                                              <td style={{padding:'6px'}}>
                                                  <span style={{
-                                                     background: inv.status === 'success' ? '#e8f5e9' : '#ffebee',
-                                                     color: inv.status === 'success' ? '#2e7d32' : '#c62828',
+                                                     background: inv.status === 'success' ? '#e8f5e9' : (inv.status === 'dry_run' ? '#e0f7fa' : '#ffebee'),
+                                                     color: inv.status === 'success' ? '#2e7d32' : (inv.status === 'dry_run' ? '#006064' : '#c62828'),
                                                      padding:'2px 6px', borderRadius:'4px', fontSize:'0.85em', fontWeight:'bold'
                                                  }}>
-                                                     {inv.status}
+                                                     {inv.status || '-'}
                                                  </span>
                                              </td>
                                              <td style={{padding:'6px', color:'#555'}}>{inv.durationMs}ms</td>
