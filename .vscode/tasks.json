@@ -58,7 +58,7 @@
 		{
 			"label": "Stop Debug Environment",
 			"type": "shell",
-			"command": "taskkill /F /IM node.exe /T",
+			"command": "taskkill /F /IM node.exe /T; exit 0",
 			"isBackground": false,
 			"problemMatcher": []
 		}
