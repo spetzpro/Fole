@@ -381,8 +381,34 @@ async function main() {
 
   // Debug Integration Invocations Endpoint
   router.get("/api/debug/runtime/integrations/invocations", async (req, res, _params, ctx) => {
+    // 1. Strict Gating
     if (!ModeGate.canUseDebugEndpoints(ctx)) {
        return router.json(res, 403, { error: "Forbidden: Debug endpoints require Debug Mode" });
+    }
+    // 2. Permission Check
+    // In dev debug/runtime, we might not always have granular permissions attached to the request unless auth middleware runs.
+    // However, for this deliverable, we assume the requester MUST have 'integration.view_invocations'.
+    // If we assume request context doesn't yet have permissions populated via middleware for these endpoints:
+    // We can simulate them or rely on a future auth middleware.
+    // BUT the prompt says "Use request-provided permissions list (already exists in debug dispatch) and/or env defaults."
+    // Since this is a GET request, there's no body with permissions. 
+    // We will assume permissions might come from x-dev-auth header (like resolved endpoint) OR are open in dev.
+    // The prompt explicitly demands ENFORCEMENT. "Require: integration.view_invocations. If missing: 403".
+    
+    // Let's implement header extraction similar to resolveRoutingHandler for consistency, 
+    // so we can actually test this.
+    const authHeader = req.headers["x-dev-auth"] as string | undefined;
+    let permissions = new Set<string>();
+    
+    if (authHeader) {
+        try {
+            const json = JSON.parse(authHeader);
+            if (Array.isArray(json.permissions)) json.permissions.forEach((p: any) => permissions.add(String(p)));
+        } catch { /* ignore */ }
+    }
+
+    if (!permissions.has("integration.view_invocations")) {
+        return router.json(res, 403, { ok: false, error: "Forbidden", reason: "missing integration.view_invocations" });
     }
 
     try {
@@ -404,6 +430,22 @@ async function main() {
     if (!ModeGate.canUseDebugEndpoints(ctx)) {
        return router.json(res, 403, { error: "Forbidden: Debug endpoints require Debug Mode" });
     }
+    
+    // Permission Extraction (copy-paste consistency)
+    const authHeader = req.headers["x-dev-auth"] as string | undefined;
+    let permissions = new Set<string>();
+    if (authHeader) {
+        try {
+            const json = JSON.parse(authHeader);
+            if (Array.isArray(json.permissions)) json.permissions.forEach((p: any) => permissions.add(String(p)));
+        } catch { /* ignore */ }
+    }
+
+    // Require: integration.toggle_execute_mode
+    if (!permissions.has("integration.toggle_execute_mode")) {
+        return router.json(res, 403, { ok: false, error: "Forbidden", reason: "missing integration.toggle_execute_mode" });
+    }
+
     const runtime = runtimeManager.getRuntime();
     router.json(res, 200, { 
         enabled: runtime ? runtime.getExecuteIntegrationsEnabled() : false 
@@ -414,12 +456,33 @@ async function main() {
     if (!ModeGate.canUseDebugEndpoints(ctx)) {
        return router.json(res, 403, { error: "Forbidden: Debug endpoints require Debug Mode" });
     }
+
+    // Permission Extraction
+    // Check header first (common pattern) 
+    // OR body could contain permissions? Usually auth is metadata. Best to stick to header for authZ.
+    const authHeader = req.headers["x-dev-auth"] as string | undefined;
+    let permissions = new Set<string>();
+    if (authHeader) {
+        try {
+            const json = JSON.parse(authHeader);
+            if (Array.isArray(json.permissions)) json.permissions.forEach((p: any) => permissions.add(String(p)));
+        } catch { /* ignore */ }
+    }
+
+    // Require: integration.toggle_execute_mode
+    if (!permissions.has("integration.toggle_execute_mode")) {
+        return router.json(res, 403, { ok: false, error: "Forbidden", reason: "missing integration.toggle_execute_mode" });
+    }
+
     const runtime = runtimeManager.getRuntime();
     if (!runtime) {
          return router.json(res, 400, { error: "Runtime not active" });
     }
     try {
         const body = await router.readJsonBody(req);
+        // Note: Body might also contain permissions if using the debug-dispatch pattern, 
+        // but for a mode toggle endpoint, header is cleaner.
+        
         runtime.setExecuteIntegrationsEnabled(!!body.enabled);
         router.json(res, 200, { 
             enabled: runtime.getExecuteIntegrationsEnabled() 

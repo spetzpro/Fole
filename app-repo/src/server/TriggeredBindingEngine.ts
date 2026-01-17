@@ -121,6 +121,29 @@ export function dispatchTriggeredBindings(
           }
 
           if (executeIntegrations && integrationType === 'shell.infra.api.http' && url) {
+              // Permission Check: integration.execute
+              const hasExecutePerm = ctx.permissions && ctx.permissions.has('integration.execute');
+
+              if (!hasExecutePerm) {
+                  // Permission denied
+                   onIntegrationInvoke({
+                        integrationId,
+                        integrationType,
+                        method: mapping.method,
+                        path: mapping.path,
+                        sourceBindingId: blockId,
+                        timestamp: new Date().toISOString(),
+                        status: 'error',
+                        integrationConfig,
+                        url,
+                        durationMs: 0,
+                        errorMessage: 'Missing permission: integration.execute'
+                    });
+                     result.applied++; // Still counts as applied (attempted)
+                     result.logs.push(`[${blockId}] Applied: callIntegration -> ${integrationId} (EXECUTE DENIED: missing integration.execute)`);
+                     continue;
+              }
+
               // Execute Mode (Safe HTTP GET only)
               (async () => {
                   const start = Date.now();

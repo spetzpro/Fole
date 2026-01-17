@@ -855,18 +855,34 @@ function SysadminPanel({
     const [invocations, setInvocations] = useState<any[] | null>(null);
     const [invocationsError, setInvocationsError] = useState<string | null>(null);
 
+    // Development Authentication Header for debug endpoints (Phase 4.4)
+    const DEV_AUTH_HEADER = {
+        "x-dev-auth": JSON.stringify({
+            permissions: [
+                "integration.view_invocations",
+                "integration.toggle_execute_mode",
+                "integration.execute"
+            ]
+        })
+    };
+
     // Execute Mode (Phase 4.3.2)
     const [executeMode, setExecuteMode] = useState<boolean | null>(null);
     const [executeModeError, setExecuteModeError] = useState<string | null>(null);
 
     const refreshExecuteMode = () => {
         setExecuteModeError(null);
-        fetch('/api/debug/runtime/integrations/execute-mode')
+        fetch('/api/debug/runtime/integrations/execute-mode', {
+            headers: { ...DEV_AUTH_HEADER }
+        })
             .then(async (res) => {
                  const j = await res.json();
                  if (res.status === 403) {
                      setExecuteMode(null);
-                     setExecuteModeError("Debug endpoints disabled");
+                     // Spec-compliant reason parsing
+                     setExecuteModeError(`Execution control unavailable (${j.reason || "permission required: integration.toggle_execute_mode"})`);
+                     // If fetch fails 403, we still want to show the disabled state, 
+                     // but the prompt says: disable the toggle controls.
                      return;
                  }
                  setExecuteMode(!!j.enabled);
@@ -883,10 +899,17 @@ function SysadminPanel({
             const newState = !executeMode;
             const res = await fetch('/api/debug/runtime/integrations/execute-mode', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    ...DEV_AUTH_HEADER
+                },
                 body: JSON.stringify({ enabled: newState })
             });
             const j = await res.json();
+            
+            if (res.status === 403) {
+                 throw new Error(`Execution control unavailable (${j.reason || "permission required: integration.toggle_execute_mode"})`);
+            }
             if (!res.ok) throw new Error(j.error || "Failed to toggle mode");
             setExecuteMode(!!j.enabled);
             
@@ -899,11 +922,20 @@ function SysadminPanel({
 
     const refreshInvocations = () => {
         setInvocationsError(null);
-        fetch('/api/debug/runtime/integrations/invocations')
+        fetch('/api/debug/runtime/integrations/invocations', {
+            headers: { ...DEV_AUTH_HEADER }
+        })
             .then(async (res) => {
                 const j = await res.json();
-                if (res.status === 403 || res.status === 404) {
-                    setInvocationsError(`Access Denied or Not Found (${res.status}). Service may not be debug-enabled.`);
+                if (res.status === 403) {
+                    setInvocationsError(`Permission required: ${j.reason ? j.reason.replace('missing ', '') : "integration.view_invocations"}`);
+                    // Keep existing invocations if any, or clear?
+                    // "keep tab button clickable but content shows the message"
+                    // We will just show the error message in the render area.
+                    return;
+                }
+                if (res.status === 404) {
+                    setInvocationsError(`Service not found (404).`);
                     setInvocations([]);
                     return;
                 }
@@ -913,7 +945,6 @@ function SysadminPanel({
             })
             .catch(err => {
                 setInvocationsError(err.message);
-                setInvocations([]);
             });
     };
 
@@ -3113,8 +3144,11 @@ function SysadminPanel({
                  if (invocationsError) {
                      return (
                          <div style={{padding:'20px'}}>
-                             <div style={{color:'red', fontWeight:'bold'}}>{invocationsError}</div>
-                             <div style={{marginTop:'10px'}}>Ensure backend is running and FOLE_DEV_ENABLE_DEBUG_ENDPOINTS=1 is set.</div>
+                             <div style={{color:'red', fontWeight:'bold', marginBottom:'10px'}}>{invocationsError}</div>
+                             {/* Keep the tab usable/visible, but show disabled message */}
+                             <div style={{color:'#666', fontStyle:'italic'}}>
+                                 Invocations data is currently unavailable.
+                             </div>
                          </div>
                      );
                  }
@@ -3129,7 +3163,7 @@ function SysadminPanel({
                                  
                                  <div style={{display:'flex', alignItems:'center', gap:'15px'}}>
                                      {executeMode === null ? (
-                                         <span style={{color:'#666', fontStyle:'italic'}}>Status unavailable {executeModeError && `(${executeModeError})`}</span>
+                                         <span style={{color:'#c62828', fontStyle:'italic'}}>Status Unavailable: {executeModeError}</span>
                                      ) : (
                                          <>
                                             <span style={{
