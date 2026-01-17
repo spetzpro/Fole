@@ -3129,7 +3129,7 @@ function SysadminPanel({
 
     return (
         <div style={{
-            position: 'absolute', top: '50px', right: '20px', width: '600px', maxWidth: '95vw', maxHeight: '80vh',
+            position: 'absolute', top: '50px', right: '20px', width: '860px', maxWidth: '95vw', maxHeight: '80vh',
             backgroundColor: 'white', color: '#222', 
             border: '2px solid #333', boxShadow: '0 5px 20px rgba(0,0,0,0.3)',
             zIndex: 9000, display: 'flex', flexDirection: 'column', overflow: 'hidden'
@@ -3149,7 +3149,18 @@ function SysadminPanel({
                 <button onClick={onClose} style={{background:'transparent', color:'white', border:'none', fontSize:'1.2em', cursor:'pointer'}}>×</button>
             </div>
             
-            <div style={{display:'flex', background: '#e5e5e5', color: '#111', borderBottom:'1px solid #ccc', paddingTop:'5px', paddingLeft:'5px'}}>
+            <div style={{
+                display:'flex', 
+                overflowX: 'auto', 
+                overflowY: 'hidden', 
+                alignItems: 'flex-end',
+                minHeight: '44px',
+                background: '#e5e5e5', 
+                color: '#111', 
+                borderBottom:'1px solid #ccc', 
+                paddingTop:'5px', 
+                paddingLeft:'5px'
+            }}>
                 {tabs.map(t => {
                     const isActive = activeTab === t;
                     return (
@@ -3163,7 +3174,7 @@ function SysadminPanel({
                                 setSelectedActionId(null);
                             }}
                             style={{
-                                flex: 1,  
+                                flex: '0 0 auto',
                                 padding:'8px 10px', 
                                 border: isActive ? '1px solid #ccc' : '1px solid transparent',
                                 borderBottom: isActive ? '1px solid #fff' : '1px solid transparent',
