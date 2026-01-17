@@ -883,6 +883,10 @@ function SysadminPanel({
     const [newOverlayId, setNewOverlayId] = useState('overlay_new');
     const [newOverlayType, setNewOverlayType] = useState('shell.overlay.main_menu');
 
+    // Integration (Draft)
+    const [newIntegrationId, setNewIntegrationId] = useState('api_main');
+    const [newIntegrationType, setNewIntegrationType] = useState('shell.infra.api.http');
+
     // Persist to Storage
     useEffect(() => {
         try {
@@ -1048,6 +1052,44 @@ function SysadminPanel({
 
         setDraftBundle(newDraft);
         setNewOverlayId('overlay_new'); // reset to default
+        handleDraftSelectBlock(proposedId, newDraft);
+    };
+
+    const handleCreateIntegration = () => {
+        if (!draftBundle || !newIntegrationId.trim()) return;
+        const blocks = (draftBundle as any).blocks || {};
+
+        let proposedId = newIntegrationId.trim();
+        // Ensure unique
+        if (blocks[proposedId]) {
+            let counter = 2;
+            while(blocks[`${proposedId}_${counter}`]) counter++;
+            proposedId = `${proposedId}_${counter}`;
+        }
+
+        let defaultData = {};
+        if (newIntegrationType === 'shell.infra.api.http') {
+            defaultData = { baseUrl: "https://example.com", headers: {}, timeoutMs: 10000 };
+        } else if (newIntegrationType === 'shell.infra.db.postgres') {
+            defaultData = { host: "localhost", port: 5432, database: "app", user: "app", ssl: false };
+        } else if (newIntegrationType === 'shell.infra.db.sqlite') {
+            defaultData = { filename: "app.db" };
+        }
+
+        const newBlock = {
+            schemaVersion: "1.0.0",
+            blockId: proposedId,
+            blockType: newIntegrationType,
+            data: defaultData,
+            filename: `${proposedId}.json`
+        };
+
+        const newDraft = deepClone(draftBundle) as any;
+        if (!newDraft.blocks) newDraft.blocks = {};
+        newDraft.blocks[proposedId] = newBlock;
+
+        setDraftBundle(newDraft);
+        setNewIntegrationId('api_main'); // reset to default
         handleDraftSelectBlock(proposedId, newDraft);
     };
 
@@ -1291,6 +1333,13 @@ function SysadminPanel({
                         }
                     });
                 }
+            } else if (b.blockType === 'shell.infra.api.http') {
+                if (!(b.data?.baseUrl)) res.warnings.push(`Integration "${bid}" missing required field 'baseUrl'.`);
+            } else if (b.blockType === 'shell.infra.db.postgres') {
+                if (!(b.data?.host)) res.warnings.push(`Integration "${bid}" missing required field 'host'.`);
+                if (!(b.data?.database)) res.warnings.push(`Integration "${bid}" missing required field 'database'.`);
+            } else if (b.blockType === 'shell.infra.db.sqlite') {
+                if (!(b.data?.filename)) res.warnings.push(`Integration "${bid}" missing required field 'filename'.`);
             }
         });
 
@@ -2464,6 +2513,91 @@ function SysadminPanel({
                                              </div>
                                          );
                                      })}
+                                 </div>
+
+
+                                 {/* Integrations (Draft) */}
+                                 <div style={{marginBottom:'10px', paddingBottom:'10px', borderBottom:'1px solid #eee'}}>
+                                     <div style={{fontWeight:'bold', marginBottom:'5px', color:'#333', fontSize:'0.9em'}}>Integrations (Draft)</div>
+                                     {(() => {
+                                         const blocksMap = (draftBundle as any).blocks || {};
+                                         const integrations = Object.values(blocksMap).filter((b: any) => 
+                                             (b.blockType || '').startsWith('shell.infra.api.') || (b.blockType || '').startsWith('shell.infra.db.')
+                                         ) as any[];
+                                         
+                                         return (
+                                             <div>
+                                                 <div style={{maxHeight:'150px', overflowY:'auto', overflowX:'hidden', marginBottom:'5px', border:'1px solid #f0f0f0'}}>
+                                                     {integrations.length === 0 && <div style={{fontStyle:'italic', color:'#999', fontSize:'0.8em', padding:'4px'}}>No integrations found.</div>}
+                                                     {integrations.map((item, i) => {
+                                                         const bid = item.blockId;
+                                                         return (
+                                                             <div key={bid || i} style={{display:'flex', alignItems:'center', gap:'4px', padding:'2px 0', fontSize:'0.85em', borderBottom:'1px dashed #eee'}}>
+                                                                 <div style={{flex:1, overflow:'hidden'}}>
+                                                                     <div style={{fontWeight:'bold', width:'100%', overflow:'hidden', textOverflow:'ellipsis'}} title={bid}>{bid}</div>
+                                                                     <div style={{fontSize:'0.8em', color:'#666', width:'100%', overflow:'hidden', textOverflow:'ellipsis'}} title={item.blockType}>{item.blockType}</div>
+                                                                 </div>
+                                                                 <button 
+                                                                     onClick={() => handleDraftSelectBlock(bid)}
+                                                                     style={{background:'none', border:'1px solid #ccc', borderRadius:'3px', color:'#007acc', cursor:'pointer', fontSize:'0.8em', padding:'1px 4px'}}
+                                                                     title="Go to block"
+                                                                 >
+                                                                     Go
+                                                                 </button>
+                                                                 <button 
+                                                                     onClick={() => handleDuplicateDraftBlock(bid)}
+                                                                     style={{background:'none', border:'1px solid #ccc', borderRadius:'3px', color:'#333', cursor:'pointer', fontSize:'0.8em', padding:'1px 4px'}}
+                                                                     title="Duplicate"
+                                                                 >
+                                                                     Dup
+                                                                 </button>
+                                                             </div>
+                                                         );
+                                                     })}
+                                                 </div>
+                                                 <div style={{display:'flex', flexDirection:'column', gap:'5px', marginTop:'5px'}}>
+                                                     <div>
+                                                         <label style={{fontSize:'0.75em', fontWeight:'bold', display:'block', marginBottom:'2px', color:'#555'}}>Integration ID</label>
+                                                         <input 
+                                                             type="text" 
+                                                             value={newIntegrationId} 
+                                                             onChange={(e) => setNewIntegrationId(e.target.value)}
+                                                             style={{width:'100%', fontSize:'0.8em', padding:'4px', border:'1px solid #ccc', boxSizing:'border-box'}}
+                                                             placeholder="e.g. api_main"
+                                                         />
+                                                     </div>
+                                                     <div>
+                                                         <label style={{fontSize:'0.75em', fontWeight:'bold', display:'block', marginBottom:'2px', color:'#555'}}>Integration Type</label>
+                                                         <select 
+                                                             value={newIntegrationType} 
+                                                             onChange={(e) => setNewIntegrationType(e.target.value)}
+                                                             style={{width:'100%', fontSize:'0.8em', padding:'4px', border:'1px solid #ccc', boxSizing:'border-box'}}
+                                                         >
+                                                             <option value="shell.infra.api.http">HTTP API (shell.infra.api.http)</option>
+                                                             <option value="shell.infra.db.postgres">PostgreSQL DB (shell.infra.db.postgres)</option>
+                                                             <option value="shell.infra.db.sqlite">SQLite DB (shell.infra.db.sqlite)</option>
+                                                         </select>
+                                                     </div>
+                                                     <button 
+                                                         onClick={handleCreateIntegration}
+                                                         disabled={!newIntegrationId}
+                                                         style={{
+                                                             marginTop:'5px',
+                                                             background: newIntegrationId ? '#007acc' : '#ccc', 
+                                                             color:'white', border:'none', borderRadius:'3px', 
+                                                             cursor: newIntegrationId ? 'pointer' : 'not-allowed', 
+                                                             fontSize:'0.9em', padding:'4px 8px', fontWeight:'bold', width:'100%'
+                                                         }}
+                                                     >
+                                                         Create Integration
+                                                     </button>
+                                                     <div style={{fontSize:'0.75em', color:'#888', fontStyle:'italic', textAlign:'center', marginTop:'2px'}}>
+                                                         Config-only (no backend calls yet)
+                                                     </div>
+                                                 </div>
+                                             </div>
+                                         );
+                                     })()}
                                  </div>
 
                                  {/* Windows Registry (Draft) */}
