@@ -430,7 +430,7 @@ async function main() {
   });
 
   // Routing Resolution Endpoint
-  router.get("/api/runtime/routing/resolve/:entrySlug", async (req, res, params) => {
+  const resolveRoutingHandler = async (req: any, res: any, params: any) => {
     try {
         const { entrySlug } = params;
         const active = await configRepo.getActivePointer();
@@ -563,7 +563,11 @@ async function main() {
         console.error("Resolve error", err);
         router.json(res, 500, { error: "Internal Server Error" });
     }
-  });
+  };
+
+  router.get("/api/runtime/routing/resolve/:entrySlug", resolveRoutingHandler);
+  // Alias for legacy frontend path
+  router.get("/api/routing/resolve/:entrySlug", resolveRoutingHandler);
 
 
   const server = http.createServer((req, res) => {
