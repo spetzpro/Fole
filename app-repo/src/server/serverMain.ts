@@ -225,6 +225,78 @@ async function main() {
     }
   });
 
+  router.get("/api/debug/config/shell/versions", async (_req, res, _params, ctx) => {
+    if (!ModeGate.canUseDebugEndpoints(ctx)) {
+       return router.json(res, 403, { error: "Debug mode disabled" });
+    }
+    
+    try {
+        const active = await configRepo.getActivePointer();
+        let activeMeta = null;
+        if (active) {
+             try {
+                 const bundle = await configRepo.getBundle(active.activeVersionId);
+                 activeMeta = bundle.meta;
+             } catch {}
+        }
+
+        const versions = await configRepo.listVersions(25);
+        
+        router.json(res, 200, {
+            activeVersionId: active ? active.activeVersionId : null,
+            activeMeta,
+            versions
+        });
+    } catch (err: any) {
+        // eslint-disable-next-line no-console
+        console.error("Error listing versions", err);
+        router.json(res, 500, { error: "Internal Server Error" });
+    }
+  });
+
+  router.get("/api/debug/config/shell/version/:versionId", async (_req, res, params, ctx) => {
+     if (!ModeGate.canUseDebugEndpoints(ctx)) {
+       return router.json(res, 403, { error: "Debug mode disabled" });
+    }
+
+    const versionId = params.versionId;
+    if (!versionId) return router.json(res, 400, { error: "Missing versionId" });
+
+    try {
+        const fullBundle = await configRepo.getBundle(versionId);
+        
+        // Calculate stats
+        const blocks = Object.values(fullBundle.bundle.blocks);
+        let bindingCount = 0;
+        let integrationCount = 0;
+        
+        for (const b of blocks) {
+            if (b.blockType === "binding") bindingCount++;
+            if ((b.blockType || "").startsWith("shell.infra.api") || (b.blockType || "").startsWith("shell.infra.db")) {
+                integrationCount++;
+            }
+        }
+
+        router.json(res, 200, {
+            versionId: fullBundle.versionId,
+            meta: fullBundle.meta,
+            manifest: fullBundle.bundle.manifest,
+            stats: {
+                blockCount: blocks.length,
+                bindingCount,
+                integrationCount
+            }
+        });
+    } catch (err: any) {
+        if (err.message.includes("not found")) {
+             return router.json(res, 404, { error: "Version not found" });
+        }
+        // eslint-disable-next-line no-console
+        console.error("Error details", err);
+        router.json(res, 500, { error: "Internal Server Error" });
+    }
+  });
+
   router.get("/api/config/shell/versions/:versionId", async (_req, res, params) => {
     const versionId = params.versionId;
     if (!versionId) {

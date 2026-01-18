@@ -120,4 +120,50 @@ export class ShellConfigRepository {
        throw err;
     }
   }
+
+  async listVersions(limit: number = 25): Promise<Array<{
+    versionId: string;
+    meta: ConfigMeta | null;
+    timestamp: string | null;
+    description: string | null;
+    mode: string | null;
+  }>> {
+    const archivePath = path.join(this.configRoot, "archive");
+    let entries: string[] = [];
+    try {
+      entries = await fs.readdir(archivePath);
+    } catch (err) {
+      if ((err as any).code === "ENOENT") return [];
+      throw err;
+    }
+    
+    // Sort descending (assuming versionId is timestamp-based or lexicographically comparable)
+    // v123 > v122
+    const sorted = entries.sort().reverse().slice(0, limit);
+
+    const results = await Promise.all(sorted.map(async (vId) => {
+        const metaPath = path.join(archivePath, vId, "meta.json");
+        try {
+            const content = await fs.readFile(metaPath, "utf-8");
+            const meta = JSON.parse(content);
+            return {
+                versionId: vId,
+                meta,
+                timestamp: meta.timestamp || null,
+                description: meta.description || null,
+                mode: meta.mode || null
+            };
+        } catch {
+            return {
+                versionId: vId,
+                meta: null,
+                timestamp: null,
+                description: null,
+                mode: null
+            };
+        }
+    }));
+
+    return results;
+  }
 }

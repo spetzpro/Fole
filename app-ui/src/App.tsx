@@ -902,7 +902,9 @@ function SysadminPanel({
     const [selectedActionId, setSelectedActionId] = useState<string | null>(null);
     const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
-    // Invocations (Phase 4.2)
+    // Dynamic Tabs Definition
+    const tabs = ['ShellConfig', 'Blocks', 'Bindings', 'Data', 'ActionIndex', 'Runtime', 'Draft', 'Invocations', 'Traces', 'Snapshot', 'Versions'];
+    // const [activeTab, setActiveTab] = useState('ShellConfig'); // Defined at top of component
     const [invocations, setInvocations] = useState<any[] | null>(null);
     const [invocationsError, setInvocationsError] = useState<string | null>(null);
     const [expandedInvocationKey, setExpandedInvocationKey] = useState<string | null>(null);
@@ -1043,6 +1045,54 @@ function SysadminPanel({
             });
     };
 
+    // Versions (Roadmap #4 Step 2)
+    const [shellVersions, setShellVersions] = useState<{
+        activeVersionId: string;
+        activeMeta: any;
+        versions: any[];
+    } | null>(null);
+    const [shellVersionsError, setShellVersionsError] = useState<string | null>(null);
+    const [selectedVersionId, setSelectedVersionId] = useState<string | null>(null);
+    const [selectedVersionDetail, setSelectedVersionDetail] = useState<any>(null);
+    const [versionDetailError, setVersionDetailError] = useState<string | null>(null);
+    const [versionDetailLoading, setVersionDetailLoading] = useState(false);
+
+    const refreshVersions = () => {
+        setShellVersionsError(null);
+        fetch('/api/debug/config/shell/versions')
+            .then(async (res) => {
+                const j = await res.json();
+                if (res.status === 403) {
+                    setShellVersionsError("Debug endpoints disabled (403). ensure FOLE_DEV_ENABLE_DEBUG_ENDPOINTS=1");
+                    return;
+                }
+                if (!res.ok) throw new Error(j.error || "Unknown Error");
+                setShellVersions(j);
+            })
+            .catch(err => setShellVersionsError(err.message));
+    };
+
+    const fetchVersionDetail = (vId: string) => {
+        setVersionDetailLoading(true);
+        setVersionDetailError(null);
+        setSelectedVersionDetail(null);
+        
+        fetch(`/api/debug/config/shell/version/${vId}`)
+            .then(async (res) => {
+                const j = await res.json();
+                if (res.status === 403) {
+                     throw new Error("Debug endpoints disabled (403)");
+                }
+                if (!res.ok) throw new Error(j.error || "Unknown Error");
+                setSelectedVersionDetail(j);
+                setVersionDetailLoading(false);
+            })
+            .catch(err => {
+                setVersionDetailError(err.message);
+                setVersionDetailLoading(false);
+            });
+    };
+
     // Auto-refresh invocations if tab is open, when actionRuns update
     useEffect(() => {
         if (activeTab === 'Invocations') {
@@ -1055,7 +1105,10 @@ function SysadminPanel({
         if (activeTab === 'Traces') {
              refreshTraces();
         }
-    }, [activeTab, actionRuns.length]);
+        if (activeTab === 'Versions' && !selectedVersionId) {
+             refreshVersions();
+        }
+    }, [activeTab, actionRuns.length, selectedVersionId]);
 
     // Persistence Key
     const DRAFT_KEY = 'fole.bootstrap.draftShellConfig';
@@ -1835,7 +1888,7 @@ function SysadminPanel({
 
     if (!isOpen) return null;
 
-    const tabs = ['ShellConfig', 'Blocks', 'Bindings', 'Data', 'ActionIndex', 'Runtime', 'Draft', 'Invocations', 'Snapshot', 'Traces'];
+    // definitions moved to top
 
     // Render Logic per Tab
     const renderContent = () => {
@@ -1849,6 +1902,128 @@ function SysadminPanel({
             border: '1px solid #ddd'
         };
         
+        if (activeTab === 'Versions') {
+            return (
+                <div style={{padding:'20px', overflow:'auto', height:'100%'}}>
+                    {selectedVersionId ? (
+                        // DETAIL VIEW
+                        <div style={{display:'flex', flexDirection:'column', height:'100%'}}>
+                             <div style={{marginBottom:'15px', display:'flex', alignItems:'center', gap:'15px'}}>
+                                 <button onClick={() => setSelectedVersionId(null)}>&larr; Back to List</button>
+                                 <h3 style={{margin:0}}>Version: {selectedVersionId}</h3>
+                                 {versionDetailLoading && <small>Loading...</small>}
+                             </div>
+                             
+                             {versionDetailError ? (
+                                 <div style={{color:'red', border:'1px solid red', padding:'10px'}}>{versionDetailError}</div>
+                             ) : selectedVersionDetail ? (
+                                 <div style={{flex:1, display:'flex', flexDirection:'column', gap:'15px'}}>
+                                     {/* Summary Chips */}
+                                     <div style={{display:'flex', gap:'10px', flexWrap:'wrap'}}>
+                                         <div style={{background:'#eee', padding:'5px 10px', borderRadius:'4px', fontSize:'0.9em'}}>
+                                             <strong>Author:</strong> {selectedVersionDetail.meta?.author || 'N/A'}
+                                         </div>
+                                         <div style={{background:'#eee', padding:'5px 10px', borderRadius:'4px', fontSize:'0.9em'}}>
+                                             <strong>Timestamp:</strong> {selectedVersionDetail.meta?.timestamp || 'N/A'}
+                                         </div>
+                                         <div style={{background:'#eee', padding:'5px 10px', borderRadius:'4px', fontSize:'0.9em'}}>
+                                             <strong>Mode:</strong> {selectedVersionDetail.meta?.mode || 'N/A'}
+                                         </div>
+                                     </div>
+
+                                     {/* Stats */}
+                                     <div style={{display:'flex', gap:'15px', padding:'15px', background:'#f9f9f9', border:'1px solid #ddd'}}>
+                                         <div style={{textAlign:'center'}}>
+                                             <div style={{fontSize:'1.5em', fontWeight:'bold'}}>{selectedVersionDetail.stats?.blockCount}</div>
+                                             <div style={{fontSize:'0.8em', color:'#666', textTransform:'uppercase'}}>Blocks</div>
+                                         </div>
+                                         <div style={{textAlign:'center'}}>
+                                             <div style={{fontSize:'1.5em', fontWeight:'bold'}}>{selectedVersionDetail.stats?.bindingCount}</div>
+                                             <div style={{fontSize:'0.8em', color:'#666', textTransform:'uppercase'}}>Bindings</div>
+                                         </div>
+                                         <div style={{textAlign:'center'}}>
+                                             <div style={{fontSize:'1.5em', fontWeight:'bold'}}>{selectedVersionDetail.stats?.integrationCount}</div>
+                                             <div style={{fontSize:'0.8em', color:'#666', textTransform:'uppercase'}}>Integrations</div>
+                                         </div>
+                                     </div>
+                                     
+                                     {/* Manifest & Actions */}
+                                     <div style={{flex:1, display:'flex', flexDirection:'column', overflow:'hidden', border:'1px solid #ddd'}}>
+                                         <div style={{background:'#eee', padding:'8px', borderBottom:'1px solid #ddd', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+                                              <strong>Manifest & Metadata</strong>
+                                              <CopyBtn k="verDetail" text={selectedVersionDetail} label="Copy Full JSON" />
+                                         </div>
+                                         <div style={{flex:1, overflow:'auto', padding:'0'}}>
+                                              <pre style={{margin:0, padding:'10px', fontFamily:'monospace', fontSize:'0.85em'}}>
+                                                  {JSON.stringify({ 
+                                                      manifest: selectedVersionDetail.manifest,
+                                                      meta: selectedVersionDetail.meta 
+                                                  }, null, 2)}
+                                              </pre>
+                                         </div>
+                                     </div>
+                                 </div>
+                             ) : (
+                                 !versionDetailLoading && <div>No data loaded.</div>
+                             )}
+                        </div>
+                    ) : (
+                        // LIST VIEW
+                        <div style={{height:'100%', display:'flex', flexDirection:'column'}}>
+                            <div style={{paddingBottom:'10px', borderBottom:'1px solid #eee', marginBottom:'10px'}}>
+                                <h3 style={{margin:'0 0 5px 0'}}>Version History</h3>
+                                <p style={{margin:0, fontSize:'0.9em', color:'#666'}}>
+                                    Active: <strong>{shellVersions?.activeVersionId || '...'}</strong> ({shellVersions?.activeMeta?.timestamp || '-'})
+                                </p>
+                                {shellVersionsError && <div style={{color:'red', marginTop:'5px'}}>{shellVersionsError}</div>}
+                            </div>
+                            
+                            <div style={{flex:1, overflow:'auto'}}>
+                                <table style={{width:'100%', borderCollapse:'collapse', fontSize:'0.9em'}}>
+                                    <thead style={{background:'#eee', position:'sticky', top:0}}>
+                                        <tr>
+                                            <th style={{padding:'8px', textAlign:'left', borderBottom:'1px solid #ccc'}}>Version ID</th>
+                                            <th style={{padding:'8px', textAlign:'left', borderBottom:'1px solid #ccc'}}>Timestamp</th>
+                                            <th style={{padding:'8px', textAlign:'left', borderBottom:'1px solid #ccc'}}>Description</th>
+                                            <th style={{padding:'8px', textAlign:'left', borderBottom:'1px solid #ccc'}}>Mode</th>
+                                            <th style={{padding:'8px', textAlign:'right', borderBottom:'1px solid #ccc'}}>Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {shellVersions?.versions?.map((v: any, i: number) => {
+                                             const isActive = v.versionId === shellVersions.activeVersionId;
+                                             return (
+                                                <tr key={v.versionId || i} style={{background: isActive ? '#f0f8ff' : 'white', borderBottom:'1px solid #eee'}}>
+                                                    <td style={{padding:'8px'}}>
+                                                        <div style={{fontWeight:'bold'}}>{v.versionId}</div>
+                                                        {isActive && <span style={{fontSize:'0.75em', color:'green', border:'1px solid green', borderRadius:'3px', padding:'0 2px'}}>ACTIVE</span>}
+                                                    </td>
+                                                    <td style={{padding:'8px'}}>{v.timestamp}</td>
+                                                    <td style={{padding:'8px'}}>{v.description}</td>
+                                                    <td style={{padding:'8px'}}>{v.mode}</td>
+                                                    <td style={{padding:'8px', textAlign:'right'}}>
+                                                        <button 
+                                                            onClick={() => { setSelectedVersionId(v.versionId); fetchVersionDetail(v.versionId); }}
+                                                            style={{cursor:'pointer'}}
+                                                        >
+                                                            View
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                             );
+                                        })}
+                                        {(!shellVersions?.versions || shellVersions.versions.length === 0) && (
+                                            <tr><td colSpan={5} style={{padding:'20px', textAlign:'center', color:'#888'}}>No versions found.</td></tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
         switch(activeTab) {
             case 'ShellConfig': {
                 if (!bundleData) return <div style={{padding:'20px', color:'#666'}}>No bundle/config loaded yet.</div>;
