@@ -856,6 +856,7 @@ function SysadminPanel({
     const [invocationsError, setInvocationsError] = useState<string | null>(null);
 
     // Development Authentication Header for debug endpoints (Phase 4.4)
+    // TODO: remove dev auth header when real identity/permissions are implemented
     const DEV_AUTH_HEADER = {
         "x-dev-auth": JSON.stringify({
             permissions: [
@@ -3159,7 +3160,23 @@ function SysadminPanel({
                          {/* Execution Mode Header */}
                          <div style={{padding:'15px', borderBottom:'1px solid #ddd', background:'#eef', display:'flex', flexDirection:'column', gap:'8px'}}>
                              <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
-                                 <strong style={{fontSize:'1.1em', color:'#333'}}>Integration Execution Mode</strong>
+                                 <div style={{display:'flex', alignItems:'center', gap:'10px'}}>
+                                     <strong style={{fontSize:'1.1em', color:'#333'}}>Integration Execution Mode</strong>
+                                     <span style={{
+                                         fontSize: '0.75em', 
+                                         background: '#ede7f6', 
+                                         color: '#4527a0', 
+                                         padding: '2px 6px', 
+                                         borderRadius: '4px', 
+                                         border: '1px solid #d1c4e9',
+                                         fontWeight: 'bold',
+                                         display: 'inline-flex',
+                                         alignItems: 'center',
+                                         gap: '4px'
+                                     }}>
+                                         DEV AUTH <span style={{fontWeight:'normal', opacity:0.8, fontSize:'0.9em'}}>temporary</span>
+                                     </span>
+                                 </div>
                                  
                                  <div style={{display:'flex', alignItems:'center', gap:'15px'}}>
                                      {executeMode === null ? (
