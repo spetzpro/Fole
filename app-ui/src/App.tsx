@@ -854,27 +854,13 @@ function SysadminPanel({
     const [invocationsError, setInvocationsError] = useState<string | null>(null);
     const [expandedInvocationKey, setExpandedInvocationKey] = useState<string | null>(null);
 
-    // Development Authentication Header for debug endpoints (Phase 4.4)
-    // TODO: remove dev auth header when real identity/permissions are implemented
-    const DEV_AUTH_HEADER: Record<string, string> = import.meta.env.DEV ? {
-        "x-dev-auth": JSON.stringify({
-            permissions: [
-                "integration.view_invocations",
-                "integration.toggle_execute_mode",
-                "integration.execute"
-            ]
-        })
-    } : {};
-
     // Execute Mode (Phase 4.3.2)
     const [executeMode, setExecuteMode] = useState<boolean | null>(null);
     const [executeModeError, setExecuteModeError] = useState<string | null>(null);
 
     const refreshExecuteMode = () => {
         setExecuteModeError(null);
-        fetch('/api/debug/runtime/integrations/execute-mode', {
-            headers: { ...DEV_AUTH_HEADER }
-        })
+        fetch('/api/debug/runtime/integrations/execute-mode')
             .then(async (res) => {
                  const j = await res.json();
                  if (res.status === 403) {
@@ -900,8 +886,7 @@ function SysadminPanel({
             const res = await fetch('/api/debug/runtime/integrations/execute-mode', {
                 method: 'POST',
                 headers: { 
-                    'Content-Type': 'application/json',
-                    ...DEV_AUTH_HEADER
+                    'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({ enabled: newState })
             });
@@ -922,9 +907,7 @@ function SysadminPanel({
 
     const refreshInvocations = () => {
         setInvocationsError(null);
-        fetch('/api/debug/runtime/integrations/invocations', {
-            headers: { ...DEV_AUTH_HEADER }
-        })
+        fetch('/api/debug/runtime/integrations/invocations')
             .then(async (res) => {
                 const j = await res.json();
                 if (res.status === 403) {
