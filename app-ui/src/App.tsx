@@ -862,17 +862,6 @@ function SysadminPanel({
     const [ackWarnings, setAckWarnings] = useState(false);
     const [confirmApply, setConfirmApply] = useState(false);
 
-    // Reset confirm state when important things change
-    useEffect(() => {
-        setConfirmApply(false);
-    }, [activeTab, selectedBlockId, filter]);
-    
-    // Also reset if warnings status changes (requires checking status derived in render, or effect on bundleData)
-    useEffect(() => {
-        // If bundle data changes (e.g. from background refresh), reset confirmations
-        setConfirmApply(false);
-    }, [bundleData]);
-
     const refreshExecuteMode = () => {
         setExecuteModeError(null);
         fetch('/api/debug/runtime/integrations/execute-mode')
@@ -1470,6 +1459,16 @@ function SysadminPanel({
         
         return res;
     }, [draftBundle]);
+
+    // EPIC 2: Reset confirmApply on context changes
+    useEffect(() => {
+        setConfirmApply(false);
+    }, [
+        activeTab,
+        draftSelectedBlockId,
+        draftBundle,
+        validationResult?.status
+    ]);
 
     const [showValidationDetails, setShowValidationDetails] = useState(false);
     const [showDataDiff, setShowDataDiff] = useState(false);
