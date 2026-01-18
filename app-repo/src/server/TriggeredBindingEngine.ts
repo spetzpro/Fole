@@ -228,7 +228,8 @@ export function dispatchTriggeredBindings(
                       // Safety Checks
                       const parsedUrl = new URL(url);
                       const hostname = parsedUrl.hostname;
-                      const allowedHosts = ['localhost', '127.0.0.1', 'example.com'];
+                      // Strict allowlist: localhost, 127.0.0.1, ::1
+                      const allowedHosts = ['localhost', '127.0.0.1', '::1'];
                       
                       if (!allowedHosts.includes(hostname)) {
                           throw new Error(`Host '${hostname}' not in allowlist.`);
@@ -249,7 +250,9 @@ export function dispatchTriggeredBindings(
                       clearTimeout(timeoutId);
 
                       const text = await response.text();
-                      const truncated = text.slice(0, 32 * 1024); // 32KB limit
+                      // Store only 2KB snippet, but we effectively read more by calling text()
+                      // Ideally we'd limit the stream, but for MVP this suffices.
+                      const snippet = text.slice(0, 2048); 
 
                       onIntegrationInvoke({
                         integrationId,
@@ -263,7 +266,7 @@ export function dispatchTriggeredBindings(
                         url,
                         durationMs: Date.now() - start,
                         httpStatus: response.status,
-                        responseSnippet: truncated
+                        responseSnippet: snippet
                     });
                   } catch (err: any) {
                       onIntegrationInvoke({
