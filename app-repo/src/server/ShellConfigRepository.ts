@@ -166,4 +166,42 @@ export class ShellConfigRepository {
 
     return results;
   }
+
+  async activateVersion(versionId: string, reason?: string, mode: "normal" | "advanced" | "developer" = "developer"): Promise<{ activeVersionId: string, activatedAt: string }> {
+      const archivePath = path.join(this.configRoot, "archive", versionId);
+      const manifestPath = path.join(archivePath, "bundle", "shell.manifest.json");
+
+      try {
+          await fs.access(archivePath);
+          await fs.access(manifestPath);
+      } catch {
+          throw new Error(`Version ${versionId} or its manifest does not exist.`);
+      }
+
+      const activePath = path.join(this.configRoot, "active.json");
+      let currentActive: any = {};
+      try {
+          const content = await fs.readFile(activePath, "utf-8");
+          currentActive = JSON.parse(content);
+      } catch (err: any) {
+          if (err.code !== "ENOENT") throw err;
+      }
+
+      const now = new Date().toISOString();
+      
+      const newActive: ActivePointer = {
+          ...currentActive,
+          activeVersionId: versionId,
+          lastUpdated: now,
+          activatedAt: now,
+          activatedByMode: mode,
+          safeMode: currentActive.safeMode ?? false
+      };
+
+      const tempPath = activePath + ".tmp";
+      await fs.writeFile(tempPath, JSON.stringify(newActive, null, 2), "utf-8");
+      await fs.rename(tempPath, activePath);
+      
+      return { activeVersionId: versionId, activatedAt: now };
+  }
 }

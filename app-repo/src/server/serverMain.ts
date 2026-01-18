@@ -70,6 +70,35 @@ async function main() {
     router.json(res, 200, { ok: true });
   });
 
+  // Debug activate version endpoint (Roadmap #4 Step 2)
+  router.post("/api/debug/config/shell/activate", async (req, res, _params, ctx) => {
+      if (!ModeGate.canUseDebugEndpoints(ctx)) {
+          return router.json(res, 403, { error: "Debug mode disabled" });
+      }
+
+      try {
+          const body = await router.readJsonBody(req);
+          const { versionId, reason } = body;
+
+          if (!versionId || typeof versionId !== "string") {
+              return router.json(res, 400, { error: "Missing or invalid versionId" });
+          }
+
+          const result = await configRepo.activateVersion(versionId, reason);
+          await runtimeManager.reload();
+          
+          return router.json(res, 200, {
+              ok: true,
+              activeVersionId: result.activeVersionId,
+              activatedAt: result.activatedAt,
+              reason
+          });
+      } catch (err: any) {
+          // If version validation fails, it throws
+          return router.json(res, 400, { error: err.message });
+      }
+  });
+
   // Debug dispatch traces endpoint (Epic 4 Step 4.1)
   router.get("/api/debug/runtime/dispatch-traces", async (_req, res, _params, ctx) => {
     if (!ModeGate.canUseDebugEndpoints(ctx)) {
