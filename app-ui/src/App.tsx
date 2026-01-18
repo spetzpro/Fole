@@ -2352,11 +2352,20 @@ function SysadminPanel({
                                  <div style={{height:'16px', borderLeft:'1px solid #ccc'}}></div>
                                  <div>
                                      <span style={{color:'#666', marginRight:'5px'}}>Differs:</span>
-                                     {(draftDiff.added.length > 0 || draftDiff.removed.length > 0 || draftDiff.modified.length > 0 || draftDiff.manifestChanged) ? (
-                                         <span style={{color:'#d32f2f', fontWeight:'bold'}}>YES</span>
-                                     ) : (
-                                         <span style={{color:'#999', fontWeight:'bold'}}>NO</span>
-                                     )}
+                                     {(() => {
+                                         const hasDiff = (draftDiff.added.length > 0 || draftDiff.removed.length > 0 || draftDiff.modified.length > 0 || draftDiff.manifestChanged);
+                                         const isManifestOnly = draftDiff.manifestChanged && draftDiff.added.length === 0 && draftDiff.removed.length === 0 && draftDiff.modified.length === 0;
+                                         
+                                         if (isManifestOnly) {
+                                             return <span style={{color:'#e65100', fontWeight:'bold'}}>YES (Manifest-only)</span>;
+                                         }
+                                         
+                                         if (hasDiff) {
+                                             return <span style={{color:'#d32f2f', fontWeight:'bold'}}>YES</span>;
+                                         }
+                                         
+                                         return <span style={{color:'#999', fontWeight:'bold'}}>NO</span>;
+                                     })()}
                                  </div>
                              </div>
                              
@@ -2498,17 +2507,34 @@ function SysadminPanel({
                                      </div>
                                      <div style={{marginBottom:'3px'}}>
                                          <strong>Changes: </strong>
-                                         {(draftDiff.added.length > 0 || draftDiff.removed.length > 0 || draftDiff.modified.length > 0 || draftDiff.manifestChanged) ? (
-                                             <span>
-                                                 {draftDiff.added.length > 0 && <span style={{color:'#2e7d32', marginRight:'8px'}}>+{draftDiff.added.length} Add</span>}
-                                                 {draftDiff.removed.length > 0 && <span style={{color:'#d32f2f', marginRight:'8px'}}>-{draftDiff.removed.length} Del</span>}
-                                                 {draftDiff.modified.length > 0 && <span style={{color:'#f57c00', marginRight:'8px'}}>~{draftDiff.modified.length} Mod</span>}
-                                                 {draftDiff.manifestChanged && <span style={{color:'#e65100', fontWeight:'bold'}}>Manifest</span>}
-                                             </span>
-                                         ) : (
-                                             <span style={{color:'#999', fontStyle:'italic'}}>No differences (matches Active)</span>
-                                         )}
+                                         {(() => {
+                                             const isManifestOnly = draftDiff.manifestChanged && draftDiff.added.length === 0 && draftDiff.removed.length === 0 && draftDiff.modified.length === 0;
+                                             
+                                             if (isManifestOnly) {
+                                                 return <span style={{color:'#e65100', fontWeight:'bold'}}>Manifest (no block data changes)</span>;
+                                             }
+
+                                             if (draftDiff.added.length > 0 || draftDiff.removed.length > 0 || draftDiff.modified.length > 0 || draftDiff.manifestChanged) {
+                                                 return (
+                                                     <span>
+                                                         {draftDiff.added.length > 0 && <span style={{color:'#2e7d32', marginRight:'8px'}}>+{draftDiff.added.length} Add</span>}
+                                                         {draftDiff.removed.length > 0 && <span style={{color:'#d32f2f', marginRight:'8px'}}>-{draftDiff.removed.length} Del</span>}
+                                                         {draftDiff.modified.length > 0 && <span style={{color:'#f57c00', marginRight:'8px'}}>~{draftDiff.modified.length} Mod</span>}
+                                                         {draftDiff.manifestChanged && <span style={{color:'#e65100', fontWeight:'bold'}}>Manifest</span>}
+                                                     </span>
+                                                 );
+                                             }
+                                             
+                                             return <span style={{color:'#999', fontStyle:'italic'}}>No differences (matches Active)</span>;
+                                         })()}
                                      </div>
+                                     
+                                     {draftDiff.manifestChanged && draftDiff.added.length === 0 && draftDiff.removed.length === 0 && draftDiff.modified.length === 0 && (
+                                         <div style={{fontSize:'0.85em', color:'#e65100', marginTop:'2px', fontStyle:'italic'}}>
+                                             This update only affects manifest structure. No block content will change.
+                                         </div>
+                                     )}
+
                                      {draftDiff.manifestChanged && ['top','main','bottom'].some(k => (bundleData as any)?.manifest?.regions?.[k]) && (
                                          <div style={{fontSize:'0.85em', color:'#666', marginTop:'2px', fontStyle:'italic'}}>
                                              Note: Active uses legacy keys; Draft is canonicalized.
