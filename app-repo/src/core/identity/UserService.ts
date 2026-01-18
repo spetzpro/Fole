@@ -1,5 +1,5 @@
 import type { Result } from "../foundation/CoreTypes";
-import type { AppError } from "../foundation/Errors";
+import type { AppError } from "../foundation/CoreTypes";
 import { getCoreDb } from "../storage/CoreDb";
 import { v4 as uuidv4 } from "uuid";
 

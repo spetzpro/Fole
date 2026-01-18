@@ -1,5 +1,5 @@
 import type { Result } from "../foundation/CoreTypes";
-import type { AppError } from "../foundation/Errors";
+import type { AppError } from "../foundation/CoreTypes";
 import type { User, UserService } from "./UserService";
 import { getCurrentUserProvider } from "../auth/CurrentUserProvider";
 

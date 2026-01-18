@@ -1,5 +1,5 @@
 import { CalibrationTransformType, MapCalibration, MapId, ProjectId } from "./FeatureMapTypes";
-import { ProjectDb } from "@/core/storage/ProjectDb";
+import { ProjectDb } from "../../core/ProjectDb";
 
 export interface CalibrationService {
   listCalibrations(projectId: ProjectId, mapId: MapId): Promise<MapCalibration[]>;

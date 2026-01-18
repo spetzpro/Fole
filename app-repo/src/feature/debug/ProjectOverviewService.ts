@@ -1,7 +1,7 @@
 import type { Result, AppError } from "../../core/foundation/CoreTypes";
 import { getCurrentUserProvider } from "../../core/auth/CurrentUserProvider";
 import type { ProjectRegistry } from "../../core/storage/modules/ProjectRegistry";
-import type { ProjectId } from "../../core/model/ProjectModel";
+import type { ProjectId } from "../../core/storage/model/ProjectModel";
 import type { ProjectMembershipService } from "../../core/ProjectMembershipService";
 import { buildProjectPermissionContextForCurrentUser } from "../../core/permissions/PermissionGuards";
 import { getPermissionService } from "../../core/permissions/PermissionService";

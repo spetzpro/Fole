@@ -4,7 +4,7 @@ import type { ProjectMembershipService } from "./ProjectMembershipService";
 import type { PermissionService } from "./permissions/PermissionService";
 import type { ResourceDescriptor, PermissionContext } from "./permissions/PermissionModel";
 import { buildProjectPermissionContextForCurrentUser, ensureCanPerform } from "./permissions/PermissionGuards";
-import type { AppError } from "./AppError";
+import type { AppError } from "./foundation/CoreTypes";
 import { getCurrentUserProvider } from "./auth/CurrentUserProvider";
 
 export interface ProjectExportManifest {
