@@ -1977,7 +1977,7 @@ function SysadminPanel({
                                             </button>
                                             <button 
                                                 onClick={() => setConfirmLoadVersion(false)}
-                                                style={{background:'white', border:'1px solid #ccc', borderRadius:'3px', padding:'2px 8px', cursor:'pointer'}}
+                                                style={{background:'#ffffff', color:'#111', border:'1px solid #ccc', borderRadius:'6px', padding:'6px 12px', cursor:'pointer', fontWeight: 600}}
                                             >
                                                 Cancel
                                             </button>
