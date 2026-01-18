@@ -162,24 +162,6 @@ export function dispatchTriggeredBindings(
                       }
                   }
 
-              } else {
-                 // Error: Missing baseUrl
-                 onIntegrationInvoke({
-                    integrationId,
-                    integrationType,
-                    method: mapping.method,
-                    path: mapping.path,
-                    sourceBindingId: blockId,
-                    timestamp: new Date().toISOString(),
-                    status: 'error',
-                    integrationConfig,
-                    url: undefined,
-                    durationMs: 0,
-                    errorMessage: "Integration config missing 'baseUrl'."
-                 });
-                 result.applied++;
-                 result.logs.push(`[${blockId}] Applied: callIntegration -> ${integrationId} (ERROR: missing baseUrl)`);
-                 continue;
               }
           }
 
@@ -193,6 +175,27 @@ export function dispatchTriggeredBindings(
               url: url,
               status: (executeIntegrations && url) ? 'executing' : 'dry_run'
           });
+
+          // Validate BaseUrl for HTTP Integrations
+          if (integrationType === 'shell.infra.api.http' && !url) {
+             // Error: Missing baseUrl
+             onIntegrationInvoke({
+                integrationId,
+                integrationType,
+                method: mapping.method,
+                path: mapping.path,
+                sourceBindingId: blockId,
+                timestamp: new Date().toISOString(),
+                status: 'error',
+                integrationConfig,
+                url: undefined,
+                durationMs: 0,
+                errorMessage: "Integration config missing 'baseUrl'."
+             });
+             result.applied++;
+             result.logs.push(`[${blockId}] Applied: callIntegration -> ${integrationId} (ERROR: missing baseUrl)`);
+             continue;
+          }
 
           if (executeIntegrations && integrationType === 'shell.infra.api.http' && url) {
               // Permission Check: integration.execute
