@@ -2349,6 +2349,15 @@ function SysadminPanel({
                                     <span style={{color:'#666', marginRight:'5px'}}>Draft State:</span>
                                     <span style={{color:'#007acc', fontWeight:600}}>Present (local)</span>
                                  </div>
+                                 <div style={{height:'16px', borderLeft:'1px solid #ccc'}}></div>
+                                 <div>
+                                     <span style={{color:'#666', marginRight:'5px'}}>Differs:</span>
+                                     {(draftDiff.added.length > 0 || draftDiff.removed.length > 0 || draftDiff.modified.length > 0 || draftDiff.manifestChanged) ? (
+                                         <span style={{color:'#d32f2f', fontWeight:'bold'}}>YES</span>
+                                     ) : (
+                                         <span style={{color:'#999', fontWeight:'bold'}}>NO</span>
+                                     )}
+                                 </div>
                              </div>
                              
                              {lastConfigEvent && (
@@ -2488,11 +2497,17 @@ function SysadminPanel({
                                           <span>{status}</span>}
                                      </div>
                                      <div style={{marginBottom:'3px'}}>
-                                         <strong>Plan: </strong>
-                                         <span>
-                                             Add {draftDiff.added.length}, Remove {draftDiff.removed.length}, Modify {draftDiff.modified.length}
-                                             {draftDiff.manifestChanged && <span style={{color:'#f57c00', fontWeight:'bold', marginLeft:'5px'}}>+ Manifest Update</span>}
-                                         </span>
+                                         <strong>Changes: </strong>
+                                         {(draftDiff.added.length > 0 || draftDiff.removed.length > 0 || draftDiff.modified.length > 0 || draftDiff.manifestChanged) ? (
+                                             <span>
+                                                 {draftDiff.added.length > 0 && <span style={{color:'#2e7d32', marginRight:'8px'}}>+{draftDiff.added.length} Add</span>}
+                                                 {draftDiff.removed.length > 0 && <span style={{color:'#d32f2f', marginRight:'8px'}}>-{draftDiff.removed.length} Del</span>}
+                                                 {draftDiff.modified.length > 0 && <span style={{color:'#f57c00', marginRight:'8px'}}>~{draftDiff.modified.length} Mod</span>}
+                                                 {draftDiff.manifestChanged && <span style={{color:'#e65100', fontWeight:'bold'}}>Manifest</span>}
+                                             </span>
+                                         ) : (
+                                             <span style={{color:'#999', fontStyle:'italic'}}>No differences (matches Active)</span>
+                                         )}
                                      </div>
                                      {draftDiff.manifestChanged && ['top','main','bottom'].some(k => (bundleData as any)?.manifest?.regions?.[k]) && (
                                          <div style={{fontSize:'0.85em', color:'#666', marginTop:'2px', fontStyle:'italic'}}>
@@ -2529,58 +2544,81 @@ function SysadminPanel({
                                         </div>
                                      )}
                                      
-                                     <div style={{display:'flex', gap:'5px'}}>
-                                        <button 
-                                            disabled={!canRollback} 
-                                            onClick={() => {
-                                                if (window.confirm('Rollback to last ACTIVE bundle? This will reinitialize runtime.')) {
-                                                    onRollback();
-                                                }
-                                            }}
-                                            style={{
-                                                background: canRollback ? '#f44336' : '#f5f5f5', 
-                                                color: canRollback ? 'white' : 'gray', 
-                                                border: canRollback ? '1px solid #d32f2f' : '1px solid #ccc',
-                                                padding:'6px 10px', borderRadius:'4px', 
-                                                cursor: canRollback ? 'pointer' : 'not-allowed', 
-                                                fontSize:'0.9em',
-                                                fontWeight: 'bold'
-                                            }}
-                                            title="Rollback will restore last active snapshot."
-                                        >
-                                            Rollback
-                                        </button>
-                                        <button 
-                                            disabled={status === 'BLOCKED' || (status === 'WARNINGS' && !ackWarnings)} 
-                                            onClick={() => {
-                                                if (!confirmApply) {
-                                                    setConfirmApply(true);
-                                                    return;
-                                                }
-                                                // Second click
-                                                onApplyDraft(draftBundle as BundleResponse);
-                                                setConfirmApply(false);
-                                            }}
-                                            style={{
-                                                background: (status === 'SAFE' || (status === 'WARNINGS' && ackWarnings)) 
-                                                     ? (confirmApply ? '#e65100' : '#2e7d32')
-                                                     : '#e0e0e0',
-                                                color: 'white',
-                                                padding:'6px 14px',
-                                                border: (status === 'SAFE' || (status === 'WARNINGS' && ackWarnings)) 
-                                                    ? (confirmApply ? '1px solid #e65100' : '1px solid #1b5e20') 
-                                                    : '1px solid #ccc',
-                                                borderRadius:'4px',
-                                                cursor: (status === 'SAFE' || (status === 'WARNINGS' && ackWarnings)) ? 'pointer' : 'not-allowed',
-                                                fontWeight: 'bold',
-                                                opacity: (status === 'BLOCKED' || (status === 'WARNINGS' && !ackWarnings)) ? 0.6 : 1,
-                                                minWidth: '100px'
-                                            }}
-                                            title="Apply Draft to Runtime"
-                                        >
-                                            {confirmApply ? "Confirm Apply" : "Apply Draft"}
-                                        </button>
-                                     </div>
+                                     {(() => {
+                                         const hasDiff = !!draftDiff && (draftDiff.added.length > 0 || draftDiff.removed.length > 0 || draftDiff.modified.length > 0 || draftDiff.manifestChanged);
+                                         const validStatus = status === 'SAFE' || (status === 'WARNINGS' && ackWarnings);
+                                         const disabledReason = !hasDiff ? "No changes to apply" : 
+                                                                status === 'BLOCKED' ? "Validation BLOCKED" : 
+                                                                (status === 'WARNINGS' && !ackWarnings) ? "Warnings acknowledgement required" : 
+                                                                null;
+                                         
+                                         const canApply = hasDiff && validStatus;
+                                         
+                                         // Style derivation
+                                         let applyBg = '#e0e0e0';
+                                         let applyBorder = '#ccc';
+                                         
+                                         if (canApply) {
+                                             if (confirmApply) {
+                                                 applyBg = '#e65100'; 
+                                                 applyBorder = '#e65100';
+                                             } else {
+                                                 applyBg = '#2e7d32'; 
+                                                 applyBorder = '#1b5e20';
+                                             }
+                                         }
+                                         
+                                         return (
+                                             <div style={{display:'flex', gap:'5px'}}>
+                                                <button 
+                                                    disabled={!canRollback} 
+                                                    onClick={() => {
+                                                        if (window.confirm('Rollback to last ACTIVE bundle? This will reinitialize runtime.')) {
+                                                            onRollback();
+                                                        }
+                                                    }}
+                                                    style={{
+                                                        background: canRollback ? '#f44336' : '#f5f5f5', 
+                                                        color: canRollback ? 'white' : 'gray', 
+                                                        border: canRollback ? '1px solid #d32f2f' : '1px solid #ccc',
+                                                        padding:'6px 10px', borderRadius:'4px', 
+                                                        cursor: canRollback ? 'pointer' : 'not-allowed', 
+                                                        fontSize:'0.9em',
+                                                        fontWeight: 'bold'
+                                                    }}
+                                                    title="Rollback will restore last active snapshot."
+                                                >
+                                                    Rollback
+                                                </button>
+                                                <button 
+                                                    disabled={!canApply} 
+                                                    onClick={() => {
+                                                        if (!confirmApply) {
+                                                            setConfirmApply(true);
+                                                            return;
+                                                        }
+                                                        onApplyDraft(draftBundle as BundleResponse);
+                                                        setConfirmApply(false);
+                                                    }}
+                                                    style={{
+                                                        background: applyBg,
+                                                        color: 'white',
+                                                        padding: '6px 14px',
+                                                        border: `1px solid ${applyBorder}`,
+                                                        borderRadius: '4px',
+                                                        cursor: canApply ? 'pointer' : 'not-allowed',
+                                                        fontWeight: 'bold',
+                                                        opacity: canApply ? 1 : 0.6,
+                                                        minWidth: '100px'
+                                                    }}
+                                                    title={disabledReason || "Apply Draft to Runtime"}
+                                                >
+                                                    {confirmApply ? "Confirm Apply" : "Apply Draft"}
+                                                </button>
+                                             </div>
+                                         );
+                                     })()}
+
                                      <div style={{fontSize:'0.75em', color:'#666', maxWidth:'250px'}}>
                                          {confirmApply 
                                             ? <span style={{color:'#e65100', fontWeight:'bold'}}>Click again to execute replacement.</span>
@@ -3200,38 +3238,43 @@ function SysadminPanel({
                                      )}
                                  </div>
                                  
-                                 <div style={{display:'flex', alignItems:'center', gap:'15px'}}>
-                                     {executeMode === null ? (
-                                         <span style={{color:'#c62828', fontStyle:'italic'}}>Status Unavailable: {executeModeError}</span>
-                                     ) : (
-                                         <>
-                                            <span style={{
-                                                fontSize:'0.9em', fontWeight:'bold', 
-                                                padding:'4px 10px', borderRadius:'12px',
-                                                background: executeMode ? '#ffebee' : '#e0f7fa',
-                                                color: executeMode ? '#c62828' : '#006064',
-                                                border: '1px solid',
-                                                borderColor: executeMode ? '#ffcdd2' : '#b2ebf2'
-                                            }}>
-                                                {executeMode ? 'EXECUTE' : 'DRY-RUN'}
-                                            </span>
-                                            
-                                            <button 
-                                                onClick={toggleExecuteMode}
-                                                style={{
-                                                    cursor:'pointer', padding:'4px 12px', fontSize:'0.9em',
-                                                    background: executeMode ? 'white' : '#007acc',
-                                                    color: executeMode ? '#c62828' : 'white',
-                                                    border: executeMode ? '1px solid #c62828' : 'none',
-                                                    borderRadius:'4px',
-                                                    fontWeight:'bold'
-                                                }}
-                                            >
-                                                {executeMode ? 'Disable Execution' : 'Enable Execution'}
-                                            </button>
-                                         </>
-                                     )}
-                                 </div>
+                                <div style={{display:'flex', alignItems:'center', gap:'15px'}}>
+                                    {executeMode === null ? (
+                                        <span style={{color:'#c62828', fontStyle:'italic'}}>Status Unavailable: {executeModeError}</span>
+                                    ) : (
+                                        (() => {
+                                            const isExec = !!executeMode;
+                                            return (
+                                                <>
+                                                    <span style={{
+                                                        fontSize:'0.9em', fontWeight:'bold', 
+                                                        padding:'4px 10px', borderRadius:'12px',
+                                                        background: isExec ? '#ffebee' : '#e0f7fa',
+                                                        color: isExec ? '#c62828' : '#006064',
+                                                        border: '1px solid',
+                                                        borderColor: isExec ? '#ffcdd2' : '#b2ebf2'
+                                                    }}>
+                                                        {isExec ? 'EXECUTE' : 'DRY-RUN'}
+                                                    </span>
+                                                    
+                                                    <button 
+                                                        onClick={toggleExecuteMode}
+                                                        style={{
+                                                            cursor:'pointer', padding:'4px 12px', fontSize:'0.9em',
+                                                            background: isExec ? 'white' : '#007acc',
+                                                            color: isExec ? '#c62828' : 'white',
+                                                            border: isExec ? '1px solid #c62828' : 'none',
+                                                            borderRadius:'4px',
+                                                            fontWeight:'bold'
+                                                        }}
+                                                    >
+                                                        {isExec ? 'Disable Execution' : 'Enable Execution'}
+                                                    </button>
+                                                </>
+                                            );
+                                        })()
+                                    )}
+                                </div>
                              </div>
                              
                              {/* Description / Hint */}
