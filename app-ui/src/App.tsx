@@ -927,6 +927,8 @@ function SysadminPanel({
     const [ackWarnings, setAckWarnings] = useState(false);
     const [confirmApply, setConfirmApply] = useState(false);
 
+
+
     const refreshSnapshot = () => {
         setSnapshotLoading(true);
         setSnapshotError(null);
@@ -1056,6 +1058,28 @@ function SysadminPanel({
     const [selectedVersionDetail, setSelectedVersionDetail] = useState<any>(null);
     const [versionDetailError, setVersionDetailError] = useState<string | null>(null);
     const [versionDetailLoading, setVersionDetailLoading] = useState(false);
+    const [activationMessage, setActivationMessage] = useState<string | null>(null);
+
+    const handleActivate = async (versionId: string) => {
+        setActivationMessage(null);
+        setShellVersionsError(null);
+        try {
+            const res = await fetch('/api/debug/config/shell/activate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ versionId })
+            });
+            const j = await res.json();
+            if (!res.ok) throw new Error(j.error || "Activation failed");
+            
+            setActivationMessage(`Successfully activated ${versionId}`);
+            // Refresh versions to update 'activeVersionId'
+            refreshVersions();
+        } catch (err: any) {
+            setShellVersionsError(`Activation Failed: ${err.message}`);
+        }
+    };
+
 
     const refreshVersions = () => {
         setShellVersionsError(null);
@@ -4121,6 +4145,91 @@ function SysadminPanel({
                          )}
                      </div>
                  );
+            }
+            case 'Versions': {
+                return (
+                    <div style={{display:'flex', flexDirection:'column', height:'100%'}}>
+                         <div style={{padding:'10px', borderBottom:'1px solid #ddd', display:'flex', alignItems:'center', justifyContent:'space-between', background:'#fafafa'}}>
+                             <div style={{display:'flex', alignItems:'center', gap:'10px'}}>
+                                 <strong style={{fontSize:'1.1em'}}>Shell Versions</strong>
+                                 <button onClick={refreshVersions} style={{cursor:'pointer', padding:'2px 8px', fontSize:'0.9em'}}>Refresh</button>
+                             </div>
+                         </div>
+
+                         {activationMessage && (
+                             <div style={{padding:'10px', margin:'10px', background:'#e8f5e9', color:'#1b5e20', border:'1px solid #c8e6c9', borderRadius:'4px'}}>
+                                 {activationMessage}
+                             </div>
+                         )}
+
+                         {shellVersionsError ? (
+                             <div style={{padding:'20px', color:'red'}}>Error: {shellVersionsError}</div>
+                         ) : !shellVersions ? (
+                             <div style={{padding:'20px', color:'#666'}}>
+                                 Loading versions... 
+                                 <button onClick={refreshVersions} style={{marginLeft:'10px', cursor:'pointer'}}>Click to Load</button>
+                             </div>
+                         ) : (
+                             <div style={{padding:'10px'}}>
+                                 <div style={{marginBottom:'10px', background:'#f0f4c3', padding:'10px', borderRadius:'4px', display:'flex', gap:'10px', alignItems:'center'}}>
+                                     <strong>Active Version:</strong>
+                                     <span style={{fontFamily:'monospace', fontSize:'1.1em'}}>{shellVersions.activeVersionId || 'NONE'}</span>
+                                     {shellVersions.activeMeta && (
+                                         <span style={{fontSize:'0.9em', color:'#666'}}>
+                                             (Created {new Date(shellVersions.activeMeta.timestamp).toLocaleString()} by {shellVersions.activeMeta.author})
+                                         </span>
+                                     )}
+                                 </div>
+
+                                 <table style={{width:'100%', borderCollapse:'collapse', fontSize:'0.9em', border:'1px solid #eee'}}>
+                                     <thead>
+                                         <tr style={{background:'#f5f5f5', textAlign:'left'}}>
+                                             <th style={{padding:'6px', borderBottom:'1px solid #ddd'}}>Version ID</th>
+                                             <th style={{padding:'6px', borderBottom:'1px solid #ddd'}}>Created At</th>
+                                             <th style={{padding:'6px', borderBottom:'1px solid #ddd'}}>By</th>
+                                             <th style={{padding:'6px', borderBottom:'1px solid #ddd'}}>Description</th>
+                                             <th style={{padding:'6px', borderBottom:'1px solid #ddd', width:'100px'}}>Action</th>
+                                         </tr>
+                                     </thead>
+                                     <tbody>
+                                         {shellVersions.versions.map((v: any) => {
+                                             const isActive = v.versionId === shellVersions.activeVersionId;
+                                             return (
+                                                 <tr key={v.versionId} style={{background: isActive ? '#e8f5e9' : 'white', borderBottom:'1px solid #eee'}}>
+                                                     <td style={{padding:'6px', fontFamily:'monospace', fontWeight: isActive ? 'bold' : 'normal'}}>
+                                                         {v.versionId} {isActive && '(Active)'}
+                                                     </td>
+                                                     <td style={{padding:'6px'}}>{new Date(v.timestamp).toLocaleString()}</td>
+                                                     <td style={{padding:'6px'}}>{v.meta?.author || '-'}</td>
+                                                     <td style={{padding:'6px'}}>{v.description || '-'}</td>
+                                                     <td style={{padding:'6px'}}>
+                                                         {isActive ? (
+                                                             <span style={{color:'green', fontWeight:'bold'}}>ACTIVE</span>
+                                                         ) : (
+                                                             <button 
+                                                                 onClick={() => {
+                                                                     if (confirm(`Activate version ${v.versionId}? The shell will reload.`)) {
+                                                                         handleActivate(v.versionId);
+                                                                     }
+                                                                 }}
+                                                                 style={{
+                                                                     padding:'4px 8px', borderRadius:'3px', border:'1px solid #999',
+                                                                     background:'#fff', cursor:'pointer'
+                                                                 }}
+                                                             >
+                                                                 ACTIVATE
+                                                             </button>
+                                                         )}
+                                                     </td>
+                                                 </tr>
+                                             );
+                                         })}
+                                     </tbody>
+                                 </table>
+                             </div>
+                         )}
+                    </div>
+                );
             }
             default: return null;
         }
