@@ -53,7 +53,7 @@ export function createCommentsService(deps: CommentsServiceDependencies): Commen
 
 			// MVP underlying-resource read gate: PROJECT_READ on the project.
 			// TODO: refine to feature-level read per anchor type (map/file/sketch/etc.) in future arcs.
-			const projectReadDecision = await permissionService.canWithReason("PROJECT_READ", {
+			const projectReadDecision = await permissionService.canWithReason(ctx, "PROJECT_READ", {
 				type: "project",
 				id: projectId,
 				projectId,
@@ -63,7 +63,7 @@ export function createCommentsService(deps: CommentsServiceDependencies): Commen
 				return toPermissionError(projectReadDecision.reasonCode, projectReadDecision.grantSource);
 			}
 
-			const createDecision = await permissionService.canWithReason("COMMENT_CREATE", {
+			const createDecision = await permissionService.canWithReason(ctx, "COMMENT_CREATE", {
 				type: "comment",
 				id: "new",
 				projectId,
@@ -124,7 +124,7 @@ export function createCommentsService(deps: CommentsServiceDependencies): Commen
 
 			const ctx = await buildProjectPermissionContextForCurrentUser(projectId, membershipService);
 
-			const decision = await permissionService.canWithReason("COMMENT_DELETE", {
+			const decision = await permissionService.canWithReason(ctx, "COMMENT_DELETE", {
 				type: "comment",
 				id: row.id,
 				projectId: row.project_id,
