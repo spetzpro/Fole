@@ -3,7 +3,7 @@ import * as path from "path";
 import type { ProjectMembershipService } from "./ProjectMembershipService";
 import type { PermissionService } from "./permissions/PermissionService";
 import type { ResourceDescriptor, PermissionContext } from "./permissions/PermissionModel";
-import { buildProjectPermissionContextForCurrentUser, ensureCanPerform } from "./permissions/PermissionGuards";
+import { buildProjectPermissionContextForCurrentUser } from "./permissions/PermissionGuards";
 import type { AppError } from "./foundation/CoreTypes";
 import { getCurrentUserProvider } from "./auth/CurrentUserProvider";
 
