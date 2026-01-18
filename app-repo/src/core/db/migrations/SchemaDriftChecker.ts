@@ -70,7 +70,7 @@ export class SchemaDriftChecker {
 
   private all<T>(db: sqlite3.Database, sql: string): Promise<T[]> {
     return new Promise((resolve, reject) => {
-      db.all(sql, (err, rows) => {
+      db.all(sql, (err: Error | null, rows: unknown[]) => {
         if (err) return reject(err);
         resolve(rows as unknown as T[]);
       });

@@ -41,7 +41,7 @@ export function createProjectMemberManagementService(
 				}
 			);
 
-			return (result.rows || []).map((row) => ({
+			return (result.rows || []).map((row: any) => ({
 				projectId: row.project_id,
 				userId: row.user_id,
 				roleId: row.role_id as RoleId,

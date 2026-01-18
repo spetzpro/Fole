@@ -55,7 +55,7 @@ export function createInviteService(): InviteService {
         db.run(
           "INSERT INTO invites (id, email, token, created_at, accepted_at, created_by_user_id) VALUES (?, ?, ?, ?, ?, ?)",
           [id, normalizedEmail, token, createdAt, acceptedAt, createdByUserId],
-          function (err) {
+          function (err: Error | null) {
             if (err) return reject(err);
             resolve(undefined);
           },
@@ -100,7 +100,7 @@ export function createInviteService(): InviteService {
         db.get(
           "SELECT id, email, token, created_at, accepted_at, created_by_user_id FROM invites WHERE token = ?",
           [token],
-          (err, row) => {
+          (err: Error | null, row: any) => {
             if (err) return reject(err);
             resolve(row ?? undefined);
           },
@@ -152,7 +152,7 @@ export function createInviteService(): InviteService {
         db.run(
           "UPDATE invites SET accepted_at = ? WHERE id = ?",
           [acceptedAt, inviteRow.id],
-          function (err) {
+          function (err: Error | null) {
             if (err) return reject(err);
             resolve(undefined);
           },
@@ -175,7 +175,7 @@ export function createInviteService(): InviteService {
         db.get(
           "SELECT id, email, token, created_at, accepted_at, created_by_user_id FROM invites WHERE id = ?",
           [inviteRow.id],
-          (err, row) => {
+          (err: Error | null, row: any) => {
             if (err) return reject(err);
             resolve(row ?? undefined);
           },

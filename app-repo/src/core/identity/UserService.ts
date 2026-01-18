@@ -39,7 +39,7 @@ export function createUserService(): UserService {
         db.get(
           "SELECT id, email, user_external_id, created_at FROM users WHERE email = ?",
           [normalizedEmail],
-          (err, row) => {
+          (err: Error | null, row: any) => {
             if (err) return reject(err);
             resolve(row ?? undefined);
           },
@@ -73,7 +73,7 @@ export function createUserService(): UserService {
         db.run(
           "INSERT INTO users (id, email, user_external_id, created_at) VALUES (?, ?, ?, ?)",
           [userId, normalizedEmail, userExternalId, createdAt],
-          function (err) {
+          function (err: Error | null) {
             if (err) return reject(err);
             resolve(undefined);
           },
@@ -109,7 +109,7 @@ export function createUserService(): UserService {
         db.get(
           "SELECT id, email, user_external_id, created_at FROM users WHERE email = ?",
           [normalizedEmail],
-          (err, data) => {
+          (err: Error | null, data: any) => {
             if (err) return reject(err);
             resolve(data ?? undefined);
           },
@@ -141,7 +141,7 @@ export function createUserService(): UserService {
         db.get(
           "SELECT id, email, user_external_id, created_at FROM users WHERE id = ?",
           [userId],
-          (err, data) => {
+          (err: Error | null, data: any) => {
             if (err) return reject(err);
             resolve(data ?? undefined);
           },
