@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, Fragment } from 'react';
 import './App.css';
 
 type UnknownRecord = Record<string, unknown>;
@@ -854,10 +854,11 @@ function SysadminPanel({
     // Invocations (Phase 4.2)
     const [invocations, setInvocations] = useState<any[] | null>(null);
     const [invocationsError, setInvocationsError] = useState<string | null>(null);
+    const [expandedInvocationKey, setExpandedInvocationKey] = useState<string | null>(null);
 
     // Development Authentication Header for debug endpoints (Phase 4.4)
     // TODO: remove dev auth header when real identity/permissions are implemented
-    const DEV_AUTH_HEADER = import.meta.env.DEV ? {
+    const DEV_AUTH_HEADER: Record<string, string> = import.meta.env.DEV ? {
         "x-dev-auth": JSON.stringify({
             permissions: [
                 "integration.view_invocations",
@@ -1329,12 +1330,14 @@ function SysadminPanel({
     };
 
     const handleDuplicateBlock = () => {
+        const blocks = (draftBundle as any).blocks || {};
+        const selectedBlock = draftSelectedBlockId ? blocks[draftSelectedBlockId] : null;
+
         if (!selectedBlock || !draftBundle) return;
         
         const base = selectedBlock.blockId || selectedBlock.id || draftSelectedBlockId || 'unknown';
         let newId = `${base}_copy`;
         let counter = 2;
-        const blocks = (draftBundle as any).blocks || {};
         
         while (blocks[newId]) {
             newId = `${base}_copy${counter}`;
@@ -3252,32 +3255,128 @@ function SysadminPanel({
                                          </tr>
                                      </thead>
                                      <tbody>
-                                         {invs.slice().reverse().map((inv: any) => (
-                                             <tr key={inv.id} style={{borderBottom:'1px solid #eee'}}>
-                                                 <td style={{padding:'6px', color:'#555'}}>{new Date(inv.timestamp).toLocaleTimeString()}</td>
-                                                 <td style={{padding:'6px'}}>
-                                                    <div>{inv.integrationId}</div>
-                                                    <div style={{fontSize:'0.8em', color:'#888'}}>{inv.blockId}</div>
-                                                 </td>
-                                                 <td style={{padding:'6px'}}>{inv.method}</td>
-                                                 <td style={{padding:'6px'}}>
-                                                     <span style={{
-                                                         background: inv.status === 'success' ? '#e8f5e9' : (inv.status === 'dry_run' ? '#e0f7fa' : '#ffebee'),
-                                                         color: inv.status === 'success' ? '#2e7d32' : (inv.status === 'dry_run' ? '#006064' : '#c62828'),
-                                                         padding:'2px 6px', borderRadius:'4px', fontSize:'0.85em', fontWeight:'bold'
-                                                     }}>
-                                                         {inv.status || '-'}
-                                                     </span>
-                                                 </td>
-                                                 <td style={{padding:'6px', color:'#555'}}>{inv.durationMs}ms</td>
-                                                 <td style={{padding:'6px', fontSize:'0.8em', color:'#555', maxWidth:'200px'}}>
-                                                     {inv.url 
-                                                        ? <span title={inv.url} style={{fontFamily:'monospace', background:'#f5f5f5', padding:'1px 4px', borderRadius:'3px'}}>{inv.url}</span>
-                                                        : <span style={{fontStyle:'italic', color:'#999'}}>(unresolved)</span>
-                                                     }
-                                                 </td>
-                                             </tr>
-                                         ))}
+                                         {invs.slice().reverse().map((inv: any) => {
+                                             const rowKey = inv.id || `${inv.timestamp}-${inv.integrationId}-${inv.method}`;
+                                             const isExpanded = expandedInvocationKey === rowKey;
+                                             
+                                             return (
+                                                 <Fragment key={rowKey}>
+                                                     <tr 
+                                                         onClick={() => setExpandedInvocationKey(isExpanded ? null : rowKey)}
+                                                         style={{
+                                                             borderBottom: isExpanded ? 'none' : '1px solid #eee', 
+                                                             cursor: 'pointer',
+                                                             background: isExpanded ? '#f8f9fa' : 'white',
+                                                             transition: 'background 0.2s'
+                                                         }}
+                                                         title="Click row to expand details"
+                                                     >
+                                                         <td style={{padding:'6px', color:'#555'}}>{new Date(inv.timestamp).toLocaleTimeString()}</td>
+                                                         <td style={{padding:'6px'}}>
+                                                            <div>{inv.integrationId}</div>
+                                                            <div style={{fontSize:'0.8em', color:'#888'}}>{inv.blockId}</div>
+                                                         </td>
+                                                         <td style={{padding:'6px'}}>{inv.method}</td>
+                                                         <td style={{padding:'6px'}}>
+                                                             <span style={{
+                                                                 background: inv.status === 'success' ? '#e8f5e9' : (inv.status === 'dry_run' ? '#e0f7fa' : '#ffebee'),
+                                                                 color: inv.status === 'success' ? '#2e7d32' : (inv.status === 'dry_run' ? '#006064' : '#c62828'),
+                                                                 padding:'2px 6px', borderRadius:'4px', fontSize:'0.85em', fontWeight:'bold'
+                                                             }}>
+                                                                 {inv.status || '-'}
+                                                             </span>
+                                                         </td>
+                                                         <td style={{padding:'6px', color:'#555'}}>{inv.durationMs}ms</td>
+                                                         <td style={{padding:'6px', fontSize:'0.8em', color:'#555', maxWidth:'200px'}}>
+                                                             {inv.url 
+                                                                ? <span title={inv.url} style={{fontFamily:'monospace', background:'#f5f5f5', padding:'1px 4px', borderRadius:'3px'}}>{inv.url}</span>
+                                                                : <span style={{fontStyle:'italic', color:'#999'}}>(unresolved)</span>
+                                                             }
+                                                         </td>
+                                                     </tr>
+                                                     {isExpanded && (
+                                                         <tr style={{borderBottom:'1px solid #ddd', background:'#f8f9fa'}}>
+                                                             <td colSpan={6} style={{padding:'0 15px 15px 15px'}}>
+                                                                 <div style={{
+                                                                     padding:'10px', 
+                                                                     border:'1px solid #ddd', 
+                                                                     borderRadius:'4px', 
+                                                                     background:'white',
+                                                                     boxShadow:'0 1px 3px rgba(0,0,0,0.05)',
+                                                                     display:'flex',
+                                                                     flexDirection:'column',
+                                                                     gap:'8px',
+                                                                     fontSize:'0.9em'
+                                                                 }}>
+                                                                     <div style={{display:'flex', justifyContent:'space-between', alignItems:'flex-start', borderBottom:'1px solid #eee', paddingBottom:'6px', marginBottom:'4px'}}>
+                                                                         <div style={{fontWeight:'bold', color:'#333'}}>Invocation Details</div>
+                                                                         <CopyBtn k={`inv-${rowKey}`} text={JSON.stringify(inv, null, 2)} />
+                                                                     </div>
+                                                                     
+                                                                     <div style={{display:'grid', gridTemplateColumns:'120px 1fr', gap:'4px 10px', alignItems:'baseline'}}>
+                                                                         <div style={{color:'#666', fontSize:'0.85em'}}>Status:</div>
+                                                                         <div style={{fontWeight:'bold', color: inv.status === 'success' ? '#2e7d32' : (inv.status === 'dry_run' ? '#006064' : '#c62828')}}>{inv.status}</div>
+
+                                                                         <div style={{color:'#666', fontSize:'0.85em'}}>URL:</div>
+                                                                         <div style={{fontFamily:'monospace', wordBreak:'break-all'}}>{inv.url || '-'}</div>
+
+                                                                         <div style={{color:'#666', fontSize:'0.85em'}}>Integration:</div>
+                                                                         <div>{inv.integrationId} <span style={{color:'#999'}}>({inv.blockId})</span></div>
+
+                                                                         <div style={{color:'#666', fontSize:'0.85em'}}>Request:</div>
+                                                                         <div><span style={{fontWeight:'bold'}}>{inv.method}</span> {inv.path || '-'}</div>
+
+                                                                         <div style={{color:'#666', fontSize:'0.85em'}}>Duration:</div>
+                                                                         <div>{inv.durationMs} ms</div>
+
+                                                                         <div style={{color:'#666', fontSize:'0.85em'}}>HTTP Status:</div>
+                                                                         <div>{inv.httpStatus || '-'}</div>
+
+                                                                         {inv.errorMessage && (
+                                                                             <>
+                                                                                 <div style={{color:'#b71c1c', fontSize:'0.85em', fontWeight:'bold'}}>Error:</div>
+                                                                                 <div style={{color:'#b71c1c'}}>{inv.errorMessage}</div>
+                                                                             </>
+                                                                         )}
+
+                                                                         <div style={{color:'#666', fontSize:'0.85em'}}>Response:</div>
+                                                                         <div>
+                                                                             {inv.responseSnippet ? (
+                                                                                 <pre style={{
+                                                                                     margin:0, 
+                                                                                     background:'#f5f5f5', 
+                                                                                     padding:'6px', 
+                                                                                     borderRadius:'4px', 
+                                                                                     maxHeight:'150px', 
+                                                                                     overflow:'auto', 
+                                                                                     fontSize:'0.85em',
+                                                                                     whiteSpace:'pre-wrap',
+                                                                                     wordBreak:'break-word'
+                                                                                 }}>{typeof inv.responseSnippet === 'string' ? inv.responseSnippet : JSON.stringify(inv.responseSnippet, null, 2)}</pre>
+                                                                             ) : (
+                                                                                 <span style={{color:'#999', fontStyle:'italic'}}>(no response)</span>
+                                                                             )}
+                                                                         </div>
+                                                                         
+                                                                         {inv.integrationConfig && (
+                                                                             <>
+                                                                                 <div style={{color:'#666', fontSize:'0.85em'}}>Config:</div>
+                                                                                 <details>
+                                                                                     <summary style={{cursor:'pointer', color:'#007acc', fontSize:'0.85em'}}>Show Config JSON</summary>
+                                                                                     <pre style={{margin:'5px 0 0 0', background:'#f5f5f5', padding:'6px', borderRadius:'4px', fontSize:'0.8em', overflow:'auto', maxHeight:'200px'}}>
+                                                                                         {JSON.stringify(inv.integrationConfig, null, 2)}
+                                                                                     </pre>
+                                                                                 </details>
+                                                                             </>
+                                                                         )}
+                                                                     </div>
+                                                                 </div>
+                                                             </td>
+                                                         </tr>
+                                                     )}
+                                                 </Fragment>
+                                             );
+                                         })}
                                      </tbody>
                                  </table>
                              )}
