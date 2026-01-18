@@ -196,6 +196,7 @@ export class DefaultFeatureMapService implements FeatureMapService {
     const tagsJson = JSON.stringify(input.tags ?? []);
 
     await conn.executeCommand({
+      type: "insert",
       text:
         "INSERT INTO maps (project_id, map_id, name, description, map_type, tags_json, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
       parameters: [

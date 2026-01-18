@@ -1,16 +1,25 @@
 import type { DbCommand, DbCommandResult, DbConnection, DbQuery } from "./DalContext";
 
-export async function executeWrite(conn: DbConnection, text: string, parameters?: ReadonlyArray<unknown>): Promise<DbCommandResult> {
-  const command: DbCommand = { type: "custom", text, parameters };
+export async function executeWrite(
+  conn: DbConnection,
+  commandOrText: string | DbCommand,
+  parameters?: ReadonlyArray<unknown>,
+): Promise<DbCommandResult> {
+  let command: DbCommand;
+  if (typeof commandOrText === "string") {
+    command = { type: "custom", text: commandOrText, parameters };
+  } else {
+    command = commandOrText;
+  }
   return conn.executeCommand(command);
 }
 
 export async function executeReadOne<TResult = unknown>(
   conn: DbConnection,
-  text: string,
-  parameters?: ReadonlyArray<unknown>
+  queryOrText: string | DbQuery,
+  parameters?: ReadonlyArray<unknown>,
 ): Promise<TResult | undefined> {
-  const query: DbQuery = { text, parameters };
+  const query: DbQuery = typeof queryOrText === "string" ? { text: queryOrText, parameters } : (queryOrText as DbQuery);
   const rows = await conn.executeQuery<TResult>(query);
   return rows[0];
 }
