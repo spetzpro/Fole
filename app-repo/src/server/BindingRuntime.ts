@@ -30,6 +30,10 @@ export class BindingRuntime {
         this.runtimeState = runtimeState;
     }
 
+    public getBundle(): ShellBundle["bundle"] {
+        return this.bundle;
+    }
+
     public getExecuteIntegrationsEnabled(): boolean {
         return this.executeIntegrationsEnabled;
     }

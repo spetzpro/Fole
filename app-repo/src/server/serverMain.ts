@@ -70,6 +70,81 @@ async function main() {
     router.json(res, 200, { ok: true });
   });
 
+  // Debug snapshot endpoint (Epic 4 Step 1)
+  router.get("/api/debug/runtime/snapshot", async (_req, res, _params, ctx) => {
+    if (!ModeGate.canUseDebugEndpoints(ctx)) {
+        return router.json(res, 403, { error: "Debug mode disabled" });
+    }
+
+    const runtime = runtimeManager.getRuntime();
+    const meta = runtimeManager.getSnapshotMetadata();
+    
+    if (!runtime) {
+         return router.json(res, 200, {
+             runtimeStatus: "INACTIVE",
+             activeVersionId: meta.activeVersionId,
+             activatedAt: meta.activatedAt,
+             source: "NONE",
+             flags: {
+                 executeIntegrationsEnabled: false,
+                 debugMode: true
+             },
+             blocks: { total: 0, byType: {} },
+             bindings: { total: 0, enabled: 0, disabled: 0 },
+             integrations: { total: 0, byType: {} }
+         });
+    }
+
+    const bundle = runtime.getBundle();
+    const blocksVals = Object.values(bundle.blocks);
+    
+    // Counts
+    const blocksByType: Record<string, number> = {};
+    let bindingCount = 0;
+    let integrationCount = 0;
+    const integrationsByType: Record<string, number> = {};
+    
+    for (const b of blocksVals) {
+        // Block stats
+        blocksByType[b.blockType] = (blocksByType[b.blockType] || 0) + 1;
+        
+        // Binding stats
+        if (b.blockType === "binding") {
+            bindingCount++;
+        }
+        
+        // Integration stats
+        if ((b.blockType || "").startsWith("shell.infra.api") || (b.blockType || "").startsWith("shell.infra.db")) {
+            integrationCount++;
+            integrationsByType[b.blockType] = (integrationsByType[b.blockType] || 0) + 1;
+        }
+    }
+
+    router.json(res, 200, {
+        runtimeStatus: "ACTIVE",
+        activeVersionId: meta.activeVersionId,
+        activatedAt: meta.activatedAt,
+        source: "ACTIVE",
+        flags: {
+            executeIntegrationsEnabled: runtime.getExecuteIntegrationsEnabled(),
+            debugMode: true
+        },
+        blocks: {
+            total: blocksVals.length,
+            byType: blocksByType
+        },
+        bindings: {
+            total: bindingCount,
+            enabled: bindingCount, 
+            disabled: 0
+        },
+        integrations: {
+            total: integrationCount,
+            byType: integrationsByType
+        }
+    });
+  });
+
   // Shell Config Endpoints
   router.get("/api/config/shell/status", async (_req, res) => {
     try {
