@@ -1,8 +1,6 @@
 import { useState, useEffect, useRef, useMemo, Fragment } from 'react';
 import './App.css';
 
-type UnknownRecord = Record<string, unknown>;
-
 interface PingResponse {
   allowed: boolean;
   status: number;
@@ -487,7 +485,7 @@ function OverlayLayer(props: OverlayLayerProps) {
             if (Array.isArray(parsed) && parsed.every(s => typeof s === 'string')) {
                 return new Set(parsed);
             }
-        } catch (e) {
+        } catch {
             // ignore bad storage
         }
         return new Set();
@@ -2309,7 +2307,7 @@ function SysadminPanel({
                      );
                  }
 
-                 const draftBlocksMap = draftBundle.blocks || {};
+                 const draftBlocksMap = (draftBundle as BundleResponse).blocks || {};
                  const draftBlocksArr = (Object.values(draftBlocksMap) as any[]).sort((a,b) => (a.blockId||'').localeCompare(b.blockId||''));
                  
                  const f = draftBlockFilter.toLowerCase();
@@ -3722,7 +3720,7 @@ function App() {
                 >
                   Force open overlay_menu
                 </button>
-                {actionResult && <pre style={{
+                {!!actionResult && <pre style={{
                     fontSize:'10px',
                     background:'#f7f7f7',
                     color: '#111',
