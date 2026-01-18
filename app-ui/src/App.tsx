@@ -63,6 +63,21 @@ interface ActionRunRecord {
   result: ActionDispatchResult;
 }
 
+interface MatchedBindingSummary {
+  bindingId: string;
+  mode: string;
+  kind: string;
+  summary: string;
+}
+
+interface DispatchTrace {
+  timestamp: string;
+  action: { sourceBlockId: string; name: string };
+  emittedTrigger: { sourceBlockId: string; name: string };
+  result: { applied: number; skipped: number };
+  matchedBindings: MatchedBindingSummary[];
+}
+
 interface RuntimePlan {
   entrySlug: string;
   targetBlockId: string;
@@ -896,6 +911,11 @@ function SysadminPanel({
     const [snapshotError, setSnapshotError] = useState<string | null>(null);
     const [snapshotLoading, setSnapshotLoading] = useState(false);
 
+    // Traces (Phase 4.3)
+    const [dispatchTraces, setDispatchTraces] = useState<DispatchTrace[] | null>(null);
+    const [dispatchTracesError, setDispatchTracesError] = useState<string | null>(null);
+    const [expandedTraceKey, setExpandedTraceKey] = useState<string | null>(null);
+
     // Draft / Apply UX Hardening (EPIC 2)
     const [ackWarnings, setAckWarnings] = useState(false);
     const [confirmApply, setConfirmApply] = useState(false);
@@ -919,6 +939,29 @@ function SysadminPanel({
             .catch(err => {
                 setSnapshotError(err.message);
                 setSnapshotLoading(false);
+            });
+    };
+
+    const refreshTraces = () => {
+        setDispatchTracesError(null);
+        fetch('/api/debug/runtime/dispatch-traces')
+            .then(async (res) => {
+                 const j = await res.json();
+                 if (res.status === 403) {
+                     setDispatchTracesError(`Debug endpoints disabled (403). ensure FOLE_DEV_ENABLE_DEBUG_ENDPOINTS=1`);
+                     setDispatchTraces([]);
+                     return;
+                 }
+                 if (!res.ok) throw new Error(j.error || "Unknown Error");
+                 // Expect { traces: [] }
+                 // Sort newest first client-side
+                 const list = Array.isArray(j.traces) ? (j.traces as DispatchTrace[]) : [];
+                 list.sort((a,b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+                 setDispatchTraces(list);
+            })
+            .catch(err => {
+                setDispatchTracesError(err.message);
+                setDispatchTraces([]);
             });
     };
 
@@ -1003,6 +1046,9 @@ function SysadminPanel({
         }
         if (activeTab === 'Snapshot') {
              refreshSnapshot();
+        }
+        if (activeTab === 'Traces') {
+             refreshTraces();
         }
     }, [activeTab, actionRuns.length]);
 
@@ -1784,7 +1830,7 @@ function SysadminPanel({
 
     if (!isOpen) return null;
 
-    const tabs = ['ShellConfig', 'Blocks', 'Bindings', 'Data', 'ActionIndex', 'Runtime', 'Draft', 'Invocations', 'Snapshot'];
+    const tabs = ['ShellConfig', 'Blocks', 'Bindings', 'Data', 'ActionIndex', 'Runtime', 'Draft', 'Invocations', 'Snapshot', 'Traces'];
 
     // Render Logic per Tab
     const renderContent = () => {
@@ -3638,6 +3684,110 @@ function SysadminPanel({
                                          </tbody>
                                      </table>
                                  </div>
+                             </div>
+                         )}
+                     </div>
+                 );
+            }
+            case 'Traces': {
+                 return (
+                     <div style={{display:'flex', flexDirection:'column', height:'100%'}}>
+                         <div style={{padding:'10px', borderBottom:'1px solid #ddd', display:'flex', alignItems:'center', justifyContent:'space-between', background:'#fafafa'}}>
+                             <div style={{display:'flex', alignItems:'center', gap:'10px'}}>
+                                 <strong style={{fontSize:'1.1em'}}>Dispatch Traces</strong>
+                                 <button onClick={refreshTraces} style={{cursor:'pointer', padding:'2px 8px', fontSize:'0.9em'}}>Refresh</button>
+                                 <span style={{fontSize:'0.85em', color:'#666', fontStyle:'italic'}}>Shows last 20 dispatches</span>
+                             </div>
+                         </div>
+                         
+                         {dispatchTracesError ? (
+                             <div style={{padding:'20px', color:'red'}}>Error: {dispatchTracesError}</div>
+                         ) : !dispatchTraces ? (
+                             <div style={{padding:'20px', color:'#666'}}>Loading traces...</div>
+                         ) : dispatchTraces.length === 0 ? (
+                             <div style={{padding:'20px', color:'#666', fontStyle:'italic'}}>No traces recorded yet.</div>
+                         ) : (
+                             <div style={{flex:1, overflowY:'auto'}}>
+                                 {dispatchTraces.map((trace, idx) => {
+                                      const key = `${trace.timestamp}-${idx}`;
+                                      const isExpanded = expandedTraceKey === key;
+                                      const statusColor = trace.result.applied > 0 ? '#2e7d32' : (trace.result.skipped > 0 ? '#ef6c00' : '#666');
+                                      
+                                      return (
+                                          <div key={key} style={{borderBottom:'1px solid #eee'}}>
+                                              <div 
+                                                 onClick={() => setExpandedTraceKey(isExpanded ? null : key)}
+                                                 style={{
+                                                     padding:'8px 10px', 
+                                                     cursor:'pointer', 
+                                                     background: isExpanded ? '#f0f4c3' : 'white',
+                                                     display:'flex', justifyContent:'space-between', alignItems:'center'
+                                                 }}
+                                                 onMouseEnter={e => { if(!isExpanded) e.currentTarget.style.background = '#f9f9f9'; }}
+                                                 onMouseLeave={e => { if(!isExpanded) e.currentTarget.style.background = 'white'; }}
+                                              >
+                                                  <div style={{display:'flex', gap:'10px', alignItems:'center'}}>
+                                                      <span style={{fontFamily:'monospace', fontSize:'0.85em', color:'#555'}}>
+                                                          {new Date(trace.timestamp).toLocaleTimeString()}
+                                                      </span>
+                                                      <span style={{fontWeight:'bold', width:'180px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>
+                                                          {trace.action.sourceBlockId}::<span style={{color:'#666'}}>{trace.action.name}</span>
+                                                      </span>
+                                                      <span style={{
+                                                          fontSize:'0.8em', fontWeight:'bold', color:'white', 
+                                                          padding:'1px 6px', borderRadius:'3px', background: statusColor
+                                                      }}>
+                                                          {trace.result.applied > 0 ? 'APPLIED' : (trace.result.skipped > 0 ? 'SKIPPED' : 'NO-OP')}
+                                                      </span>
+                                                  </div>
+                                                  <div style={{fontSize:'1.2em', color:'#aaa'}}>{isExpanded ? '−' : '+'}</div>
+                                              </div>
+                                              
+                                              {isExpanded && (
+                                                  <div style={{padding:'10px', background:'#fbfbfb', borderTop:'1px solid #eee'}}>
+                                                      <div style={{display:'flex', justifyContent:'flex-end', marginBottom:'5px'}}>
+                                                          <CopyBtn k={`tr-${key}`} text={trace} />
+                                                      </div>
+                                                      <div style={{fontSize:'0.9em', display:'grid', gridTemplateColumns:'auto 1fr', gap:'5px 15px', marginBottom:'10px'}}>
+                                                          <div style={{color:'#666'}}>Action:</div>
+                                                          <div>{trace.action.sourceBlockId}::{trace.action.name}</div>
+                                                          
+                                                          <div style={{color:'#666'}}>Emitted Trigger:</div>
+                                                          <div>{trace.emittedTrigger.sourceBlockId}::{trace.emittedTrigger.name}</div>
+                                                          
+                                                          <div style={{color:'#666'}}>Result:</div>
+                                                          <div>Applied: {trace.result.applied}, Skipped: {trace.result.skipped}</div>
+                                                      </div>
+
+                                                      {/* Matched Bindings List */}
+                                                      <div style={{marginTop:'10px'}}>
+                                                          <div style={{fontWeight:'bold', borderBottom:'1px solid #ccc', paddingBottom:'2px', marginBottom:'5px', color:'#555'}}>Matched Bindings ({trace.matchedBindings?.length || 0})</div>
+                                                          {(!trace.matchedBindings || trace.matchedBindings.length === 0) ? (
+                                                              <div style={{fontStyle:'italic', color:'#999'}}>No bindings matched this trigger.</div>
+                                                          ) : (
+                                                              <div style={{display:'flex', flexDirection:'column', gap:'5px'}}>
+                                                                  {trace.matchedBindings.map((mb, mBi) => (
+                                                                      <div key={mBi} style={{background:'white', border:'1px solid #ddd', padding:'6px', borderRadius:'4px', fontSize:'0.9em'}}>
+                                                                          <div style={{display:'flex', justifyContent:'space-between', fontWeight:'bold', color:'#333'}}>
+                                                                              <span>{mb.bindingId}</span>
+                                                                              <span style={{fontSize:'0.85em', color:'#007acc'}}>{mb.mode}</span>
+                                                                          </div>
+                                                                          <div style={{color:'#666', fontSize:'0.9em', marginTop:'2px'}}>
+                                                                              Kind: {mb.kind}
+                                                                          </div>
+                                                                          <div style={{marginTop:'4px', fontFamily:'monospace', background:'#eee', padding:'4px', borderRadius:'2px', whiteSpace:'pre-wrap', wordBreak:'break-all'}}>
+                                                                              {mb.summary}
+                                                                          </div>
+                                                                      </div>
+                                                                  ))}
+                                                              </div>
+                                                          )}
+                                                      </div>
+                                                  </div>
+                                              )}
+                                          </div>
+                                      );
+                                 })}
                              </div>
                          )}
                      </div>

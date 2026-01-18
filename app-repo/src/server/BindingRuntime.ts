@@ -1,6 +1,6 @@
 import { ShellBundle } from "./ShellConfigTypes";
 import { applyDerivedBindings, BindingEngineResult } from "./BindingEngine";
-import { dispatchTriggeredBindings, TriggerEvent, TriggerContext, TriggeredBindingResult } from "./TriggeredBindingEngine";
+import { dispatchTriggeredBindings, TriggerEvent, TriggerContext, TriggeredBindingResult, MatchedBindingSummary } from "./TriggeredBindingEngine";
 
 export interface IntegrationInvocation {
     integrationId: string;
@@ -18,11 +18,20 @@ export interface IntegrationInvocation {
     errorMessage?: string;
 }
 
+export interface DispatchTrace {
+    timestamp: string;
+    action: { sourceBlockId: string; name: string };
+    emittedTrigger: { sourceBlockId: string; name: string };
+    result: { applied: number; skipped: number };
+    matchedBindings: MatchedBindingSummary[];
+}
+
 export class BindingRuntime {
     private bundle: ShellBundle["bundle"];
     private runtimeState: Record<string, any>;
     private lock: boolean = false;
     private integrationInvocations: IntegrationInvocation[] = [];
+    private dispatchTraces: DispatchTrace[] = [];
     private executeIntegrationsEnabled: boolean = false;
 
     constructor(bundle: ShellBundle["bundle"], runtimeState: Record<string, any>) {
@@ -52,6 +61,10 @@ export class BindingRuntime {
 
     public getIntegrationInvocations(): IntegrationInvocation[] {
         return [...this.integrationInvocations];
+    }
+
+    public getDispatchTraces(): DispatchTrace[] {
+        return [...this.dispatchTraces];
     }
 
     /**
@@ -122,6 +135,20 @@ export class BindingRuntime {
             result.skipped = engineResult.skipped;
             result.logs.push(...engineResult.logs);
             result.logs.push(`[BindingRuntime] Dispatch complete. Applied: ${result.applied}, Skipped: ${result.skipped}`);
+
+            // Record Trace
+            const trace: DispatchTrace = {
+                timestamp: new Date().toISOString(),
+                action: { sourceBlockId: evt.sourceBlockId, name: evt.name },
+                emittedTrigger: { sourceBlockId: evt.sourceBlockId, name: evt.name },
+                result: { applied: engineResult.applied, skipped: engineResult.skipped },
+                matchedBindings: engineResult.matchedBindings || []
+            };
+            this.dispatchTraces.push(trace);
+            if (this.dispatchTraces.length > 20) {
+                this.dispatchTraces.shift();
+            }
+
         } catch (e: any) {
             // Fail-closed on unexpected error
             result.skipped = 1;

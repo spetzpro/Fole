@@ -20,6 +20,14 @@ export interface TriggeredBindingResult {
   applied: number;
   skipped: number;
   logs: string[];
+  matchedBindings?: MatchedBindingSummary[];
+}
+
+export interface MatchedBindingSummary {
+    bindingId: string;
+    mode: string;
+    kind: string;
+    summary: string;
 }
 
 export function dispatchTriggeredBindings(
@@ -89,6 +97,25 @@ export function dispatchTriggeredBindings(
           continue; // Not a match, plain skip (don't count as "skipped" in metrics, just irrelevant)
       }
 
+      // Capture Match Trace
+      let summary = mapping.kind || 'unknown';
+      if (mapping.kind === 'setLiteral') {
+         const to0 = (endpoints && endpoints[0]) ? endpoints[0] : null;
+         if (to0 && to0.target) {
+             summary = `Target: ${to0.target.blockId}${to0.target.path} = ${JSON.stringify(mapping.value)}`;
+         }
+      } else if (mapping.kind === 'callIntegration') {
+          summary = `Integration: ${mapping.integrationId} Method: ${mapping.method || 'GET'} Path: ${mapping.path || '/'}`;
+      }
+
+      if (!result.matchedBindings) result.matchedBindings = [];
+      result.matchedBindings.push({
+          bindingId: blockId,
+          mode: (binding as any).mode || 'triggered',
+          kind: mapping.kind || 'unknown',
+          summary
+      });
+
       // 3.3 Action Logic
       // Validate mapping kind
 
@@ -121,6 +148,14 @@ export function dispatchTriggeredBindings(
                   const base = rawBase.replace(/\/$/, '');
                   const path = (mapping.path || '').replace(/^\//, '');
                   url = `${base}/${path}`;
+                  
+                  // Update summary with known URL
+                  if (result.matchedBindings) {
+                      const last = result.matchedBindings[result.matchedBindings.length - 1];
+                      if (last && last.bindingId === blockId) {
+                          last.summary += ` URL: ${url}`;
+                      }
+                  }
               } else {
                  // Error: Missing baseUrl
                  onIntegrationInvoke({

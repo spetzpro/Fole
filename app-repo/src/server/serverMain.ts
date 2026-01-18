@@ -70,6 +70,17 @@ async function main() {
     router.json(res, 200, { ok: true });
   });
 
+  // Debug dispatch traces endpoint (Epic 4 Step 4.1)
+  router.get("/api/debug/runtime/dispatch-traces", async (_req, res, _params, ctx) => {
+    if (!ModeGate.canUseDebugEndpoints(ctx)) {
+        return router.json(res, 403, { error: "Debug mode disabled" });
+    }
+
+    const runtime = runtimeManager.getRuntime();
+    const traces = runtime ? runtime.getDispatchTraces() : [];
+    router.json(res, 200, { traces });
+  });
+
   // Debug snapshot endpoint (Epic 4 Step 1)
   router.get("/api/debug/runtime/snapshot", async (_req, res, _params, ctx) => {
     if (!ModeGate.canUseDebugEndpoints(ctx)) {
