@@ -3799,7 +3799,7 @@ function SysadminPanel({
 
     return (
         <div style={{
-            position: 'absolute', top: '50px', right: '20px', width: '860px', maxWidth: '95vw', maxHeight: '80vh',
+            position: 'absolute', top: '50px', right: '20px', width: '1040px', maxWidth: '95vw', maxHeight: '80vh',
             backgroundColor: 'white', color: '#222', 
             border: '2px solid #333', boxShadow: '0 5px 20px rgba(0,0,0,0.3)',
             zIndex: 9000, display: 'flex', flexDirection: 'column', overflow: 'hidden'
