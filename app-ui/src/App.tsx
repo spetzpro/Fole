@@ -12,6 +12,15 @@ interface BundleResponse {
   blocks: Record<string, unknown>;
 }
 
+// Helper type for local usage
+interface BundleBlock {
+    blockId: string;
+    blockType: string;
+    schemaVersion?: string;
+    data?: unknown;
+    id?: string;
+}
+
 // --- Minimal In-Browser Runtime Models ---
 
 interface OverlayState {
@@ -818,6 +827,30 @@ const deepClone = (obj: unknown) => {
     return JSON.parse(JSON.stringify(obj));
 };
 
+interface SnapshotResponse {
+  runtimeStatus: string;
+  activeVersionId: string | null;
+  activatedAt: string | null;
+  source: string;
+  flags: {
+      executeIntegrationsEnabled: boolean;
+      debugMode: boolean;
+  };
+  blocks: {
+      total: number;
+      byType: Record<string, number>;
+  };
+  bindings: {
+      total: number;
+      enabled: number;
+      disabled: number;
+  };
+  integrations: {
+      total: number;
+      byType: Record<string, number>;
+  };
+}
+
 function SysadminPanel({ 
     isOpen, 
     onClose, 
@@ -858,9 +891,36 @@ function SysadminPanel({
     const [executeMode, setExecuteMode] = useState<boolean | null>(null);
     const [executeModeError, setExecuteModeError] = useState<string | null>(null);
 
+    // Snapshot (Epic 4 Step 2)
+    const [snapshotData, setSnapshotData] = useState<SnapshotResponse | null>(null);
+    const [snapshotError, setSnapshotError] = useState<string | null>(null);
+    const [snapshotLoading, setSnapshotLoading] = useState(false);
+
     // Draft / Apply UX Hardening (EPIC 2)
     const [ackWarnings, setAckWarnings] = useState(false);
     const [confirmApply, setConfirmApply] = useState(false);
+
+    const refreshSnapshot = () => {
+        setSnapshotLoading(true);
+        setSnapshotError(null);
+        fetch('/api/debug/runtime/snapshot')
+            .then(res => {
+                 if (!res.ok) {
+                     if (res.status === 403) throw new Error('Debug endpoints disabled (403)');
+                     if (res.status === 404) throw new Error('Snapshot endpoint not found (404)');
+                     throw new Error(`Error ${res.status}`);
+                 }
+                 return res.json();
+            })
+            .then(json => {
+                setSnapshotData(json);
+                setSnapshotLoading(false);
+            })
+            .catch(err => {
+                setSnapshotError(err.message);
+                setSnapshotLoading(false);
+            });
+    };
 
     const refreshExecuteMode = () => {
         setExecuteModeError(null);
@@ -940,6 +1000,9 @@ function SysadminPanel({
         if (activeTab === 'Invocations') {
             refreshInvocations();
             refreshExecuteMode();
+        }
+        if (activeTab === 'Snapshot') {
+             refreshSnapshot();
         }
     }, [activeTab, actionRuns.length]);
 
@@ -1721,7 +1784,7 @@ function SysadminPanel({
 
     if (!isOpen) return null;
 
-    const tabs = ['ShellConfig', 'Blocks', 'Bindings', 'Data', 'ActionIndex', 'Runtime', 'Draft', 'Invocations'];
+    const tabs = ['ShellConfig', 'Blocks', 'Bindings', 'Data', 'ActionIndex', 'Runtime', 'Draft', 'Invocations', 'Snapshot'];
 
     // Render Logic per Tab
     const renderContent = () => {
@@ -2060,7 +2123,7 @@ function SysadminPanel({
                                              {k} <span style={{fontWeight:'normal', fontSize:'0.8em', color:'#888'}}>({groupedActions.get(k)?.length})</span>
                                          </div>
                                          <div style={{paddingLeft:'5px'}}>
-                                             {groupedActions.get(k)?.map(a => {
+                                             {groupedActions.get(k)?.map((a: any) => {
                                                  const isSel = a.id === selectedActionId;
                                                  return (
                                                      <div 
@@ -2200,7 +2263,7 @@ function SysadminPanel({
                                         ))}
                                     </div>
                                 )}
-                                <div style={{marginTop:'5px', fontSize:'0.8em', color:'#aaa', cursor:'pointer'}} onClick={(e) => {
+                                <div style={{marginTop:'5px', fontSize:'0.8em', color:'#aaa', cursor:'pointer'}} onClick={() => {
                                     // simple toggle for raw details could go here, but for now just show if filtered list is empty or for advanced debug
                                 }}>
                                     <span style={{textDecoration:'underline'}}>Raw JSON</span>:
@@ -2302,8 +2365,8 @@ function SysadminPanel({
                      );
                  }
 
-                 const draftBlocksMap = (draftBundle as BundleResponse).blocks || {};
-                 const draftBlocksArr = (Object.values(draftBlocksMap) as any[]).sort((a,b) => (a.blockId||'').localeCompare(b.blockId||''));
+                 const draftBlocksMap = ((draftBundle as BundleResponse).blocks || {}) as Record<string, BundleBlock>;
+                 const draftBlocksArr = (Object.values(draftBlocksMap) as BundleBlock[]).sort((a,b) => (a.blockId||a.id||'').localeCompare(b.blockId||b.id||''));
                  
                  const f = draftBlockFilter.toLowerCase();
                  const filtered = draftBlocksArr.filter(b => {
@@ -3467,6 +3530,116 @@ function SysadminPanel({
                                  </table>
                              )}
                          </div>
+                     </div>
+                 );
+            }
+            case 'Snapshot': {
+                 return (
+                     <div style={{display:'flex', flexDirection:'column', height:'100%', gap:'10px'}}>
+                         <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', borderBottom:'1px solid #eee', paddingBottom:'10px'}}>
+                             <div style={{display:'flex', alignItems:'center', gap:'10px'}}>
+                                 <strong style={{fontSize:'1.1em'}}>Runtime Snapshot</strong>
+                                 <button onClick={refreshSnapshot} style={{cursor:'pointer', padding:'2px 8px', fontSize:'0.9em'}}>Refresh</button>
+                                 {snapshotLoading && <span style={{color:'#666', fontSize:'0.9em'}}>Loading...</span>}
+                             </div>
+                             {snapshotData && <CopyBtn k="snapshot" text={snapshotData} />}
+                         </div>
+
+                         {snapshotError ? (
+                             <div style={{color:'red', padding:'20px'}}>
+                                 Error fetching snapshot: {snapshotError}
+                             </div>
+                         ) : !snapshotData ? (
+                             <div style={{padding:'20px', color:'#666', fontStyle:'italic'}}>Loading snapshot data...</div>
+                         ) : (
+                             <div style={{display:'flex', flexDirection:'column', gap:'15px'}}>
+                                 
+                                 {/* Overview Card */}
+                                 <div style={{padding:'10px', background:'#f8f9fa', borderRadius:'4px', border:'1px solid #ddd'}}>
+                                     <div style={{display:'grid', gridTemplateColumns:'auto 1fr', gap:'8px 20px', fontSize:'0.9em'}}>
+                                         <strong style={{color:'#555'}}>Status:</strong>
+                                         <span style={{fontWeight:'bold', color: snapshotData.runtimeStatus === 'ACTIVE' ? '#2e7d32' : '#d32f2f'}}>
+                                             {snapshotData.runtimeStatus}
+                                         </span>
+                                         
+                                         <strong style={{color:'#555'}}>Source:</strong>
+                                         <span>{snapshotData.source}</span>
+                                         
+                                         <strong style={{color:'#555'}}>Active Version:</strong>
+                                         <span style={{fontFamily:'monospace'}}>{snapshotData.activeVersionId || 'N/A'}</span>
+                                         
+                                         <strong style={{color:'#555'}}>Activated At:</strong>
+                                         <span>{snapshotData.activatedAt ? new Date(snapshotData.activatedAt).toLocaleString() : 'N/A'}</span>
+                                     </div>
+                                 </div>
+                                 
+                                 {/* Flags */}
+                                 <div>
+                                     <strong style={{display:'block', marginBottom:'5px', color:'#333'}}>Runtime Flags</strong>
+                                     <div style={{display:'flex', gap:'10px'}}>
+                                         <div style={{
+                                             padding:'6px 10px', borderRadius:'4px', border:'1px solid',
+                                             background: snapshotData.flags.executeIntegrationsEnabled ? '#ffebee' : '#f5f5f5',
+                                             borderColor: snapshotData.flags.executeIntegrationsEnabled ? '#ef9a9a' : '#ddd',
+                                             color: snapshotData.flags.executeIntegrationsEnabled ? '#c62828' : '#777'
+                                         }}>
+                                             Execute Integrations: <strong>{snapshotData.flags.executeIntegrationsEnabled ? 'ENABLED' : 'DISABLED'}</strong>
+                                         </div>
+                                         <div style={{
+                                             padding:'6px 10px', borderRadius:'4px', border:'1px solid',
+                                             background: snapshotData.flags.debugMode ? '#e3f2fd' : '#f5f5f5',
+                                             borderColor: snapshotData.flags.debugMode ? '#90caf9' : '#ddd',
+                                             color: snapshotData.flags.debugMode ? '#1565c0' : '#777'
+                                         }}>
+                                             Debug Mode: <strong>{snapshotData.flags.debugMode ? 'YES' : 'NO'}</strong>
+                                         </div>
+                                     </div>
+                                 </div>
+
+                                 {/* Counts */}
+                                 <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'10px'}}>
+                                     <div style={{padding:'10px', border:'1px solid #ddd', borderRadius:'4px', textAlign:'center'}}>
+                                         <div style={{fontSize:'2em', fontWeight:'bold', color:'#007acc'}}>{snapshotData.blocks.total}</div>
+                                         <div style={{fontSize:'0.85em', color:'#666'}}>Total Blocks</div>
+                                     </div>
+                                     <div style={{padding:'10px', border:'1px solid #ddd', borderRadius:'4px', textAlign:'center'}}>
+                                         <div style={{fontSize:'2em', fontWeight:'bold', color:'#2e7d32'}}>{snapshotData.bindings.total}</div>
+                                         <div style={{fontSize:'0.85em', color:'#666'}}>Bindings ({snapshotData.bindings.enabled} active)</div>
+                                     </div>
+                                     <div style={{padding:'10px', border:'1px solid #ddd', borderRadius:'4px', textAlign:'center'}}>
+                                         <div style={{fontSize:'2em', fontWeight:'bold', color:'#ef6c00'}}>{snapshotData.integrations.total}</div>
+                                         <div style={{fontSize:'0.85em', color:'#666'}}>Integrations</div>
+                                     </div>
+                                 </div>
+                                 
+                                 {/* Breakdown Table */}
+                                 <div>
+                                     <strong style={{display:'block', marginBottom:'5px', color:'#333'}}>Blocks by Type</strong>
+                                     <table style={{width:'100%', borderCollapse:'collapse', fontSize:'0.9em', border:'1px solid #eee'}}>
+                                         <thead>
+                                             <tr style={{background:'#f5f5f5', textAlign:'left'}}>
+                                                 <th style={{padding:'6px', borderBottom:'1px solid #ddd'}}>Type</th>
+                                                 <th style={{padding:'6px', borderBottom:'1px solid #ddd', width:'80px'}}>Count</th>
+                                             </tr>
+                                         </thead>
+                                         <tbody>
+                                             {Object.entries(snapshotData.blocks.byType)
+                                                 .sort(([,a], [,b]) => b - a)
+                                                 .map(([type, count]) => (
+                                                     <tr key={type} style={{borderBottom:'1px solid #eee'}}>
+                                                         <td style={{padding:'6px', fontFamily:'monospace', color:'#333'}}>{type}</td>
+                                                         <td style={{padding:'6px', fontWeight:'bold'}}>{count}</td>
+                                                     </tr>
+                                                 ))
+                                             }
+                                             {Object.keys(snapshotData.blocks.byType).length === 0 && (
+                                                 <tr><td colSpan={2} style={{padding:'10px', color:'#999', fontStyle:'italic'}}>No blocks found.</td></tr>
+                                             )}
+                                         </tbody>
+                                     </table>
+                                 </div>
+                             </div>
+                         )}
                      </div>
                  );
             }
