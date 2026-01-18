@@ -1886,6 +1886,44 @@ function SysadminPanel({
     }, [activeTab, filter, allActions]);
 
 
+    const [confirmLoadVersion, setConfirmLoadVersion] = useState(false);
+
+    const handleLoadVersionToDraft = () => {
+         if (!selectedVersionDetail) return;
+         
+         // Validation: Check for blocks presence
+         if (!selectedVersionDetail.blocks) {
+             alert("This version detail endpoint does not include blocks; cannot load into draft yet.\n\nBackend enhancement required to fetch full block map.");
+             setConfirmLoadVersion(false);
+             return;
+         }
+
+         try {
+             const newDraft = deepClone(selectedVersionDetail);
+             // Ensure blocks object
+             if (!newDraft.blocks) newDraft.blocks = {};
+             
+             setDraftBundle(newDraft);
+             
+             setConfirmLoadVersion(false);
+             setDraftError(null);
+             setAckWarnings(false);
+             setConfirmApply(false);
+             
+             // Select first block
+             const keys = Object.keys(newDraft.blocks || {});
+             if (keys.length > 0) {
+                 handleDraftSelectBlock(keys[0], newDraft);
+             } else {
+                 setDraftSelectedBlockId(null);
+             }
+             
+             setActiveTab('Draft');
+         } catch (e: any) {
+             alert("Failed to load version: " + e.message);
+         }
+    };
+
     if (!isOpen) return null;
 
     // definitions moved to top
@@ -1909,7 +1947,38 @@ function SysadminPanel({
                         // DETAIL VIEW
                         <div style={{display:'flex', flexDirection:'column', height:'100%'}}>
                              <div style={{marginBottom:'15px', display:'flex', alignItems:'center', gap:'15px'}}>
-                                 <button onClick={() => setSelectedVersionId(null)}>&larr; Back to List</button>
+                                 <button onClick={() => { setSelectedVersionId(null); setConfirmLoadVersion(false); }}>&larr; Back to List</button>
+                                 
+                                 {!versionDetailLoading && (
+                                     confirmLoadVersion ? (
+                                        <div style={{display:'flex', alignItems:'center', gap:'10px', background:'#fff3cd', padding:'5px 10px', borderRadius:'4px', border:'1px solid #ffeeba'}}>
+                                            <span style={{color:'#856404', fontSize:'0.9em', fontWeight:'bold'}}>Replace local draft?</span>
+                                            <button 
+                                                onClick={handleLoadVersionToDraft} 
+                                                style={{fontWeight:'bold', color:'#fff', background:'#dc3545', border:'none', borderRadius:'3px', padding:'2px 8px', cursor:'pointer'}}
+                                            >
+                                                Yes, Replace
+                                            </button>
+                                            <button 
+                                                onClick={() => setConfirmLoadVersion(false)}
+                                                style={{background:'white', border:'1px solid #ccc', borderRadius:'3px', padding:'2px 8px', cursor:'pointer'}}
+                                            >
+                                                Cancel
+                                            </button>
+                                        </div>
+                                     ) : (
+                                        <button 
+                                            onClick={() => {
+                                                if (draftBundle) setConfirmLoadVersion(true);
+                                                else handleLoadVersionToDraft();
+                                            }}
+                                            style={{cursor:'pointer'}}
+                                        >
+                                            Load into Draft
+                                        </button>
+                                     )
+                                 )}
+
                                  <h3 style={{margin:0}}>Version: {selectedVersionId}</h3>
                                  {versionDetailLoading && <small>Loading...</small>}
                              </div>
