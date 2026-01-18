@@ -857,7 +857,7 @@ function SysadminPanel({
 
     // Development Authentication Header for debug endpoints (Phase 4.4)
     // TODO: remove dev auth header when real identity/permissions are implemented
-    const DEV_AUTH_HEADER = {
+    const DEV_AUTH_HEADER = import.meta.env.DEV ? {
         "x-dev-auth": JSON.stringify({
             permissions: [
                 "integration.view_invocations",
@@ -865,7 +865,7 @@ function SysadminPanel({
                 "integration.execute"
             ]
         })
-    };
+    } : {};
 
     // Execute Mode (Phase 4.3.2)
     const [executeMode, setExecuteMode] = useState<boolean | null>(null);
@@ -3162,20 +3162,22 @@ function SysadminPanel({
                              <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
                                  <div style={{display:'flex', alignItems:'center', gap:'10px'}}>
                                      <strong style={{fontSize:'1.1em', color:'#333'}}>Integration Execution Mode</strong>
-                                     <span style={{
-                                         fontSize: '0.75em', 
-                                         background: '#ede7f6', 
-                                         color: '#4527a0', 
-                                         padding: '2px 6px', 
-                                         borderRadius: '4px', 
-                                         border: '1px solid #d1c4e9',
-                                         fontWeight: 'bold',
-                                         display: 'inline-flex',
-                                         alignItems: 'center',
-                                         gap: '4px'
-                                     }}>
-                                         DEV AUTH <span style={{fontWeight:'normal', opacity:0.8, fontSize:'0.9em'}}>temporary</span>
-                                     </span>
+                                     {import.meta.env.DEV && (
+                                        <span style={{
+                                            fontSize: '0.75em', 
+                                            background: '#ede7f6', 
+                                            color: '#4527a0', 
+                                            padding: '2px 6px', 
+                                            borderRadius: '4px', 
+                                            border: '1px solid #d1c4e9',
+                                            fontWeight: 'bold',
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: '4px'
+                                        }}>
+                                            DEV AUTH <span style={{fontWeight:'normal', opacity:0.8, fontSize:'0.9em'}}>temporary</span>
+                                        </span>
+                                     )}
                                  </div>
                                  
                                  <div style={{display:'flex', alignItems:'center', gap:'15px'}}>
@@ -3217,15 +3219,20 @@ function SysadminPanel({
                                  <div style={{fontSize:'0.85em', color: executeMode ? '#b71c1c' : '#555'}}>
                                      {executeMode 
                                         ? "⚠️ REAL HTTP REQUESTS ENABLED. Only allowlisted hosts will be contacted." 
-                                        : "ℹ️ Simulation mode. No network calls are made. Requests are logged as 'dry_run'."}
+                                        : "ℹ️ No external network calls are made. Requests are logged as 'dry_run'."}
                                  </div>
                              )}
                          </div>
 
                          {/* List Header */}
-                         <div style={{padding:'10px', display:'flex', justifyContent:'space-between', alignItems:'center', background:'#f5f5f5', borderBottom:'1px solid #ddd'}}>
-                             <strong>Recent Invocations ({invs.length})</strong>
-                             <button onClick={refreshInvocations} style={{cursor:'pointer', padding:'4px 8px'}}>Refresh</button>
+                         <div style={{padding:'10px', display:'flex', flexDirection:'column', gap:'5px', background:'#f5f5f5', borderBottom:'1px solid #ddd'}}>
+                            <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+                                <strong>Recent Invocations ({invs.length})</strong>
+                                <button onClick={refreshInvocations} style={{cursor:'pointer', padding:'4px 8px'}}>Refresh</button>
+                            </div>
+                            <div style={{fontSize:'0.8em', color:'#666', fontStyle:'italic'}}>
+                                Note: Older records may not include URL; trigger a new invocation to populate it.
+                            </div>
                          </div>
 
                          {/* List Content */}
@@ -3263,7 +3270,12 @@ function SysadminPanel({
                                                      </span>
                                                  </td>
                                                  <td style={{padding:'6px', color:'#555'}}>{inv.durationMs}ms</td>
-                                                 <td style={{padding:'6px', fontSize:'0.8em', color:'#555', maxWidth:'200px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}} title={inv.url}>{inv.url}</td>
+                                                 <td style={{padding:'6px', fontSize:'0.8em', color:'#555', maxWidth:'200px'}}>
+                                                     {inv.url 
+                                                        ? <span title={inv.url} style={{fontFamily:'monospace', background:'#f5f5f5', padding:'1px 4px', borderRadius:'3px'}}>{inv.url}</span>
+                                                        : <span style={{fontStyle:'italic', color:'#999'}}>(unresolved)</span>
+                                                     }
+                                                 </td>
                                              </tr>
                                          ))}
                                      </tbody>
