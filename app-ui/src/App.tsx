@@ -858,6 +858,21 @@ function SysadminPanel({
     const [executeMode, setExecuteMode] = useState<boolean | null>(null);
     const [executeModeError, setExecuteModeError] = useState<string | null>(null);
 
+    // Draft / Apply UX Hardening (EPIC 2)
+    const [ackWarnings, setAckWarnings] = useState(false);
+    const [confirmApply, setConfirmApply] = useState(false);
+
+    // Reset confirm state when important things change
+    useEffect(() => {
+        setConfirmApply(false);
+    }, [activeTab, selectedBlockId, filter]);
+    
+    // Also reset if warnings status changes (requires checking status derived in render, or effect on bundleData)
+    useEffect(() => {
+        // If bundle data changes (e.g. from background refresh), reset confirmations
+        setConfirmApply(false);
+    }, [bundleData]);
+
     const refreshExecuteMode = () => {
         setExecuteModeError(null);
         fetch('/api/debug/runtime/integrations/execute-mode')
@@ -1459,8 +1474,6 @@ function SysadminPanel({
     const [showValidationDetails, setShowValidationDetails] = useState(false);
     const [showDataDiff, setShowDataDiff] = useState(false);
     
-    // Safety Kit State
-    const [ackWarnings, setAckWarnings] = useState(false);
     const [draftValidateOk, setDraftValidateOk] = useState(false);
 
     // Delete Preview State
@@ -2312,31 +2325,38 @@ function SysadminPanel({
 
                  return (
                      <div style={{display:'flex', flexDirection:'column', height:'100%', minHeight: 0}}>
-                         {/* Config Status Banner */}
+                         {/* Status Strip (EPIC 2) */}
                          <div style={{
-                             padding:'10px', marginBottom:'10px', 
-                             borderLeft:'4px solid', 
-                             borderColor: runningSource === 'ACTIVE' ? '#2e7d32' : '#f57c00',
-                             background: runningSource === 'ACTIVE' ? '#e8f5e9' : '#fff3e0'
+                             padding:'8px 12px', marginBottom:'15px', 
+                             background: '#fafafa', borderBottom: '1px solid #ddd',
+                             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                             fontSize: '0.9em'
                          }}>
-                             <div style={{display:'flex', justifyContent:'space-between', alignItems:'flex-start'}}>
+                             <div style={{display:'flex', alignItems:'center', gap:'15px'}}>
                                  <div>
-                                     <div style={{fontWeight:'bold', fontSize:'1em', marginBottom:'4px', color:'#222'}}>Config Status</div>
-                                     <div style={{fontSize:'0.9em', color:'#444'}}>
-                                         Running: <span style={{fontWeight:'bold', color: runningSource === 'ACTIVE' ? '#2e7d32' : '#f57c00'}}>{runningSource}</span>
-                                         {lastConfigEvent && (
-                                             <span style={{marginLeft:'10px', color:'#666', fontStyle:'italic'}}>
-                                                 ({lastConfigEvent.kind === 'APPLY' ? 'Applied' : 'Rolled back'} at {new Date(lastConfigEvent.ts).toLocaleTimeString()})
-                                             </span>
-                                         )}
-                                     </div>
-                                     <div style={{fontSize:'0.85em', color:'#555', marginTop:'4px'}}>
-                                         {runningSource === 'DRAFT' 
-                                            ? "Runtime is using Draft. Further edits are not live until you Apply again." 
-                                            : "Runtime is using Active. Draft changes are not live."}
-                                     </div>
+                                     <span style={{color:'#666', marginRight:'5px'}}>Running:</span>
+                                     <span style={{
+                                         fontWeight:'bold', 
+                                         color: runningSource === 'ACTIVE' ? '#2e7d32' : '#f57c00',
+                                         background: runningSource === 'ACTIVE' ? '#e8f5e9' : '#fff3e0',
+                                         padding: '2px 6px', borderRadius: '4px', border: '1px solid',
+                                         borderColor: runningSource === 'ACTIVE' ? '#c8e6c9' : '#ffe0b2'
+                                     }}>
+                                         {runningSource}
+                                     </span>
+                                 </div>
+                                 <div style={{height:'16px', borderLeft:'1px solid #ccc'}}></div>
+                                 <div>
+                                    <span style={{color:'#666', marginRight:'5px'}}>Draft State:</span>
+                                    <span style={{color:'#007acc', fontWeight:600}}>Present (local)</span>
                                  </div>
                              </div>
+                             
+                             {lastConfigEvent && (
+                                 <div style={{color:'#666', fontSize:'0.85em'}}>
+                                     Last {lastConfigEvent.kind === 'APPLY' ? 'Apply' : 'Rollback'}: <b>{new Date(lastConfigEvent.ts).toLocaleTimeString()}</b>
+                                 </div>
+                             )}
                          </div>
 
                          {/* Validation Summary */}
@@ -2504,6 +2524,12 @@ function SysadminPanel({
                                  </div>
 
                                  <div style={{textAlign:'right', display:'flex', flexDirection:'column', alignItems:'flex-end', gap:'5px'}}>
+                                     {canRollback && (
+                                        <div style={{fontSize:'0.8em', color:'#d32f2f', marginBottom:'2px'}}>
+                                            Rollback available (restores last ACTIVE snapshot)
+                                        </div>
+                                     )}
+                                     
                                      <div style={{display:'flex', gap:'5px'}}>
                                         <button 
                                             disabled={!canRollback} 
@@ -2528,27 +2554,38 @@ function SysadminPanel({
                                         <button 
                                             disabled={status === 'BLOCKED' || (status === 'WARNINGS' && !ackWarnings)} 
                                             onClick={() => {
-                                                if (window.confirm('Apply Draft? This will reinitialize runtime. You can Rollback afterward.')) {
-                                                    onApplyDraft(draftBundle as BundleResponse);
+                                                if (!confirmApply) {
+                                                    setConfirmApply(true);
+                                                    return;
                                                 }
+                                                // Second click
+                                                onApplyDraft(draftBundle as BundleResponse);
+                                                setConfirmApply(false);
                                             }}
                                             style={{
-                                                background: (status === 'SAFE' || (status === 'WARNINGS' && ackWarnings)) ? '#2e7d32' : '#e0e0e0',
+                                                background: (status === 'SAFE' || (status === 'WARNINGS' && ackWarnings)) 
+                                                     ? (confirmApply ? '#e65100' : '#2e7d32')
+                                                     : '#e0e0e0',
                                                 color: 'white',
                                                 padding:'6px 14px',
-                                                border: (status === 'SAFE' || (status === 'WARNINGS' && ackWarnings)) ? '1px solid #1b5e20' : '1px solid #ccc',
+                                                border: (status === 'SAFE' || (status === 'WARNINGS' && ackWarnings)) 
+                                                    ? (confirmApply ? '1px solid #e65100' : '1px solid #1b5e20') 
+                                                    : '1px solid #ccc',
                                                 borderRadius:'4px',
                                                 cursor: (status === 'SAFE' || (status === 'WARNINGS' && ackWarnings)) ? 'pointer' : 'not-allowed',
                                                 fontWeight: 'bold',
-                                                opacity: (status === 'BLOCKED' || (status === 'WARNINGS' && !ackWarnings)) ? 0.6 : 1
+                                                opacity: (status === 'BLOCKED' || (status === 'WARNINGS' && !ackWarnings)) ? 0.6 : 1,
+                                                minWidth: '100px'
                                             }}
                                             title="Apply Draft to Runtime"
                                         >
-                                            Apply Draft
+                                            {confirmApply ? "Confirm Apply" : "Apply Draft"}
                                         </button>
                                      </div>
                                      <div style={{fontSize:'0.75em', color:'#666', maxWidth:'250px'}}>
-                                         Runtime will re-initialize immediately.
+                                         {confirmApply 
+                                            ? <span style={{color:'#e65100', fontWeight:'bold'}}>Click again to execute replacement.</span>
+                                            : "Runtime will re-initialize immediately."}
                                      </div>
                                  </div>
                              </div>
