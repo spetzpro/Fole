@@ -20,8 +20,8 @@ export class SchemaDriftChecker {
     const db = new sqlite3.Database(dbPath, sqlite3.OPEN_READONLY);
     try {
       const tables: TableSchema[] = [];
-      const tableNames: string[] = await this.all<string[]>(db, "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'");
-      for (const row of tableNames as any[]) {
+      const tableNames: any[] = await this.all<any>(db, "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'");
+      for (const row of tableNames) {
         const name = (row as any).name as string;
         const pragmaRows: any[] = await this.all<any[]>(db, `PRAGMA table_info(${name})`);
         const columns = pragmaRows.map((r) => String(r.name));

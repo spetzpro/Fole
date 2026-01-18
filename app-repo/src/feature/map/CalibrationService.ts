@@ -44,19 +44,19 @@ export class DefaultCalibrationService implements CalibrationService {
 
   async listCalibrations(projectId: ProjectId, mapId: MapId): Promise<MapCalibration[]> {
     const db = await this.projectDb.getConnection(projectId);
-    const rows = await db.all<MapCalibrationRow>(
-      "SELECT id, project_id, map_id, transform_type, rms_error, created_at, is_active FROM map_calibrations WHERE project_id = ? AND map_id = ? ORDER BY created_at ASC, id ASC",
-      [projectId, mapId]
-    );
-    return rows.map(mapRowToCalibration);
+    const rows = await db.executeQuery<MapCalibrationRow>({
+      text: "SELECT id, project_id, map_id, transform_type, rms_error, created_at, is_active FROM map_calibrations WHERE project_id = ? AND map_id = ? ORDER BY created_at ASC, id ASC",
+      parameters: [projectId, mapId]
+    });
+    return (rows as any[]).map(mapRowToCalibration);
   }
 
   async getActiveCalibration(projectId: ProjectId, mapId: MapId): Promise<MapCalibration | null> {
     const db = await this.projectDb.getConnection(projectId);
-    const rows = await db.all<MapCalibrationRow>(
-      "SELECT id, project_id, map_id, transform_type, rms_error, created_at, is_active FROM map_calibrations WHERE project_id = ? AND map_id = ? AND is_active = 1 ORDER BY created_at DESC, id DESC LIMIT 1",
-      [projectId, mapId]
-    );
+    const rows = await db.executeQuery<MapCalibrationRow>({
+      text: "SELECT id, project_id, map_id, transform_type, rms_error, created_at, is_active FROM map_calibrations WHERE project_id = ? AND map_id = ? AND is_active = 1 ORDER BY created_at DESC, id DESC LIMIT 1",
+      parameters: [projectId, mapId]
+    });
     if (!rows.length) {
       return null;
     }

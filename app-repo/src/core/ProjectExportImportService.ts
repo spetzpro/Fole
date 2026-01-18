@@ -105,9 +105,14 @@ export function createSecuredProjectExportService(
 
 		const resource: ResourceDescriptor = { type: "project", id: projectId, projectId };
 
-		const result = ensureCanPerform(permissionService, ctx, "PROJECT_EXPORT", resource);
-		if (!result.ok) {
-			throw result.error;
+		const decision = permissionService.canWithReason(ctx, "PROJECT_EXPORT", resource);
+		if (!decision.allowed) {
+			const error: AppError = {
+				code: "PERMISSION_DENIED",
+				message: decision.reasonCode || "Access denied",
+				details: { action: "PROJECT_EXPORT", resource },
+			};
+			throw error;
 		}
 	}
 

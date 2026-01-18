@@ -168,7 +168,7 @@ export function createProjectOverviewService(deps: ProjectOverviewServiceDeps): 
       const mapsItems = maps.map((m) => ({
         id: m.mapId,
         name: m.name,
-        hasCalibration: !!m.calibrationSummary,
+        hasCalibration: !!m.isCalibrated,
       }));
 
       const overview: ProjectOverviewDto = {
