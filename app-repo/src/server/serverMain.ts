@@ -254,7 +254,7 @@ async function main() {
     }
   });
 
-  router.get("/api/debug/config/shell/version/:versionId", async (_req, res, params, ctx) => {
+  router.get("/api/debug/config/shell/version/:versionId", async (req, res, params, ctx) => {
      if (!ModeGate.canUseDebugEndpoints(ctx)) {
        return router.json(res, 403, { error: "Debug mode disabled" });
     }
@@ -262,31 +262,47 @@ async function main() {
     const versionId = params.versionId;
     if (!versionId) return router.json(res, 400, { error: "Missing versionId" });
 
+    // Parse query params
+    const urlParts = parse(req.url || "", true);
+    const includeBlocks = urlParts.query.includeBlocks === '1';
+
     try {
         const fullBundle = await configRepo.getBundle(versionId);
         
         // Calculate stats
-        const blocks = Object.values(fullBundle.bundle.blocks);
+        const blocksList = Object.values(fullBundle.bundle.blocks);
         let bindingCount = 0;
         let integrationCount = 0;
         
-        for (const b of blocks) {
+        for (const b of blocksList) {
             if (b.blockType === "binding") bindingCount++;
             if ((b.blockType || "").startsWith("shell.infra.api") || (b.blockType || "").startsWith("shell.infra.db")) {
                 integrationCount++;
             }
         }
 
-        router.json(res, 200, {
+        const response: any = {
             versionId: fullBundle.versionId,
             meta: fullBundle.meta,
             manifest: fullBundle.bundle.manifest,
             stats: {
-                blockCount: blocks.length,
+                blockCount: blocksList.length,
                 bindingCount,
                 integrationCount
             }
-        });
+        };
+
+        if (includeBlocks) {
+            if (blocksList.length > 500) {
+                 return router.json(res, 413, { 
+                     error: "Too large to include blocks", 
+                     details: `Block count ${blocksList.length} exceeds limit of 500.`
+                 });
+            }
+            response.blocks = fullBundle.bundle.blocks;
+        }
+
+        router.json(res, 200, response);
     } catch (err: any) {
         if (err.message.includes("not found")) {
              return router.json(res, 404, { error: "Version not found" });
