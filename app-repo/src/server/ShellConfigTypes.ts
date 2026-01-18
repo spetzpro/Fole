@@ -33,9 +33,6 @@ export interface ValidationError {
   blockId?: string;
   relatedBlockIds?: string[];
 }
-  blockId?: string;
-  relatedBlockIds?: string[];
-}
 
 export interface ValidationReport {
   status: "valid" | "invalid";
