@@ -113,11 +113,33 @@ export function dispatchTriggeredBindings(
           // Phase 4.3.1 & 4.3.2: Dry Run vs Execute Logic
           const integrationConfig = integrationBlock ? integrationBlock.data : {};
           
-          let url = undefined;
-          if (integrationType === 'shell.infra.api.http' && integrationConfig && (integrationConfig as any).baseUrl) {
-             const base = ((integrationConfig as any).baseUrl || '').replace(/\/$/, '');
-             const path = (mapping.path || '').replace(/^\//, '');
-             url = `${base}/${path}`;
+          let url: string | undefined = undefined;
+          // Ensure URL is always computed for HTTP integrations (Rule: always deterministic)
+          if (integrationType === 'shell.infra.api.http') {
+              const rawBase = (integrationConfig as any)?.baseUrl;
+              if (typeof rawBase === 'string' && rawBase) {
+                  const base = rawBase.replace(/\/$/, '');
+                  const path = (mapping.path || '').replace(/^\//, '');
+                  url = `${base}/${path}`;
+              } else {
+                 // Error: Missing baseUrl
+                 onIntegrationInvoke({
+                    integrationId,
+                    integrationType,
+                    method: mapping.method,
+                    path: mapping.path,
+                    sourceBindingId: blockId,
+                    timestamp: new Date().toISOString(),
+                    status: 'error',
+                    integrationConfig,
+                    url: undefined,
+                    durationMs: 0,
+                    errorMessage: "Integration config missing 'baseUrl'."
+                 });
+                 result.applied++;
+                 result.logs.push(`[${blockId}] Applied: callIntegration -> ${integrationId} (ERROR: missing baseUrl)`);
+                 continue;
+              }
           }
 
           if (executeIntegrations && integrationType === 'shell.infra.api.http' && url) {
