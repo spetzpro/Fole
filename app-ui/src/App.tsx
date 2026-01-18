@@ -70,12 +70,17 @@ interface MatchedBindingSummary {
   summary: string;
 }
 
+type Effect =
+  | { kind: "write"; targetBlockId: string; path: string; value: unknown }
+  | { kind: "integration"; integrationId: string; method: string; path: string; url?: string; status?: string };
+
 interface DispatchTrace {
   timestamp: string;
   action: { sourceBlockId: string; name: string };
   emittedTrigger: { sourceBlockId: string; name: string };
   result: { applied: number; skipped: number };
   matchedBindings: MatchedBindingSummary[];
+  effects?: Effect[];
 }
 
 interface RuntimePlan {
@@ -3778,6 +3783,58 @@ function SysadminPanel({
                                                                           <div style={{marginTop:'4px', fontFamily:'monospace', background:'#eee', padding:'4px', borderRadius:'2px', whiteSpace:'pre-wrap', wordBreak:'break-all'}}>
                                                                               {mb.summary}
                                                                           </div>
+                                                                      </div>
+                                                                  ))}
+                                                              </div>
+                                                          )}
+                                                      </div>
+
+                                                      {/* Effects List */}
+                                                      <div style={{marginTop:'10px'}}>
+                                                          <div style={{fontWeight:'bold', borderBottom:'1px solid #ccc', paddingBottom:'2px', marginBottom:'5px', color:'#555'}}>Effects ({trace.effects?.length || 0})</div>
+                                                          {(!trace.effects || trace.effects.length === 0) ? (
+                                                              <div style={{fontStyle:'italic', color:'#999'}}>No effects recorded.</div>
+                                                          ) : (
+                                                              <div style={{display:'flex', flexDirection:'column', gap:'5px'}}>
+                                                                  {trace.effects.map((eff, eBi) => (
+                                                                      <div key={eBi} style={{background:'white', border:'1px solid #ddd', padding:'6px', borderRadius:'4px', fontSize:'0.9em'}}>
+                                                                          <div style={{display:'flex', justifyContent:'space-between', fontWeight:'bold', color:'#333'}}>
+                                                                              <span style={{textTransform:'uppercase', fontSize:'0.8em', background:'#eef', padding:'2px 4px', borderRadius:'3px'}}>{eff.kind}</span>
+                                                                              {eff.kind === 'integration' && (
+                                                                                 <span style={{
+                                                                                     fontSize:'0.85em', 
+                                                                                     color: eff.status === 'success' ? '#2e7d32' : (eff.status === 'error' ? '#c62828' : '#f57c00')
+                                                                                 }}>
+                                                                                     {eff.status}
+                                                                                 </span>
+                                                                              )}
+                                                                          </div>
+                                                                          
+                                                                          {eff.kind === 'integration' && (
+                                                                              <div style={{marginTop:'4px', fontSize:'0.9em'}}>
+                                                                                  <div style={{fontWeight:'bold'}}>{eff.integrationId}</div>
+                                                                                  <div style={{fontFamily:'monospace', color:'#555'}}>
+                                                                                      {eff.method} {eff.path}
+                                                                                  </div>
+                                                                                  {eff.url && (
+                                                                                      <div style={{fontSize:'0.8em', color:'#888', wordBreak:'break-all'}}>
+                                                                                          {eff.url}
+                                                                                      </div>
+                                                                                  )}
+                                                                              </div>
+                                                                          )}
+
+                                                                          {eff.kind === 'write' && (
+                                                                              <div style={{marginTop:'4px', fontSize:'0.9em'}}>
+                                                                                  <div style={{fontWeight:'bold'}}>{eff.targetBlockId}</div>
+                                                                                  <div style={{fontFamily:'monospace', color:'#555'}}>
+                                                                                       Path: {eff.path}
+                                                                                  </div>
+                                                                                  <div style={{marginTop:'2px', background:'#f5f5f5', padding:'2px 4px', borderRadius:'3px', fontFamily:'monospace', wordBreak:'break-all'}}>
+                                                                                      = {JSON.stringify(eff.value)}
+                                                                                  </div>
+                                                                              </div>
+                                                                          )}
                                                                       </div>
                                                                   ))}
                                                               </div>

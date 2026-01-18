@@ -21,6 +21,7 @@ export interface TriggeredBindingResult {
   skipped: number;
   logs: string[];
   matchedBindings?: MatchedBindingSummary[];
+  effects?: Effect[];
 }
 
 export interface MatchedBindingSummary {
@@ -29,6 +30,10 @@ export interface MatchedBindingSummary {
     kind: string;
     summary: string;
 }
+
+export type Effect =
+  | { kind: "write"; targetBlockId: string; path: string; value: unknown }
+  | { kind: "integration"; integrationId: string; method: string; path: string; url?: string; status?: string };
 
 export function dispatchTriggeredBindings(
   bundle: ShellBundle["bundle"],
@@ -156,6 +161,7 @@ export function dispatchTriggeredBindings(
                           last.summary += ` URL: ${url}`;
                       }
                   }
+
               } else {
                  // Error: Missing baseUrl
                  onIntegrationInvoke({
@@ -176,6 +182,17 @@ export function dispatchTriggeredBindings(
                  continue;
               }
           }
+
+          // Record Integration Effect
+          if (!result.effects) result.effects = [];
+          result.effects.push({
+              kind: "integration",
+              integrationId: mapping.integrationId,
+              method: mapping.method || 'GET',
+              path: mapping.path || '/',
+              url: url,
+              status: (executeIntegrations && url) ? 'executing' : 'dry_run'
+          });
 
           if (executeIntegrations && integrationType === 'shell.infra.api.http' && url) {
               // Permission Check: integration.execute
@@ -356,6 +373,17 @@ export function dispatchTriggeredBindings(
 
           JsonPointer.setByPointer(destBlockState, toTarget.path, valueToWrite);
           anyApplied = true;
+
+          // Record Write Effect
+          if (mapping.kind === 'setLiteral') {
+              if (!result.effects) result.effects = [];
+              result.effects.push({
+                  kind: "write",
+                  targetBlockId: toTarget.blockId,
+                  path: toTarget.path,
+                  value: valueToWrite
+              });
+          }
       }
 
       if (anyApplied) {

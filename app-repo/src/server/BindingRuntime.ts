@@ -1,6 +1,6 @@
 import { ShellBundle } from "./ShellConfigTypes";
 import { applyDerivedBindings, BindingEngineResult } from "./BindingEngine";
-import { dispatchTriggeredBindings, TriggerEvent, TriggerContext, TriggeredBindingResult, MatchedBindingSummary } from "./TriggeredBindingEngine";
+import { dispatchTriggeredBindings, TriggerEvent, TriggerContext, TriggeredBindingResult, MatchedBindingSummary, Effect } from "./TriggeredBindingEngine";
 
 export interface IntegrationInvocation {
     integrationId: string;
@@ -24,6 +24,7 @@ export interface DispatchTrace {
     emittedTrigger: { sourceBlockId: string; name: string };
     result: { applied: number; skipped: number };
     matchedBindings: MatchedBindingSummary[];
+    effects?: Effect[];
 }
 
 export class BindingRuntime {
@@ -142,7 +143,8 @@ export class BindingRuntime {
                 action: { sourceBlockId: evt.sourceBlockId, name: evt.name },
                 emittedTrigger: { sourceBlockId: evt.sourceBlockId, name: evt.name },
                 result: { applied: engineResult.applied, skipped: engineResult.skipped },
-                matchedBindings: engineResult.matchedBindings || []
+                matchedBindings: engineResult.matchedBindings || [],
+                effects: engineResult.effects || []
             };
             this.dispatchTraces.push(trace);
             if (this.dispatchTraces.length > 20) {
