@@ -343,6 +343,32 @@ async function main() {
     }
   });
 
+  // Helper for Debug Endpoints (EPIC 1 Step 1)
+  const getEffectiveDebugPermissions = (req: any, ctx: any): Set<string> => {
+    const authHeader = req.headers["x-dev-auth"] as string | undefined;
+    const permissions = new Set<string>();
+
+    if (authHeader) {
+        try {
+            const json = JSON.parse(authHeader);
+            if (Array.isArray(json.permissions)) json.permissions.forEach((p: any) => permissions.add(String(p)));
+        } catch { /* ignore */ }
+    } else if (ModeGate.canUseDebugEndpoints(ctx)) {
+        // Default Localhost Permissions
+        const remote = req.socket.remoteAddress;
+        // Normalize IPv6 mapped IPv4
+        const cleanRemote = (remote || "").replace(/^::ffff:/, "");
+        const isLocal = cleanRemote === "127.0.0.1" || cleanRemote === "::1";
+        
+        if (isLocal) {
+            permissions.add("integration.view_invocations");
+            permissions.add("integration.toggle_execute_mode");
+            permissions.add("integration.execute");
+        }
+    }
+    return permissions;
+  };
+
   // Debug Runtime Bindings Endpoint
   router.get("/api/debug/runtime/bindings", async (req, res, _params, ctx) => {
     if (!ModeGate.canUseDebugEndpoints(ctx)) {
@@ -395,17 +421,8 @@ async function main() {
     // We will assume permissions might come from x-dev-auth header (like resolved endpoint) OR are open in dev.
     // The prompt explicitly demands ENFORCEMENT. "Require: integration.view_invocations. If missing: 403".
     
-    // Let's implement header extraction similar to resolveRoutingHandler for consistency, 
-    // so we can actually test this.
-    const authHeader = req.headers["x-dev-auth"] as string | undefined;
-    let permissions = new Set<string>();
-    
-    if (authHeader) {
-        try {
-            const json = JSON.parse(authHeader);
-            if (Array.isArray(json.permissions)) json.permissions.forEach((p: any) => permissions.add(String(p)));
-        } catch { /* ignore */ }
-    }
+    // Use effective permissions (header or localhost default)
+    const permissions = getEffectiveDebugPermissions(req, ctx);
 
     if (!permissions.has("integration.view_invocations")) {
         return router.json(res, 403, { ok: false, error: "Forbidden", reason: "missing integration.view_invocations" });
@@ -432,14 +449,7 @@ async function main() {
     }
     
     // Permission Extraction (copy-paste consistency)
-    const authHeader = req.headers["x-dev-auth"] as string | undefined;
-    let permissions = new Set<string>();
-    if (authHeader) {
-        try {
-            const json = JSON.parse(authHeader);
-            if (Array.isArray(json.permissions)) json.permissions.forEach((p: any) => permissions.add(String(p)));
-        } catch { /* ignore */ }
-    }
+    const permissions = getEffectiveDebugPermissions(req, ctx);
 
     // Require: integration.toggle_execute_mode
     if (!permissions.has("integration.toggle_execute_mode")) {
@@ -460,14 +470,7 @@ async function main() {
     // Permission Extraction
     // Check header first (common pattern) 
     // OR body could contain permissions? Usually auth is metadata. Best to stick to header for authZ.
-    const authHeader = req.headers["x-dev-auth"] as string | undefined;
-    let permissions = new Set<string>();
-    if (authHeader) {
-        try {
-            const json = JSON.parse(authHeader);
-            if (Array.isArray(json.permissions)) json.permissions.forEach((p: any) => permissions.add(String(p)));
-        } catch { /* ignore */ }
-    }
+    const permissions = getEffectiveDebugPermissions(req, ctx);
 
     // Require: integration.toggle_execute_mode
     if (!permissions.has("integration.toggle_execute_mode")) {
