@@ -3710,8 +3710,9 @@ function SysadminPanel({
                                              <th style={{padding:'6px', textAlign:'left', borderBottom:'1px solid #ccc'}}>Integration</th>
                                              <th style={{padding:'6px', textAlign:'left', borderBottom:'1px solid #ccc'}}>Method</th>
                                              <th style={{padding:'6px', textAlign:'left', borderBottom:'1px solid #ccc'}}>Status</th>
-                                             <th style={{padding:'6px', textAlign:'left', borderBottom:'1px solid #ccc'}}>Duration</th>
-                                             <th style={{padding:'6px', textAlign:'left', borderBottom:'1px solid #ccc'}}>URL</th>
+                                             <th style={{padding:'6px', textAlign:'left', borderBottom:'1px solid #ccc'}}>Duration (ms)</th>
+                                             <th style={{padding:'6px', textAlign:'left', borderBottom:'1px solid #ccc'}}>HTTP</th>
+                                             <th style={{padding:'6px', textAlign:'left', borderBottom:'1px solid #ccc'}}>Error</th>
                                          </tr>
                                      </thead>
                                      <tbody>
@@ -3746,17 +3747,17 @@ function SysadminPanel({
                                                                  {inv.status || '-'}
                                                              </span>
                                                          </td>
-                                                         <td style={{padding:'6px', color:'#555'}}>{inv.durationMs}ms</td>
-                                                         <td style={{padding:'6px', fontSize:'0.8em', color:'#555', maxWidth:'200px'}}>
-                                                             {inv.url 
-                                                                ? <span title={inv.url} style={{fontFamily:'monospace', background:'#f5f5f5', padding:'1px 4px', borderRadius:'3px'}}>{inv.url}</span>
-                                                                : <span style={{fontStyle:'italic', color:'#999'}}>(unresolved)</span>
-                                                             }
+                                                         <td style={{padding:'6px', color:'#555'}}>{inv.durationMs !== undefined ? inv.durationMs : '-'}</td>
+                                                         <td style={{padding:'6px', color:'#555'}}>{(inv.status === 'success' && inv.httpStatus) ? inv.httpStatus : '-'}</td>
+                                                         <td style={{padding:'6px', color:'#b71c1c', maxWidth:'150px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>
+                                                             {inv.status === 'error' && inv.errorMessage 
+                                                                ? <span title={inv.errorMessage}>{inv.errorMessage}</span> 
+                                                                : '-'}
                                                          </td>
                                                      </tr>
                                                      {isExpanded && (
                                                          <tr style={{borderBottom:'1px solid #ddd', background:'#f8f9fa'}}>
-                                                             <td colSpan={6} style={{padding:'0 15px 15px 15px'}}>
+                                                             <td colSpan={7} style={{padding:'0 15px 15px 15px'}}>
                                                                  <div style={{
                                                                      padding:'10px', 
                                                                      border:'1px solid #ddd', 
@@ -3795,7 +3796,7 @@ function SysadminPanel({
                                                                          {inv.errorMessage && (
                                                                              <>
                                                                                  <div style={{color:'#b71c1c', fontSize:'0.85em', fontWeight:'bold'}}>Error:</div>
-                                                                                 <div style={{color:'#b71c1c'}}>{inv.errorMessage}</div>
+                                                                                 <div style={{color:'#b71c1c', fontFamily:'monospace', whiteSpace:'pre-wrap', wordBreak:'break-word'}}>{inv.errorMessage}</div>
                                                                              </>
                                                                          )}
 
