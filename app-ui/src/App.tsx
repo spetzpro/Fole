@@ -1888,18 +1888,34 @@ function SysadminPanel({
 
     const [confirmLoadVersion, setConfirmLoadVersion] = useState(false);
 
-    const handleLoadVersionToDraft = () => {
-         if (!selectedVersionDetail) return;
+    const handleLoadVersionToDraft = async () => {
+         if (!selectedVersionId) return;
          
-         // Validation: Check for blocks presence
-         if (!selectedVersionDetail.blocks) {
-             alert("This version detail endpoint does not include blocks; cannot load into draft yet.\n\nBackend enhancement required to fetch full block map.");
-             setConfirmLoadVersion(false);
-             return;
-         }
-
          try {
-             const newDraft = deepClone(selectedVersionDetail);
+             // Fetch with explicit includeBlocks
+             const res = await fetch(`/api/debug/config/shell/version/${selectedVersionId}?includeBlocks=1`);
+             
+             if (res.status === 413) {
+                 alert("Version too large to load into draft (limit exceeded).");
+                 setConfirmLoadVersion(false);
+                 return;
+             }
+             
+             if (!res.ok) {
+                 const txt = await res.text();
+                 throw new Error(`Fetch failed (${res.status}): ${txt}`);
+             }
+             
+             const fullVersion = await res.json();
+
+             // Validation: Check for blocks presence
+             if (!fullVersion.blocks) {
+                 alert("This version detail endpoint does not include blocks; cannot load into draft yet.");
+                 setConfirmLoadVersion(false);
+                 return;
+             }
+
+             const newDraft = deepClone(fullVersion);
              // Ensure blocks object
              if (!newDraft.blocks) newDraft.blocks = {};
              
