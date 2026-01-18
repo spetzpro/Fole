@@ -3797,13 +3797,17 @@ function SysadminPanel({
                                                           ) : (
                                                               <div style={{display:'flex', flexDirection:'column', gap:'5px'}}>
                                                                   {trace.effects.map((eff, eBi) => (
-                                                                      <div key={eBi} style={{background:'white', border:'1px solid #ddd', padding:'6px', borderRadius:'4px', fontSize:'0.9em'}}>
-                                                                          <div style={{display:'flex', justifyContent:'space-between', fontWeight:'bold', color:'#333'}}>
-                                                                              <span style={{textTransform:'uppercase', fontSize:'0.8em', background:'#eef', padding:'2px 4px', borderRadius:'3px'}}>{eff.kind}</span>
+                                                                      <div key={eBi} style={{background:'white', border:'1px solid #ddd', padding:'8px', borderRadius:'4px', fontSize:'0.9em'}}>
+                                                                          <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'4px'}}>
+                                                                              <span style={{textTransform:'uppercase', fontSize:'0.75em', fontWeight:'bold', background:'#eee', padding:'2px 5px', borderRadius:'3px', color:'#555'}}>{eff.kind}</span>
                                                                               {eff.kind === 'integration' && (
                                                                                  <span style={{
-                                                                                     fontSize:'0.85em', 
-                                                                                     color: eff.status === 'success' ? '#2e7d32' : (eff.status === 'error' ? '#c62828' : '#f57c00')
+                                                                                     fontSize:'0.75em', fontWeight:'bold', textTransform:'uppercase',
+                                                                                     padding:'2px 8px', borderRadius:'10px',
+                                                                                     color: 'white',
+                                                                                     background: eff.status === 'success' ? '#2e7d32' 
+                                                                                         : (eff.status === 'error' ? '#c62828' 
+                                                                                         : (eff.status === 'dry_run' ? '#00796b' : '#f57c00'))
                                                                                  }}>
                                                                                      {eff.status}
                                                                                  </span>
@@ -3811,16 +3815,23 @@ function SysadminPanel({
                                                                           </div>
                                                                           
                                                                           {eff.kind === 'integration' && (
-                                                                              <div style={{marginTop:'4px', fontSize:'0.9em'}}>
-                                                                                  <div style={{fontWeight:'bold'}}>{eff.integrationId}</div>
-                                                                                  <div style={{fontFamily:'monospace', color:'#555'}}>
+                                                                              <div style={{marginTop:'4px'}}>
+                                                                                  <div style={{fontWeight:'bold', color:'#333', marginBottom:'2px'}}>{eff.integrationId}</div>
+                                                                                  <div style={{fontFamily:'monospace', color:'#444'}}>
                                                                                       {eff.method} {eff.path}
                                                                                   </div>
-                                                                                  {eff.url && (
-                                                                                      <div style={{fontSize:'0.8em', color:'#888', wordBreak:'break-all'}}>
-                                                                                          {eff.url}
-                                                                                      </div>
-                                                                                  )}
+                                                                                  <div 
+                                                                                      title={eff.url || ''}
+                                                                                      style={{
+                                                                                          fontSize:'0.85em', 
+                                                                                          color: eff.url ? '#0277bd' : '#999', 
+                                                                                          fontFamily:'monospace',
+                                                                                          marginTop:'2px',
+                                                                                          whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis',
+                                                                                          fontStyle: eff.url ? 'normal' : 'italic'
+                                                                                      }}>
+                                                                                      {eff.url || '(no url)'}
+                                                                                  </div>
                                                                               </div>
                                                                           )}
 
