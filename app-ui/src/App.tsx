@@ -1079,6 +1079,8 @@ function SysadminPanel({
             setConfirmActivate(false);
             // Refresh versions to update 'activeVersionId'
             refreshVersions();
+            // Refresh snapshot to update 'activeVersionId' and 'activationReason'
+            refreshSnapshot();
         } catch (err: any) {
             setShellVersionsError(`Activation Failed: ${err.message}`);
             setConfirmActivate(false);
