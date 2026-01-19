@@ -4091,7 +4091,7 @@ function SysadminPanel({
                          <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', borderBottom:'1px solid #eee', paddingBottom:'10px'}}>
                              <div style={{display:'flex', alignItems:'center', gap:'10px'}}>
                                  <strong style={{fontSize:'1.1em'}}>Runtime Snapshot</strong>
-                                 <button onClick={refreshSnapshot} style={{cursor:'pointer', padding:'2px 8px', fontSize:'0.9em'}}>Refresh</button>
+                                 <button onClick={() => { refreshSnapshot(); fetchAdapterCaps(); }} style={{cursor:'pointer', padding:'2px 8px', fontSize:'0.9em'}}>Refresh</button>
                                  {snapshotLoading && <span style={{color:'#666', fontSize:'0.9em'}}>Loading...</span>}
                              </div>
                              {snapshotData && <CopyBtn k="snapshot" text={snapshotData} />}
@@ -4255,6 +4255,71 @@ function SysadminPanel({
                                          <div style={{marginTop:'5px', padding:'5px', background:'#fff3e0', border:'1px solid #ffe0b2', borderRadius:'3px', fontSize:'0.85em', color:'#e65100'}}>
                                               <strong>Note:</strong> HTTP integrations are not production-safe yet.
                                          </div>
+                                     )}
+                                 </div>
+
+                                 {/* Integration Adapters (Available) - Roadmap #5.3.2 */}
+                                 <div style={{marginTop:'20px', borderTop:'1px solid #eee', paddingTop:'15px'}}>
+                                     <strong style={{display:'block', marginBottom:'10px', color:'#333'}}>Integration Adapters (Available)</strong>
+
+                                     {adapterCapsLoading && <div style={{color:'#666', fontStyle:'italic', fontSize:'0.9em'}}>Loading capabilities...</div>}
+                                     {adapterCapsError && <div style={{color:'#d32f2f', padding:'5px', border:'1px solid #ffcdd2', background:'#ffebee', borderRadius:'3px', fontSize:'0.9em'}}>Error: {adapterCapsError}</div>}
+
+                                     {!adapterCapsLoading && !adapterCapsError && (
+                                        <>
+                                            {Object.keys(adapterCaps).length === 0 ? (
+                                                <div style={{fontStyle:'italic', color:'#666', padding:'8px', background:'#f9f9f9', border:'1px solid #eee', fontSize:'0.9em'}}>No adapters registered.</div>
+                                            ) : (
+                                                <div>
+                                                    <table style={{width:'100%', borderCollapse:'collapse', fontSize:'0.85em', border:'1px solid #eee'}}>
+                                                        <thead>
+                                                            <tr style={{background:'#f5f5f5', textAlign:'left'}}>
+                                                                <th style={{padding:'6px', borderBottom:'1px solid #ddd'}}>Type</th>
+                                                                <th style={{padding:'6px', borderBottom:'1px solid #ddd', textAlign:'center'}}>EXEC</th>
+                                                                <th style={{padding:'6px', borderBottom:'1px solid #ddd', textAlign:'center'}}>DRY</th>
+                                                                <th style={{padding:'6px', borderBottom:'1px solid #ddd', textAlign:'center'}}>PROD SAFE</th>
+                                                                <th style={{padding:'6px', borderBottom:'1px solid #ddd', textAlign:'center'}}>SECRETS</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            {Object.entries(adapterCaps)
+                                                                .sort(([typeA], [typeB]) => typeA.localeCompare(typeB))
+                                                                .map(([type, cap]) => {
+                                                                    const pillBase = { display:'inline-block', padding:'2px 6px', borderRadius:'10px', fontSize:'0.85em', fontWeight:'bold' };
+                                                                    const pillGreen = { ...pillBase, background:'#e8f5e9', color:'#2e7d32', border:'1px solid #c8e6c9' };
+                                                                    const pillGray = { ...pillBase, background:'#f5f5f5', color:'#9e9e9e', border:'1px solid #e0e0e0' };
+                                                                    
+                                                                    return (
+                                                                        <tr key={type} style={{borderBottom:'1px solid #eee'}}>
+                                                                            <td style={{padding:'6px', fontFamily:'monospace', color:'#333'}}>{type}</td>
+                                                                            <td style={{padding:'6px', textAlign:'center'}}>
+                                                                                 <span style={cap.execute ? pillGreen : pillGray}>{cap.execute ? 'YES' : 'NO'}</span>
+                                                                            </td>
+                                                                            <td style={{padding:'6px', textAlign:'center'}}>
+                                                                                 <span style={cap.dryRun ? pillGreen : pillGray}>{cap.dryRun ? 'YES' : 'NO'}</span>
+                                                                            </td>
+                                                                            <td style={{padding:'6px', textAlign:'center'}}>
+                                                                                 <span style={cap.productionSafe ? pillGreen : pillGray}>{cap.productionSafe ? 'YES' : 'NO'}</span>
+                                                                            </td>
+                                                                            <td style={{padding:'6px', textAlign:'center'}}>
+                                                                                 {cap.requiresSecrets ? 
+                                                                                     <span style={{...pillBase, background:'#fff3e0', color:'#e65100', border:'1px solid #ffe0b2'}}>REQ</span> : 
+                                                                                     <span style={{color:'#ccc'}}>-</span>}
+                                                                            </td>
+                                                                        </tr>
+                                                                    );
+                                                                })}
+                                                        </tbody>
+                                                    </table>
+                                                    
+                                                    {Object.values(adapterCaps).some(c => !c.productionSafe) && (
+                                                        <div style={{marginTop:'8px', padding:'6px', background:'#fff3e0', borderLeft:'3px solid #ff9800', fontSize:'0.85em', color:'#e65100'}}>
+                                                             <strong>Note:</strong> Some adapters are not production-safe yet.
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </>
                                      )}
                                  </div>
                              </div>
