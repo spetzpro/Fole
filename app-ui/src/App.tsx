@@ -1074,6 +1074,11 @@ function SysadminPanel({
     const [adapterCapsLoading, setAdapterCapsLoading] = useState(false);
     const [adapterCapsError, setAdapterCapsError] = useState<string | null>(null);
 
+    // Change Summary (Roadmap #4.4)
+    const [versionDiff, setVersionDiff] = useState<any>(null);
+    const [versionDiffLoading, setVersionDiffLoading] = useState(false);
+    const [versionDiffError, setVersionDiffError] = useState<string | null>(null);
+
     const fetchAdapterCaps = () => {
         setAdapterCapsLoading(true);
         setAdapterCapsError(null);
@@ -1162,19 +1167,76 @@ function SysadminPanel({
         setVersionDetailError(null);
         setSelectedVersionDetail(null);
         
-        fetch(`/api/debug/config/shell/version/${vId}`)
+        // Reset diff
+        setVersionDiff(null);
+        setVersionDiffLoading(true);
+        setVersionDiffError(null);
+
+        fetch(`/api/debug/config/shell/version/${vId}?includeBlocks=1`)
             .then(async (res) => {
+                if (res.status === 403) throw new Error("Debug endpoints disabled (403)");
+                if (res.status === 413) throw new Error("Payload too large (413)");
                 const j = await res.json();
-                if (res.status === 403) {
-                     throw new Error("Debug endpoints disabled (403)");
-                }
                 if (!res.ok) throw new Error(j.error || "Unknown Error");
+                
                 setSelectedVersionDetail(j);
                 setVersionDetailLoading(false);
+
+                // Diff Logic vs Parent
+                const parentId = j.meta?.parentVersionId;
+                if (!parentId) {
+                    setVersionDiffLoading(false);
+                    return;
+                }
+
+                // Fetch Parent
+                return fetch(`/api/debug/config/shell/version/${parentId}?includeBlocks=1`)
+                    .then(async (pRes) => {
+                         if (pRes.status === 413) throw new Error("Diff unavailable (too large)");
+                         if (!pRes.ok) throw new Error(`Parent fetch failed (${pRes.status})`);
+                         
+                         const pData = await pRes.json();
+                         
+                         // Compute Diff
+                         const currentBlocks = j.blocks || {};
+                         const parentBlocks = pData.blocks || {};
+                         
+                         const cKeys = Object.keys(currentBlocks);
+                         const pKeys = Object.keys(parentBlocks);
+                         
+                         let added = 0;
+                         let removed = 0;
+                         let modified = 0;
+                         
+                         // Check Added/Modified
+                         cKeys.forEach(k => {
+                             if (!parentBlocks[k]) added++;
+                             else if (JSON.stringify(currentBlocks[k]) !== JSON.stringify(parentBlocks[k])) modified++;
+                         });
+                         
+                         // Check Removed
+                         pKeys.forEach(k => {
+                             if (!currentBlocks[k]) removed++;
+                         });
+
+                         const cManifest = JSON.stringify(j.manifest || {});
+                         const pManifest = JSON.stringify(pData.manifest || {});
+                         const manifestChanged = cManifest !== pManifest;
+
+                         setVersionDiff({
+                             added, removed, modified, manifestChanged, parentId
+                         });
+                         setVersionDiffLoading(false);
+                    })
+                    .catch(e => {
+                        setVersionDiffError(e.message);
+                        setVersionDiffLoading(false);
+                    });
             })
             .catch(err => {
                 setVersionDetailError(err.message);
                 setVersionDetailLoading(false);
+                setVersionDiffLoading(false);
             });
     };
 
@@ -2229,6 +2291,30 @@ function SysadminPanel({
                                              <div style={{fontSize:'1.5em', fontWeight:'bold'}}>{selectedVersionDetail.stats?.integrationCount}</div>
                                              <div style={{fontSize:'0.8em', color:'#666', textTransform:'uppercase'}}>Integrations</div>
                                          </div>
+                                     </div>
+
+                                     {/* Change Summary (Roadmap #4.4) */}
+                                     <div style={{marginTop:'10px', padding:'10px', background:'#fff', border:'1px solid #ddd', borderLeft:'3px solid #007acc'}}>
+                                        <div style={{fontWeight:'bold', color:'#333', marginBottom:'5px', fontSize:'0.9em'}}>
+                                            Change Summary vs Parent {selectedVersionDetail.meta?.parentVersionId ? `(${selectedVersionDetail.meta.parentVersionId})` : ''}
+                                        </div>
+                                        
+                                        {!selectedVersionDetail.meta?.parentVersionId ? (
+                                            <div style={{fontStyle:'italic', color:'#666', fontSize:'0.85em'}}>No parent recorded (First version or imported).</div>
+                                        ) : versionDiffLoading ? (
+                                            <div style={{color:'#666', fontSize:'0.85em'}}>Computing diff...</div>
+                                        ) : versionDiffError ? (
+                                            <div style={{color:'#d32f2f', fontSize:'0.85em'}}>{versionDiffError}</div>
+                                        ) : versionDiff ? (
+                                            <div style={{display:'flex', gap:'15px', fontSize:'0.9em'}}>
+                                                 <span style={{color:'#2e7d32', fontWeight:'bold'}}>+ {versionDiff.added} Added</span>
+                                                 <span style={{color:'#c62828', fontWeight:'bold'}}>- {versionDiff.removed} Removed</span>
+                                                 <span style={{color:'#ef6c00', fontWeight:'bold'}}>~ {versionDiff.modified} Modified</span>
+                                                 <span style={{color: versionDiff.manifestChanged ? '#d32f2f' : '#666'}}>
+                                                     Manifest: <strong>{versionDiff.manifestChanged ? 'CHANGED' : 'Unchanged'}</strong>
+                                                 </span>
+                                            </div>
+                                        ) : null}
                                      </div>
                                      
                                      {/* Manifest & Actions */}
