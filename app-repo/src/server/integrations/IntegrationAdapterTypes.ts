@@ -18,7 +18,16 @@ export interface IntegrationResult {
     payload?: any; // Parsed response if needed later
 }
 
+export interface IntegrationAdapterCapabilities {
+    execute: boolean;
+    dryRun: boolean;
+    requiresSecrets: boolean;
+    productionSafe: boolean;
+}
+
 export interface IntegrationAdapter {
+    capabilities: IntegrationAdapterCapabilities;
+
     /**
      * Executes the integration logic.
      * Must enforce its own safety checks (allowlist, timeouts, etc).

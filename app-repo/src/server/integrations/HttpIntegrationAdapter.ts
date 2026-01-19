@@ -1,6 +1,13 @@
-import { IntegrationAdapter, IntegrationRequest, IntegrationResult } from "./IntegrationAdapterTypes";
+import { IntegrationAdapter, IntegrationRequest, IntegrationResult, IntegrationAdapterCapabilities } from "./IntegrationAdapterTypes";
 
 export class HttpIntegrationAdapter implements IntegrationAdapter {
+    capabilities: IntegrationAdapterCapabilities = {
+        execute: true,
+        dryRun: true,
+        requiresSecrets: false,
+        productionSafe: false
+    };
+
     async execute(req: IntegrationRequest): Promise<IntegrationResult> {
         const start = Date.now();
 
