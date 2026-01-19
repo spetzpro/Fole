@@ -4169,6 +4169,42 @@ function SysadminPanel({
                                          </tbody>
                                      </table>
                                  </div>
+
+                                 {/* Integrations Breakdown (Roadmap #5.1) */}
+                                 <div style={{marginTop:'15px'}}>
+                                     <strong style={{display:'block', marginBottom:'5px', color:'#333'}}>Integrations</strong>
+                                     <div style={{marginBottom:'5px', fontSize:'0.9em'}}>
+                                         Total: <strong>{snapshotData.integrations.total}</strong>
+                                     </div>
+                                     {snapshotData.integrations.total > 0 && (
+                                         <table style={{width:'100%', borderCollapse:'collapse', fontSize:'0.9em', border:'1px solid #eee'}}>
+                                             <thead>
+                                                 <tr style={{background:'#f5f5f5', textAlign:'left'}}>
+                                                     <th style={{padding:'6px', borderBottom:'1px solid #ddd'}}>Type</th>
+                                                     <th style={{padding:'6px', borderBottom:'1px solid #ddd', width:'80px'}}>Count</th>
+                                                 </tr>
+                                             </thead>
+                                             <tbody>
+                                                 {snapshotData.integrations.byType && Object.entries(snapshotData.integrations.byType)
+                                                     .sort(([,a], [,b]) => (b as number) - (a as number))
+                                                     .map(([type, count]) => (
+                                                         <tr key={type} style={{borderBottom:'1px solid #eee'}}>
+                                                             <td style={{padding:'6px', fontFamily:'monospace', color:'#333'}}>{type}</td>
+                                                             <td style={{padding:'6px', fontWeight:'bold'}}>{count as number}</td>
+                                                         </tr>
+                                                     ))
+                                                 }
+                                             </tbody>
+                                         </table>
+                                     )}
+                                     
+                                     {/* Warning for HTTP */}
+                                     {snapshotData.integrations.byType && Object.keys(snapshotData.integrations.byType).some(k => k.includes('shell.infra.api.http')) && (
+                                         <div style={{marginTop:'5px', padding:'5px', background:'#fff3e0', border:'1px solid #ffe0b2', borderRadius:'3px', fontSize:'0.85em', color:'#e65100'}}>
+                                              <strong>Note:</strong> HTTP integrations are not production-safe yet.
+                                         </div>
+                                     )}
+                                 </div>
                              </div>
                          )}
                      </div>
