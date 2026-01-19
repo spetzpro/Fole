@@ -10,6 +10,7 @@ import { BindingRuntime } from "./BindingRuntime";
 import { createBindingRuntimeManager } from "./BindingRuntimeManager";
 import { TriggerEvent, TriggerContext, TriggeredBindingResult } from "./TriggeredBindingEngine";
 import { dispatchActionEvent } from "./ActionDispatcher";
+import { IntegrationAdapterRegistry } from "./integrations/IntegrationAdapterRegistry";
 
 import { evaluateBoolean, ExpressionContext } from "./ExpressionEvaluator";
 
@@ -143,6 +144,17 @@ async function main() {
     const runtime = runtimeManager.getRuntime();
     const traces = runtime ? runtime.getDispatchTraces() : [];
     router.json(res, 200, { traces });
+  });
+
+  // Debug adapter capabilities endpoint (Roadmap #5.3.2 Step 1)
+  router.get("/api/debug/runtime/integrations/adapter-capabilities", (_req, res, _params, ctx) => {
+    if (!ModeGate.canUseDebugEndpoints(ctx)) {
+        return router.json(res, 403, { error: "Debug mode disabled" });
+    }
+
+    const registry = IntegrationAdapterRegistry.getInstance();
+    const adapters = registry.getCapabilities();
+    router.json(res, 200, { adapters });
   });
 
   // Debug snapshot endpoint (Epic 4 Step 1)

@@ -1,4 +1,4 @@
-import { IntegrationAdapter } from "./IntegrationAdapterTypes";
+import { IntegrationAdapter, IntegrationAdapterCapabilities } from "./IntegrationAdapterTypes";
 import { HttpIntegrationAdapter } from "./HttpIntegrationAdapter";
 
 export class IntegrationAdapterRegistry {
@@ -28,4 +28,16 @@ export class IntegrationAdapterRegistry {
     public getAdapter(type: string): IntegrationAdapter | undefined {
         return this.adapters.get(type);
     }
+
+    public getCapabilities(): Array<{ integrationType: string, capabilities: IntegrationAdapterCapabilities }> {
+        const results: Array<{ integrationType: string, capabilities: IntegrationAdapterCapabilities }> = [];
+        this.adapters.forEach((adapter, type) => {
+            results.push({
+                integrationType: type,
+                capabilities: adapter.capabilities
+            });
+        });
+        return results.sort((a, b) => a.integrationType.localeCompare(b.integrationType));
+    }
 }
+
