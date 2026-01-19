@@ -2082,6 +2082,11 @@ function SysadminPanel({
                                          <div style={{background:'#eee', padding:'5px 10px', borderRadius:'4px', fontSize:'0.9em'}}>
                                              <strong>Mode:</strong> {selectedVersionDetail.meta?.mode || 'N/A'}
                                          </div>
+                                         {shellVersions?.activeVersionId === selectedVersionId && shellVersions?.activeMeta?.reason && (
+                                              <div style={{background:'#e8f5e9', padding:'5px 10px', borderRadius:'4px', fontSize:'0.9em', border:'1px solid #c8e6c9', color:'#1b5e20'}}>
+                                                  <strong>Active Reason:</strong> {shellVersions.activeMeta.reason}
+                                              </div>
+                                         )}
                                      </div>
 
                                      {/* Stats */}
@@ -2150,6 +2155,8 @@ function SysadminPanel({
                                     <tbody>
                                         {shellVersions?.versions?.map((v: any, i: number) => {
                                              const isActive = v.versionId === shellVersions.activeVersionId;
+                                             const activeReason = isActive ? shellVersions.activeMeta?.reason : null;
+                                             
                                              return (
                                                 <tr key={v.versionId || i} style={{background: isActive ? '#f0f8ff' : 'white', borderBottom:'1px solid #eee'}}>
                                                     <td style={{padding:'8px'}}>
@@ -2157,7 +2164,10 @@ function SysadminPanel({
                                                         {isActive && <span style={{fontSize:'0.75em', color:'green', border:'1px solid green', borderRadius:'3px', padding:'0 2px'}}>ACTIVE</span>}
                                                     </td>
                                                     <td style={{padding:'8px'}}>{v.timestamp}</td>
-                                                    <td style={{padding:'8px'}}>{v.description}</td>
+                                                    <td style={{padding:'8px'}}>
+                                                        <div>{v.description}</div>
+                                                        {activeReason && <div style={{fontSize:'0.85em', color:'#2e7d32', marginTop:'2px'}}>Reason: {activeReason}</div>}
+                                                    </td>
                                                     <td style={{padding:'8px'}}>{v.mode}</td>
                                                     <td style={{padding:'8px', textAlign:'right'}}>
                                                         <button 
@@ -3919,6 +3929,10 @@ function SysadminPanel({
                  );
             }
             case 'Snapshot': {
+                 const snapshotVersionId = snapshotData?.activeVersionId;
+                 const activeMeta = (shellVersions?.activeVersionId === snapshotVersionId) ? shellVersions?.activeMeta : null;
+                 const reason = activeMeta?.reason;
+
                  return (
                      <div style={{display:'flex', flexDirection:'column', height:'100%', gap:'10px'}}>
                          <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', borderBottom:'1px solid #eee', paddingBottom:'10px'}}>
@@ -3955,6 +3969,15 @@ function SysadminPanel({
                                          
                                          <strong style={{color:'#555'}}>Activated At:</strong>
                                          <span>{snapshotData.activatedAt ? new Date(snapshotData.activatedAt).toLocaleString() : 'N/A'}</span>
+
+                                         <strong style={{color:'#555'}}>Activation Reason:</strong>
+                                         <span>
+                                             {reason ? (
+                                                  <span style={{color:'#2e7d32', fontWeight:'bold'}}>{reason}</span>
+                                             ) : (
+                                                  <span style={{color:'#999', fontStyle:'italic'}}>(not available)</span>
+                                             )}
+                                         </span>
                                      </div>
                                  </div>
                                  
