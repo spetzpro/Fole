@@ -1,6 +1,8 @@
 import { ShellBundle } from "./ShellConfigTypes";
 import { JsonPointer } from "./JsonPointer";
 import { evaluateBoolean } from "./ExpressionEvaluator";
+import { HttpIntegrationAdapter } from "./integrations/HttpIntegrationAdapter";
+import { IntegrationRequest } from "./integrations/IntegrationAdapterTypes";
 
 export interface TriggerEvent {
   sourceBlockId: string;
@@ -197,117 +199,78 @@ export function dispatchTriggeredBindings(
              continue;
           }
 
+          // Determine mode
+          let shouldExecute = false;
+          let permissionError = false;
+
           if (executeIntegrations && integrationType === 'shell.infra.api.http' && url) {
-              // Permission Check: integration.execute
               const hasExecutePerm = ctx.permissions && ctx.permissions.has('integration.execute');
-
               if (!hasExecutePerm) {
-                  // Permission denied
-                   onIntegrationInvoke({
-                        integrationId,
-                        integrationType,
-                        method: mapping.method,
-                        path: mapping.path,
-                        sourceBindingId: blockId,
-                        timestamp: new Date().toISOString(),
-                        status: 'error',
-                        integrationConfig,
-                        url,
-                        durationMs: 0,
-                        errorMessage: 'Missing permission: integration.execute'
-                    });
-                     result.applied++; // Still counts as applied (attempted)
-                     result.logs.push(`[${blockId}] Applied: callIntegration -> ${integrationId} (EXECUTE DENIED: missing integration.execute)`);
-                     continue;
+                  permissionError = true;
+              } else {
+                  shouldExecute = true;
               }
+          }
 
-              // Execute Mode (Safe HTTP GET only)
-              (async () => {
-                  const start = Date.now();
-                  try {
-                      // Safety Checks
-                      const parsedUrl = new URL(url);
-                      const hostname = parsedUrl.hostname;
-                      // Strict allowlist: localhost, 127.0.0.1, ::1
-                      const allowedHosts = ['localhost', '127.0.0.1', '::1'];
-                      
-                      if (!allowedHosts.includes(hostname)) {
-                          throw new Error(`Host '${hostname}' not in allowlist.`);
-                      }
-                      
-                      const method = (mapping.method || 'GET').toUpperCase();
-                      if (method !== 'GET') {
-                          throw new Error(`Method '${method}' not allowed in debug execute mode (GET only).`);
-                      }
+          if (permissionError) {
+                // Permission Denied
+                if (onIntegrationInvoke) onIntegrationInvoke({
+                    integrationId,
+                    integrationType,
+                    method: mapping.method,
+                    path: mapping.path,
+                    sourceBindingId: blockId,
+                    timestamp: new Date().toISOString(),
+                    status: 'error',
+                    integrationConfig,
+                    url,
+                    durationMs: 0,
+                    errorMessage: 'Missing permission: integration.execute'
+                });
+                result.applied++; 
+                result.logs.push(`[${blockId}] Applied: callIntegration -> ${integrationId} (EXECUTE DENIED: missing integration.execute)`);
+                continue;
+          }
 
-                      const controller = new AbortController();
-                      const timeoutId = setTimeout(() => controller.abort(), 3000); // 3s timeout
-
-                      const response = await fetch(url, {
-                          method: 'GET',
-                          signal: controller.signal
-                      });
-                      clearTimeout(timeoutId);
-
-                      const text = await response.text();
-                      // Store only 2KB snippet, but we effectively read more by calling text()
-                      // Ideally we'd limit the stream, but for MVP this suffices.
-                      const snippet = text.slice(0, 2048); 
-
-                      onIntegrationInvoke({
-                        integrationId,
-                        integrationType,
-                        method: mapping.method,
-                        path: mapping.path,
-                        sourceBindingId: blockId,
-                        timestamp: new Date().toISOString(),
-                        status: 'success',
-                        integrationConfig,
-                        url,
-                        durationMs: Date.now() - start,
-                        httpStatus: response.status,
-                        responseSnippet: snippet
-                    });
-                  } catch (err: any) {
-                      onIntegrationInvoke({
-                        integrationId,
-                        integrationType,
-                        method: mapping.method,
-                        path: mapping.path,
-                        sourceBindingId: blockId,
-                        timestamp: new Date().toISOString(),
-                        status: 'error',
-                        integrationConfig,
-                        url,
-                        durationMs: Date.now() - start,
-                        errorMessage: err.message
-                    });
-                  }
-              })();
-
-              result.applied++;
-              result.logs.push(`[${blockId}] Applied: callIntegration -> ${integrationId} (async execute)`);
-              continue;
-
-          } else {
-            // Dry Run Mode (Default)
-            onIntegrationInvoke({
+          // Use Adapter
+          const adapter = new HttpIntegrationAdapter();
+          const req: IntegrationRequest = {
                 integrationId,
                 integrationType,
+                config: integrationConfig as any,
                 method: mapping.method,
                 path: mapping.path,
-                sourceBindingId: blockId,
-                timestamp: new Date().toISOString(),
-                status: 'dry_run',
-                integrationConfig,
-                url,
-                durationMs: 0
-            });
+                url: url || '', 
+                execute: shouldExecute
+          };
 
-            result.applied++;
-            result.logs.push(`[${blockId}] Applied: callIntegration -> ${integrationId} (dry_run)`);
-            continue;
+          // Execute (Async to match legacy behavior)
+          adapter.execute(req).then(res => {
+              if (onIntegrationInvoke) onIntegrationInvoke({
+                  integrationId,
+                  integrationType,
+                  method: mapping.method,
+                  path: mapping.path,
+                  sourceBindingId: blockId,
+                  timestamp: new Date().toISOString(),
+                  status: res.status,
+                  integrationConfig,
+                  url: url || undefined,
+                  durationMs: res.durationMs || 0,
+                  httpStatus: res.httpStatus,
+                  responseSnippet: res.responseSnippet,
+                  errorMessage: res.errorMessage
+              });
+          });
+
+          result.applied++;
+          
+          if (shouldExecute) {
+               result.logs.push(`[${blockId}] Applied: callIntegration -> ${integrationId} (async execute)`);
+          } else {
+               result.logs.push(`[${blockId}] Applied: callIntegration -> ${integrationId} (dry_run)`);
           }
+          continue;
       }
 
       if (mapping.kind !== "setLiteral" && mapping.kind !== "setFromPayload") {
