@@ -1069,6 +1069,36 @@ function SysadminPanel({
     const [preflightError, setPreflightError] = useState<string | null>(null);
     const [ackPreflightWarnings, setAckPreflightWarnings] = useState(false);
 
+    // Adapter Capabilities (Roadmap #5.3.2)
+    const [adapterCaps, setAdapterCaps] = useState<Record<string, any>>({});
+    const [adapterCapsLoading, setAdapterCapsLoading] = useState(false);
+    const [adapterCapsError, setAdapterCapsError] = useState<string | null>(null);
+
+    const fetchAdapterCaps = () => {
+        setAdapterCapsLoading(true);
+        setAdapterCapsError(null);
+        fetch('/api/debug/runtime/integrations/adapter-capabilities')
+            .then(res => {
+                if (!res.ok) throw new Error(`Fetch failed: ${res.status}`);
+                return res.json();
+            })
+            .then(data => {
+                // Shape: { adapters: [{ integrationType, capabilities: {...} }] }
+                const map: Record<string, any> = {};
+                if (Array.isArray(data.adapters)) {
+                    data.adapters.forEach((a: any) => {
+                        map[a.integrationType] = a.capabilities;
+                    });
+                }
+                setAdapterCaps(map);
+                setAdapterCapsLoading(false);
+            })
+            .catch(err => {
+                setAdapterCapsError(err.message);
+                setAdapterCapsLoading(false);
+            });
+    };
+
     const fetchPreflight = async (vid: string) => {
         setPreflightLoading(true);
         setPreflightResult(null);
@@ -4182,17 +4212,39 @@ function SysadminPanel({
                                                  <tr style={{background:'#f5f5f5', textAlign:'left'}}>
                                                      <th style={{padding:'6px', borderBottom:'1px solid #ddd'}}>Type</th>
                                                      <th style={{padding:'6px', borderBottom:'1px solid #ddd', width:'80px'}}>Count</th>
+                                                     <th style={{padding:'6px', borderBottom:'1px solid #ddd'}}>Capabilities {adapterCapsLoading && <span style={{fontSize:'0.8em', color:'#666'}}>(loading...)</span>}</th>
                                                  </tr>
                                              </thead>
                                              <tbody>
                                                  {snapshotData.integrations.byType && Object.entries(snapshotData.integrations.byType)
                                                      .sort(([,a], [,b]) => (b as number) - (a as number))
-                                                     .map(([type, count]) => (
-                                                         <tr key={type} style={{borderBottom:'1px solid #eee'}}>
-                                                             <td style={{padding:'6px', fontFamily:'monospace', color:'#333'}}>{type}</td>
-                                                             <td style={{padding:'6px', fontWeight:'bold'}}>{count as number}</td>
-                                                         </tr>
-                                                     ))
+                                                     .map(([type, count]) => {
+                                                         const cap = adapterCaps[type];
+                                                         const badgeStyle = { fontSize:'0.75em', padding:'1px 5px', borderRadius:'3px', marginRight:'4px', fontWeight:'bold' };
+                                                         const green = { ...badgeStyle, background:'#e8f5e9', color:'#1b5e20', border:'1px solid #c8e6c9' };
+                                                         const gray = { ...badgeStyle, background:'#f5f5f5', color:'#777', border:'1px solid #ddd' };
+                                                         
+                                                         return (
+                                                             <tr key={type} style={{borderBottom:'1px solid #eee'}}>
+                                                                 <td style={{padding:'6px', fontFamily:'monospace', color:'#333'}}>{type}</td>
+                                                                 <td style={{padding:'6px', fontWeight:'bold'}}>{count as number}</td>
+                                                                 <td style={{padding:'6px'}}>
+                                                                     {!cap ? (
+                                                                         <span style={{color: adapterCapsError ? '#d32f2f' : '#888', fontStyle:'italic', fontSize:'0.85em'}}>
+                                                                             {adapterCapsError ? 'Error loading adapters' : 'NO ADAPTER'}
+                                                                         </span>
+                                                                     ) : (
+                                                                         <div style={{display:'flex', gap:'2px'}}>
+                                                                             <span style={cap.execute ? green : gray}>EXEC</span>
+                                                                             <span style={cap.dryRun ? green : gray}>DRY</span>
+                                                                             <span style={cap.productionSafe ? green : gray}>SAFE</span>
+                                                                             {cap.requiresSecrets && <span style={{...badgeStyle, background:'#fff3e0', color:'#e65100', border:'1px solid #ffe0b2'}}>SECRETS</span>}
+                                                                         </div>
+                                                                     )}
+                                                                 </td>
+                                                             </tr>
+                                                         );
+                                                     })
                                                  }
                                              </tbody>
                                          </table>
@@ -4428,6 +4480,12 @@ function SysadminPanel({
                                 setSelectedBindingId(null); 
                                 setSelectedActionId(null);
                                 setConfirmActivate(false);
+                                if (t === 'Snapshot') {
+                                    refreshSnapshot();
+                                    fetchAdapterCaps();
+                                }
+                                if (t === 'Traces') refreshTraces();
+                                if (t === 'Invocations') refreshInvocations();
                             }}
                             style={{
                                 flex: '0 0 auto',
