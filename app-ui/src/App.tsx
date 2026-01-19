@@ -1063,6 +1063,29 @@ function SysadminPanel({
     const [confirmActivate, setConfirmActivate] = useState(false);
     const [activateReason, setActivateReason] = useState('Activated from Sysadmin');
 
+    // Preflight (Roadmap #4.2 Step 2)
+    const [preflightLoading, setPreflightLoading] = useState(false);
+    const [preflightResult, setPreflightResult] = useState<any>(null);
+    const [preflightError, setPreflightError] = useState<string | null>(null);
+    const [ackPreflightWarnings, setAckPreflightWarnings] = useState(false);
+
+    const fetchPreflight = async (vid: string) => {
+        setPreflightLoading(true);
+        setPreflightResult(null);
+        setPreflightError(null);
+        setAckPreflightWarnings(false);
+        try {
+            const res = await fetch(`/api/debug/config/shell/preflight/${vid}`);
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || "Preflight check failed");
+            setPreflightResult(data);
+        } catch (err: any) {
+            setPreflightError(err.message);
+        } finally {
+            setPreflightLoading(false);
+        }
+    };
+
     const handleActivate = async (versionId: string) => {
         setActivationMessage(null);
         setShellVersionsError(null);
@@ -2034,30 +2057,100 @@ function SysadminPanel({
                                  {shellVersions?.activeVersionId !== selectedVersionId && (
                                       <div style={{marginLeft:'auto', display:'flex', alignItems:'center', gap:'10px'}}>
                                           {confirmActivate ? (
-                                              <div style={{display:'flex', alignItems:'center', gap:'5px', background:'#fff3e0', padding:'5px', borderRadius:'4px', border:'1px solid #ffe0b2'}}>
-                                                  <input 
-                                                      type="text" 
-                                                      value={activateReason} 
-                                                      onChange={e => setActivateReason(e.target.value)}
-                                                      placeholder="Reason"
-                                                      style={{border:'1px solid #ccc', padding:'6px 10px', width:'260px', borderRadius:'4px'}}
-                                                  />
-                                                  <button 
-                                                      onClick={() => handleActivate(selectedVersionId)}
-                                                      style={{background:'#d32f2f', color:'white', border:'none', padding:'6px 12px', borderRadius:'6px', cursor:'pointer', fontWeight:'bold'}}
-                                                  >
-                                                      Confirm Activate
-                                                  </button>
-                                                  <button 
-                                                      onClick={() => setConfirmActivate(false)}
-                                                      style={{background:'#ffffff', color:'#111', border:'1px solid #ccc', padding:'6px 12px', borderRadius:'6px', cursor:'pointer', fontWeight: 600}}
-                                                  >
-                                                      Cancel
-                                                  </button>
+                                              <div style={{display:'flex', flexDirection:'column', gap:'10px', background:'#fff3e0', padding:'10px', borderRadius:'4px', border:'1px solid #ffe0b2', minWidth:'400px', maxWidth:'600px', zIndex: 100, position:'relative'}}>
+                                                  <div style={{fontWeight:'bold', borderBottom:'1px solid #ffd54f', paddingBottom:'5px', marginBottom:'5px', color:'#ef6c00'}}>Preflight Check</div>
+                                                  
+                                                  {preflightLoading && <div style={{color:'#666', fontStyle:'italic'}}>Running safety validation...</div>}
+                                                  {preflightError && <div style={{color:'red'}}>Error: {preflightError}</div>}
+                                                  
+                                                  {!preflightLoading && preflightResult && (
+                                                      <>
+                                                         {/* Result Summary */}
+                                                         <div style={{display:'flex', gap:'10px', alignItems:'center'}}>
+                                                             <div style={{
+                                                                 fontWeight:'bold', 
+                                                                 color: preflightResult.canActivate ? (preflightResult.warnings.length > 0 ? '#ef6c00' : '#2e7d32') : '#d32f2f'
+                                                             }}>
+                                                                 {preflightResult.canActivate 
+                                                                     ? (preflightResult.warnings.length > 0 ? "ELIGIBLE WITH WARNINGS" : "SAFE TO ACTIVATE") 
+                                                                     : "ACTIVATION BLOCKED"}
+                                                             </div>
+                                                         </div>
+
+                                                         {/* Stats */}
+                                                         {preflightResult.stats && (
+                                                             <div style={{fontSize:'0.85em', color:'#555', display:'flex', gap:'10px'}}>
+                                                                 <span><span style={{color:'#2e7d32', fontWeight:'bold'}}>+</span> {preflightResult.stats.addedBlocks} Add</span>
+                                                                 <span><span style={{color:'#d32f2f', fontWeight:'bold'}}>-</span> {preflightResult.stats.removedBlocks} Del</span>
+                                                                 <span><span style={{color:'#ef6c00', fontWeight:'bold'}}>~</span> {preflightResult.stats.modifiedBlocks} Mod</span>
+                                                             </div>
+                                                         )}
+
+                                                         {/* Errors List (Blocking) */}
+                                                         {preflightResult.errors.length > 0 && (
+                                                             <div style={{background:'#ffebee', padding:'5px', borderRadius:'3px', maxHeight:'100px', overflowY:'auto', border:'1px solid #ffcdd2'}}>
+                                                                 <strong style={{color:'#c62828', fontSize:'0.9em'}}>Blocking Issues:</strong>
+                                                                 <ul style={{margin:'2px 0 0 0', paddingLeft:'20px', color:'#c62828', fontSize:'0.85em'}}>
+                                                                     {preflightResult.errors.map((e:string,i:number)=><li key={i}>{e}</li>)}
+                                                                 </ul>
+                                                             </div>
+                                                         )}
+
+                                                         {/* Warnings List (Ack Required) */}
+                                                         {preflightResult.warnings.length > 0 && (
+                                                             <div style={{background:'#fff8e1', padding:'5px', borderRadius:'3px', maxHeight:'100px', overflowY:'auto', border:'1px solid #ffe0b2'}}>
+                                                                 <strong style={{color:'#f57c00', fontSize:'0.9em'}}>Warnings:</strong>
+                                                                 <ul style={{margin:'2px 0 0 0', paddingLeft:'20px', color:'#f57c00', fontSize:'0.85em'}}>
+                                                                     {preflightResult.warnings.map((w:string,i:number)=><li key={i}>{w}</li>)}
+                                                                 </ul>
+                                                             </div>
+                                                         )}
+                                                      
+                                                         {/* Acknowledgement Checkbox */}
+                                                         {preflightResult.canActivate && preflightResult.warnings.length > 0 && (
+                                                             <label style={{display:'flex', alignItems:'center', cursor:'pointer', fontSize:'0.9em', marginTop:'5px'}}>
+                                                                 <input 
+                                                                     type="checkbox" 
+                                                                     checked={ackPreflightWarnings} 
+                                                                     onChange={e => setAckPreflightWarnings(e.target.checked)}
+                                                                     style={{marginRight:'6px'}}
+                                                                 />
+                                                                 I acknowledge these warnings.
+                                                             </label>
+                                                         )}
+                                                      </>
+                                                  )}
+
+                                                  <div style={{display:'flex', gap:'5px', marginTop:'5px'}}>
+                                                       <input 
+                                                            type="text" 
+                                                            value={activateReason} 
+                                                            onChange={e => setActivateReason(e.target.value)}
+                                                            placeholder="Reason for activation..."
+                                                            style={{border:'1px solid #ccc', padding:'6px 10px', flex:1, borderRadius:'4px'}}
+                                                            disabled={!preflightResult?.canActivate} 
+                                                        />
+                                                        <button 
+                                                            onClick={() => handleActivate(selectedVersionId)}
+                                                            disabled={!preflightResult?.canActivate || (preflightResult?.warnings.length > 0 && !ackPreflightWarnings) || preflightLoading}
+                                                            style={{
+                                                                background: (!preflightResult?.canActivate || (preflightResult?.warnings.length > 0 && !ackPreflightWarnings) || preflightLoading) ? '#ccc' : '#d32f2f', 
+                                                                color:'white', border:'none', padding:'6px 12px', borderRadius:'6px', cursor:'pointer', fontWeight:'bold'
+                                                            }}
+                                                        >
+                                                            Confirm Activate
+                                                        </button>
+                                                        <button 
+                                                            onClick={() => setConfirmActivate(false)}
+                                                            style={{background:'#ffffff', color:'#111', border:'1px solid #ccc', padding:'6px 12px', borderRadius:'6px', cursor:'pointer', fontWeight: 600}}
+                                                        >
+                                                            Cancel
+                                                        </button>
+                                                  </div>
                                               </div>
                                           ) : (
                                               <button 
-                                                  onClick={() => setConfirmActivate(true)}
+                                                  onClick={() => { setConfirmActivate(true); fetchPreflight(selectedVersionId); }}
                                                   style={{background:'#ef6c00', color:'white', border:'none', borderRadius:'6px', padding:'6px 12px', fontWeight:700, cursor:'pointer'}}
                                               >
                                                   Activate (debug)

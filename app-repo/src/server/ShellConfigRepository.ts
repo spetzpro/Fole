@@ -165,12 +165,22 @@ export class ShellConfigRepository {
         // 2. Manifest & Block Count
         let hasManifest = false;
         let blockFileCount = 0;
+        let hasRegions = false;
         
         try {
              // Check manifest
-             await fs.access(manifestPath);
+             const manifestContent = await fs.readFile(manifestPath, "utf-8");
+             const manifest = JSON.parse(manifestContent);
              hasManifest = true;
              
+             if (manifest && manifest.regions) {
+                 const r = manifest.regions;
+                 // Check for legacy (top/main/bottom) or canonical (header/viewport/footer)
+                 if (r.top || r.main || r.bottom || r.header || r.viewport || r.footer) {
+                     hasRegions = true;
+                 }
+             }
+
              // Count blocks
              const files = await fs.readdir(bundlePath);
              blockFileCount = files.filter(f => f.endsWith(".json") && f !== "shell.manifest.json").length;
@@ -179,7 +189,7 @@ export class ShellConfigRepository {
              // counts stay 0 / false
         }
 
-        const isActivatable = hasManifest && hasMeta;
+        const isActivatable = hasManifest && hasMeta && hasRegions && blockFileCount > 0;
 
         return {
             versionId: vId,

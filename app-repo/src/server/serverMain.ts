@@ -71,6 +71,41 @@ async function main() {
   });
 
   // Debug activate version endpoint (Roadmap #4 Step 2)
+  router.get("/api/debug/config/shell/preflight/:versionId", async (req, res, params, ctx) => {
+    if (!ModeGate.canUseDebugEndpoints(ctx)) {
+        return router.json(res, 403, { error: "Debug mode disabled" });
+    }
+
+    const { versionId } = params;
+    if (!versionId) {
+        return router.json(res, 400, { error: "Missing versionId" });
+    }
+
+    try {
+        const bundle = await configRepo.getBundle(versionId);
+        const report = await validator.validateBundle(bundle.bundle);
+
+        const errors = report.errors.filter(e => e.severity === "A1" || e.severity === "A2");
+        const warnings = report.errors.filter(e => e.severity === "B");
+
+        const canActivate = report.status === "valid" && errors.length === 0;
+
+        return router.json(res, 200, {
+            ok: true,
+            versionId,
+            canActivate,
+            errors,
+            warnings,
+            summary: report.severityCounts
+        });
+    } catch (err: any) {
+        // Handle case where version doesn't exist or is corrupted
+        const status = err.message.includes("not found") ? 404 : 500;
+        return router.json(res, status, { error: err.message });
+    }
+  });
+
+  // Debug activate version endpoint (Roadmap #4 Step 2)
   router.post("/api/debug/config/shell/activate", async (req, res, _params, ctx) => {
       if (!ModeGate.canUseDebugEndpoints(ctx)) {
           return router.json(res, 403, { error: "Debug mode disabled" });
