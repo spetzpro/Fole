@@ -1992,7 +1992,7 @@ function SysadminPanel({
                         // DETAIL VIEW
                         <div style={{display:'flex', flexDirection:'column', height:'100%'}}>
                              <div style={{marginBottom:'15px', display:'flex', alignItems:'center', gap:'15px'}}>
-                                 <button onClick={() => { setSelectedVersionId(null); setConfirmLoadVersion(false); }}>&larr; Back to List</button>
+                                 <button onClick={() => { setSelectedVersionId(null); setConfirmLoadVersion(false); setConfirmActivate(false); setActivateReason('Activated from Sysadmin'); }}>&larr; Back to List</button>
                                  
                                  {!versionDetailLoading && (
                                      confirmLoadVersion ? (
@@ -2026,6 +2026,45 @@ function SysadminPanel({
 
                                  <h3 style={{margin:0}}>Version: {selectedVersionId}</h3>
                                  {versionDetailLoading && <small>Loading...</small>}
+
+                                 {/* Activate Button Logic */}
+                                 {shellVersions?.activeVersionId !== selectedVersionId && (
+                                      <div style={{marginLeft:'auto', display:'flex', alignItems:'center', gap:'10px'}}>
+                                          {confirmActivate ? (
+                                              <div style={{display:'flex', alignItems:'center', gap:'5px', background:'#fff3e0', padding:'5px', borderRadius:'4px', border:'1px solid #ffe0b2'}}>
+                                                  <input 
+                                                      type="text" 
+                                                      value={activateReason} 
+                                                      onChange={e => setActivateReason(e.target.value)}
+                                                      placeholder="Reason"
+                                                      style={{border:'1px solid #ccc', padding:'6px 10px', width:'260px', borderRadius:'4px'}}
+                                                  />
+                                                  <button 
+                                                      onClick={() => handleActivate(selectedVersionId)}
+                                                      style={{background:'#d32f2f', color:'white', border:'none', padding:'6px 12px', borderRadius:'6px', cursor:'pointer', fontWeight:'bold'}}
+                                                  >
+                                                      Confirm Activate
+                                                  </button>
+                                                  <button 
+                                                      onClick={() => setConfirmActivate(false)}
+                                                      style={{background:'#ffffff', color:'#111', border:'1px solid #ccc', padding:'6px 12px', borderRadius:'6px', cursor:'pointer', fontWeight: 600}}
+                                                  >
+                                                      Cancel
+                                                  </button>
+                                              </div>
+                                          ) : (
+                                              <button 
+                                                  onClick={() => setConfirmActivate(true)}
+                                                  style={{background:'#ef6c00', color:'white', border:'none', borderRadius:'6px', padding:'6px 12px', fontWeight:700, cursor:'pointer'}}
+                                              >
+                                                  Activate (debug)
+                                              </button>
+                                          )}
+                                      </div>
+                                 )}
+                                 {shellVersions?.activeVersionId === selectedVersionId && (
+                                      <span style={{marginLeft:'auto', color:'green', fontWeight:'bold', border:'1px solid green', padding:'2px 8px', borderRadius:'4px'}}>ACTIVE</span>
+                                 )}
                              </div>
                              
                              {versionDetailError ? (
@@ -2089,6 +2128,11 @@ function SysadminPanel({
                                 <p style={{margin:0, fontSize:'0.9em', color:'#666'}}>
                                     Active: <strong>{shellVersions?.activeVersionId || '...'}</strong> ({shellVersions?.activeMeta?.timestamp || '-'})
                                 </p>
+                                {activationMessage && (
+                                     <div style={{marginTop:'5px', padding:'5px', background:'#e8f5e9', color:'#1b5e20', border:'1px solid #c8e6c9', borderRadius:'4px'}}>
+                                         {activationMessage}
+                                     </div>
+                                )}
                                 {shellVersionsError && <div style={{color:'red', marginTop:'5px'}}>{shellVersionsError}</div>}
                             </div>
                             
@@ -4151,177 +4195,7 @@ function SysadminPanel({
                      </div>
                  );
             }
-            case 'Versions': {
-                return (
-                    <div style={{display:'flex', flexDirection:'column', height:'100%'}}>
-                         {/* Header is shared or inside views? List view has header. Detail view has back button. */}
-                         
-                         {selectedVersionId ? (
-                             // DETAIL VIEW
-                             <div style={{display:'flex', flexDirection:'column', height:'100%'}}>
-                                  <div style={{padding:'10px', background:'#f5f5f5', borderBottom:'1px solid #ddd', display:'flex', alignItems:'center', gap:'15px'}}>
-                                      <button 
-                                          onClick={() => { setSelectedVersionId(null); setConfirmActivate(false); setActivateReason('Activated from Sysadmin'); }}
-                                          style={{cursor:'pointer', padding:'4px 10px'}}
-                                      >
-                                          &larr; Back to List
-                                      </button>
-                                      <h3 style={{margin:0, fontSize:'1.1em'}}>Version {selectedVersionId}</h3>
-                                      
-                                      {/* Activate Button Logic */}
-                                      {shellVersions?.activeVersionId !== selectedVersionId && (
-                                          <div style={{marginLeft:'auto', display:'flex', alignItems:'center', gap:'10px'}}>
-                                              {confirmActivate ? (
-                                                  <div style={{display:'flex', alignItems:'center', gap:'5px', background:'#fff3e0', padding:'5px', borderRadius:'4px', border:'1px solid #ffe0b2'}}>
-                                                      <input 
-                                                          type="text" 
-                                                          value={activateReason} 
-                                                          onChange={e => setActivateReason(e.target.value)}
-                                                          placeholder="Reason"
-                                                          style={{padding:'4px', border:'1px solid #ccc', borderRadius:'3px'}}
-                                                      />
-                                                      <button 
-                                                          onClick={() => handleActivate(selectedVersionId)}
-                                                          style={{background:'#e65100', color:'white', border:'none', padding:'5px 10px', borderRadius:'3px', cursor:'pointer', fontWeight:'bold'}}
-                                                      >
-                                                          Confirm Activate
-                                                      </button>
-                                                      <button 
-                                                          onClick={() => setConfirmActivate(false)}
-                                                          style={{background:'white', border:'1px solid #ccc', padding:'5px 10px', borderRadius:'3px', cursor:'pointer'}}
-                                                      >
-                                                          Cancel
-                                                      </button>
-                                                  </div>
-                                              ) : (
-                                                  <button 
-                                                      onClick={() => setConfirmActivate(true)}
-                                                      style={{background:'white', border:'1px solid #ccc', padding:'5px 10px', borderRadius:'3px', cursor:'pointer'}}
-                                                  >
-                                                      Activate (debug)
-                                                  </button>
-                                              )}
-                                          </div>
-                                      )}
-                                      {shellVersions?.activeVersionId === selectedVersionId && (
-                                          <span style={{marginLeft:'auto', color:'green', fontWeight:'bold', border:'1px solid green', padding:'2px 8px', borderRadius:'4px'}}>ACTIVE</span>
-                                      )}
-                                  </div>
 
-                                  {/* Detail Content */}
-                                  <div style={{flex:1, overflow:'auto', padding:'10px'}}>
-                                      {versionDetailLoading ? (
-                                          <div style={{color:'#666'}}>Loading details...</div>
-                                      ) : versionDetailError ? (
-                                          <div style={{color:'red'}}>Error: {versionDetailError}</div>
-                                      ) : selectedVersionDetail ? (
-                                          <div style={{display:'flex', flexDirection:'column', gap:'15px'}}>
-                                              {/* Metadata Chips */}
-                                              <div style={{display:'flex', gap:'10px', flexWrap:'wrap'}}>
-                                                  <div style={{background:'#eee', padding:'5px 10px', borderRadius:'4px', fontSize:'0.9em'}}>
-                                                      <strong>Author:</strong> {selectedVersionDetail.meta?.author || 'N/A'}
-                                                  </div>
-                                                  <div style={{background:'#eee', padding:'5px 10px', borderRadius:'4px', fontSize:'0.9em'}}>
-                                                      <strong>Timestamp:</strong> {new Date(selectedVersionDetail.meta?.timestamp).toLocaleString() || 'N/A'}
-                                                  </div>
-                                                  <div style={{background:'#eee', padding:'5px 10px', borderRadius:'4px', fontSize:'0.9em'}}>
-                                                      <strong>Description:</strong> {selectedVersionDetail.meta?.description || 'N/A'}
-                                                  </div>
-                                              </div>
-                                              
-                                              {/* JSON Dump */}
-                                              <div style={{border:'1px solid #ddd'}}>
-                                                  <div style={{background:'#eee', padding:'8px', borderBottom:'1px solid #ddd', fontWeight:'bold'}}>Manifest & Config</div>
-                                                  <pre style={{margin:0, padding:'10px', fontSize:'11px', background:'#f9f9f9', overflow:'auto'}}>{JSON.stringify(selectedVersionDetail, null, 2)}</pre>
-                                              </div>
-                                          </div>
-                                      ) : (
-                                          <div>No details loaded.</div>
-                                      )}
-                                  </div>
-                             </div>
-                         ) : (
-                             // LIST VIEW
-                             <div style={{display:'flex', flexDirection:'column', height:'100%'}}>
-                                 <div style={{padding:'10px', borderBottom:'1px solid #ddd', display:'flex', alignItems:'center', justifyContent:'space-between', background:'#fafafa'}}>
-                                     <div style={{display:'flex', alignItems:'center', gap:'10px'}}>
-                                         <strong style={{fontSize:'1.1em'}}>Shell Versions</strong>
-                                         <button onClick={refreshVersions} style={{cursor:'pointer', padding:'2px 8px', fontSize:'0.9em'}}>Refresh</button>
-                                     </div>
-                                 </div>
-
-                                 {activationMessage && (
-                                     <div style={{padding:'10px', margin:'10px', background:'#e8f5e9', color:'#1b5e20', border:'1px solid #c8e6c9', borderRadius:'4px'}}>
-                                         {activationMessage}
-                                     </div>
-                                 )}
-
-                                 {shellVersionsError ? (
-                                     <div style={{padding:'20px', color:'red'}}>Error: {shellVersionsError}</div>
-                                 ) : !shellVersions ? (
-                                     <div style={{padding:'20px', color:'#666'}}>
-                                         Loading versions... 
-                                         <button onClick={refreshVersions} style={{marginLeft:'10px', cursor:'pointer'}}>Click to Load</button>
-                                     </div>
-                                 ) : (
-                                     <div style={{padding:'10px', flex:1, overflow:'auto'}}>
-                                         <div style={{marginBottom:'10px', background:'#f0f4c3', padding:'10px', borderRadius:'4px', display:'flex', gap:'10px', alignItems:'center'}}>
-                                             <strong>Active Version:</strong>
-                                             <span style={{fontFamily:'monospace', fontSize:'1.1em'}}>{shellVersions.activeVersionId || 'NONE'}</span>
-                                             {shellVersions.activeMeta && (
-                                                 <span style={{fontSize:'0.9em', color:'#666'}}>
-                                                     (Created {new Date(shellVersions.activeMeta.timestamp).toLocaleString()})
-                                                 </span>
-                                             )}
-                                         </div>
-
-                                         <table style={{width:'100%', borderCollapse:'collapse', fontSize:'0.9em', border:'1px solid #eee'}}>
-                                             <thead>
-                                                 <tr style={{background:'#f5f5f5', textAlign:'left'}}>
-                                                     <th style={{padding:'6px', borderBottom:'1px solid #ddd'}}>Version ID</th>
-                                                     <th style={{padding:'6px', borderBottom:'1px solid #ddd'}}>Created At</th>
-                                                     <th style={{padding:'6px', borderBottom:'1px solid #ddd'}}>By</th>
-                                                     <th style={{padding:'6px', borderBottom:'1px solid #ddd'}}>Description</th>
-                                                     <th style={{padding:'6px', borderBottom:'1px solid #ddd', width:'80px'}}>Action</th>
-                                                 </tr>
-                                             </thead>
-                                             <tbody>
-                                                 {shellVersions.versions.map((v: any) => {
-                                                     const isActive = v.versionId === shellVersions.activeVersionId;
-                                                     return (
-                                                         <tr key={v.versionId} style={{background: isActive ? '#e8f5e9' : 'white', borderBottom:'1px solid #eee'}}>
-                                                             <td style={{padding:'6px', fontFamily:'monospace', fontWeight: isActive ? 'bold' : 'normal'}}>
-                                                                 {v.versionId} {isActive && '(Active)'}
-                                                             </td>
-                                                             <td style={{padding:'6px'}}>{new Date(v.timestamp).toLocaleString()}</td>
-                                                             <td style={{padding:'6px'}}>{v.meta?.author || '-'}</td>
-                                                             <td style={{padding:'6px'}}>{v.description || '-'}</td>
-                                                             <td style={{padding:'6px'}}>
-                                                                 <button 
-                                                                     onClick={() => {
-                                                                         setSelectedVersionId(v.versionId);
-                                                                         fetchVersionDetail(v.versionId);
-                                                                     }}
-                                                                     style={{
-                                                                         padding:'4px 8px', borderRadius:'3px', border:'1px solid #999',
-                                                                         background:'#fff', cursor:'pointer'
-                                                                     }}
-                                                                 >
-                                                                     View
-                                                                 </button>
-                                                             </td>
-                                                         </tr>
-                                                     );
-                                                 })}
-                                             </tbody>
-                                         </table>
-                                     </div>
-                                 )}
-                            </div>
-                         )}
-                    </div>
-                );
-            }
             default: return null;
         }
     };
