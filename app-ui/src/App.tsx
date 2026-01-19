@@ -851,6 +851,7 @@ interface SnapshotResponse {
   runtimeStatus: string;
   activeVersionId: string | null;
   activatedAt: string | null;
+  activationReason?: string | null;
   source: string;
   flags: {
       executeIntegrationsEnabled: boolean;
@@ -3929,10 +3930,6 @@ function SysadminPanel({
                  );
             }
             case 'Snapshot': {
-                 const snapshotVersionId = snapshotData?.activeVersionId;
-                 const activeMeta = (shellVersions?.activeVersionId === snapshotVersionId) ? shellVersions?.activeMeta : null;
-                 const reason = activeMeta?.reason;
-
                  return (
                      <div style={{display:'flex', flexDirection:'column', height:'100%', gap:'10px'}}>
                          <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', borderBottom:'1px solid #eee', paddingBottom:'10px'}}>
@@ -3972,8 +3969,8 @@ function SysadminPanel({
 
                                          <strong style={{color:'#555'}}>Activation Reason:</strong>
                                          <span>
-                                             {reason ? (
-                                                  <span style={{color:'#2e7d32', fontWeight:'bold'}}>{reason}</span>
+                                             {snapshotData.activationReason ? (
+                                                  <span style={{color:'#2e7d32', fontWeight:'bold'}}>{snapshotData.activationReason}</span>
                                              ) : (
                                                   <span style={{color:'#999', fontStyle:'italic'}}>(not available)</span>
                                              )}
