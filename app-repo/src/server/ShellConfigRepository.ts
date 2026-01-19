@@ -195,6 +195,7 @@ export class ShellConfigRepository {
           lastUpdated: now,
           activatedAt: now,
           activatedByMode: mode,
+          activationReason: reason || null,
           safeMode: currentActive.safeMode ?? false
       };
 

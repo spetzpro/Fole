@@ -5,6 +5,7 @@ export interface ActivePointer {
   safeMode: boolean;
   activatedAt: string; // ISO timestamp, usually same as lastUpdated
   activatedByMode: "normal" | "advanced" | "developer";
+  activationReason?: string | null;
   safeModeReason?: string;
   safeModeReport?: ValidationReport;
 }

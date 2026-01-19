@@ -124,6 +124,7 @@ async function main() {
              runtimeStatus: "INACTIVE",
              activeVersionId: meta.activeVersionId,
              activatedAt: meta.activatedAt,
+             activationReason: meta.activationReason,
              source: "NONE",
              flags: {
                  executeIntegrationsEnabled: false,
@@ -164,6 +165,7 @@ async function main() {
         runtimeStatus: "ACTIVE",
         activeVersionId: meta.activeVersionId,
         activatedAt: meta.activatedAt,
+        activationReason: meta.activationReason,
         source: "ACTIVE",
         flags: {
             executeIntegrationsEnabled: runtime.getExecuteIntegrationsEnabled(),

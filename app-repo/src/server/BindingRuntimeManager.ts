@@ -5,7 +5,7 @@ export interface BindingRuntimeManager {
     getRuntime(): BindingRuntime | undefined;
     getRuntimeState(): Record<string, any>;
     reload(): Promise<void>;
-    getSnapshotMetadata(): { activeVersionId: string | null; activatedAt: string | null };
+    getSnapshotMetadata(): { activeVersionId: string | null; activatedAt: string | null; activationReason: string | null };
 }
 
 export function createBindingRuntimeManager(configRepo: ShellConfigRepository): BindingRuntimeManager {
@@ -15,12 +15,14 @@ export function createBindingRuntimeManager(configRepo: ShellConfigRepository): 
     // Metadata for debug snapshot
     let currentActiveVersionId: string | null = null;
     let currentActivatedAt: string | null = null;
+    let currentActivationReason: string | null = null;
 
     const getRuntime = () => bindingRuntime;
     const getRuntimeState = () => runtimeState;
     const getSnapshotMetadata = () => ({
         activeVersionId: currentActiveVersionId,
-        activatedAt: currentActivatedAt
+        activatedAt: currentActivatedAt,
+        activationReason: currentActivationReason
     });
 
     const reload = async () => {
@@ -31,6 +33,7 @@ export function createBindingRuntimeManager(configRepo: ShellConfigRepository): 
                 bindingRuntime = undefined;
                 currentActiveVersionId = null;
                 currentActivatedAt = null;
+                currentActivationReason = null;
                 return;
             }
 
@@ -52,7 +55,8 @@ export function createBindingRuntimeManager(configRepo: ShellConfigRepository): 
 
                 bindingRuntime = newRuntime;
                 currentActiveVersionId = activeVersionId;
-                currentActivatedAt = new Date().toISOString();
+                currentActivatedAt = active.activatedAt;
+                currentActivationReason = active.activationReason || null;
 
                 console.log(`[BindingRuntime] Reloaded active=${activeVersionId} applied=${primeResult.applied} skipped=${primeResult.skipped}`);
                 if (primeResult.logs.length > 0) {
@@ -64,6 +68,7 @@ export function createBindingRuntimeManager(configRepo: ShellConfigRepository): 
                 bindingRuntime = undefined;
                 currentActiveVersionId = null;
                 currentActivatedAt = null;
+                currentActivationReason = null;
             }
         } catch (err: any) {
             // Unexpected error (I/O, parsing, etc) -> Keep last-known-good runtime
