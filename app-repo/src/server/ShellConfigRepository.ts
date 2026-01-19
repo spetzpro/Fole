@@ -127,6 +127,10 @@ export class ShellConfigRepository {
     timestamp: string | null;
     description: string | null;
     mode: string | null;
+    hasMeta: boolean;
+    hasManifest: boolean;
+    blockFileCount: number;
+    isActivatable: boolean;
   }>> {
     const archivePath = path.join(this.configRoot, "archive");
     let entries: string[] = [];
@@ -142,26 +146,52 @@ export class ShellConfigRepository {
     const sorted = entries.sort().reverse().slice(0, limit);
 
     const results = await Promise.all(sorted.map(async (vId) => {
-        const metaPath = path.join(archivePath, vId, "meta.json");
+        const versionPath = path.join(archivePath, vId);
+        const metaPath = path.join(versionPath, "meta.json");
+        const bundlePath = path.join(versionPath, "bundle");
+        const manifestPath = path.join(bundlePath, "shell.manifest.json");
+
+        // 1. Meta
+        let meta: ConfigMeta | null = null;
+        let hasMeta = false;
         try {
             const content = await fs.readFile(metaPath, "utf-8");
-            const meta = JSON.parse(content);
-            return {
-                versionId: vId,
-                meta,
-                timestamp: meta.timestamp || null,
-                description: meta.description || null,
-                mode: meta.mode || null
-            };
+            meta = JSON.parse(content);
+            hasMeta = true;
         } catch {
-            return {
-                versionId: vId,
-                meta: null,
-                timestamp: null,
-                description: null,
-                mode: null
-            };
+            // ignore
         }
+
+        // 2. Manifest & Block Count
+        let hasManifest = false;
+        let blockFileCount = 0;
+        
+        try {
+             // Check manifest
+             await fs.access(manifestPath);
+             hasManifest = true;
+             
+             // Count blocks
+             const files = await fs.readdir(bundlePath);
+             blockFileCount = files.filter(f => f.endsWith(".json") && f !== "shell.manifest.json").length;
+        } catch {
+             // If manifest check fails or readdir fails (e.g. bundle dir missing)
+             // counts stay 0 / false
+        }
+
+        const isActivatable = hasManifest && hasMeta;
+
+        return {
+            versionId: vId,
+            meta,
+            timestamp: meta?.timestamp || null,
+            description: meta?.description || null,
+            mode: (meta as any)?.mode || null,
+            hasMeta,
+            hasManifest,
+            blockFileCount,
+            isActivatable
+        };
     }));
 
     return results;
