@@ -2188,9 +2188,9 @@ function SysadminPanel({
                                                             </span>
                                                             <span title="Activatable" style={{
                                                                 fontSize:'0.7em', padding:'1px 4px', borderRadius:'3px', fontWeight:'bold',
-                                                                color: v.isActivatable ? 'white' : '#666',
-                                                                background: v.isActivatable ? '#1565c0' : '#e0e0e0',
-                                                                border: v.isActivatable ? 'none' : '1px solid #999'
+                                                                color: v.isActivatable ? '#2e7d32' : '#616161',
+                                                                background: v.isActivatable ? '#e8f5e9' : '#f5f5f5',
+                                                                border: v.isActivatable ? '1px solid #2e7d32' : '1px solid #ccc'
                                                             }}>
                                                                 ACT
                                                             </span>
