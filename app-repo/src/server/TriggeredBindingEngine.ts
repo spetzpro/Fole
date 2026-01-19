@@ -1,8 +1,8 @@
 import { ShellBundle } from "./ShellConfigTypes";
 import { JsonPointer } from "./JsonPointer";
 import { evaluateBoolean } from "./ExpressionEvaluator";
-import { HttpIntegrationAdapter } from "./integrations/HttpIntegrationAdapter";
-import { IntegrationRequest } from "./integrations/IntegrationAdapterTypes";
+import { IntegrationAdapterRegistry } from "./integrations/IntegrationAdapterRegistry";
+import { IntegrationRequest, IntegrationResult } from "./integrations/IntegrationAdapterTypes";
 
 export interface TriggerEvent {
   sourceBlockId: string;
@@ -232,20 +232,10 @@ export function dispatchTriggeredBindings(
                 continue;
           }
 
-          // Use Adapter
-          const adapter = new HttpIntegrationAdapter();
-          const req: IntegrationRequest = {
-                integrationId,
-                integrationType,
-                config: integrationConfig as any,
-                method: mapping.method,
-                path: mapping.path,
-                url: url || '', 
-                execute: shouldExecute
-          };
+          // Use Registry
+          const adapter = IntegrationAdapterRegistry.getInstance().getAdapter(integrationType);
 
-          // Execute (Async to match legacy behavior)
-          adapter.execute(req).then(res => {
+          const invokeResult = (res: IntegrationResult) => {
               if (onIntegrationInvoke) onIntegrationInvoke({
                   integrationId,
                   integrationType,
@@ -261,7 +251,31 @@ export function dispatchTriggeredBindings(
                   responseSnippet: res.responseSnippet,
                   errorMessage: res.errorMessage
               });
-          });
+          };
+
+          if (!adapter) {
+              invokeResult({
+                  status: 'error',
+                  durationMs: 0,
+                  errorMessage: `No adapter for integrationType '${integrationType}'`
+              });
+              result.applied++;
+              result.logs.push(`[${blockId}] Applied: callIntegration -> ${integrationId} (ERROR: no adapter)`);
+              continue;
+          }
+
+          const req: IntegrationRequest = {
+                integrationId,
+                integrationType,
+                config: integrationConfig as any,
+                method: mapping.method,
+                path: mapping.path,
+                url: url || '', 
+                execute: shouldExecute
+          };
+
+          // Execute (Async to match legacy behavior)
+          adapter.execute(req).then(invokeResult);
 
           result.applied++;
           
