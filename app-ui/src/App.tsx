@@ -2149,6 +2149,7 @@ function SysadminPanel({
                                     <thead style={{background:'#eee', position:'sticky', top:0}}>
                                         <tr>
                                             <th style={{padding:'8px', textAlign:'left', borderBottom:'1px solid #ccc'}}>Version ID</th>
+                                            <th style={{padding:'8px', textAlign:'left', borderBottom:'1px solid #ccc'}}>Integrity</th>
                                             <th style={{padding:'8px', textAlign:'left', borderBottom:'1px solid #ccc'}}>Timestamp</th>
                                             <th style={{padding:'8px', textAlign:'left', borderBottom:'1px solid #ccc'}}>Description</th>
                                             <th style={{padding:'8px', textAlign:'left', borderBottom:'1px solid #ccc'}}>Mode</th>
@@ -2165,6 +2166,36 @@ function SysadminPanel({
                                                     <td style={{padding:'8px'}}>
                                                         <div style={{fontWeight:'bold'}}>{v.versionId}</div>
                                                         {isActive && <span style={{fontSize:'0.75em', color:'green', border:'1px solid green', borderRadius:'3px', padding:'0 2px'}}>ACTIVE</span>}
+                                                    </td>
+                                                    <td style={{padding:'8px', whiteSpace:'nowrap'}}>
+                                                        {/* INTEGRITY BADGES */}
+                                                        <div style={{display:'flex', gap:'4px', marginBottom: '2px'}}>
+                                                            <span title="Metadata exists" style={{
+                                                                fontSize:'0.7em', padding:'1px 4px', borderRadius:'3px', fontWeight:'bold',
+                                                                color: v.hasMeta ? 'white' : '#666',
+                                                                background: v.hasMeta ? '#2e7d32' : '#e0e0e0',
+                                                                border: v.hasMeta ? 'none' : '1px solid #999'
+                                                            }}>
+                                                                META
+                                                            </span>
+                                                            <span title="Manifest exists" style={{
+                                                                fontSize:'0.7em', padding:'1px 4px', borderRadius:'3px', fontWeight:'bold',
+                                                                color: v.hasManifest ? 'white' : '#666',
+                                                                background: v.hasManifest ? '#2e7d32' : '#e0e0e0',
+                                                                border: v.hasManifest ? 'none' : '1px solid #999'
+                                                            }}>
+                                                                MANI
+                                                            </span>
+                                                            <span title="Activatable" style={{
+                                                                fontSize:'0.7em', padding:'1px 4px', borderRadius:'3px', fontWeight:'bold',
+                                                                color: v.isActivatable ? 'white' : '#666',
+                                                                background: v.isActivatable ? '#1565c0' : '#e0e0e0',
+                                                                border: v.isActivatable ? 'none' : '1px solid #999'
+                                                            }}>
+                                                                ACT
+                                                            </span>
+                                                        </div>
+                                                        <div style={{fontSize:'0.75em', color:'#555'}}>Blocks: {v.blockFileCount ?? '?'}</div>
                                                     </td>
                                                     <td style={{padding:'8px'}}>{v.timestamp}</td>
                                                     <td style={{padding:'8px'}}>
@@ -2184,7 +2215,7 @@ function SysadminPanel({
                                              );
                                         })}
                                         {(!shellVersions?.versions || shellVersions.versions.length === 0) && (
-                                            <tr><td colSpan={5} style={{padding:'20px', textAlign:'center', color:'#888'}}>No versions found.</td></tr>
+                                            <tr><td colSpan={6} style={{padding:'20px', textAlign:'center', color:'#888'}}>No versions found.</td></tr>
                                         )}
                                     </tbody>
                                 </table>
