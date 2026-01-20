@@ -249,7 +249,8 @@ export class ShellConfigRepository {
   async cloneVersionWithPatchedSysadmin(
     baseVersionId: string, 
     reason: string, 
-    sysadminBlocks: Record<string, BlockEnvelope>
+    sysadminBlocks: Record<string, BlockEnvelope>,
+    manifestPatch?: { regions?: Record<string, { blockId: string }> }
   ): Promise<{ newVersionId: string }> {
       const baseArchivePath = path.join(this.configRoot, "archive", baseVersionId);
       const baseBundlePath = path.join(baseArchivePath, "bundle");
@@ -300,6 +301,26 @@ export class ShellConfigRepository {
               "utf-8"
           );
           await fs.rename(tempPath, targetPath);
+      }
+
+      // Apply Manifest Patch if present
+      if (manifestPatch && manifestPatch.regions) {
+          const manifestPath = path.join(newBundlePath, "shell.manifest.json");
+          const manifestTempPath = manifestPath + ".tmp";
+          
+          try {
+             const existingManifestContent = await fs.readFile(manifestPath, "utf-8");
+             const manifest = JSON.parse(existingManifestContent) as ShellManifest;
+             
+             // Merge regions (patch overrides existing)
+             manifest.regions = { ...manifest.regions, ...manifestPatch.regions };
+             
+             await fs.writeFile(manifestTempPath, JSON.stringify(manifest, null, 2), "utf-8");
+             await fs.rename(manifestTempPath, manifestPath);
+          } catch (err: any) {
+             console.error(`Failed to patch manifest for version ${newVersionId}: ${err.message}`);
+             throw err;
+          }
       }
 
       // Create Meta

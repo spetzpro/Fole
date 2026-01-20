@@ -143,7 +143,7 @@ async function main() {
       
       try {
           const body: any = await router.readJsonBody(req);
-          const { baseVersionId, reason, sysadminBlocks } = body;
+          const { baseVersionId, reason, sysadminBlocks, manifestPatch } = body;
 
           // Validation
           if (!baseVersionId || typeof baseVersionId !== 'string') {
@@ -160,7 +160,7 @@ async function main() {
           }
           
           // Execute
-          const result = await configRepo.cloneVersionWithPatchedSysadmin(baseVersionId, reason, sysadminBlocks);
+          const result = await configRepo.cloneVersionWithPatchedSysadmin(baseVersionId, reason, sysadminBlocks, manifestPatch);
           
           return router.json(res, 200, { 
               ok: true, 
