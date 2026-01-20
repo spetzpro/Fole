@@ -873,7 +873,7 @@ interface SnapshotResponse {
   };
 }
 
-function ConfigSysadminView({ bundleData, renderKnownPanel, activeVersionId, onSaveSysadminDraft }: { bundleData: BundleResponse | null; renderKnownPanel?: (blockType: string) => React.ReactNode | null, activeVersionId?: string|null, onSaveSysadminDraft?: (sysadminBlocks: Record<string, unknown>, reason: string) => Promise<void> }) {
+function ConfigSysadminView({ bundleData, renderKnownPanel, activeVersionId, onSaveSysadminDraft }: { bundleData: BundleResponse | null; renderKnownPanel?: (blockType: string) => React.ReactNode | null, activeVersionId?: string|null, onSaveSysadminDraft?: (sysadminBlocks: Record<string, unknown>, reason: string) => Promise<string> }) {
     const [selectedTabId, setSelectedTabId] = useState<string | null>(null);
 
     // Roadmap 7.1 Step 2.1: Local Sysadmin Draft State
@@ -885,6 +885,17 @@ function ConfigSysadminView({ bundleData, renderKnownPanel, activeVersionId, onS
     // Step 7.2: Save State
     const [saveReason, setSaveReason] = useState("Sysadmin config edit");
     const [isSaving, setIsSaving] = useState(false);
+    
+    // Step 7.2.X: Save Status UX
+    const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
+    const [saveMessage, setSaveMessage] = useState('');
+    const dismissTimerRef = useRef<number | null>(null);
+
+    useEffect(() => {
+        return () => {
+             if (dismissTimerRef.current) clearTimeout(dismissTimerRef.current);
+        };
+    }, []);
 
     const handleCreateDraft = () => {
         if (!bundleData) return;
@@ -940,17 +951,35 @@ function ConfigSysadminView({ bundleData, renderKnownPanel, activeVersionId, onS
 
     const handleSaveToServer = async () => {
         if (!sysadminDraft || !onSaveSysadminDraft) return;
-        setIsSaving(true);
+        
+        setIsSaving(true); // Lock UI
+        setSaveStatus('saving');
+        setSaveMessage('');
         setSysadminDraftError(null);
+        if (dismissTimerRef.current) clearTimeout(dismissTimerRef.current);
+
         try {
             // Ensure draft is fresh
             handleUpdateDraft(); 
             // Save
-            await onSaveSysadminDraft(sysadminDraft.blocks, saveReason || "Sysadmin config edit");
+            const newVersionId = await onSaveSysadminDraft(sysadminDraft.blocks, saveReason || "Sysadmin config edit");
+            
+            // Success
+            setSaveStatus('success');
+            setSaveMessage(`Saved & activated. New version: ${newVersionId}`);
+            
             // Clear draft state on success
             handleDiscardDraft();
+
+            // Auto-dismiss
+            dismissTimerRef.current = window.setTimeout(() => {
+                setSaveStatus('idle');
+                setSaveMessage('');
+            }, 5000);
         } catch (e: any) {
-            setSysadminDraftError(e.message || "Error saving draft");
+            setSaveStatus('error');
+            setSaveMessage(e.message || "Error saving draft");
+            // Do not clear draft
         } finally {
             setIsSaving(false);
         }
@@ -1068,6 +1097,38 @@ function ConfigSysadminView({ bundleData, renderKnownPanel, activeVersionId, onS
                         </div>
                         <div style={{flex:1, overflowY:'auto', padding:'10px'}}>
                             
+                            {saveStatus !== 'idle' && (
+                                <div style={{
+                                    marginBottom: '15px',
+                                    padding: '10px',
+                                    borderRadius: '4px',
+                                    background: saveStatus === 'success' ? '#e8f5e9' : (saveStatus === 'error' ? '#ffebee' : '#e3f2fd'),
+                                    border: `1px solid ${saveStatus === 'success' ? '#c8e6c9' : (saveStatus === 'error' ? '#ffcdd2' : '#bbdefb')}`,
+                                    color: saveStatus === 'success' ? '#2e7d32' : (saveStatus === 'error' ? '#c62828' : '#0d47a1'),
+                                    display: 'flex',
+                                    justifyContent: 'space-between',
+                                    alignItems: 'center'
+                                }}>
+                                    <div style={{fontSize:'0.9em', fontWeight:'bold'}}>
+                                        {saveStatus === 'saving' && 'Saving...'}
+                                        {saveStatus === 'success' && '✓ Success: '}
+                                        {saveStatus === 'error' && '⚠ Error: '}
+                                        <span style={{fontWeight:'normal'}}>{saveMessage}</span>
+                                    </div>
+                                    {saveStatus !== 'saving' && (
+                                        <button 
+                                            onClick={() => { setSaveStatus('idle'); setSaveMessage(''); }}
+                                            style={{
+                                                background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.2em', lineHeight: '1', padding: '0 5px',
+                                                color: 'inherit', opacity: 0.6
+                                            }}
+                                            title="Dismiss"
+                                        >
+                                            ×
+                                        </button>
+                                    )}
+                                </div>
+                            )}
 
 
                             <details>
@@ -3044,6 +3105,8 @@ function SysadminPanel({
                                 onRefresh();
                                 refreshVersions();
                             }, 500);
+                            
+                            return newVersionId;
                         }}
                     />
                 );
