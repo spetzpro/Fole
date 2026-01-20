@@ -873,6 +873,94 @@ interface SnapshotResponse {
   };
 }
 
+function ConfigSysadminView({ bundleData }: { bundleData: BundleResponse | null }) {
+    const [selectedTabId, setSelectedTabId] = useState<string | null>(null);
+
+    const config = useMemo(() => {
+        const block = bundleData && bundleData.blocks ? findSysadminBlock(bundleData.blocks) : null;
+        return block ? parseSysadminConfig(block) : null;
+    }, [bundleData]);
+
+    if (!bundleData) return <div style={{padding:'20px', color:'#666'}}>Load bundle first</div>;
+    if (!config) return <div style={{padding:'20px', color:'#666'}}>No sysadmin.shell config found (Recovery Sysadmin in use).</div>;
+
+    const activeTab = config.tabs.find(t => t.id === selectedTabId) || config.tabs[0];
+
+    return (
+        <div style={{display:'flex', height:'100%', border:'1px solid #ddd'}}>
+            {/* Left Column: Tab List */}
+            <div style={{width:'200px', borderRight:'1px solid #ddd', background:'#f9f9f9', overflowY:'auto'}}>
+                <div style={{padding:'10px', borderBottom:'1px solid #eee', fontWeight:'bold', fontSize:'0.9em', background:'#eee'}}>
+                    {config.title}
+                </div>
+                {config.tabs.map(t => {
+                    const isSel = activeTab && activeTab.id === t.id;
+                    return (
+                        <div 
+                            key={t.id}
+                            onClick={() => setSelectedTabId(t.id)}
+                            style={{
+                                padding:'8px 10px', 
+                                cursor:'pointer',
+                                background: isSel ? '#e3f2fd' : 'transparent',
+                                color: isSel ? '#1565c0' : '#333',
+                                borderBottom:'1px solid #eee',
+                                fontSize:'0.9em'
+                            }}
+                        >
+                            <div style={{fontWeight:'bold'}}>{t.label}</div>
+                            <div style={{fontSize:'0.8em', color:'#666'}}>{t.contentBlockIds.length} blocks</div>
+                        </div>
+                    );
+                })}
+            </div>
+
+            {/* Right Column: Tab Details */}
+            <div style={{flex:1, display:'flex', flexDirection:'column', overflow:'hidden'}}>
+                {activeTab ? (
+                    <>
+                        <div style={{padding:'10px', borderBottom:'1px solid #eee', background:'#fff'}}>
+                            <strong style={{fontSize:'1.1em'}}>{activeTab.label}</strong>
+                            <div style={{fontSize:'0.85em', color:'#666'}}>Layout: {activeTab.layout} | ID: {activeTab.id}</div>
+                            <div style={{fontSize:'0.8em', color:'#888', marginTop:'2px'}}>Source: sysadmin.shell: {config.rawBlock.blockId || config.rawBlock.id}</div> 
+                        </div>
+                        <div style={{flex:1, overflowY:'auto', padding:'10px'}}>
+                            <h4 style={{marginTop:0, borderBottom:'1px solid #eee'}}>Tab Configuration</h4>
+                            <pre style={{background:'#f5f5f5', padding:'10px', borderRadius:'4px', overflowX:'auto', fontSize:'0.85em'}}>
+                                {JSON.stringify(activeTab, null, 2)}
+                            </pre>
+
+                            <h4 style={{borderBottom:'1px solid #eee'}}>Referenced Blocks</h4>
+                            {activeTab.contentBlockIds.map(bid => {
+                                const block = (bundleData.blocks as any)[bid] || (Array.isArray(bundleData.blocks) ? (bundleData.blocks as any[]).find(b => b.blockId === bid || b.id === bid) : null);
+                                return (
+                                    <div key={bid} style={{marginBottom:'15px', border:'1px solid #eee', borderRadius:'4px'}}>
+                                        <div style={{background:'#f0f0f0', padding:'5px 10px', borderBottom:'1px solid #eee', display:'flex', justifyContent:'space-between'}}>
+                                            <strong>{bid}</strong>
+                                            {block ? <span style={{fontSize:'0.85em', color:'#2e7d32'}}>{block.blockType}</span> : <span style={{color:'red', fontWeight:'bold'}}>MISSING</span>}
+                                        </div>
+                                        {block ? (
+                                            <pre style={{margin:0, padding:'10px', fontSize:'0.8em', overflowX:'auto'}}>
+                                                {JSON.stringify(block, null, 2)}
+                                            </pre>
+                                        ) : (
+                                            <div style={{padding:'10px', color:'#d32f2f', background:'#ffebee'}}>
+                                                Error: Block "{bid}" is referenced but not found in bundle.
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </>
+                ) : (
+                    <div style={{padding:'20px', color:'#666'}}>Select a tab to view details.</div>
+                )}
+            </div>
+        </div>
+    );
+}
+
 function SysadminPanel({ 
     isOpen, 
     onClose, 
@@ -916,7 +1004,7 @@ function SysadminPanel({
     const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
     // Dynamic Tabs Definition
-    const tabs = ['ShellConfig', 'Blocks', 'Bindings', 'Data', 'ActionIndex', 'Runtime', 'Draft', 'Invocations', 'Traces', 'Snapshot', 'Versions'];
+    const tabs = ['ShellConfig', 'Blocks', 'Bindings', 'Data', 'ActionIndex', 'Runtime', 'Draft', 'Invocations', 'Traces', 'Snapshot', 'Versions', 'ConfigSysadmin'];
     // const [activeTab, setActiveTab] = useState('ShellConfig'); // Defined at top of component
     const [invocations, setInvocations] = useState<any[] | null>(null);
     const [invocationsError, setInvocationsError] = useState<string | null>(null);
@@ -2448,6 +2536,9 @@ function SysadminPanel({
         }
 
         switch(activeTab) {
+            case 'ConfigSysadmin': {
+                return <ConfigSysadminView bundleData={bundleData} />;
+            }
             case 'ShellConfig': {
                 if (!bundleData) return <div style={{padding:'20px', color:'#666'}}>No bundle/config loaded yet.</div>;
                 return (
