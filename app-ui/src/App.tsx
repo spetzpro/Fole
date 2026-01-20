@@ -875,22 +875,27 @@ interface SnapshotResponse {
 
 function ConfigSysadminView({ 
     bundleData, renderKnownPanel, activeVersionId, onCloneSysadminDraft, onActivateVersion,
-    saveStatus, setSaveStatus, saveMessage, setSaveMessage, preflightData, setPreflightData, preflightAck, setPreflightAck, dismissTimerRef
+    pendingStage, setPendingStage, saveMessage, setSaveMessage, 
+    pendingPreflight, setPendingPreflight, pendingAck, setPendingAck, 
+    pendingCandidateVersionId, setPendingCandidateVersionId,
+    dismissTimerRef
 }: { 
     bundleData: BundleResponse | null; 
     renderKnownPanel?: (blockType: string) => React.ReactNode | null;
     activeVersionId?: string|null;
     onCloneSysadminDraft?: (sysadminBlocks: Record<string, unknown>, reason: string) => Promise<string>;
     onActivateVersion?: (versionId: string, reason: string) => Promise<void>;
-    // Hoisted State Props
-    saveStatus: 'idle' | 'saving' | 'success' | 'error' | 'preflight_error' | 'preflight_warning';
-    setSaveStatus: (s: 'idle' | 'saving' | 'success' | 'error' | 'preflight_error' | 'preflight_warning') => void;
+    // Stable State Props
+    pendingStage: 'idle' | 'saving' | 'awaiting_ack' | 'activating' | 'error' | 'success' | 'preflight_error';
+    setPendingStage: (s: 'idle' | 'saving' | 'awaiting_ack' | 'activating' | 'error' | 'success' | 'preflight_error') => void;
     saveMessage: string;
     setSaveMessage: (m: string) => void;
-    preflightData: any;
-    setPreflightData: (d: any) => void;
-    preflightAck: boolean;
-    setPreflightAck: (b: boolean) => void;
+    pendingPreflight: any;
+    setPendingPreflight: (d: any) => void;
+    pendingAck: boolean;
+    setPendingAck: (b: boolean) => void;
+    pendingCandidateVersionId: string | null;
+    setPendingCandidateVersionId: (id: string | null) => void;
     dismissTimerRef: React.MutableRefObject<number | null>;
 }) {
     const [selectedTabId, setSelectedTabId] = useState<string | null>(null);
@@ -957,81 +962,122 @@ function ConfigSysadminView({
         setSysadminDraftDirty(false);
         setSysadminDraftError(null);
         setEditingShellJson("");
-        // NOTE: We do NOT clear saveStatus/saveMessage here anymore, so the success banner persists.
-        // If user manually dismisses via 'x', that clears it.
+        // NOTE: We do NOT clear pendingStage/saveMessage here logic handled in cancel
+    };
+
+    const handleCancel = () => {
+        setPendingStage('idle');
+        setSaveMessage('');
+        setPendingPreflight(null);
+        setPendingAck(false);
+        setPendingCandidateVersionId(null);
+        setIsSaving(false);
     };
 
     const handleSaveToServer = async () => {
         if (!sysadminDraft || !onCloneSysadminDraft || !onActivateVersion) return;
+        
+        if (dismissTimerRef.current) clearTimeout(dismissTimerRef.current);
 
-        // If we were in warning state and user clicked again (or "Confirm"), proceed
-        if (saveStatus === 'preflight_warning') {
-             if (!preflightAck) return; 
-        } else {
-             // Reset UI state for fresh attempt
-             setSaveStatus('saving');
-             setSaveMessage('Running preflight checks...');
-             setSysadminDraftError(null);
-             setPreflightData(null);
-             setPreflightAck(false);
+        const draftReason = saveReason || "Sysadmin config edit";
+
+        // PHASE 2: Activation (Second Click)
+        if (pendingStage === 'awaiting_ack') {
+             if (!pendingAck || !pendingCandidateVersionId) return; 
+             
+             try {
+                setPendingStage('activating');
+                setSaveMessage('Activating confirmed version...');
+                setIsSaving(true);
+
+                await onActivateVersion(pendingCandidateVersionId, draftReason);
+                
+                setPendingStage('success');
+                setSaveMessage(`Successfully activated ${pendingCandidateVersionId}`);
+                
+                handleDiscardDraft();
+                
+                 // Auto-dismiss
+                dismissTimerRef.current = window.setTimeout(() => {
+                    setPendingStage('idle');
+                    setSaveMessage('');
+                    setPendingCandidateVersionId(null);
+                }, 5000);
+
+             } catch (e: any) {
+                 setPendingStage('error');
+                 setSaveMessage(e.message || "Activation failed");
+             } finally {
+                 setIsSaving(false);
+             }
+             return;
         }
 
+        // PHASE 1: Clone & Preflight (First Click)
+        
+        // Reset UI state for fresh attempt
+        setPendingStage('saving');
+        setSaveMessage('Running preflight checks...');
+        setSysadminDraftError(null);
+        setPendingPreflight(null);
+        setPendingAck(false);
+        setPendingCandidateVersionId(null);
         setIsSaving(true); 
-        if (dismissTimerRef.current) clearTimeout(dismissTimerRef.current);
 
         try {
             // Ensure draft is fresh
             handleUpdateDraft(); 
 
             // 1. Clone (Generate Candidate)
-            const draftReason = saveReason || "Sysadmin config edit";
             const newVersionId = await onCloneSysadminDraft(sysadminDraft.blocks, draftReason);
+            setPendingCandidateVersionId(newVersionId);
 
             // 2. Preflight on CANDIDATE version
             const pfRes = await fetch(`/api/debug/config/shell/preflight/${newVersionId}`);
             if (!pfRes.ok) throw new Error("Preflight request failed");
             const pfData = await pfRes.json();
             
-            setPreflightData(pfData);
+            setPendingPreflight(pfData);
 
             // Gating Logic
             const hasBlockers = !pfData.canActivate || (pfData.summary?.A1 > 0) || (pfData.summary?.A2 > 0);
             const hasWarnings = (pfData.summary?.B > 0);
 
             if (hasBlockers) {
-                setSaveStatus('preflight_error');
+                setPendingStage('error');
                 setSaveMessage('Preflight BLOCKED — cannot save/activate.');
                 setIsSaving(false);
                 return; // Abort
             }
 
-            if (hasWarnings && !preflightAck) {
-                setSaveStatus('preflight_warning');
+            if (hasWarnings) {
+                setPendingStage('awaiting_ack');
                 setSaveMessage('Preflight Warning: Issues detected that requires acknowledgement.');
                 setIsSaving(false);
                 return; // Abort first pass, wait for user ack
             }
 
-            // 3. Activate
-            setSaveStatus('saving');
+            // 3. Activate (Direct path if safe)
+            setPendingStage('activating');
             setSaveMessage('Activating...');
 
             await onActivateVersion(newVersionId, draftReason);
             
             // Success
-            setSaveStatus('success');
+            setPendingStage('success');
             setSaveMessage(`Saved & activated. New version: ${newVersionId}`);
             
             // Clear draft state on success
             handleDiscardDraft();
+            setPendingCandidateVersionId(null); // Clear candidate after success
 
             // Auto-dismiss
             dismissTimerRef.current = window.setTimeout(() => {
-                setSaveStatus('idle');
+                setPendingStage('idle');
                 setSaveMessage('');
             }, 5000);
         } catch (e: any) {
-            setSaveStatus('error');
+            setPendingStage('error');
             setSaveMessage(e.message || "Error saving draft");
             // Do not clear draft
         } finally {
@@ -1151,28 +1197,29 @@ function ConfigSysadminView({
                         </div>
                         <div style={{flex:1, overflowY:'auto', padding:'10px'}}>
                             
-                            {saveStatus !== 'idle' && (
+                            {pendingStage !== 'idle' && (
                                 <div style={{
                                     marginBottom: '15px',
                                     padding: '10px',
                                     borderRadius: '4px',
-                                    background: saveStatus === 'success' ? '#e8f5e9' : (saveStatus === 'error' || saveStatus === 'preflight_error' ? '#ffebee' : (saveStatus === 'preflight_warning' ? '#fff3e0' : '#e3f2fd')),
-                                    border: `1px solid ${saveStatus === 'success' ? '#c8e6c9' : (saveStatus === 'error' || saveStatus === 'preflight_error' ? '#ffcdd2' : (saveStatus === 'preflight_warning' ? '#ffe0b2' : '#bbdefb'))}`,
-                                    color: saveStatus === 'success' ? '#2e7d32' : (saveStatus === 'error' || saveStatus === 'preflight_error' ? '#c62828' : (saveStatus === 'preflight_warning' ? '#e65100' : '#0d47a1')),
+                                    background: pendingStage === 'success' ? '#e8f5e9' : (pendingStage === 'error' || pendingStage === 'preflight_error' ? '#ffebee' : (pendingStage === 'awaiting_ack' ? '#fff3e0' : '#e3f2fd')),
+                                    border: `1px solid ${pendingStage === 'success' ? '#c8e6c9' : (pendingStage === 'error' || pendingStage === 'preflight_error' ? '#ffcdd2' : (pendingStage === 'awaiting_ack' ? '#ffe0b2' : '#bbdefb'))}`,
+                                    color: pendingStage === 'success' ? '#2e7d32' : (pendingStage === 'error' || pendingStage === 'preflight_error' ? '#c62828' : (pendingStage === 'awaiting_ack' ? '#e65100' : '#0d47a1')),
                                 }}>
                                     
                                     <div style={{display:'flex', justifyContent:'space-between', alignItems:'flex-start'}}>
                                         <div style={{fontSize:'0.9em', fontWeight:'bold'}}>
-                                            {saveStatus === 'saving' && 'Saving...'}
-                                            {saveStatus === 'success' && '✓ Success: '}
-                                            {saveStatus === 'error' && '⚠ Error: '}
-                                            {saveStatus === 'preflight_error' && '🚫 Preflight Failed: '}
-                                            {saveStatus === 'preflight_warning' && '⚠ Preflight Warnings: '}
+                                            {pendingStage === 'saving' && 'Saving...'}
+                                            {pendingStage === 'activating' && 'Activating...'}
+                                            {pendingStage === 'success' && '✓ Success: '}
+                                            {pendingStage === 'error' && '⚠ Error: '}
+                                            {pendingStage === 'preflight_error' && '🚫 Preflight Failed: '}
+                                            {pendingStage === 'awaiting_ack' && '⚠ Preflight Warnings: '}
                                             <span style={{fontWeight:'normal'}}>{saveMessage}</span>
                                         </div>
-                                        {saveStatus !== 'saving' && (
+                                        {pendingStage !== 'saving' && pendingStage !== 'activating' && (
                                             <button 
-                                                onClick={() => { setSaveStatus('idle'); setSaveMessage(''); setPreflightData(null); setPreflightAck(false); }}
+                                                onClick={() => { setPendingStage('idle'); setSaveMessage(''); setPendingPreflight(null); setPendingAck(false); setPendingCandidateVersionId(null); }}
                                                 style={{
                                                     background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.2em', lineHeight: '1', padding: '0 5px',
                                                     color: 'inherit', opacity: 0.6
@@ -1184,39 +1231,59 @@ function ConfigSysadminView({
                                         )}
                                     </div>
 
-                                    {(saveStatus === 'preflight_error' || saveStatus === 'preflight_warning') && preflightData && (
+                                    {(pendingStage === 'preflight_error' || pendingStage === 'awaiting_ack') && pendingPreflight && (
                                         <div style={{marginTop:'8px', fontSize:'0.85em'}}>
-                                            {preflightData.errors && preflightData.errors.length > 0 && (
+                                            {pendingPreflight.errors && pendingPreflight.errors.length > 0 && (
                                                 <div style={{marginBottom:'5px'}}>
                                                     <strong>Errors:</strong>
                                                     <ul style={{margin:'2px 0 0 0', paddingLeft:'20px'}}>
-                                                        {preflightData.errors.slice(0,5).map((e:any, i:number) => (
+                                                        {pendingPreflight.errors.slice(0,5).map((e:any, i:number) => (
                                                             <li key={i}>{e.message} ({e.blockId})</li>
                                                         ))}
                                                     </ul>
                                                 </div>
                                             )}
-                                            {preflightData.warnings && preflightData.warnings.length > 0 && (
+                                            {pendingPreflight.warnings && pendingPreflight.warnings.length > 0 && (
                                                 <div style={{marginBottom:'5px'}}>
                                                     <strong>Warnings:</strong>
                                                     <ul style={{margin:'2px 0 0 0', paddingLeft:'20px'}}>
-                                                        {preflightData.warnings.slice(0,5).map((e:any, i:number) => (
+                                                        {pendingPreflight.warnings.slice(0,5).map((e:any, i:number) => (
                                                             <li key={i}>{e.message} ({e.blockId})</li>
                                                         ))}
                                                     </ul>
                                                 </div>
                                             )}
                                             
-                                            {saveStatus === 'preflight_warning' && (
+                                            {pendingStage === 'awaiting_ack' && (
                                                 <div style={{marginTop:'10px', paddingTop:'10px', borderTop:'1px solid rgba(0,0,0,0.1)'}}>
                                                     <label style={{display:'flex', alignItems:'center', gap:'5px', cursor:'pointer', fontWeight:'bold'}}>
                                                         <input 
                                                             type="checkbox" 
-                                                            checked={preflightAck} 
-                                                            onChange={e => setPreflightAck(e.target.checked)} 
+                                                            checked={pendingAck} 
+                                                            onChange={e => setPendingAck(e.target.checked)} 
                                                         />
                                                         I acknowledge these warnings and wish to proceed.
                                                     </label>
+                                                    <div style={{marginTop:'8px', display:'flex', gap:'10px'}}>
+                                                        <button 
+                                                            onClick={handleSaveToServer}
+                                                            disabled={!pendingAck}
+                                                            style={{
+                                                                background: pendingAck ? '#e65100' : '#ccc',
+                                                                color: 'white', border:'none', borderRadius:'3px', padding:'4px 8px', cursor: pendingAck ? 'pointer' : 'default', fontWeight:'bold'
+                                                            }}
+                                                        >
+                                                            Confirm Save & Activate
+                                                        </button>
+                                                        <button 
+                                                            onClick={handleCancel}
+                                                            style={{
+                                                                background: '#ffffff', border:'1px solid #ccc', borderRadius:'3px', padding:'4px 8px', cursor:'pointer'
+                                                            }}
+                                                        >
+                                                            Cancel
+                                                        </button>
+                                                    </div>
                                                 </div>
                                             )}
                                         </div>
@@ -1341,10 +1408,11 @@ function SysadminPanel({
 
     // Hoisted Save State for ConfigSysadminView (Roadmap 7.2 UX)
     // We hoist this so the success banner persists across re-renders/tab switches if needed.
-    const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error' | 'preflight_error' | 'preflight_warning'>('idle');
+    const [pendingStage, setPendingStage] = useState<'idle' | 'saving' | 'awaiting_ack' | 'activating' | 'success' | 'error' | 'preflight_error'>('idle');
     const [saveMessage, setSaveMessage] = useState('');
-    const [preflightData, setPreflightData] = useState<any>(null);
-    const [preflightAck, setPreflightAck] = useState(false);
+    const [pendingPreflight, setPendingPreflight] = useState<any>(null);
+    const [pendingAck, setPendingAck] = useState(false);
+    const [pendingCandidateVersionId, setPendingCandidateVersionId] = useState<string | null>(null);
     const saveDismissTimerRef = useRef<number | null>(null);
 
     // Cleanup timer on unmount
@@ -3163,14 +3231,16 @@ function SysadminPanel({
                         bundleData={bundleData} 
                         renderKnownPanel={renderKnownPanel} 
                         activeVersionId={snapshotData?.activeVersionId}
-                        saveStatus={saveStatus}
-                        setSaveStatus={setSaveStatus}
+                        pendingStage={pendingStage}
+                        setPendingStage={setPendingStage}
                         saveMessage={saveMessage}
                         setSaveMessage={setSaveMessage}
-                        preflightData={preflightData}
-                        setPreflightData={setPreflightData}
-                        preflightAck={preflightAck}
-                        setPreflightAck={setPreflightAck}
+                        pendingPreflight={pendingPreflight}
+                        setPendingPreflight={setPendingPreflight}
+                        pendingAck={pendingAck}
+                        setPendingAck={setPendingAck}
+                        pendingCandidateVersionId={pendingCandidateVersionId}
+                        setPendingCandidateVersionId={setPendingCandidateVersionId}
                         dismissTimerRef={saveDismissTimerRef}
                         onCloneSysadminDraft={async (blocks, reason) => {
                             let currentVersionId = snapshotData?.activeVersionId;
