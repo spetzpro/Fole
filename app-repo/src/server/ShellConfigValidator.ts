@@ -5,8 +5,15 @@ import { ShellBundle, ValidationReport, ValidationError } from "./ShellConfigTyp
 
 type RegionSlot = 'header' | 'viewport' | 'footer';
 
+function getRegionBlockId(val: any): string | undefined {
+    if (!val) return undefined;
+    if (typeof val === 'string') return val;
+    if (typeof val === 'object' && val.blockId) return val.blockId;
+    return undefined;
+}
+
 // Helper for region normalization
-function normalizeManifestRegions(regions: Record<string, { blockId: string } | undefined> | undefined): {
+function normalizeManifestRegions(regions: Record<string, any> | undefined): {
     normalized: Partial<Record<RegionSlot, string>>;
     warnings: Array<{ message: string; meta: any }>;
 } {
@@ -20,8 +27,8 @@ function normalizeManifestRegions(regions: Record<string, { blockId: string } | 
         const canonicalKey = slot;
         const legacyKey = slot === 'header' ? 'top' : (slot === 'viewport' ? 'main' : 'bottom');
         
-        const canonicalId = regions[canonicalKey]?.blockId;
-        const legacyId = regions[legacyKey]?.blockId;
+        const canonicalId = getRegionBlockId(regions[canonicalKey]);
+        const legacyId = getRegionBlockId(regions[legacyKey]);
         
         let chosenId: string | undefined;
 
