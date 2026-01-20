@@ -997,12 +997,8 @@ function ConfigSysadminView({
                 
                 handleDiscardDraft();
                 
-                 // Auto-dismiss
-                dismissTimerRef.current = window.setTimeout(() => {
-                    setPendingStage('idle');
-                    setSaveMessage('');
-                    setPendingCandidateVersionId(null);
-                }, 5000);
+                 // Auto-dismiss REMOVED for stability
+                setPendingCandidateVersionId(null);
 
              } catch (e: any) {
                  setPendingStage('error');
@@ -1071,11 +1067,7 @@ function ConfigSysadminView({
             handleDiscardDraft();
             setPendingCandidateVersionId(null); // Clear candidate after success
 
-            // Auto-dismiss
-            dismissTimerRef.current = window.setTimeout(() => {
-                setPendingStage('idle');
-                setSaveMessage('');
-            }, 5000);
+            // Auto-dismiss REMOVED for stability
         } catch (e: any) {
             setPendingStage('error');
             setSaveMessage(e.message || "Error saving draft");
