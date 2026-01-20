@@ -876,10 +876,69 @@ interface SnapshotResponse {
 function ConfigSysadminView({ bundleData, renderKnownPanel }: { bundleData: BundleResponse | null; renderKnownPanel?: (blockType: string) => React.ReactNode | null }) {
     const [selectedTabId, setSelectedTabId] = useState<string | null>(null);
 
+    // Roadmap 7.1 Step 2.1: Local Sysadmin Draft State
+    const [sysadminDraft, setSysadminDraft] = useState<{ blocks: Record<string, unknown> } | null>(null);
+    const [sysadminDraftDirty, setSysadminDraftDirty] = useState(false);
+    const [sysadminDraftError, setSysadminDraftError] = useState<string|null>(null);
+    const [editingShellJson, setEditingShellJson] = useState("");
+
+    const handleCreateDraft = () => {
+        if (!bundleData) return;
+        const blocksData = bundleData.blocks as any;
+        const list = Array.isArray(blocksData) ? blocksData : Object.values(blocksData);
+        
+        const root = findSysadminBlock(blocksData);
+        if (!root) return;
+        
+        const draftBlocks: Record<string, unknown> = {};
+        const addBlock = (id: string) => {
+            const b = list.find((x:any) => (x.blockId||x.id) === id);
+            if (b) draftBlocks[id] = deepClone(b);
+        };
+
+        const rootId = root.blockId || root.id;
+        addBlock(rootId);
+
+        try {
+            const parsed = parseSysadminConfig(root);
+            if (parsed && parsed.tabs) {
+                parsed.tabs.forEach((t:any) => t.contentBlockIds.forEach((bid:any) => addBlock(bid)));
+            }
+        } catch (e) { /* ignore */ }
+
+        setSysadminDraft({ blocks: draftBlocks });
+        setEditingShellJson(JSON.stringify(draftBlocks[rootId], null, 2));
+        setSysadminDraftDirty(true);
+        setSysadminDraftError(null);
+    };
+
+    const handleUpdateDraft = () => {
+        try {
+            const parsed = JSON.parse(editingShellJson);
+            if (!sysadminDraft) return;
+            const root = findSysadminBlock(sysadminDraft.blocks);
+            const rootId = root.blockId || root.id;
+            
+            const newBlocks = { ...sysadminDraft.blocks, [rootId]: parsed };
+            setSysadminDraft({ blocks: newBlocks });
+            setSysadminDraftError(null);
+        } catch (e: any) {
+            setSysadminDraftError(e.message);
+        }
+    };
+
+    const handleDiscardDraft = () => {
+        setSysadminDraft(null);
+        setSysadminDraftDirty(false);
+        setSysadminDraftError(null);
+        setEditingShellJson("");
+    };
+
     const config = useMemo(() => {
-        const block = bundleData && bundleData.blocks ? findSysadminBlock(bundleData.blocks) : null;
+        const sourceBlocks = sysadminDraft ? sysadminDraft.blocks : (bundleData && bundleData.blocks);
+        const block = sourceBlocks ? findSysadminBlock(sourceBlocks) : null;
         return block ? parseSysadminConfig(block) : null;
-    }, [bundleData]);
+    }, [bundleData, sysadminDraft]);
 
     if (!bundleData) return <div style={{padding:'20px', color:'#666'}}>Load bundle first</div>;
     if (!config) return <div style={{padding:'20px', color:'#666'}}>No sysadmin.shell config found (Recovery Sysadmin in use).</div>;
@@ -890,7 +949,18 @@ function ConfigSysadminView({ bundleData, renderKnownPanel }: { bundleData: Bund
         <div style={{display:'flex', height:'100%', border:'1px solid #ddd'}}>
             {/* Left Column: Tab List */}
             <div style={{width:'200px', borderRight:'1px solid #ddd', background:'#f9f9f9', overflowY:'auto'}}>
-                <div style={{padding:'10px', borderBottom:'1px solid #eee', fontWeight:'bold', fontSize:'0.9em', background:'#eee'}}>
+                <div style={{padding:'10px', borderBottom:'1px solid #eee', fontWeight:'bold', fontSize:'0.9em', background: sysadminDraft ? '#fff3e0' : '#eee'}}>
+                    {sysadminDraft ? (
+                        <div style={{marginBottom:'8px', borderBottom:'1px solid #ffe0b2', paddingBottom:'8px'}}>
+                            <div style={{color:'#e65100', fontSize:'0.85em', fontWeight:'bold', display:'flex', alignItems:'center', gap:'4px'}}>
+                                <span>✎ DRAFT MODE</span>
+                            </div>
+                            <div style={{fontSize:'0.75em', color:'#e65100', marginBottom:'5px'}}>Local changes only</div>
+                            <button onClick={handleDiscardDraft} style={{fontSize:'0.75em', width:'100%', cursor:'pointer'}}>Discard Draft</button>
+                        </div>
+                    ) : (
+                        <button onClick={handleCreateDraft} style={{fontSize:'0.75em', width:'100%', marginBottom:'8px', cursor:'pointer'}}>Create Local Draft</button>
+                    )}
                     {config.title}
                 </div>
                 {config.tabs.map(t => {
@@ -917,6 +987,24 @@ function ConfigSysadminView({ bundleData, renderKnownPanel }: { bundleData: Bund
 
             {/* Right Column: Tab Details */}
             <div style={{flex:1, display:'flex', flexDirection:'column', overflow:'hidden'}}>
+                {sysadminDraft && (
+                    <div style={{padding:'10px', background:'#fff8e1', borderBottom:'1px solid #ffe0b2'}}>
+                        <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'5px'}}>
+                            <strong style={{fontSize:'0.9em', color:'#e65100'}}>Edit sysadmin_shell.json</strong>
+                            <div style={{display:'flex', gap:'10px', alignItems:'center'}}>
+                                {sysadminDraftError && <span style={{color:'#d32f2f', fontSize:'0.8em', fontWeight:'bold'}}>{sysadminDraftError}</span>}
+                                {sysadminDraftDirty && <span style={{fontSize:'0.8em', color:'#e65100', fontStyle:'italic'}}>Unsaved to draft</span>}
+                                <button onClick={handleUpdateDraft} style={{cursor:'pointer', fontSize:'0.85em'}}>Update & Preview</button>
+                            </div>
+                        </div>
+                        <textarea 
+                            value={editingShellJson}
+                            onChange={(e) => { setEditingShellJson(e.target.value); setSysadminDraftDirty(true); }}
+                            style={{width:'100%', height:'120px', fontFamily:'monospace', fontSize:'0.85em', resize:'vertical', padding:'5px'}}
+                            spellCheck={false}
+                        />
+                    </div>
+                )}
                 {activeTab ? (
                     <>
                         <div style={{padding:'10px', borderBottom:'1px solid #eee', background:'#fff'}}>
