@@ -272,7 +272,7 @@ export class ShellConfigRepository {
       await fs.mkdir(newArchivePath, { recursive: true });
       await fs.mkdir(newBundlePath, { recursive: true });
 
-      // Copy All Files (fs.cp requires Node 16.7+)
+      // Copy All Files from Base Bundle
       const files = await fs.readdir(baseBundlePath);
       for (const file of files) {
           await (fs as any).cp(
@@ -284,16 +284,22 @@ export class ShellConfigRepository {
       
       // Patch Sysadmin Blocks
       for (const [key, block] of Object.entries(sysadminBlocks)) {
-          // Normalize blockId to match filename key
-          const blockToSave = { ...block, blockId: key };
-          // Note: we don't strictly enforce filename inside block data if it wasn't there, 
-          // but repo conventions usually infer filename from file path.
+          // Force blockId match key and filename match structure
+          const blockToSave = { 
+              ...block, 
+              blockId: key,
+              filename: `${key}.json`
+          };
           
+          const targetPath = path.join(newBundlePath, `${key}.json`);
+          const tempPath = targetPath + ".tmp";
+
           await fs.writeFile(
-              path.join(newBundlePath, `${key}.json`),
+              tempPath,
               JSON.stringify(blockToSave, null, 2),
               "utf-8"
           );
+          await fs.rename(tempPath, targetPath);
       }
 
       // Create Meta
@@ -306,11 +312,15 @@ export class ShellConfigRepository {
           parentVersionId: baseVersionId
       };
       
+      const metaPath = path.join(newArchivePath, "meta.json");
+      const metaTempPath = metaPath + ".tmp";
+
       await fs.writeFile(
-          path.join(newArchivePath, "meta.json"),
+          metaTempPath,
           JSON.stringify(meta, null, 2),
           "utf-8"
       );
+      await fs.rename(metaTempPath, metaPath);
 
       // Copy validation.json if exists
       try {

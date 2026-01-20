@@ -149,6 +149,9 @@ async function main() {
           if (!baseVersionId || typeof baseVersionId !== 'string') {
                return router.json(res, 400, { error: "Missing or invalid baseVersionId" });
           }
+          if (typeof reason !== 'string') {
+               return router.json(res, 400, { error: "Missing or invalid reason" });
+          }
           if (!sysadminBlocks || typeof sysadminBlocks !== 'object') {
                return router.json(res, 400, { error: "Missing or invalid sysadminBlocks" });
           }
