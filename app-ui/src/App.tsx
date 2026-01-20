@@ -874,13 +874,14 @@ interface SnapshotResponse {
 }
 
 function ConfigSysadminView({ 
-    bundleData, renderKnownPanel, activeVersionId, onSaveSysadminDraft,
+    bundleData, renderKnownPanel, activeVersionId, onCloneSysadminDraft, onActivateVersion,
     saveStatus, setSaveStatus, saveMessage, setSaveMessage, preflightData, setPreflightData, preflightAck, setPreflightAck, dismissTimerRef
 }: { 
     bundleData: BundleResponse | null; 
     renderKnownPanel?: (blockType: string) => React.ReactNode | null;
     activeVersionId?: string|null;
-    onSaveSysadminDraft?: (sysadminBlocks: Record<string, unknown>, reason: string) => Promise<string>;
+    onCloneSysadminDraft?: (sysadminBlocks: Record<string, unknown>, reason: string) => Promise<string>;
+    onActivateVersion?: (versionId: string, reason: string) => Promise<void>;
     // Hoisted State Props
     saveStatus: 'idle' | 'saving' | 'success' | 'error' | 'preflight_error' | 'preflight_warning';
     setSaveStatus: (s: 'idle' | 'saving' | 'success' | 'error' | 'preflight_error' | 'preflight_warning') => void;
@@ -961,12 +962,11 @@ function ConfigSysadminView({
     };
 
     const handleSaveToServer = async () => {
-        if (!sysadminDraft || !onSaveSysadminDraft) return;
+        if (!sysadminDraft || !onCloneSysadminDraft || !onActivateVersion) return;
 
         // If we were in warning state and user clicked again (or "Confirm"), proceed
         if (saveStatus === 'preflight_warning') {
-             if (!preflightAck) return; // Should be enforced by disabled button too
-             // Allow proceed through to saving...
+             if (!preflightAck) return; 
         } else {
              // Reset UI state for fresh attempt
              setSaveStatus('saving');
@@ -976,77 +976,47 @@ function ConfigSysadminView({
              setPreflightAck(false);
         }
 
-        setIsSaving(true); // Lock UI
+        setIsSaving(true); 
         if (dismissTimerRef.current) clearTimeout(dismissTimerRef.current);
 
         try {
             // Ensure draft is fresh
             handleUpdateDraft(); 
 
-            // 0. Preflight Gating (if not already Acked)
-            // We need baseVersionId. We can't get it from props reliably if it wasn't rendered, 
-            // but the onSaveSysadminDraft fetches it. We need access to it HERE though.
-            // Let's rely on onSaveSysadminDraft to expose it? No, we are inside the view.
-            // We can fetch/refresh snapshot directly here or pass a getter.
-            // Actually, `onSaveSysadminDraft` is a prop that implements the whole flow. 
-            // The prompt asks to "Perform preflight check [...] Before Save & Activate". 
-            // Since onSaveSysadminDraft does Clone+Activate, we must do preflight BEFORE calling it.
-            // But we need the Base ID.
+            // 1. Clone (Generate Candidate)
+            const draftReason = saveReason || "Sysadmin config edit";
+            const newVersionId = await onCloneSysadminDraft(sysadminDraft.blocks, draftReason);
+
+            // 2. Preflight on CANDIDATE version
+            const pfRes = await fetch(`/api/debug/config/shell/preflight/${newVersionId}`);
+            if (!pfRes.ok) throw new Error("Preflight request failed");
+            const pfData = await pfRes.json();
             
-            // Re-use logic to get ID if missing
-            let currentVersionId = activeVersionId;
-            if (!currentVersionId) {
-                // We can't call refreshSnapshot() easily here as it's passed in via props indirectly or not available.
-                // Wait, refreshSnapshot was passed? No.
-                // `ConfigSysadminView` receives `activeVersionId`. The parent has `refreshSnapshot`.
-                // The prompt says "Ensure baseVersionId is available (existing logic already fetches snapshot if needed)."
-                // BUT that logic is inside the `onSaveSysadminDraft` callback defined in the PARENT.
-                // We are inside `ConfigSysadminView`.
-                
-                // Workaround: We'll fetch snapshot manually to get the ID if missing.
-                const snapRes = await fetch('/api/debug/runtime/snapshot');
-                if (snapRes.ok) {
-                    const snap = await snapRes.json();
-                    currentVersionId = snap.activeVersionId;
-                }
+            setPreflightData(pfData);
+
+            // Gating Logic
+            const hasBlockers = !pfData.canActivate || (pfData.summary?.A1 > 0) || (pfData.summary?.A2 > 0);
+            const hasWarnings = (pfData.summary?.B > 0);
+
+            if (hasBlockers) {
+                setSaveStatus('preflight_error');
+                setSaveMessage('Preflight BLOCKED — cannot save/activate.');
+                setIsSaving(false);
+                return; // Abort
             }
 
-            if (!currentVersionId) throw new Error("Cannot run preflight: No active base version found.");
-
-            // Run Preflight if we haven't already acked warnings
-            // (If saveStatus is preflight_warning, we already have data, we just proceed)
-            if (saveStatus !== 'preflight_warning') {
-                const pfRes = await fetch(`/api/debug/config/shell/preflight/${currentVersionId}`);
-                if (!pfRes.ok) throw new Error("Preflight request failed");
-                const pfData = await pfRes.json();
-                
-                setPreflightData(pfData);
-
-                // Gating Logic
-                const hasBlockers = !pfData.canActivate || (pfData.summary?.A1 > 0) || (pfData.summary?.A2 > 0);
-                const hasWarnings = (pfData.summary?.B > 0);
-
-                if (hasBlockers) {
-                    setSaveStatus('preflight_error');
-                    setSaveMessage('Preflight BLOCKED — cannot save/activate.');
-                    setIsSaving(false);
-                    return; // Abort
-                }
-
-                if (hasWarnings) {
-                    setSaveStatus('preflight_warning');
-                    setSaveMessage('Preflight Warning: Issues detected that requires acknowledgement.');
-                    setIsSaving(false);
-                    return; // Abort first pass, wait for user ack
-                }
+            if (hasWarnings && !preflightAck) {
+                setSaveStatus('preflight_warning');
+                setSaveMessage('Preflight Warning: Issues detected that requires acknowledgement.');
+                setIsSaving(false);
+                return; // Abort first pass, wait for user ack
             }
 
-            // Proceed to Save
-            // Show real saving message
+            // 3. Activate
             setSaveStatus('saving');
-            setSaveMessage('Saving & Activating...');
+            setSaveMessage('Activating...');
 
-            const newVersionId = await onSaveSysadminDraft(sysadminDraft.blocks, saveReason || "Sysadmin config edit");
+            await onActivateVersion(newVersionId, draftReason);
             
             // Success
             setSaveStatus('success');
@@ -3202,7 +3172,7 @@ function SysadminPanel({
                         preflightAck={preflightAck}
                         setPreflightAck={setPreflightAck}
                         dismissTimerRef={saveDismissTimerRef}
-                        onSaveSysadminDraft={async (blocks, reason) => {
+                        onCloneSysadminDraft={async (blocks, reason) => {
                             let currentVersionId = snapshotData?.activeVersionId;
                             
                             if (!currentVersionId) {
@@ -3232,14 +3202,14 @@ function SysadminPanel({
                                 throw new Error(err.error || "Failed to patch");
                             }
                             const patchJson = await patchRes.json();
-                            const newVersionId = patchJson.newVersionId;
-
-                            // 2. Activate
+                            return patchJson.newVersionId;
+                        }}
+                        onActivateVersion={async (versionId, reason) => {
                             const activateRes = await fetch('/api/debug/config/shell/activate', {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({
-                                    versionId: newVersionId,
+                                    versionId,
                                     reason
                                 })
                             });
@@ -3248,14 +3218,12 @@ function SysadminPanel({
                                 throw new Error(err.error || "Failed to activate");
                             }
                             
-                            // 3. Refresh UI
+                            // Refresh UI
                             refreshSnapshot();
                             setTimeout(() => {
                                 onRefresh();
                                 refreshVersions();
                             }, 500);
-                            
-                            return newVersionId;
                         }}
                     />
                 );
