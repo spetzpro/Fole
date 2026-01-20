@@ -887,8 +887,10 @@ function ConfigSysadminView({ bundleData, renderKnownPanel, activeVersionId, onS
     const [isSaving, setIsSaving] = useState(false);
     
     // Step 7.2.X: Save Status UX
-    const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
+    const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error' | 'preflight_error' | 'preflight_warning'>('idle');
     const [saveMessage, setSaveMessage] = useState('');
+    const [preflightData, setPreflightData] = useState<any>(null);
+    const [preflightAck, setPreflightAck] = useState(false);
     const dismissTimerRef = useRef<number | null>(null);
 
     useEffect(() => {
@@ -947,21 +949,99 @@ function ConfigSysadminView({ bundleData, renderKnownPanel, activeVersionId, onS
         setSysadminDraftDirty(false);
         setSysadminDraftError(null);
         setEditingShellJson("");
+        // Reset save/preflight state
+        setSaveStatus('idle');
+        setSaveMessage('');
+        setPreflightData(null);
+        setPreflightAck(false);
     };
 
     const handleSaveToServer = async () => {
         if (!sysadminDraft || !onSaveSysadminDraft) return;
-        
+
+        // If we were in warning state and user clicked again (or "Confirm"), proceed
+        if (saveStatus === 'preflight_warning') {
+             if (!preflightAck) return; // Should be enforced by disabled button too
+             // Allow proceed through to saving...
+        } else {
+             // Reset UI state for fresh attempt
+             setSaveStatus('saving');
+             setSaveMessage('Running preflight checks...');
+             setSysadminDraftError(null);
+             setPreflightData(null);
+             setPreflightAck(false);
+        }
+
         setIsSaving(true); // Lock UI
-        setSaveStatus('saving');
-        setSaveMessage('');
-        setSysadminDraftError(null);
         if (dismissTimerRef.current) clearTimeout(dismissTimerRef.current);
 
         try {
             // Ensure draft is fresh
             handleUpdateDraft(); 
-            // Save
+
+            // 0. Preflight Gating (if not already Acked)
+            // We need baseVersionId. We can't get it from props reliably if it wasn't rendered, 
+            // but the onSaveSysadminDraft fetches it. We need access to it HERE though.
+            // Let's rely on onSaveSysadminDraft to expose it? No, we are inside the view.
+            // We can fetch/refresh snapshot directly here or pass a getter.
+            // Actually, `onSaveSysadminDraft` is a prop that implements the whole flow. 
+            // The prompt asks to "Perform preflight check [...] Before Save & Activate". 
+            // Since onSaveSysadminDraft does Clone+Activate, we must do preflight BEFORE calling it.
+            // But we need the Base ID.
+            
+            // Re-use logic to get ID if missing
+            let currentVersionId = activeVersionId;
+            if (!currentVersionId) {
+                // We can't call refreshSnapshot() easily here as it's passed in via props indirectly or not available.
+                // Wait, refreshSnapshot was passed? No.
+                // `ConfigSysadminView` receives `activeVersionId`. The parent has `refreshSnapshot`.
+                // The prompt says "Ensure baseVersionId is available (existing logic already fetches snapshot if needed)."
+                // BUT that logic is inside the `onSaveSysadminDraft` callback defined in the PARENT.
+                // We are inside `ConfigSysadminView`.
+                
+                // Workaround: We'll fetch snapshot manually to get the ID if missing.
+                const snapRes = await fetch('/api/debug/runtime/snapshot');
+                if (snapRes.ok) {
+                    const snap = await snapRes.json();
+                    currentVersionId = snap.activeVersionId;
+                }
+            }
+
+            if (!currentVersionId) throw new Error("Cannot run preflight: No active base version found.");
+
+            // Run Preflight if we haven't already acked warnings
+            // (If saveStatus is preflight_warning, we already have data, we just proceed)
+            if (saveStatus !== 'preflight_warning') {
+                const pfRes = await fetch(`/api/debug/config/shell/preflight/${currentVersionId}`);
+                if (!pfRes.ok) throw new Error("Preflight request failed");
+                const pfData = await pfRes.json();
+                
+                setPreflightData(pfData);
+
+                // Gating Logic
+                const hasBlockers = !pfData.canActivate || (pfData.summary?.A1 > 0) || (pfData.summary?.A2 > 0);
+                const hasWarnings = (pfData.summary?.B > 0);
+
+                if (hasBlockers) {
+                    setSaveStatus('preflight_error');
+                    setSaveMessage('Preflight BLOCKED — cannot save/activate.');
+                    setIsSaving(false);
+                    return; // Abort
+                }
+
+                if (hasWarnings) {
+                    setSaveStatus('preflight_warning');
+                    setSaveMessage('Preflight Warning: Issues detected that requires acknowledgement.');
+                    setIsSaving(false);
+                    return; // Abort first pass, wait for user ack
+                }
+            }
+
+            // Proceed to Save
+            // Show real saving message
+            setSaveStatus('saving');
+            setSaveMessage('Saving & Activating...');
+
             const newVersionId = await onSaveSysadminDraft(sysadminDraft.blocks, saveReason || "Sysadmin config edit");
             
             // Success
@@ -1021,13 +1101,13 @@ function ConfigSysadminView({ bundleData, renderKnownPanel, activeVersionId, onS
                                 />
                                 <button 
                                     onClick={handleSaveToServer}
-                                    disabled={isSaving}
+                                    disabled={isSaving || (saveStatus === 'preflight_warning' && !preflightAck)}
                                     style={{
                                         width:'100%', 
                                         marginTop:'4px', 
                                         padding:'4px', 
-                                        cursor: isSaving ? 'default' : 'pointer',
-                                        background: '#e65100',
+                                        cursor: (isSaving || (saveStatus === 'preflight_warning' && !preflightAck)) ? 'default' : 'pointer',
+                                        background: saveStatus === 'preflight_warning' ? '#f57c00' : '#e65100',
                                         color: 'white',
                                         border: 'none',
                                         borderRadius: '3px',
@@ -1035,7 +1115,7 @@ function ConfigSysadminView({ bundleData, renderKnownPanel, activeVersionId, onS
                                         fontWeight: 'bold'
                                     }}
                                 >
-                                    {isSaving ? 'Saving...' : 'Save & Activate'}
+                                    {isSaving ? 'Saving...' : (saveStatus === 'preflight_warning' ? 'Confirm Save & Activate' : 'Save & Activate')}
                                 </button>
                             </div>
 
@@ -1102,31 +1182,72 @@ function ConfigSysadminView({ bundleData, renderKnownPanel, activeVersionId, onS
                                     marginBottom: '15px',
                                     padding: '10px',
                                     borderRadius: '4px',
-                                    background: saveStatus === 'success' ? '#e8f5e9' : (saveStatus === 'error' ? '#ffebee' : '#e3f2fd'),
-                                    border: `1px solid ${saveStatus === 'success' ? '#c8e6c9' : (saveStatus === 'error' ? '#ffcdd2' : '#bbdefb')}`,
-                                    color: saveStatus === 'success' ? '#2e7d32' : (saveStatus === 'error' ? '#c62828' : '#0d47a1'),
-                                    display: 'flex',
-                                    justifyContent: 'space-between',
-                                    alignItems: 'center'
+                                    background: saveStatus === 'success' ? '#e8f5e9' : (saveStatus === 'error' || saveStatus === 'preflight_error' ? '#ffebee' : (saveStatus === 'preflight_warning' ? '#fff3e0' : '#e3f2fd')),
+                                    border: `1px solid ${saveStatus === 'success' ? '#c8e6c9' : (saveStatus === 'error' || saveStatus === 'preflight_error' ? '#ffcdd2' : (saveStatus === 'preflight_warning' ? '#ffe0b2' : '#bbdefb'))}`,
+                                    color: saveStatus === 'success' ? '#2e7d32' : (saveStatus === 'error' || saveStatus === 'preflight_error' ? '#c62828' : (saveStatus === 'preflight_warning' ? '#e65100' : '#0d47a1')),
                                 }}>
-                                    <div style={{fontSize:'0.9em', fontWeight:'bold'}}>
-                                        {saveStatus === 'saving' && 'Saving...'}
-                                        {saveStatus === 'success' && '✓ Success: '}
-                                        {saveStatus === 'error' && '⚠ Error: '}
-                                        <span style={{fontWeight:'normal'}}>{saveMessage}</span>
+                                    
+                                    <div style={{display:'flex', justifyContent:'space-between', alignItems:'flex-start'}}>
+                                        <div style={{fontSize:'0.9em', fontWeight:'bold'}}>
+                                            {saveStatus === 'saving' && 'Saving...'}
+                                            {saveStatus === 'success' && '✓ Success: '}
+                                            {saveStatus === 'error' && '⚠ Error: '}
+                                            {saveStatus === 'preflight_error' && '🚫 Preflight Failed: '}
+                                            {saveStatus === 'preflight_warning' && '⚠ Preflight Warnings: '}
+                                            <span style={{fontWeight:'normal'}}>{saveMessage}</span>
+                                        </div>
+                                        {saveStatus !== 'saving' && (
+                                            <button 
+                                                onClick={() => { setSaveStatus('idle'); setSaveMessage(''); setPreflightData(null); setPreflightAck(false); }}
+                                                style={{
+                                                    background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.2em', lineHeight: '1', padding: '0 5px',
+                                                    color: 'inherit', opacity: 0.6
+                                                }}
+                                                title="Dismiss"
+                                            >
+                                                ×
+                                            </button>
+                                        )}
                                     </div>
-                                    {saveStatus !== 'saving' && (
-                                        <button 
-                                            onClick={() => { setSaveStatus('idle'); setSaveMessage(''); }}
-                                            style={{
-                                                background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.2em', lineHeight: '1', padding: '0 5px',
-                                                color: 'inherit', opacity: 0.6
-                                            }}
-                                            title="Dismiss"
-                                        >
-                                            ×
-                                        </button>
+
+                                    {(saveStatus === 'preflight_error' || saveStatus === 'preflight_warning') && preflightData && (
+                                        <div style={{marginTop:'8px', fontSize:'0.85em'}}>
+                                            {preflightData.errors && preflightData.errors.length > 0 && (
+                                                <div style={{marginBottom:'5px'}}>
+                                                    <strong>Errors:</strong>
+                                                    <ul style={{margin:'2px 0 0 0', paddingLeft:'20px'}}>
+                                                        {preflightData.errors.slice(0,5).map((e:any, i:number) => (
+                                                            <li key={i}>{e.message} ({e.blockId})</li>
+                                                        ))}
+                                                    </ul>
+                                                </div>
+                                            )}
+                                            {preflightData.warnings && preflightData.warnings.length > 0 && (
+                                                <div style={{marginBottom:'5px'}}>
+                                                    <strong>Warnings:</strong>
+                                                    <ul style={{margin:'2px 0 0 0', paddingLeft:'20px'}}>
+                                                        {preflightData.warnings.slice(0,5).map((e:any, i:number) => (
+                                                            <li key={i}>{e.message} ({e.blockId})</li>
+                                                        ))}
+                                                    </ul>
+                                                </div>
+                                            )}
+                                            
+                                            {saveStatus === 'preflight_warning' && (
+                                                <div style={{marginTop:'10px', paddingTop:'10px', borderTop:'1px solid rgba(0,0,0,0.1)'}}>
+                                                    <label style={{display:'flex', alignItems:'center', gap:'5px', cursor:'pointer', fontWeight:'bold'}}>
+                                                        <input 
+                                                            type="checkbox" 
+                                                            checked={preflightAck} 
+                                                            onChange={e => setPreflightAck(e.target.checked)} 
+                                                        />
+                                                        I acknowledge these warnings and wish to proceed.
+                                                    </label>
+                                                </div>
+                                            )}
+                                        </div>
                                     )}
+
                                 </div>
                             )}
 
