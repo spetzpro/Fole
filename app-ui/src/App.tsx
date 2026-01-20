@@ -1039,7 +1039,7 @@ function SysadminPanel({
     const [selectedActionId, setSelectedActionId] = useState<string | null>(null);
     const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
-    const ENABLE_LEGACY_SYSADMIN_TABS = false;
+    const ENABLE_LEGACY_SYSADMIN_TABS = true;
 
     // Dynamic Tabs Definition
     const tabs = ['ShellConfig', 'Blocks', 'Bindings', 'Data', 'ActionIndex', 'Runtime', 'Draft', 'Invocations', 'Traces'];
