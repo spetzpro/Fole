@@ -2711,7 +2711,11 @@ function SysadminPanel({
                                                             <div style={{background:'#ffebee', padding:'5px', borderRadius:'3px', maxHeight:'100px', overflowY:'auto', border:'1px solid #ffcdd2'}}>
                                                                 <strong style={{color:'#c62828', fontSize:'0.9em'}}>Blocking Issues:</strong>
                                                                 <ul style={{margin:'2px 0 0 0', paddingLeft:'20px', color:'#c62828', fontSize:'0.85em'}}>
-                                                                    {preflightResult.errors.map((e:string,i:number)=><li key={i}>{e}</li>)}
+                                                                    {preflightResult.errors.map((e:any,i:number) => {
+                                                                        const key = (typeof e === 'object' && e?.code) ? `${e.code}-${i}` : `${i}`;
+                                                                        const msg = (typeof e === 'object' && e?.message) ? `${e.code || 'ERR'}: ${e.message} ${e.path ? `(${e.path})` : ''}` : e;
+                                                                        return <li key={key}>{msg}</li>;
+                                                                    })}
                                                                 </ul>
                                                             </div>
                                                         )}
@@ -2721,7 +2725,11 @@ function SysadminPanel({
                                                             <div style={{background:'#fff8e1', padding:'5px', borderRadius:'3px', maxHeight:'100px', overflowY:'auto', border:'1px solid #ffe0b2'}}>
                                                                 <strong style={{color:'#f57c00', fontSize:'0.9em'}}>Warnings:</strong>
                                                                 <ul style={{margin:'2px 0 0 0', paddingLeft:'20px', color:'#f57c00', fontSize:'0.85em'}}>
-                                                                    {preflightResult.warnings.map((w:string,i:number)=><li key={i}>{w}</li>)}
+                                                                    {preflightResult.warnings.map((w:any,i:number) => {
+                                                                        const key = (typeof w === 'object' && w?.code) ? `${w.code}-${i}` : `${i}`;
+                                                                        const msg = (typeof w === 'object' && w?.message) ? `${w.code || 'WARN'}: ${w.message} ${w.path ? `(${w.path})` : ''}` : w;
+                                                                        return <li key={key}>{msg}</li>;
+                                                                    })}
                                                                 </ul>
                                                             </div>
                                                         )}
