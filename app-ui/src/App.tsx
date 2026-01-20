@@ -1024,14 +1024,15 @@ function SysadminPanel({
     const [selectedActionId, setSelectedActionId] = useState<string | null>(null);
     const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
-    const ENABLE_LEGACY_SYSADMIN_TABS = true;
+    const ENABLE_LEGACY_SYSADMIN_TABS = false;
 
     // Dynamic Tabs Definition
     const tabs = ['ShellConfig', 'Blocks', 'Bindings', 'Data', 'ActionIndex', 'Runtime', 'Draft', 'Invocations', 'Traces'];
     if (ENABLE_LEGACY_SYSADMIN_TABS) {
         tabs.push('Snapshot');
+        tabs.push('Versions');
     }
-    tabs.push('Versions', 'ConfigSysadmin');
+    tabs.push('ConfigSysadmin');
 
     // const [activeTab, setActiveTab] = useState('ShellConfig'); // Defined at top of component
     const [invocations, setInvocations] = useState<any[] | null>(null);
