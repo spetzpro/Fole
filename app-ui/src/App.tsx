@@ -2224,336 +2224,338 @@ function SysadminPanel({
             border: '1px solid #ddd'
         };
         
-        if (activeTab === 'Versions') {
-            return (
-                <div style={{padding:'20px', overflow:'auto', height:'100%'}}>
-                    {selectedVersionId ? (
-                        // DETAIL VIEW
-                        <div style={{display:'flex', flexDirection:'column', height:'100%'}}>
-                             <div style={{marginBottom:'15px', display:'flex', alignItems:'center', gap:'15px'}}>
-                                 <button onClick={() => { setSelectedVersionId(null); setConfirmLoadVersion(false); setConfirmActivate(false); setActivateReason('Activated from Sysadmin'); }}>&larr; Back to List</button>
-                                 
-                                 {!versionDetailLoading && (
-                                     confirmLoadVersion ? (
-                                        <div style={{display:'flex', alignItems:'center', gap:'10px', background:'#fff3cd', padding:'5px 10px', borderRadius:'4px', border:'1px solid #ffeeba'}}>
-                                            <span style={{color:'#856404', fontSize:'0.9em', fontWeight:'bold'}}>Replace local draft?</span>
-                                            <button 
-                                                onClick={handleLoadVersionToDraft} 
-                                                style={{fontWeight:'bold', color:'#fff', background:'#dc3545', border:'none', borderRadius:'3px', padding:'2px 8px', cursor:'pointer'}}
-                                            >
-                                                Yes, Replace
-                                            </button>
-                                            <button 
-                                                onClick={() => setConfirmLoadVersion(false)}
-                                                style={{background:'#ffffff', color:'#111', border:'1px solid #ccc', borderRadius:'6px', padding:'6px 12px', cursor:'pointer', fontWeight: 600}}
-                                            >
-                                                Cancel
-                                            </button>
-                                        </div>
-                                     ) : (
+        const renderVersionsContent = () => (
+            <div style={{padding:'20px', overflow:'auto', height:'100%'}}>
+                {selectedVersionId ? (
+                    // DETAIL VIEW
+                    <div style={{display:'flex', flexDirection:'column', height:'100%'}}>
+                            <div style={{marginBottom:'15px', display:'flex', alignItems:'center', gap:'15px'}}>
+                                <button onClick={() => { setSelectedVersionId(null); setConfirmLoadVersion(false); setConfirmActivate(false); setActivateReason('Activated from Sysadmin'); }}>&larr; Back to List</button>
+                                
+                                {!versionDetailLoading && (
+                                    confirmLoadVersion ? (
+                                    <div style={{display:'flex', alignItems:'center', gap:'10px', background:'#fff3cd', padding:'5px 10px', borderRadius:'4px', border:'1px solid #ffeeba'}}>
+                                        <span style={{color:'#856404', fontSize:'0.9em', fontWeight:'bold'}}>Replace local draft?</span>
                                         <button 
-                                            onClick={() => {
-                                                if (draftBundle) setConfirmLoadVersion(true);
-                                                else handleLoadVersionToDraft();
-                                            }}
-                                            style={{cursor:'pointer'}}
+                                            onClick={handleLoadVersionToDraft} 
+                                            style={{fontWeight:'bold', color:'#fff', background:'#dc3545', border:'none', borderRadius:'3px', padding:'2px 8px', cursor:'pointer'}}
                                         >
-                                            Load into Draft
+                                            Yes, Replace
                                         </button>
-                                     )
-                                 )}
-
-                                 <h3 style={{margin:0}}>Version: {selectedVersionId}</h3>
-                                 {versionDetailLoading && <small>Loading...</small>}
-
-                                 {/* Activate Button Logic */}
-                                 {shellVersions?.activeVersionId !== selectedVersionId && (
-                                      <div style={{marginLeft:'auto', display:'flex', alignItems:'center', gap:'10px'}}>
-                                          {confirmActivate ? (
-                                              <div style={{display:'flex', flexDirection:'column', gap:'10px', background:'#fff3e0', padding:'10px', borderRadius:'4px', border:'1px solid #ffe0b2', minWidth:'400px', maxWidth:'600px', zIndex: 100, position:'relative'}}>
-                                                  <div style={{fontWeight:'bold', borderBottom:'1px solid #ffd54f', paddingBottom:'5px', marginBottom:'5px', color:'#ef6c00'}}>Preflight Check</div>
-                                                  
-                                                  {preflightLoading && <div style={{color:'#666', fontStyle:'italic'}}>Running safety validation...</div>}
-                                                  {preflightError && <div style={{color:'red'}}>Error: {preflightError}</div>}
-                                                  
-                                                  {!preflightLoading && preflightResult && (
-                                                      <>
-                                                         {/* Result Summary */}
-                                                         <div style={{display:'flex', gap:'10px', alignItems:'center'}}>
-                                                             <div style={{
-                                                                 fontWeight:'bold', 
-                                                                 color: preflightResult.canActivate ? (preflightResult.warnings.length > 0 ? '#ef6c00' : '#2e7d32') : '#d32f2f'
-                                                             }}>
-                                                                 {preflightResult.canActivate 
-                                                                     ? (preflightResult.warnings.length > 0 ? "ELIGIBLE WITH WARNINGS" : "SAFE TO ACTIVATE") 
-                                                                     : "ACTIVATION BLOCKED"}
-                                                             </div>
-                                                         </div>
-
-                                                         {/* Stats */}
-                                                         {preflightResult.stats && (
-                                                             <div style={{fontSize:'0.85em', color:'#555', display:'flex', gap:'10px'}}>
-                                                                 <span><span style={{color:'#2e7d32', fontWeight:'bold'}}>+</span> {preflightResult.stats.addedBlocks} Add</span>
-                                                                 <span><span style={{color:'#d32f2f', fontWeight:'bold'}}>-</span> {preflightResult.stats.removedBlocks} Del</span>
-                                                                 <span><span style={{color:'#ef6c00', fontWeight:'bold'}}>~</span> {preflightResult.stats.modifiedBlocks} Mod</span>
-                                                             </div>
-                                                         )}
-
-                                                         {/* Errors List (Blocking) */}
-                                                         {preflightResult.errors.length > 0 && (
-                                                             <div style={{background:'#ffebee', padding:'5px', borderRadius:'3px', maxHeight:'100px', overflowY:'auto', border:'1px solid #ffcdd2'}}>
-                                                                 <strong style={{color:'#c62828', fontSize:'0.9em'}}>Blocking Issues:</strong>
-                                                                 <ul style={{margin:'2px 0 0 0', paddingLeft:'20px', color:'#c62828', fontSize:'0.85em'}}>
-                                                                     {preflightResult.errors.map((e:string,i:number)=><li key={i}>{e}</li>)}
-                                                                 </ul>
-                                                             </div>
-                                                         )}
-
-                                                         {/* Warnings List (Ack Required) */}
-                                                         {preflightResult.warnings.length > 0 && (
-                                                             <div style={{background:'#fff8e1', padding:'5px', borderRadius:'3px', maxHeight:'100px', overflowY:'auto', border:'1px solid #ffe0b2'}}>
-                                                                 <strong style={{color:'#f57c00', fontSize:'0.9em'}}>Warnings:</strong>
-                                                                 <ul style={{margin:'2px 0 0 0', paddingLeft:'20px', color:'#f57c00', fontSize:'0.85em'}}>
-                                                                     {preflightResult.warnings.map((w:string,i:number)=><li key={i}>{w}</li>)}
-                                                                 </ul>
-                                                             </div>
-                                                         )}
-                                                      
-                                                         {/* Acknowledgement Checkbox */}
-                                                         {preflightResult.canActivate && preflightResult.warnings.length > 0 && (
-                                                             <label style={{display:'flex', alignItems:'center', cursor:'pointer', fontSize:'0.9em', marginTop:'5px'}}>
-                                                                 <input 
-                                                                     type="checkbox" 
-                                                                     checked={ackPreflightWarnings} 
-                                                                     onChange={e => setAckPreflightWarnings(e.target.checked)}
-                                                                     style={{marginRight:'6px'}}
-                                                                 />
-                                                                 I acknowledge these warnings.
-                                                             </label>
-                                                         )}
-                                                      </>
-                                                  )}
-
-                                                  <div style={{display:'flex', gap:'5px', marginTop:'5px'}}>
-                                                       <input 
-                                                            type="text" 
-                                                            value={activateReason} 
-                                                            onChange={e => setActivateReason(e.target.value)}
-                                                            placeholder="Reason for activation..."
-                                                            style={{border:'1px solid #ccc', padding:'6px 10px', flex:1, borderRadius:'4px'}}
-                                                            disabled={!preflightResult?.canActivate} 
-                                                        />
-                                                        <button 
-                                                            onClick={() => handleActivate(selectedVersionId)}
-                                                            disabled={!preflightResult?.canActivate || (preflightResult?.warnings.length > 0 && !ackPreflightWarnings) || preflightLoading}
-                                                            style={{
-                                                                background: (!preflightResult?.canActivate || (preflightResult?.warnings.length > 0 && !ackPreflightWarnings) || preflightLoading) ? '#ccc' : '#d32f2f', 
-                                                                color:'white', border:'none', padding:'6px 12px', borderRadius:'6px', cursor:'pointer', fontWeight:'bold'
-                                                            }}
-                                                        >
-                                                            Confirm Activate
-                                                        </button>
-                                                        <button 
-                                                            onClick={() => setConfirmActivate(false)}
-                                                            style={{background:'#ffffff', color:'#111', border:'1px solid #ccc', padding:'6px 12px', borderRadius:'6px', cursor:'pointer', fontWeight: 600}}
-                                                        >
-                                                            Cancel
-                                                        </button>
-                                                  </div>
-                                              </div>
-                                          ) : (
-                                              <button 
-                                                  onClick={() => { setConfirmActivate(true); fetchPreflight(selectedVersionId); }}
-                                                  style={{background:'#ef6c00', color:'white', border:'none', borderRadius:'6px', padding:'6px 12px', fontWeight:700, cursor:'pointer'}}
-                                              >
-                                                  Activate (debug)
-                                              </button>
-                                          )}
-                                      </div>
-                                 )}
-                                 {shellVersions?.activeVersionId === selectedVersionId && (
-                                      <span style={{marginLeft:'auto', color:'green', fontWeight:'bold', border:'1px solid green', padding:'2px 8px', borderRadius:'4px'}}>ACTIVE</span>
-                                 )}
-                             </div>
-                             
-                             {versionDetailError ? (
-                                 <div style={{color:'red', border:'1px solid red', padding:'10px'}}>{versionDetailError}</div>
-                             ) : selectedVersionDetail ? (
-                                 <div style={{flex:1, display:'flex', flexDirection:'column', gap:'15px'}}>
-                                     {/* Summary Chips */}
-                                     <div style={{display:'flex', gap:'10px', flexWrap:'wrap'}}>
-                                         <div style={{background:'#eee', padding:'5px 10px', borderRadius:'4px', fontSize:'0.9em'}}>
-                                             <strong>Author:</strong> {selectedVersionDetail.meta?.author || 'N/A'}
-                                         </div>
-                                         <div style={{background:'#eee', padding:'5px 10px', borderRadius:'4px', fontSize:'0.9em'}}>
-                                             <strong>Timestamp:</strong> {selectedVersionDetail.meta?.timestamp || 'N/A'}
-                                         </div>
-                                         <div style={{background:'#eee', padding:'5px 10px', borderRadius:'4px', fontSize:'0.9em'}}>
-                                             <strong>Mode:</strong> {selectedVersionDetail.meta?.mode || 'N/A'}
-                                         </div>
-                                         {shellVersions?.activeVersionId === selectedVersionId && shellVersions?.activeMeta?.reason && (
-                                              <div style={{background:'#e8f5e9', padding:'5px 10px', borderRadius:'4px', fontSize:'0.9em', border:'1px solid #c8e6c9', color:'#1b5e20'}}>
-                                                  <strong>Active Reason:</strong> {shellVersions.activeMeta.reason}
-                                              </div>
-                                         )}
-                                     </div>
-
-                                     {/* Stats */}
-                                     <div style={{display:'flex', gap:'15px', padding:'15px', background:'#f9f9f9', border:'1px solid #ddd'}}>
-                                         <div style={{textAlign:'center'}}>
-                                             <div style={{fontSize:'1.5em', fontWeight:'bold'}}>{selectedVersionDetail.stats?.blockCount}</div>
-                                             <div style={{fontSize:'0.8em', color:'#666', textTransform:'uppercase'}}>Blocks</div>
-                                         </div>
-                                         <div style={{textAlign:'center'}}>
-                                             <div style={{fontSize:'1.5em', fontWeight:'bold'}}>{selectedVersionDetail.stats?.bindingCount}</div>
-                                             <div style={{fontSize:'0.8em', color:'#666', textTransform:'uppercase'}}>Bindings</div>
-                                         </div>
-                                         <div style={{textAlign:'center'}}>
-                                             <div style={{fontSize:'1.5em', fontWeight:'bold'}}>{selectedVersionDetail.stats?.integrationCount}</div>
-                                             <div style={{fontSize:'0.8em', color:'#666', textTransform:'uppercase'}}>Integrations</div>
-                                         </div>
-                                     </div>
-
-                                     {/* Change Summary (Roadmap #4.4) */}
-                                     <div style={{marginTop:'10px', padding:'10px', background:'#fff', border:'1px solid #ddd', borderLeft:'3px solid #007acc'}}>
-                                        <div style={{fontWeight:'bold', color:'#333', marginBottom:'5px', fontSize:'0.9em'}}>
-                                            Change Summary vs Parent {selectedVersionDetail.meta?.parentVersionId ? `(${selectedVersionDetail.meta.parentVersionId})` : ''}
-                                        </div>
-                                        
-                                        {!selectedVersionDetail.meta?.parentVersionId ? (
-                                            <div style={{fontStyle:'italic', color:'#666', fontSize:'0.85em'}}>No parent recorded (First version or imported).</div>
-                                        ) : versionDiffLoading ? (
-                                            <div style={{color:'#666', fontSize:'0.85em'}}>Computing diff...</div>
-                                        ) : versionDiffError ? (
-                                            <div style={{color:'#d32f2f', fontSize:'0.85em'}}>{versionDiffError}</div>
-                                        ) : versionDiff ? (
-                                            <div style={{display:'flex', gap:'15px', fontSize:'0.9em'}}>
-                                                 <span style={{color:'#2e7d32', fontWeight:'bold'}}>+ {versionDiff.added} Added</span>
-                                                 <span style={{color:'#c62828', fontWeight:'bold'}}>- {versionDiff.removed} Removed</span>
-                                                 <span style={{color:'#ef6c00', fontWeight:'bold'}}>~ {versionDiff.modified} Modified</span>
-                                                 <span style={{color: versionDiff.manifestChanged ? '#d32f2f' : '#666'}}>
-                                                     Manifest: <strong>{versionDiff.manifestChanged ? 'CHANGED' : 'Unchanged'}</strong>
-                                                 </span>
-                                            </div>
-                                        ) : null}
-                                     </div>
-                                     
-                                     {/* Manifest & Actions */}
-                                     <div style={{flex:1, display:'flex', flexDirection:'column', overflow:'hidden', border:'1px solid #ddd'}}>
-                                         <div style={{background:'#eee', padding:'8px', borderBottom:'1px solid #ddd', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
-                                              <strong>Manifest & Metadata</strong>
-                                              <CopyBtn k="verDetail" text={selectedVersionDetail} label="Copy Full JSON" />
-                                         </div>
-                                         <div style={{flex:1, overflow:'auto', padding:'0'}}>
-                                              <pre style={{margin:0, padding:'10px', fontFamily:'monospace', fontSize:'0.85em'}}>
-                                                  {JSON.stringify({ 
-                                                      manifest: selectedVersionDetail.manifest,
-                                                      meta: selectedVersionDetail.meta 
-                                                  }, null, 2)}
-                                              </pre>
-                                         </div>
-                                     </div>
-                                 </div>
-                             ) : (
-                                 !versionDetailLoading && <div>No data loaded.</div>
-                             )}
-                        </div>
-                    ) : (
-                        // LIST VIEW
-                        <div style={{height:'100%', display:'flex', flexDirection:'column'}}>
-                            <div style={{paddingBottom:'10px', borderBottom:'1px solid #eee', marginBottom:'10px'}}>
-                                <h3 style={{margin:'0 0 5px 0'}}>Version History</h3>
-                                <p style={{margin:0, fontSize:'0.9em', color:'#666'}}>
-                                    Active: <strong>{shellVersions?.activeVersionId || '...'}</strong> ({shellVersions?.activeMeta?.timestamp || '-'})
-                                </p>
-                                {activationMessage && (
-                                     <div style={{marginTop:'5px', padding:'5px', background:'#e8f5e9', color:'#1b5e20', border:'1px solid #c8e6c9', borderRadius:'4px'}}>
-                                         {activationMessage}
-                                     </div>
+                                        <button 
+                                            onClick={() => setConfirmLoadVersion(false)}
+                                            style={{background:'#ffffff', color:'#111', border:'1px solid #ccc', borderRadius:'6px', padding:'6px 12px', cursor:'pointer', fontWeight: 600}}
+                                        >
+                                            Cancel
+                                        </button>
+                                    </div>
+                                    ) : (
+                                    <button 
+                                        onClick={() => {
+                                            if (draftBundle) setConfirmLoadVersion(true);
+                                            else handleLoadVersionToDraft();
+                                        }}
+                                        style={{cursor:'pointer'}}
+                                    >
+                                        Load into Draft
+                                    </button>
+                                    )
                                 )}
-                                {shellVersionsError && <div style={{color:'red', marginTop:'5px'}}>{shellVersionsError}</div>}
+
+                                <h3 style={{margin:0}}>Version: {selectedVersionId}</h3>
+                                {versionDetailLoading && <small>Loading...</small>}
+
+                                {/* Activate Button Logic */}
+                                {shellVersions?.activeVersionId !== selectedVersionId && (
+                                    <div style={{marginLeft:'auto', display:'flex', alignItems:'center', gap:'10px'}}>
+                                        {confirmActivate ? (
+                                            <div style={{display:'flex', flexDirection:'column', gap:'10px', background:'#fff3e0', padding:'10px', borderRadius:'4px', border:'1px solid #ffe0b2', minWidth:'400px', maxWidth:'600px', zIndex: 100, position:'relative'}}>
+                                                <div style={{fontWeight:'bold', borderBottom:'1px solid #ffd54f', paddingBottom:'5px', marginBottom:'5px', color:'#ef6c00'}}>Preflight Check</div>
+                                                
+                                                {preflightLoading && <div style={{color:'#666', fontStyle:'italic'}}>Running safety validation...</div>}
+                                                {preflightError && <div style={{color:'red'}}>Error: {preflightError}</div>}
+                                                
+                                                {!preflightLoading && preflightResult && (
+                                                    <>
+                                                        {/* Result Summary */}
+                                                        <div style={{display:'flex', gap:'10px', alignItems:'center'}}>
+                                                            <div style={{
+                                                                fontWeight:'bold', 
+                                                                color: preflightResult.canActivate ? (preflightResult.warnings.length > 0 ? '#ef6c00' : '#2e7d32') : '#d32f2f'
+                                                            }}>
+                                                                {preflightResult.canActivate 
+                                                                    ? (preflightResult.warnings.length > 0 ? "ELIGIBLE WITH WARNINGS" : "SAFE TO ACTIVATE") 
+                                                                    : "ACTIVATION BLOCKED"}
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Stats */}
+                                                        {preflightResult.stats && (
+                                                            <div style={{fontSize:'0.85em', color:'#555', display:'flex', gap:'10px'}}>
+                                                                <span><span style={{color:'#2e7d32', fontWeight:'bold'}}>+</span> {preflightResult.stats.addedBlocks} Add</span>
+                                                                <span><span style={{color:'#d32f2f', fontWeight:'bold'}}>-</span> {preflightResult.stats.removedBlocks} Del</span>
+                                                                <span><span style={{color:'#ef6c00', fontWeight:'bold'}}>~</span> {preflightResult.stats.modifiedBlocks} Mod</span>
+                                                            </div>
+                                                        )}
+
+                                                        {/* Errors List (Blocking) */}
+                                                        {preflightResult.errors.length > 0 && (
+                                                            <div style={{background:'#ffebee', padding:'5px', borderRadius:'3px', maxHeight:'100px', overflowY:'auto', border:'1px solid #ffcdd2'}}>
+                                                                <strong style={{color:'#c62828', fontSize:'0.9em'}}>Blocking Issues:</strong>
+                                                                <ul style={{margin:'2px 0 0 0', paddingLeft:'20px', color:'#c62828', fontSize:'0.85em'}}>
+                                                                    {preflightResult.errors.map((e:string,i:number)=><li key={i}>{e}</li>)}
+                                                                </ul>
+                                                            </div>
+                                                        )}
+
+                                                        {/* Warnings List (Ack Required) */}
+                                                        {preflightResult.warnings.length > 0 && (
+                                                            <div style={{background:'#fff8e1', padding:'5px', borderRadius:'3px', maxHeight:'100px', overflowY:'auto', border:'1px solid #ffe0b2'}}>
+                                                                <strong style={{color:'#f57c00', fontSize:'0.9em'}}>Warnings:</strong>
+                                                                <ul style={{margin:'2px 0 0 0', paddingLeft:'20px', color:'#f57c00', fontSize:'0.85em'}}>
+                                                                    {preflightResult.warnings.map((w:string,i:number)=><li key={i}>{w}</li>)}
+                                                                </ul>
+                                                            </div>
+                                                        )}
+                                                    
+                                                        {/* Acknowledgement Checkbox */}
+                                                        {preflightResult.canActivate && preflightResult.warnings.length > 0 && (
+                                                            <label style={{display:'flex', alignItems:'center', cursor:'pointer', fontSize:'0.9em', marginTop:'5px'}}>
+                                                                <input 
+                                                                    type="checkbox" 
+                                                                    checked={ackPreflightWarnings} 
+                                                                    onChange={e => setAckPreflightWarnings(e.target.checked)}
+                                                                    style={{marginRight:'6px'}}
+                                                                />
+                                                                I acknowledge these warnings.
+                                                            </label>
+                                                        )}
+                                                    </>
+                                                )}
+
+                                                <div style={{display:'flex', gap:'5px', marginTop:'5px'}}>
+                                                    <input 
+                                                        type="text" 
+                                                        value={activateReason} 
+                                                        onChange={e => setActivateReason(e.target.value)}
+                                                        placeholder="Reason for activation..."
+                                                        style={{border:'1px solid #ccc', padding:'6px 10px', flex:1, borderRadius:'4px'}}
+                                                        disabled={!preflightResult?.canActivate} 
+                                                    />
+                                                    <button 
+                                                        onClick={() => handleActivate(selectedVersionId)}
+                                                        disabled={!preflightResult?.canActivate || (preflightResult?.warnings.length > 0 && !ackPreflightWarnings) || preflightLoading}
+                                                        style={{
+                                                            background: (!preflightResult?.canActivate || (preflightResult?.warnings.length > 0 && !ackPreflightWarnings) || preflightLoading) ? '#ccc' : '#d32f2f', 
+                                                            color:'white', border:'none', padding:'6px 12px', borderRadius:'6px', cursor:'pointer', fontWeight:'bold'
+                                                        }}
+                                                    >
+                                                        Confirm Activate
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => setConfirmActivate(false)}
+                                                        style={{background:'#ffffff', color:'#111', border:'1px solid #ccc', padding:'6px 12px', borderRadius:'6px', cursor:'pointer', fontWeight: 600}}
+                                                    >
+                                                        Cancel
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <button 
+                                                onClick={() => { setConfirmActivate(true); fetchPreflight(selectedVersionId); }}
+                                                style={{background:'#ef6c00', color:'white', border:'none', borderRadius:'6px', padding:'6px 12px', fontWeight:700, cursor:'pointer'}}
+                                            >
+                                                Activate (debug)
+                                            </button>
+                                        )}
+                                    </div>
+                                )}
+                                {shellVersions?.activeVersionId === selectedVersionId && (
+                                    <span style={{marginLeft:'auto', color:'green', fontWeight:'bold', border:'1px solid green', padding:'2px 8px', borderRadius:'4px'}}>ACTIVE</span>
+                                )}
                             </div>
                             
-                            <div style={{flex:1, overflow:'auto'}}>
-                                <table style={{width:'100%', borderCollapse:'collapse', fontSize:'0.9em'}}>
-                                    <thead style={{background:'#eee', position:'sticky', top:0}}>
-                                        <tr>
-                                            <th style={{padding:'8px', textAlign:'left', borderBottom:'1px solid #ccc'}}>Version ID</th>
-                                            <th style={{padding:'8px', textAlign:'left', borderBottom:'1px solid #ccc'}}>Integrity</th>
-                                            <th style={{padding:'8px', textAlign:'left', borderBottom:'1px solid #ccc'}}>Timestamp</th>
-                                            <th style={{padding:'8px', textAlign:'left', borderBottom:'1px solid #ccc'}}>Description</th>
-                                            <th style={{padding:'8px', textAlign:'left', borderBottom:'1px solid #ccc'}}>Mode</th>
-                                            <th style={{padding:'8px', textAlign:'right', borderBottom:'1px solid #ccc'}}>Action</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {shellVersions?.versions?.map((v: any, i: number) => {
-                                             const isActive = v.versionId === shellVersions.activeVersionId;
-                                             const activeReason = isActive ? shellVersions.activeMeta?.reason : null;
-                                             
-                                             return (
-                                                <tr key={v.versionId || i} style={{background: isActive ? '#f0f8ff' : 'white', borderBottom:'1px solid #eee'}}>
-                                                    <td style={{padding:'8px'}}>
-                                                        <div style={{fontWeight:'bold'}}>{v.versionId}</div>
-                                                        {isActive && <span style={{fontSize:'0.75em', color:'green', border:'1px solid green', borderRadius:'3px', padding:'0 2px'}}>ACTIVE</span>}
-                                                    </td>
-                                                    <td style={{padding:'8px', whiteSpace:'nowrap'}}>
-                                                        {/* INTEGRITY BADGES */}
-                                                        <div style={{display:'flex', gap:'4px', marginBottom: '2px'}}>
-                                                            <span title="Metadata exists" style={{
-                                                                fontSize:'0.7em', padding:'1px 4px', borderRadius:'3px', fontWeight:'bold',
-                                                                color: v.hasMeta ? 'white' : '#666',
-                                                                background: v.hasMeta ? '#2e7d32' : '#e0e0e0',
-                                                                border: v.hasMeta ? 'none' : '1px solid #999'
-                                                            }}>
-                                                                META
-                                                            </span>
-                                                            <span title="Manifest exists" style={{
-                                                                fontSize:'0.7em', padding:'1px 4px', borderRadius:'3px', fontWeight:'bold',
-                                                                color: v.hasManifest ? 'white' : '#666',
-                                                                background: v.hasManifest ? '#2e7d32' : '#e0e0e0',
-                                                                border: v.hasManifest ? 'none' : '1px solid #999'
-                                                            }}>
-                                                                MANI
-                                                            </span>
-                                                            <span title="Activatable" style={{
-                                                                fontSize:'0.7em', padding:'1px 4px', borderRadius:'3px', fontWeight:'bold',
-                                                                color: v.isActivatable ? '#2e7d32' : '#616161',
-                                                                background: v.isActivatable ? '#e8f5e9' : '#f5f5f5',
-                                                                border: v.isActivatable ? '1px solid #2e7d32' : '1px solid #ccc'
-                                                            }}>
-                                                                ACT
-                                                            </span>
-                                                        </div>
-                                                        <div style={{fontSize:'0.75em', color:'#555'}}>Blocks: {v.blockFileCount ?? '?'}</div>
-                                                    </td>
-                                                    <td style={{padding:'8px'}}>{v.timestamp}</td>
-                                                    <td style={{padding:'8px'}}>
-                                                        <div>{v.description}</div>
-                                                        {activeReason && <div style={{fontSize:'0.85em', color:'#2e7d32', marginTop:'2px'}}>Reason: {activeReason}</div>}
-                                                    </td>
-                                                    <td style={{padding:'8px'}}>{v.mode}</td>
-                                                    <td style={{padding:'8px', textAlign:'right'}}>
-                                                        <button 
-                                                            onClick={() => { setSelectedVersionId(v.versionId); fetchVersionDetail(v.versionId); }}
-                                                            style={{cursor:'pointer'}}
-                                                        >
-                                                            View
-                                                        </button>
-                                                    </td>
-                                                </tr>
-                                             );
-                                        })}
-                                        {(!shellVersions?.versions || shellVersions.versions.length === 0) && (
-                                            <tr><td colSpan={6} style={{padding:'20px', textAlign:'center', color:'#888'}}>No versions found.</td></tr>
+                            {versionDetailError ? (
+                                <div style={{color:'red', border:'1px solid red', padding:'10px'}}>{versionDetailError}</div>
+                            ) : selectedVersionDetail ? (
+                                <div style={{flex:1, display:'flex', flexDirection:'column', gap:'15px'}}>
+                                    {/* Summary Chips */}
+                                    <div style={{display:'flex', gap:'10px', flexWrap:'wrap'}}>
+                                        <div style={{background:'#eee', padding:'5px 10px', borderRadius:'4px', fontSize:'0.9em'}}>
+                                            <strong>Author:</strong> {selectedVersionDetail.meta?.author || 'N/A'}
+                                        </div>
+                                        <div style={{background:'#eee', padding:'5px 10px', borderRadius:'4px', fontSize:'0.9em'}}>
+                                            <strong>Timestamp:</strong> {selectedVersionDetail.meta?.timestamp || 'N/A'}
+                                        </div>
+                                        <div style={{background:'#eee', padding:'5px 10px', borderRadius:'4px', fontSize:'0.9em'}}>
+                                            <strong>Mode:</strong> {selectedVersionDetail.meta?.mode || 'N/A'}
+                                        </div>
+                                        {shellVersions?.activeVersionId === selectedVersionId && shellVersions?.activeMeta?.reason && (
+                                            <div style={{background:'#e8f5e9', padding:'5px 10px', borderRadius:'4px', fontSize:'0.9em', border:'1px solid #c8e6c9', color:'#1b5e20'}}>
+                                                <strong>Active Reason:</strong> {shellVersions.activeMeta.reason}
+                                            </div>
                                         )}
-                                    </tbody>
-                                </table>
-                            </div>
+                                    </div>
+
+                                    {/* Stats */}
+                                    <div style={{display:'flex', gap:'15px', padding:'15px', background:'#f9f9f9', border:'1px solid #ddd'}}>
+                                        <div style={{textAlign:'center'}}>
+                                            <div style={{fontSize:'1.5em', fontWeight:'bold'}}>{selectedVersionDetail.stats?.blockCount}</div>
+                                            <div style={{fontSize:'0.8em', color:'#666', textTransform:'uppercase'}}>Blocks</div>
+                                        </div>
+                                        <div style={{textAlign:'center'}}>
+                                            <div style={{fontSize:'1.5em', fontWeight:'bold'}}>{selectedVersionDetail.stats?.bindingCount}</div>
+                                            <div style={{fontSize:'0.8em', color:'#666', textTransform:'uppercase'}}>Bindings</div>
+                                        </div>
+                                        <div style={{textAlign:'center'}}>
+                                            <div style={{fontSize:'1.5em', fontWeight:'bold'}}>{selectedVersionDetail.stats?.integrationCount}</div>
+                                            <div style={{fontSize:'0.8em', color:'#666', textTransform:'uppercase'}}>Integrations</div>
+                                        </div>
+                                    </div>
+
+                                    {/* Change Summary (Roadmap #4.4) */}
+                                    <div style={{marginTop:'10px', padding:'10px', background:'#fff', border:'1px solid #ddd', borderLeft:'3px solid #007acc'}}>
+                                    <div style={{fontWeight:'bold', color:'#333', marginBottom:'5px', fontSize:'0.9em'}}>
+                                        Change Summary vs Parent {selectedVersionDetail.meta?.parentVersionId ? `(${selectedVersionDetail.meta.parentVersionId})` : ''}
+                                    </div>
+                                    
+                                    {!selectedVersionDetail.meta?.parentVersionId ? (
+                                        <div style={{fontStyle:'italic', color:'#666', fontSize:'0.85em'}}>No parent recorded (First version or imported).</div>
+                                    ) : versionDiffLoading ? (
+                                        <div style={{color:'#666', fontSize:'0.85em'}}>Computing diff...</div>
+                                    ) : versionDiffError ? (
+                                        <div style={{color:'#d32f2f', fontSize:'0.85em'}}>{versionDiffError}</div>
+                                    ) : versionDiff ? (
+                                        <div style={{display:'flex', gap:'15px', fontSize:'0.9em'}}>
+                                                <span style={{color:'#2e7d32', fontWeight:'bold'}}>+ {versionDiff.added} Added</span>
+                                                <span style={{color:'#c62828', fontWeight:'bold'}}>- {versionDiff.removed} Removed</span>
+                                                <span style={{color:'#ef6c00', fontWeight:'bold'}}>~ {versionDiff.modified} Modified</span>
+                                                <span style={{color: versionDiff.manifestChanged ? '#d32f2f' : '#666'}}>
+                                                    Manifest: <strong>{versionDiff.manifestChanged ? 'CHANGED' : 'Unchanged'}</strong>
+                                                </span>
+                                        </div>
+                                    ) : null}
+                                    </div>
+                                    
+                                    {/* Manifest & Actions */}
+                                    <div style={{flex:1, display:'flex', flexDirection:'column', overflow:'hidden', border:'1px solid #ddd'}}>
+                                        <div style={{background:'#eee', padding:'8px', borderBottom:'1px solid #ddd', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+                                            <strong>Manifest & Metadata</strong>
+                                            <CopyBtn k="verDetail" text={selectedVersionDetail} label="Copy Full JSON" />
+                                        </div>
+                                        <div style={{flex:1, overflow:'auto', padding:'0'}}>
+                                            <pre style={{margin:0, padding:'10px', fontFamily:'monospace', fontSize:'0.85em'}}>
+                                                {JSON.stringify({ 
+                                                    manifest: selectedVersionDetail.manifest,
+                                                    meta: selectedVersionDetail.meta 
+                                                }, null, 2)}
+                                            </pre>
+                                        </div>
+                                    </div>
+                                </div>
+                            ) : (
+                                !versionDetailLoading && <div>No data loaded.</div>
+                            )}
+                    </div>
+                ) : (
+                    // LIST VIEW
+                    <div style={{height:'100%', display:'flex', flexDirection:'column'}}>
+                        <div style={{paddingBottom:'10px', borderBottom:'1px solid #eee', marginBottom:'10px'}}>
+                            <h3 style={{margin:'0 0 5px 0'}}>Version History</h3>
+                            <p style={{margin:0, fontSize:'0.9em', color:'#666'}}>
+                                Active: <strong>{shellVersions?.activeVersionId || '...'}</strong> ({shellVersions?.activeMeta?.timestamp || '-'})
+                            </p>
+                            {activationMessage && (
+                                    <div style={{marginTop:'5px', padding:'5px', background:'#e8f5e9', color:'#1b5e20', border:'1px solid #c8e6c9', borderRadius:'4px'}}>
+                                        {activationMessage}
+                                    </div>
+                            )}
+                            {shellVersionsError && <div style={{color:'red', marginTop:'5px'}}>{shellVersionsError}</div>}
                         </div>
-                    )}
-                </div>
-            );
+                        
+                        <div style={{flex:1, overflow:'auto'}}>
+                            <table style={{width:'100%', borderCollapse:'collapse', fontSize:'0.9em'}}>
+                                <thead style={{background:'#eee', position:'sticky', top:0}}>
+                                    <tr>
+                                        <th style={{padding:'8px', textAlign:'left', borderBottom:'1px solid #ccc'}}>Version ID</th>
+                                        <th style={{padding:'8px', textAlign:'left', borderBottom:'1px solid #ccc'}}>Integrity</th>
+                                        <th style={{padding:'8px', textAlign:'left', borderBottom:'1px solid #ccc'}}>Timestamp</th>
+                                        <th style={{padding:'8px', textAlign:'left', borderBottom:'1px solid #ccc'}}>Description</th>
+                                        <th style={{padding:'8px', textAlign:'left', borderBottom:'1px solid #ccc'}}>Mode</th>
+                                        <th style={{padding:'8px', textAlign:'right', borderBottom:'1px solid #ccc'}}>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {shellVersions?.versions?.map((v: any, i: number) => {
+                                            const isActive = v.versionId === shellVersions.activeVersionId;
+                                            const activeReason = isActive ? shellVersions.activeMeta?.reason : null;
+                                            
+                                            return (
+                                            <tr key={v.versionId || i} style={{background: isActive ? '#f0f8ff' : 'white', borderBottom:'1px solid #eee'}}>
+                                                <td style={{padding:'8px'}}>
+                                                    <div style={{fontWeight:'bold'}}>{v.versionId}</div>
+                                                    {isActive && <span style={{fontSize:'0.75em', color:'green', border:'1px solid green', borderRadius:'3px', padding:'0 2px'}}>ACTIVE</span>}
+                                                </td>
+                                                <td style={{padding:'8px', whiteSpace:'nowrap'}}>
+                                                    {/* INTEGRITY BADGES */}
+                                                    <div style={{display:'flex', gap:'4px', marginBottom: '2px'}}>
+                                                        <span title="Metadata exists" style={{
+                                                            fontSize:'0.7em', padding:'1px 4px', borderRadius:'3px', fontWeight:'bold',
+                                                            color: v.hasMeta ? 'white' : '#666',
+                                                            background: v.hasMeta ? '#2e7d32' : '#e0e0e0',
+                                                            border: v.hasMeta ? 'none' : '1px solid #999'
+                                                        }}>
+                                                            META
+                                                        </span>
+                                                        <span title="Manifest exists" style={{
+                                                            fontSize:'0.7em', padding:'1px 4px', borderRadius:'3px', fontWeight:'bold',
+                                                            color: v.hasManifest ? 'white' : '#666',
+                                                            background: v.hasManifest ? '#2e7d32' : '#e0e0e0',
+                                                            border: v.hasManifest ? 'none' : '1px solid #999'
+                                                        }}>
+                                                            MANI
+                                                        </span>
+                                                        <span title="Activatable" style={{
+                                                            fontSize:'0.7em', padding:'1px 4px', borderRadius:'3px', fontWeight:'bold',
+                                                            color: v.isActivatable ? '#2e7d32' : '#616161',
+                                                            background: v.isActivatable ? '#e8f5e9' : '#f5f5f5',
+                                                            border: v.isActivatable ? '1px solid #2e7d32' : '1px solid #ccc'
+                                                        }}>
+                                                            ACT
+                                                        </span>
+                                                    </div>
+                                                    <div style={{fontSize:'0.75em', color:'#555'}}>Blocks: {v.blockFileCount ?? '?'}</div>
+                                                </td>
+                                                <td style={{padding:'8px'}}>{v.timestamp}</td>
+                                                <td style={{padding:'8px'}}>
+                                                    <div>{v.description}</div>
+                                                    {activeReason && <div style={{fontSize:'0.85em', color:'#2e7d32', marginTop:'2px'}}>Reason: {activeReason}</div>}
+                                                </td>
+                                                <td style={{padding:'8px'}}>{v.mode}</td>
+                                                <td style={{padding:'8px', textAlign:'right'}}>
+                                                    <button 
+                                                        onClick={() => { setSelectedVersionId(v.versionId); fetchVersionDetail(v.versionId); }}
+                                                        style={{cursor:'pointer'}}
+                                                    >
+                                                        View
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                            );
+                                    })}
+                                    {(!shellVersions?.versions || shellVersions.versions.length === 0) && (
+                                        <tr><td colSpan={6} style={{padding:'20px', textAlign:'center', color:'#888'}}>No versions found.</td></tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                )}
+            </div>
+        );
+        
+        if (activeTab === 'Versions') {
+            return renderVersionsContent();
         }
 
         const renderSnapshotContent = () => (
@@ -2803,6 +2805,12 @@ function SysadminPanel({
                     setTimeout(() => refreshSnapshot(), 0); 
                 }
                 return renderSnapshotContent();
+            }
+            if (blockType === 'sysadmin.panel.versions') {
+                 if (!shellVersions && !shellVersionsError) {
+                      setTimeout(() => refreshVersions(), 0);
+                 }
+                 return renderVersionsContent();
             }
             return null;
         };

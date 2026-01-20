@@ -48,8 +48,31 @@ The root container for the Sysadmin UI. It defines the top-level structure (usua
 - `layout` (string): Layout hint (e.g., `dashboard`, `full`, `list`).
 - `content` (array of strings): List of Block IDs to render in this tab.
 
-### 2. Sysadmin Panel Content (`sysadmin.panel.*` - TBD)
-Future specs will define specific panel content blocks (e.g., metric charts, log viewers, config editors). For now, `sysadmin.shell` can reference any block, but specialized renderers will likely be needed.
+### 2. Sysadmin Panel Snapshot (`sysadmin.panel.snapshot`)
+Renders the State/Snapshot management interface.
+
+**Schema:**
+```json
+{
+  "blockType": "sysadmin.panel.snapshot",
+  "data": {
+    "title": "State Management"
+  }
+}
+```
+
+### 3. Sysadmin Panel Versions (`sysadmin.panel.versions`)
+Renders the Version/Deployment management interface.
+
+**Schema:**
+```json
+{
+  "blockType": "sysadmin.panel.versions",
+  "data": {
+    "title": "Versions"
+  }
+}
+```
 
 ## Recovery Mode
 A hardcoded "Recovery Sysadmin" must always be available if the configuration-driven sysadmin fails to load or is invalid. This specification does NOT replace the need for that fallback.
