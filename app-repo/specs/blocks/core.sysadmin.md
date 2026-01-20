@@ -1,0 +1,55 @@
+# Core Sysadmin Block Specification
+
+**Version:** SPEC_V1.0
+**Status:** DRAFT
+**Block Namespace:** `sysadmin.*`
+
+## Overview
+This specification defines the schema for configuration-driven Sysadmin panels. The Sysadmin UI is defined by blocks within the shell bundle, allowing it to be customized per environment or version.
+
+## Block Types
+
+### 1. Sysadmin Shell (`sysadmin.shell`)
+The root container for the Sysadmin UI. It defines the top-level structure (usually tabs) and references other blocks for content.
+
+**Schema:**
+```json
+{
+  "blockType": "sysadmin.shell",
+  "data": {
+    "title": "System Administration",
+    "defaultTabId": "overview",
+    "tabs": [
+      {
+        "id": "overview",
+        "label": "Overview",
+        "layout": "dashboard",
+        "content": ["block-id-1", "block-id-2"]
+      },
+      {
+        "id": "logs",
+        "label": "Logs",
+        "layout": "full",
+        "content": ["block-id-logs"]
+      }
+    ]
+  }
+}
+```
+
+**Fields:**
+- `title` (string): Main title of the panel.
+- `defaultTabId` (string, optional): ID of the tab to open by default.
+- `tabs` (array): List of tab definitions.
+
+**Tab Definition:**
+- `id` (string): Unique identifier for the tab.
+- `label` (string): Display text for the tab.
+- `layout` (string): Layout hint (e.g., `dashboard`, `full`, `list`).
+- `content` (array of strings): List of Block IDs to render in this tab.
+
+### 2. Sysadmin Panel Content (`sysadmin.panel.*` - TBD)
+Future specs will define specific panel content blocks (e.g., metric charts, log viewers, config editors). For now, `sysadmin.shell` can reference any block, but specialized renderers will likely be needed.
+
+## Recovery Mode
+A hardcoded "Recovery Sysadmin" must always be available if the configuration-driven sysadmin fails to load or is invalid. This specification does NOT replace the need for that fallback.

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo, Fragment } from 'react';
 import './App.css';
+import { findSysadminBlock, parseSysadminConfig } from './SysadminLoader';
 
 interface PingResponse {
   allowed: boolean;
@@ -895,6 +896,17 @@ function SysadminPanel({
     onRollback: () => void;
     canRollback: boolean;
 }) {
+    // Roadmap #6.1: Config-Driven Sysadmin Loader Hook (Placeholder)
+    // In future steps, this will drive the UI instead of the hardcoded tabs below.
+    // const sysadminBlock = bundleData?.blocks ? findSysadminBlock(bundleData.blocks) : null;
+    // const sysadminConfig = sysadminBlock ? parseSysadminConfig(sysadminBlock) : null;
+    // useEffect(() => {
+    //    if (sysadminConfig) { 
+    //        console.log('[Sysadmin] Configuration loaded:', sysadminConfig); 
+    //        // TODO: Switch to ConfigDrivenSysadminPanel here
+    //    }
+    // }, [sysadminConfig]);
+
     // Tabs: ShellConfig, Blocks, Bindings, ActionIndex, Runtime
     const [activeTab, setActiveTab] = useState('ShellConfig');
     const [filter, setFilter] = useState('');
