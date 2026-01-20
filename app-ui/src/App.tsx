@@ -939,7 +939,7 @@ function ConfigSysadminView({ bundleData, renderKnownPanel, activeVersionId, onS
     };
 
     const handleSaveToServer = async () => {
-        if (!sysadminDraft || !activeVersionId || !onSaveSysadminDraft) return;
+        if (!sysadminDraft || !onSaveSysadminDraft) return;
         setIsSaving(true);
         setSysadminDraftError(null);
         try {
@@ -978,7 +978,9 @@ function ConfigSysadminView({ bundleData, renderKnownPanel, activeVersionId, onS
                             <div style={{color:'#e65100', fontSize:'0.85em', fontWeight:'bold', display:'flex', alignItems:'center', gap:'4px'}}>
                                 <span>✎ DRAFT MODE</span>
                             </div>
-                            <div style={{fontSize:'0.75em', color:'#e65100', marginBottom:'5px'}}>Local changes only</div>
+                            <div style={{fontSize:'0.75em', color:'#e65100', marginBottom:'5px'}}>
+                                Local changes only {activeVersionId ? `(Base: ${activeVersionId})` : ''}
+                            </div>
                             
                             <div style={{marginBottom:'5px'}}>
                                 <input 
@@ -990,12 +992,12 @@ function ConfigSysadminView({ bundleData, renderKnownPanel, activeVersionId, onS
                                 />
                                 <button 
                                     onClick={handleSaveToServer}
-                                    disabled={isSaving || !activeVersionId}
+                                    disabled={isSaving}
                                     style={{
                                         width:'100%', 
                                         marginTop:'4px', 
                                         padding:'4px', 
-                                        cursor: (isSaving || !activeVersionId) ? 'default' : 'pointer',
+                                        cursor: isSaving ? 'default' : 'pointer',
                                         background: '#e65100',
                                         color: 'white',
                                         border: 'none',
@@ -1006,7 +1008,6 @@ function ConfigSysadminView({ bundleData, renderKnownPanel, activeVersionId, onS
                                 >
                                     {isSaving ? 'Saving...' : 'Save & Activate'}
                                 </button>
-                                {!activeVersionId && <div style={{color:'red', fontSize:'0.7em'}}>No base version detected</div>}
                             </div>
 
                             <button onClick={handleDiscardDraft} disabled={isSaving} style={{fontSize:'0.75em', width:'100%', cursor:'pointer', marginTop:'4px'}}>Discard Draft</button>
@@ -1220,7 +1221,7 @@ function SysadminPanel({
     const refreshSnapshot = () => {
         setSnapshotLoading(true);
         setSnapshotError(null);
-        fetch('/api/debug/runtime/snapshot')
+        return fetch('/api/debug/runtime/snapshot')
             .then(res => {
                  if (!res.ok) {
                      if (res.status === 403) throw new Error('Debug endpoints disabled (403)');
@@ -1232,10 +1233,12 @@ function SysadminPanel({
             .then(json => {
                 setSnapshotData(json);
                 setSnapshotLoading(false);
+                return json;
             })
             .catch(err => {
                 setSnapshotError(err.message);
                 setSnapshotLoading(false);
+                throw err;
             });
     };
 
@@ -2990,14 +2993,26 @@ function SysadminPanel({
                         renderKnownPanel={renderKnownPanel} 
                         activeVersionId={snapshotData?.activeVersionId}
                         onSaveSysadminDraft={async (blocks, reason) => {
-                            if (!snapshotData || !snapshotData.activeVersionId) throw new Error("No active base version found");
+                            let currentVersionId = snapshotData?.activeVersionId;
+                            
+                            if (!currentVersionId) {
+                                try {
+                                    const snap = await refreshSnapshot();
+                                    currentVersionId = snap?.activeVersionId;
+                                } catch (e) {
+                                    console.error("Failed to refresh snapshot for save", e);
+                                    // Fall through
+                                }
+                            }
+
+                            if (!currentVersionId) throw new Error("No active base version found");
                             
                             // 1. Clone & Patch
                             const patchRes = await fetch('/api/debug/config/shell/clone-and-patch-sysadmin', {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({
-                                    baseVersionId: snapshotData.activeVersionId,
+                                    baseVersionId: currentVersionId,
                                     reason,
                                     sysadminBlocks: blocks
                                 })
