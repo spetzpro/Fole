@@ -873,7 +873,25 @@ interface SnapshotResponse {
   };
 }
 
-function ConfigSysadminView({ bundleData, renderKnownPanel, activeVersionId, onSaveSysadminDraft }: { bundleData: BundleResponse | null; renderKnownPanel?: (blockType: string) => React.ReactNode | null, activeVersionId?: string|null, onSaveSysadminDraft?: (sysadminBlocks: Record<string, unknown>, reason: string) => Promise<string> }) {
+function ConfigSysadminView({ 
+    bundleData, renderKnownPanel, activeVersionId, onSaveSysadminDraft,
+    saveStatus, setSaveStatus, saveMessage, setSaveMessage, preflightData, setPreflightData, preflightAck, setPreflightAck, dismissTimerRef
+}: { 
+    bundleData: BundleResponse | null; 
+    renderKnownPanel?: (blockType: string) => React.ReactNode | null;
+    activeVersionId?: string|null;
+    onSaveSysadminDraft?: (sysadminBlocks: Record<string, unknown>, reason: string) => Promise<string>;
+    // Hoisted State Props
+    saveStatus: 'idle' | 'saving' | 'success' | 'error' | 'preflight_error' | 'preflight_warning';
+    setSaveStatus: (s: 'idle' | 'saving' | 'success' | 'error' | 'preflight_error' | 'preflight_warning') => void;
+    saveMessage: string;
+    setSaveMessage: (m: string) => void;
+    preflightData: any;
+    setPreflightData: (d: any) => void;
+    preflightAck: boolean;
+    setPreflightAck: (b: boolean) => void;
+    dismissTimerRef: React.MutableRefObject<number | null>;
+}) {
     const [selectedTabId, setSelectedTabId] = useState<string | null>(null);
 
     // Roadmap 7.1 Step 2.1: Local Sysadmin Draft State
@@ -886,18 +904,7 @@ function ConfigSysadminView({ bundleData, renderKnownPanel, activeVersionId, onS
     const [saveReason, setSaveReason] = useState("Sysadmin config edit");
     const [isSaving, setIsSaving] = useState(false);
     
-    // Step 7.2.X: Save Status UX
-    const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error' | 'preflight_error' | 'preflight_warning'>('idle');
-    const [saveMessage, setSaveMessage] = useState('');
-    const [preflightData, setPreflightData] = useState<any>(null);
-    const [preflightAck, setPreflightAck] = useState(false);
-    const dismissTimerRef = useRef<number | null>(null);
-
-    useEffect(() => {
-        return () => {
-             if (dismissTimerRef.current) clearTimeout(dismissTimerRef.current);
-        };
-    }, []);
+    // Legacy local state removed in favor of hoisted props
 
     const handleCreateDraft = () => {
         if (!bundleData) return;
@@ -949,11 +956,8 @@ function ConfigSysadminView({ bundleData, renderKnownPanel, activeVersionId, onS
         setSysadminDraftDirty(false);
         setSysadminDraftError(null);
         setEditingShellJson("");
-        // Reset save/preflight state
-        setSaveStatus('idle');
-        setSaveMessage('');
-        setPreflightData(null);
-        setPreflightAck(false);
+        // NOTE: We do NOT clear saveStatus/saveMessage here anymore, so the success banner persists.
+        // If user manually dismisses via 'x', that clears it.
     };
 
     const handleSaveToServer = async () => {
@@ -1364,6 +1368,21 @@ function SysadminPanel({
     const [selectedBindingId, setSelectedBindingId] = useState<string | null>(null);
     const [selectedActionId, setSelectedActionId] = useState<string | null>(null);
     const [copiedKey, setCopiedKey] = useState<string | null>(null);
+
+    // Hoisted Save State for ConfigSysadminView (Roadmap 7.2 UX)
+    // We hoist this so the success banner persists across re-renders/tab switches if needed.
+    const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error' | 'preflight_error' | 'preflight_warning'>('idle');
+    const [saveMessage, setSaveMessage] = useState('');
+    const [preflightData, setPreflightData] = useState<any>(null);
+    const [preflightAck, setPreflightAck] = useState(false);
+    const saveDismissTimerRef = useRef<number | null>(null);
+
+    // Cleanup timer on unmount
+    useEffect(() => {
+        return () => {
+             if (saveDismissTimerRef.current) clearTimeout(saveDismissTimerRef.current);
+        };
+    }, []);
 
     const ENABLE_LEGACY_SYSADMIN_TABS = true;
 
@@ -3174,6 +3193,15 @@ function SysadminPanel({
                         bundleData={bundleData} 
                         renderKnownPanel={renderKnownPanel} 
                         activeVersionId={snapshotData?.activeVersionId}
+                        saveStatus={saveStatus}
+                        setSaveStatus={setSaveStatus}
+                        saveMessage={saveMessage}
+                        setSaveMessage={setSaveMessage}
+                        preflightData={preflightData}
+                        setPreflightData={setPreflightData}
+                        preflightAck={preflightAck}
+                        setPreflightAck={setPreflightAck}
+                        dismissTimerRef={saveDismissTimerRef}
                         onSaveSysadminDraft={async (blocks, reason) => {
                             let currentVersionId = snapshotData?.activeVersionId;
                             
