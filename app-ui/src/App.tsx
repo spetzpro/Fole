@@ -873,7 +873,7 @@ interface SnapshotResponse {
   };
 }
 
-function ConfigSysadminView({ bundleData, renderKnownPanel }: { bundleData: BundleResponse | null; renderKnownPanel?: (blockType: string) => React.ReactNode | null }) {
+function ConfigSysadminView({ bundleData, renderKnownPanel, activeVersionId, onSaveSysadminDraft }: { bundleData: BundleResponse | null; renderKnownPanel?: (blockType: string) => React.ReactNode | null, activeVersionId?: string|null, onSaveSysadminDraft?: (sysadminBlocks: Record<string, unknown>, reason: string) => Promise<void> }) {
     const [selectedTabId, setSelectedTabId] = useState<string | null>(null);
 
     // Roadmap 7.1 Step 2.1: Local Sysadmin Draft State
@@ -881,6 +881,10 @@ function ConfigSysadminView({ bundleData, renderKnownPanel }: { bundleData: Bund
     const [sysadminDraftDirty, setSysadminDraftDirty] = useState(false);
     const [sysadminDraftError, setSysadminDraftError] = useState<string|null>(null);
     const [editingShellJson, setEditingShellJson] = useState("");
+    
+    // Step 7.2: Save State
+    const [saveReason, setSaveReason] = useState("Sysadmin config edit");
+    const [isSaving, setIsSaving] = useState(false);
 
     const handleCreateDraft = () => {
         if (!bundleData) return;
@@ -934,10 +938,29 @@ function ConfigSysadminView({ bundleData, renderKnownPanel }: { bundleData: Bund
         setEditingShellJson("");
     };
 
+    const handleSaveToServer = async () => {
+        if (!sysadminDraft || !activeVersionId || !onSaveSysadminDraft) return;
+        setIsSaving(true);
+        setSysadminDraftError(null);
+        try {
+            // Ensure draft is fresh
+            handleUpdateDraft(); 
+            // Save
+            await onSaveSysadminDraft(sysadminDraft.blocks, saveReason || "Sysadmin config edit");
+            // Clear draft state on success
+            handleDiscardDraft();
+        } catch (e: any) {
+            setSysadminDraftError(e.message || "Error saving draft");
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
     const config = useMemo(() => {
         const sourceBlocks = sysadminDraft ? sysadminDraft.blocks : (bundleData && bundleData.blocks);
-        const block = sourceBlocks ? findSysadminBlock(sourceBlocks) : null;
-        return block ? parseSysadminConfig(block) : null;
+        const sourceRoot = sourceBlocks ? findSysadminBlock(sourceBlocks) : null;
+        // Fallback or use found block logic
+        return sourceRoot ? parseSysadminConfig(sourceRoot) : null;
     }, [bundleData, sysadminDraft]);
 
     if (!bundleData) return <div style={{padding:'20px', color:'#666'}}>Load bundle first</div>;
@@ -956,7 +979,37 @@ function ConfigSysadminView({ bundleData, renderKnownPanel }: { bundleData: Bund
                                 <span>✎ DRAFT MODE</span>
                             </div>
                             <div style={{fontSize:'0.75em', color:'#e65100', marginBottom:'5px'}}>Local changes only</div>
-                            <button onClick={handleDiscardDraft} style={{fontSize:'0.75em', width:'100%', cursor:'pointer'}}>Discard Draft</button>
+                            
+                            <div style={{marginBottom:'5px'}}>
+                                <input 
+                                    type="text" 
+                                    placeholder="Change reason..."
+                                    value={saveReason}
+                                    onChange={e => setSaveReason(e.target.value)}
+                                    style={{width:'100%', padding:'4px', fontSize:'0.8em', border:'1px solid #ffe0b2', boxSizing:'border-box'}}
+                                />
+                                <button 
+                                    onClick={handleSaveToServer}
+                                    disabled={isSaving || !activeVersionId}
+                                    style={{
+                                        width:'100%', 
+                                        marginTop:'4px', 
+                                        padding:'4px', 
+                                        cursor: (isSaving || !activeVersionId) ? 'default' : 'pointer',
+                                        background: '#e65100',
+                                        color: 'white',
+                                        border: 'none',
+                                        borderRadius: '3px',
+                                        fontSize: '0.8em',
+                                        fontWeight: 'bold'
+                                    }}
+                                >
+                                    {isSaving ? 'Saving...' : 'Save & Activate'}
+                                </button>
+                                {!activeVersionId && <div style={{color:'red', fontSize:'0.7em'}}>No base version detected</div>}
+                            </div>
+
+                            <button onClick={handleDiscardDraft} disabled={isSaving} style={{fontSize:'0.75em', width:'100%', cursor:'pointer', marginTop:'4px'}}>Discard Draft</button>
                         </div>
                     ) : (
                         <button onClick={handleCreateDraft} style={{fontSize:'0.75em', width:'100%', marginBottom:'8px', cursor:'pointer'}}>Create Local Draft</button>
@@ -1095,7 +1148,8 @@ function SysadminPanel({
     lastConfigEvent,
     onApplyDraft,
     onRollback,
-    canRollback
+    canRollback,
+    onRefresh
 }: { 
     isOpen: boolean; 
     onClose: () => void; 
@@ -1107,6 +1161,7 @@ function SysadminPanel({
     onApplyDraft: (draft: BundleResponse) => void;
     onRollback: () => void;
     canRollback: boolean;
+    onRefresh: () => void;
 }) {
     // Roadmap #6.1: Config-Driven Sysadmin Loader Hook (Placeholder)
     // In future steps, this will drive the UI instead of the hardcoded tabs below.
@@ -2929,7 +2984,54 @@ function SysadminPanel({
         switch(activeTab) {
 
             case 'ConfigSysadmin': {
-                return <ConfigSysadminView bundleData={bundleData} renderKnownPanel={renderKnownPanel} />;
+                return (
+                    <ConfigSysadminView 
+                        bundleData={bundleData} 
+                        renderKnownPanel={renderKnownPanel} 
+                        activeVersionId={snapshotData?.activeVersionId}
+                        onSaveSysadminDraft={async (blocks, reason) => {
+                            if (!snapshotData || !snapshotData.activeVersionId) throw new Error("No active base version found");
+                            
+                            // 1. Clone & Patch
+                            const patchRes = await fetch('/api/debug/config/shell/clone-and-patch-sysadmin', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    baseVersionId: snapshotData.activeVersionId,
+                                    reason,
+                                    sysadminBlocks: blocks
+                                })
+                            });
+                            if (!patchRes.ok) {
+                                const err = await patchRes.json();
+                                throw new Error(err.error || "Failed to patch");
+                            }
+                            const patchJson = await patchRes.json();
+                            const newVersionId = patchJson.newVersionId;
+
+                            // 2. Activate
+                            const activateRes = await fetch('/api/debug/config/shell/activate', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    versionId: newVersionId,
+                                    reason
+                                })
+                            });
+                            if (!activateRes.ok) {
+                                const err = await activateRes.json();
+                                throw new Error(err.error || "Failed to activate");
+                            }
+                            
+                            // 3. Refresh UI
+                            refreshSnapshot();
+                            setTimeout(() => {
+                                onRefresh();
+                                refreshVersions();
+                            }, 500);
+                        }}
+                    />
+                );
             }
             case 'ShellConfig': {
                 if (!bundleData) return <div style={{padding:'20px', color:'#666'}}>No bundle/config loaded yet.</div>;
@@ -5353,6 +5455,7 @@ function App() {
                  onApplyDraft={applyDraft}
                  onRollback={rollbackActive}
                  canRollback={!!lastActiveBundle && runningSource === 'DRAFT'}
+                 onRefresh={fetchBundle}
              />
           </div>
       </div>
