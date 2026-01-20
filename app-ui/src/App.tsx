@@ -873,7 +873,7 @@ interface SnapshotResponse {
   };
 }
 
-function ConfigSysadminView({ bundleData }: { bundleData: BundleResponse | null }) {
+function ConfigSysadminView({ bundleData, renderKnownPanel }: { bundleData: BundleResponse | null; renderKnownPanel?: (blockType: string) => React.ReactNode | null }) {
     const [selectedTabId, setSelectedTabId] = useState<string | null>(null);
 
     const config = useMemo(() => {
@@ -925,32 +925,53 @@ function ConfigSysadminView({ bundleData }: { bundleData: BundleResponse | null 
                             <div style={{fontSize:'0.8em', color:'#888', marginTop:'2px'}}>Source: sysadmin.shell: {config.rawBlock.blockId || config.rawBlock.id}</div> 
                         </div>
                         <div style={{flex:1, overflowY:'auto', padding:'10px'}}>
-                            <h4 style={{marginTop:0, borderBottom:'1px solid #eee'}}>Tab Configuration</h4>
-                            <pre style={{background:'#f5f5f5', padding:'10px', borderRadius:'4px', overflowX:'auto', fontSize:'0.85em'}}>
-                                {JSON.stringify(activeTab, null, 2)}
-                            </pre>
-
-                            <h4 style={{borderBottom:'1px solid #eee'}}>Referenced Blocks</h4>
-                            {activeTab.contentBlockIds.map(bid => {
+                            
+                            {/* Render Known Panels if matched */}
+                            {renderKnownPanel && activeTab.contentBlockIds.some(bid => {
                                 const block = (bundleData.blocks as any)[bid] || (Array.isArray(bundleData.blocks) ? (bundleData.blocks as any[]).find(b => b.blockId === bid || b.id === bid) : null);
-                                return (
-                                    <div key={bid} style={{marginBottom:'15px', border:'1px solid #eee', borderRadius:'4px'}}>
-                                        <div style={{background:'#f0f0f0', padding:'5px 10px', borderBottom:'1px solid #eee', display:'flex', justifyContent:'space-between'}}>
-                                            <strong>{bid}</strong>
-                                            {block ? <span style={{fontSize:'0.85em', color:'#2e7d32'}}>{block.blockType}</span> : <span style={{color:'red', fontWeight:'bold'}}>MISSING</span>}
-                                        </div>
-                                        {block ? (
-                                            <pre style={{margin:0, padding:'10px', fontSize:'0.8em', overflowX:'auto'}}>
-                                                {JSON.stringify(block, null, 2)}
-                                            </pre>
-                                        ) : (
-                                            <div style={{padding:'10px', color:'#d32f2f', background:'#ffebee'}}>
-                                                Error: Block "{bid}" is referenced but not found in bundle.
+                                return block && block.blockType === 'sysadmin.panel.snapshot';
+                            }) && (
+                                <div style={{marginBottom:'20px'}}>
+                                    {renderKnownPanel('sysadmin.panel.snapshot')}
+                                </div>
+                            )}
+
+                            <details>
+                                <summary style={{cursor:'pointer', color:'#007acc', fontWeight:'bold', marginBottom:'10px'}}>
+                                    Raw Configuration {activeTab.contentBlockIds.some(bid => {
+                                        const block = (bundleData.blocks as any)[bid] || (Array.isArray(bundleData.blocks) ? (bundleData.blocks as any[]).find(b => b.blockId === bid || b.id === bid) : null);
+                                        return block && block.blockType === 'sysadmin.panel.snapshot';
+                                    }) ? '(Hidden)' : ''}
+                                </summary>
+                                <div style={{paddingLeft:'10px', borderLeft:'2px solid #eee'}}>
+                                    <h4 style={{marginTop:0, borderBottom:'1px solid #eee'}}>Tab Configuration</h4>
+                                    <pre style={{background:'#f5f5f5', padding:'10px', borderRadius:'4px', overflowX:'auto', fontSize:'0.85em'}}>
+                                        {JSON.stringify(activeTab, null, 2)}
+                                    </pre>
+
+                                    <h4 style={{borderBottom:'1px solid #eee'}}>Referenced Blocks</h4>
+                                    {activeTab.contentBlockIds.map(bid => {
+                                        const block = (bundleData.blocks as any)[bid] || (Array.isArray(bundleData.blocks) ? (bundleData.blocks as any[]).find(b => b.blockId === bid || b.id === bid) : null);
+                                        return (
+                                            <div key={bid} style={{marginBottom:'15px', border:'1px solid #eee', borderRadius:'4px'}}>
+                                                <div style={{background:'#f0f0f0', padding:'5px 10px', borderBottom:'1px solid #eee', display:'flex', justifyContent:'space-between'}}>
+                                                    <strong>{bid}</strong>
+                                                    {block ? <span style={{fontSize:'0.85em', color:'#2e7d32'}}>{block.blockType}</span> : <span style={{color:'red', fontWeight:'bold'}}>MISSING</span>}
+                                                </div>
+                                                {block ? (
+                                                    <pre style={{margin:0, padding:'10px', fontSize:'0.8em', overflowX:'auto'}}>
+                                                        {JSON.stringify(block, null, 2)}
+                                                    </pre>
+                                                ) : (
+                                                    <div style={{padding:'10px', color:'#d32f2f', background:'#ffebee'}}>
+                                                        Error: Block "{bid}" is referenced but not found in bundle.
+                                                    </div>
+                                                )}
                                             </div>
-                                        )}
-                                    </div>
-                                );
-                            })}
+                                        );
+                                    })}
+                                </div>
+                            </details>
                         </div>
                     </>
                 ) : (
@@ -2535,9 +2556,261 @@ function SysadminPanel({
             );
         }
 
+        const renderSnapshotContent = () => (
+             <div style={{display:'flex', flexDirection:'column', height:'100%', gap:'10px'}}>
+                 <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', borderBottom:'1px solid #eee', paddingBottom:'10px'}}>
+                     <div style={{display:'flex', alignItems:'center', gap:'10px'}}>
+                         <strong style={{fontSize:'1.1em'}}>Runtime Snapshot</strong>
+                         <button onClick={() => { refreshSnapshot(); fetchAdapterCaps(); }} style={{cursor:'pointer', padding:'2px 8px', fontSize:'0.9em'}}>Refresh</button>
+                         {snapshotLoading && <span style={{color:'#666', fontSize:'0.9em'}}>Loading...</span>}
+                     </div>
+                     {snapshotData && <CopyBtn k="snapshot" text={snapshotData} />}
+                 </div>
+
+                 {snapshotError ? (
+                     <div style={{color:'red', padding:'20px'}}>
+                         Error fetching snapshot: {snapshotError}
+                     </div>
+                 ) : !snapshotData ? (
+                     <div style={{padding:'20px', color:'#666', fontStyle:'italic'}}>Loading snapshot data...</div>
+                 ) : (
+                     <div style={{display:'flex', flexDirection:'column', gap:'15px'}}>
+                         
+                         {/* Overview Card */}
+                         <div style={{padding:'10px', background:'#f8f9fa', borderRadius:'4px', border:'1px solid #ddd'}}>
+                             <div style={{display:'grid', gridTemplateColumns:'auto 1fr', gap:'8px 20px', fontSize:'0.9em'}}>
+                                 <strong style={{color:'#555'}}>Status:</strong>
+                                 <span style={{fontWeight:'bold', color: snapshotData.runtimeStatus === 'ACTIVE' ? '#2e7d32' : '#d32f2f'}}>
+                                     {snapshotData.runtimeStatus}
+                                 </span>
+                                 
+                                 <strong style={{color:'#555'}}>Source:</strong>
+                                 <span>{snapshotData.source}</span>
+                                 
+                                 <strong style={{color:'#555'}}>Active Version:</strong>
+                                 <span style={{fontFamily:'monospace'}}>{snapshotData.activeVersionId || 'N/A'}</span>
+                                 
+                                 <strong style={{color:'#555'}}>Activated At:</strong>
+                                 <span>{snapshotData.activatedAt ? new Date(snapshotData.activatedAt).toLocaleString() : 'N/A'}</span>
+
+                                 <strong style={{color:'#555'}}>Activation Reason:</strong>
+                                 <span>
+                                     {snapshotData.activationReason ? (
+                                          <span style={{color:'#2e7d32', fontWeight:'bold'}}>{snapshotData.activationReason}</span>
+                                     ) : (
+                                          <span style={{color:'#999', fontStyle:'italic'}}>(not available)</span>
+                                     )}
+                                 </span>
+                             </div>
+                         </div>
+                         
+                         {/* Flags */}
+                         <div>
+                             <strong style={{display:'block', marginBottom:'5px', color:'#333'}}>Runtime Flags</strong>
+                             <div style={{display:'flex', gap:'10px'}}>
+                                 <div style={{
+                                     padding:'6px 10px', borderRadius:'4px', border:'1px solid',
+                                     background: snapshotData.flags.executeIntegrationsEnabled ? '#ffebee' : '#f5f5f5',
+                                     borderColor: snapshotData.flags.executeIntegrationsEnabled ? '#ef9a9a' : '#ddd',
+                                     color: snapshotData.flags.executeIntegrationsEnabled ? '#c62828' : '#777'
+                                 }}>
+                                     Execute Integrations: <strong>{snapshotData.flags.executeIntegrationsEnabled ? 'ENABLED' : 'DISABLED'}</strong>
+                                 </div>
+                                 <div style={{
+                                     padding:'6px 10px', borderRadius:'4px', border:'1px solid',
+                                     background: snapshotData.flags.debugMode ? '#e3f2fd' : '#f5f5f5',
+                                     borderColor: snapshotData.flags.debugMode ? '#90caf9' : '#ddd',
+                                     color: snapshotData.flags.debugMode ? '#1565c0' : '#777'
+                                 }}>
+                                     Debug Mode: <strong>{snapshotData.flags.debugMode ? 'YES' : 'NO'}</strong>
+                                 </div>
+                             </div>
+                         </div>
+
+                         {/* Counts */}
+                         <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'10px'}}>
+                             <div style={{padding:'10px', border:'1px solid #ddd', borderRadius:'4px', textAlign:'center'}}>
+                                 <div style={{fontSize:'2em', fontWeight:'bold', color:'#007acc'}}>{snapshotData.blocks.total}</div>
+                                 <div style={{fontSize:'0.85em', color:'#666'}}>Total Blocks</div>
+                             </div>
+                             <div style={{padding:'10px', border:'1px solid #ddd', borderRadius:'4px', textAlign:'center'}}>
+                                 <div style={{fontSize:'2em', fontWeight:'bold', color:'#2e7d32'}}>{snapshotData.bindings.total}</div>
+                                 <div style={{fontSize:'0.85em', color:'#666'}}>Bindings ({snapshotData.bindings.enabled} active)</div>
+                             </div>
+                             <div style={{padding:'10px', border:'1px solid #ddd', borderRadius:'4px', textAlign:'center'}}>
+                                 <div style={{fontSize:'2em', fontWeight:'bold', color:'#ef6c00'}}>{snapshotData.integrations.total}</div>
+                                 <div style={{fontSize:'0.85em', color:'#666'}}>Integrations</div>
+                             </div>
+                         </div>
+                         
+                         {/* Breakdown Table */}
+                         <div>
+                             <strong style={{display:'block', marginBottom:'5px', color:'#333'}}>Blocks by Type</strong>
+                             <table style={{width:'100%', borderCollapse:'collapse', fontSize:'0.9em', border:'1px solid #eee'}}>
+                                 <thead>
+                                     <tr style={{background:'#f5f5f5', textAlign:'left'}}>
+                                         <th style={{padding:'6px', borderBottom:'1px solid #ddd'}}>Type</th>
+                                         <th style={{padding:'6px', borderBottom:'1px solid #ddd', width:'80px'}}>Count</th>
+                                     </tr>
+                                 </thead>
+                                 <tbody>
+                                     {Object.entries(snapshotData.blocks.byType)
+                                         .sort(([,a], [,b]) => b - a)
+                                         .map(([type, count]) => (
+                                             <tr key={type} style={{borderBottom:'1px solid #eee'}}>
+                                                 <td style={{padding:'6px', fontFamily:'monospace', color:'#333'}}>{type}</td>
+                                                 <td style={{padding:'6px', fontWeight:'bold'}}>{count}</td>
+                                             </tr>
+                                         ))
+                                     }
+                                     {Object.keys(snapshotData.blocks.byType).length === 0 && (
+                                         <tr><td colSpan={2} style={{padding:'10px', color:'#999', fontStyle:'italic'}}>No blocks found.</td></tr>
+                                     )}
+                                 </tbody>
+                             </table>
+                         </div>
+
+                         {/* Integrations Breakdown (Roadmap #5.1) */}
+                         <div style={{marginTop:'15px'}}>
+                             <strong style={{display:'block', marginBottom:'5px', color:'#333'}}>Integrations</strong>
+                             <div style={{marginBottom:'5px', fontSize:'0.9em'}}>
+                                 Total: <strong>{snapshotData.integrations.total}</strong>
+                             </div>
+                             {snapshotData.integrations.total > 0 && (
+                                 <table style={{width:'100%', borderCollapse:'collapse', fontSize:'0.9em', border:'1px solid #eee'}}>
+                                     <thead>
+                                         <tr style={{background:'#f5f5f5', textAlign:'left'}}>
+                                             <th style={{padding:'6px', borderBottom:'1px solid #ddd'}}>Type</th>
+                                             <th style={{padding:'6px', borderBottom:'1px solid #ddd', width:'80px'}}>Count</th>
+                                             <th style={{padding:'6px', borderBottom:'1px solid #ddd'}}>Capabilities {adapterCapsLoading && <span style={{fontSize:'0.8em', color:'#666'}}>(loading...)</span>}</th>
+                                         </tr>
+                                     </thead>
+                                     <tbody>
+                                         {snapshotData.integrations.byType && Object.entries(snapshotData.integrations.byType)
+                                             .sort(([,a], [,b]) => (b as number) - (a as number))
+                                             .map(([type, count]) => {
+                                                 const cap = adapterCaps[type];
+                                                 const badgeStyle = { fontSize:'0.75em', padding:'1px 5px', borderRadius:'3px', marginRight:'4px', fontWeight:'bold' };
+                                                 const green = { ...badgeStyle, background:'#e8f5e9', color:'#1b5e20', border:'1px solid #c8e6c9' };
+                                                 const gray = { ...badgeStyle, background:'#f5f5f5', color:'#777', border:'1px solid #ddd' };
+                                                 
+                                                 return (
+                                                     <tr key={type} style={{borderBottom:'1px solid #eee'}}>
+                                                         <td style={{padding:'6px', fontFamily:'monospace', color:'#333'}}>{type}</td>
+                                                         <td style={{padding:'6px', fontWeight:'bold'}}>{count as number}</td>
+                                                         <td style={{padding:'6px'}}>
+                                                             {!cap ? (
+                                                                 <span style={{color: adapterCapsError ? '#d32f2f' : '#888', fontStyle:'italic', fontSize:'0.85em'}}>
+                                                                     {adapterCapsError ? 'Error loading adapters' : 'NO ADAPTER'}
+                                                                 </span>
+                                                             ) : (
+                                                                 <div style={{display:'flex', gap:'2px'}}>
+                                                                     <span style={cap.execute ? green : gray}>EXEC</span>
+                                                                     <span style={cap.dryRun ? green : gray}>DRY</span>
+                                                                     <span style={cap.productionSafe ? green : gray}>SAFE</span>
+                                                                     {cap.requiresSecrets && <span style={{...badgeStyle, background:'#fff3e0', color:'#e65100', border:'1px solid #ffe0b2'}}>SECRETS</span>}
+                                                                 </div>
+                                                             )}
+                                                         </td>
+                                                     </tr>
+                                                 );
+                                             })
+                                         }
+                                     </tbody>
+                                 </table>
+                             )}
+                             
+                             {/* Warning for HTTP */}
+                             {snapshotData.integrations.byType && Object.keys(snapshotData.integrations.byType).some(k => k.includes('shell.infra.api.http')) && (
+                                 <div style={{marginTop:'5px', padding:'5px', background:'#fff3e0', border:'1px solid #ffe0b2', borderRadius:'3px', fontSize:'0.85em', color:'#e65100'}}>
+                                      <strong>Note:</strong> HTTP integrations are not production-safe yet.
+                                 </div>
+                             )}
+                         </div>
+
+                         {/* Integration Adapters (Available) - Roadmap #5.3.2 */}
+                         <div style={{marginTop:'20px', borderTop:'1px solid #eee', paddingTop:'15px'}}>
+                             <strong style={{display:'block', marginBottom:'10px', color:'#333'}}>Integration Adapters (Available)</strong>
+
+                             {adapterCapsLoading && <div style={{color:'#666', fontStyle:'italic', fontSize:'0.9em'}}>Loading capabilities...</div>}
+                             {adapterCapsError && <div style={{color:'#d32f2f', padding:'5px', border:'1px solid #ffcdd2', background:'#ffebee', borderRadius:'3px', fontSize:'0.9em'}}>Error: {adapterCapsError}</div>}
+
+                             {!adapterCapsLoading && !adapterCapsError && (
+                                <>
+                                    {Object.keys(adapterCaps).length === 0 ? (
+                                        <div style={{fontStyle:'italic', color:'#666', padding:'8px', background:'#f9f9f9', border:'1px solid #eee', fontSize:'0.9em'}}>No adapters registered.</div>
+                                    ) : (
+                                        <div>
+                                            <table style={{width:'100%', borderCollapse:'collapse', fontSize:'0.85em', border:'1px solid #eee'}}>
+                                                <thead>
+                                                    <tr style={{background:'#f5f5f5', textAlign:'left'}}>
+                                                        <th style={{padding:'6px', borderBottom:'1px solid #ddd'}}>Type</th>
+                                                        <th style={{padding:'6px', borderBottom:'1px solid #ddd', textAlign:'center'}}>EXEC</th>
+                                                        <th style={{padding:'6px', borderBottom:'1px solid #ddd', textAlign:'center'}}>DRY</th>
+                                                        <th style={{padding:'6px', borderBottom:'1px solid #ddd', textAlign:'center'}}>PROD SAFE</th>
+                                                        <th style={{padding:'6px', borderBottom:'1px solid #ddd', textAlign:'center'}}>SECRETS</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {Object.entries(adapterCaps)
+                                                        .sort(([typeA], [typeB]) => typeA.localeCompare(typeB))
+                                                        .map(([type, cap]) => {
+                                                            const pillBase = { display:'inline-block', padding:'2px 6px', borderRadius:'10px', fontSize:'0.85em', fontWeight:'bold' };
+                                                            const pillGreen = { ...pillBase, background:'#e8f5e9', color:'#2e7d32', border:'1px solid #c8e6c9' };
+                                                            const pillGray = { ...pillBase, background:'#f5f5f5', color:'#9e9e9e', border:'1px solid #e0e0e0' };
+                                                            
+                                                            return (
+                                                                <tr key={type} style={{borderBottom:'1px solid #eee'}}>
+                                                                    <td style={{padding:'6px', fontFamily:'monospace', color:'#333'}}>{type}</td>
+                                                                    <td style={{padding:'6px', textAlign:'center'}}>
+                                                                         <span style={cap.execute ? pillGreen : pillGray}>{cap.execute ? 'YES' : 'NO'}</span>
+                                                                    </td>
+                                                                    <td style={{padding:'6px', textAlign:'center'}}>
+                                                                         <span style={cap.dryRun ? pillGreen : pillGray}>{cap.dryRun ? 'YES' : 'NO'}</span>
+                                                                    </td>
+                                                                    <td style={{padding:'6px', textAlign:'center'}}>
+                                                                         <span style={cap.productionSafe ? pillGreen : pillGray}>{cap.productionSafe ? 'YES' : 'NO'}</span>
+                                                                    </td>
+                                                                    <td style={{padding:'6px', textAlign:'center'}}>
+                                                                         {cap.requiresSecrets ? 
+                                                                             <span style={{...pillBase, background:'#fff3e0', color:'#e65100', border:'1px solid #ffe0b2'}}>REQ</span> : 
+                                                                             <span style={{color:'#ccc'}}>-</span>}
+                                                                    </td>
+                                                                </tr>
+                                                            );
+                                                        })}
+                                                </tbody>
+                                            </table>
+                                            
+                                            {Object.values(adapterCaps).some(c => !c.productionSafe) && (
+                                                <div style={{marginTop:'8px', padding:'6px', background:'#fff3e0', borderLeft:'3px solid #ff9800', fontSize:'0.85em', color:'#e65100'}}>
+                                                     <strong>Note:</strong> Some adapters are not production-safe yet.
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                </>
+                             )}
+                         </div>
+                     </div>
+                 )}
+             </div>
+        );
+
+        const renderKnownPanel = (blockType: string) => {
+            if (blockType === 'sysadmin.panel.snapshot') {
+                if (!snapshotData && !snapshotLoading && !snapshotError) {
+                    setTimeout(() => refreshSnapshot(), 0); 
+                }
+                return renderSnapshotContent();
+            }
+            return null;
+        };
+
         switch(activeTab) {
+
             case 'ConfigSysadmin': {
-                return <ConfigSysadminView bundleData={bundleData} />;
+                return <ConfigSysadminView bundleData={bundleData} renderKnownPanel={renderKnownPanel} />;
             }
             case 'ShellConfig': {
                 if (!bundleData) return <div style={{padding:'20px', color:'#666'}}>No bundle/config loaded yet.</div>;
@@ -4275,246 +4548,7 @@ function SysadminPanel({
                  );
             }
             case 'Snapshot': {
-                 return (
-                     <div style={{display:'flex', flexDirection:'column', height:'100%', gap:'10px'}}>
-                         <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', borderBottom:'1px solid #eee', paddingBottom:'10px'}}>
-                             <div style={{display:'flex', alignItems:'center', gap:'10px'}}>
-                                 <strong style={{fontSize:'1.1em'}}>Runtime Snapshot</strong>
-                                 <button onClick={() => { refreshSnapshot(); fetchAdapterCaps(); }} style={{cursor:'pointer', padding:'2px 8px', fontSize:'0.9em'}}>Refresh</button>
-                                 {snapshotLoading && <span style={{color:'#666', fontSize:'0.9em'}}>Loading...</span>}
-                             </div>
-                             {snapshotData && <CopyBtn k="snapshot" text={snapshotData} />}
-                         </div>
-
-                         {snapshotError ? (
-                             <div style={{color:'red', padding:'20px'}}>
-                                 Error fetching snapshot: {snapshotError}
-                             </div>
-                         ) : !snapshotData ? (
-                             <div style={{padding:'20px', color:'#666', fontStyle:'italic'}}>Loading snapshot data...</div>
-                         ) : (
-                             <div style={{display:'flex', flexDirection:'column', gap:'15px'}}>
-                                 
-                                 {/* Overview Card */}
-                                 <div style={{padding:'10px', background:'#f8f9fa', borderRadius:'4px', border:'1px solid #ddd'}}>
-                                     <div style={{display:'grid', gridTemplateColumns:'auto 1fr', gap:'8px 20px', fontSize:'0.9em'}}>
-                                         <strong style={{color:'#555'}}>Status:</strong>
-                                         <span style={{fontWeight:'bold', color: snapshotData.runtimeStatus === 'ACTIVE' ? '#2e7d32' : '#d32f2f'}}>
-                                             {snapshotData.runtimeStatus}
-                                         </span>
-                                         
-                                         <strong style={{color:'#555'}}>Source:</strong>
-                                         <span>{snapshotData.source}</span>
-                                         
-                                         <strong style={{color:'#555'}}>Active Version:</strong>
-                                         <span style={{fontFamily:'monospace'}}>{snapshotData.activeVersionId || 'N/A'}</span>
-                                         
-                                         <strong style={{color:'#555'}}>Activated At:</strong>
-                                         <span>{snapshotData.activatedAt ? new Date(snapshotData.activatedAt).toLocaleString() : 'N/A'}</span>
-
-                                         <strong style={{color:'#555'}}>Activation Reason:</strong>
-                                         <span>
-                                             {snapshotData.activationReason ? (
-                                                  <span style={{color:'#2e7d32', fontWeight:'bold'}}>{snapshotData.activationReason}</span>
-                                             ) : (
-                                                  <span style={{color:'#999', fontStyle:'italic'}}>(not available)</span>
-                                             )}
-                                         </span>
-                                     </div>
-                                 </div>
-                                 
-                                 {/* Flags */}
-                                 <div>
-                                     <strong style={{display:'block', marginBottom:'5px', color:'#333'}}>Runtime Flags</strong>
-                                     <div style={{display:'flex', gap:'10px'}}>
-                                         <div style={{
-                                             padding:'6px 10px', borderRadius:'4px', border:'1px solid',
-                                             background: snapshotData.flags.executeIntegrationsEnabled ? '#ffebee' : '#f5f5f5',
-                                             borderColor: snapshotData.flags.executeIntegrationsEnabled ? '#ef9a9a' : '#ddd',
-                                             color: snapshotData.flags.executeIntegrationsEnabled ? '#c62828' : '#777'
-                                         }}>
-                                             Execute Integrations: <strong>{snapshotData.flags.executeIntegrationsEnabled ? 'ENABLED' : 'DISABLED'}</strong>
-                                         </div>
-                                         <div style={{
-                                             padding:'6px 10px', borderRadius:'4px', border:'1px solid',
-                                             background: snapshotData.flags.debugMode ? '#e3f2fd' : '#f5f5f5',
-                                             borderColor: snapshotData.flags.debugMode ? '#90caf9' : '#ddd',
-                                             color: snapshotData.flags.debugMode ? '#1565c0' : '#777'
-                                         }}>
-                                             Debug Mode: <strong>{snapshotData.flags.debugMode ? 'YES' : 'NO'}</strong>
-                                         </div>
-                                     </div>
-                                 </div>
-
-                                 {/* Counts */}
-                                 <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'10px'}}>
-                                     <div style={{padding:'10px', border:'1px solid #ddd', borderRadius:'4px', textAlign:'center'}}>
-                                         <div style={{fontSize:'2em', fontWeight:'bold', color:'#007acc'}}>{snapshotData.blocks.total}</div>
-                                         <div style={{fontSize:'0.85em', color:'#666'}}>Total Blocks</div>
-                                     </div>
-                                     <div style={{padding:'10px', border:'1px solid #ddd', borderRadius:'4px', textAlign:'center'}}>
-                                         <div style={{fontSize:'2em', fontWeight:'bold', color:'#2e7d32'}}>{snapshotData.bindings.total}</div>
-                                         <div style={{fontSize:'0.85em', color:'#666'}}>Bindings ({snapshotData.bindings.enabled} active)</div>
-                                     </div>
-                                     <div style={{padding:'10px', border:'1px solid #ddd', borderRadius:'4px', textAlign:'center'}}>
-                                         <div style={{fontSize:'2em', fontWeight:'bold', color:'#ef6c00'}}>{snapshotData.integrations.total}</div>
-                                         <div style={{fontSize:'0.85em', color:'#666'}}>Integrations</div>
-                                     </div>
-                                 </div>
-                                 
-                                 {/* Breakdown Table */}
-                                 <div>
-                                     <strong style={{display:'block', marginBottom:'5px', color:'#333'}}>Blocks by Type</strong>
-                                     <table style={{width:'100%', borderCollapse:'collapse', fontSize:'0.9em', border:'1px solid #eee'}}>
-                                         <thead>
-                                             <tr style={{background:'#f5f5f5', textAlign:'left'}}>
-                                                 <th style={{padding:'6px', borderBottom:'1px solid #ddd'}}>Type</th>
-                                                 <th style={{padding:'6px', borderBottom:'1px solid #ddd', width:'80px'}}>Count</th>
-                                             </tr>
-                                         </thead>
-                                         <tbody>
-                                             {Object.entries(snapshotData.blocks.byType)
-                                                 .sort(([,a], [,b]) => b - a)
-                                                 .map(([type, count]) => (
-                                                     <tr key={type} style={{borderBottom:'1px solid #eee'}}>
-                                                         <td style={{padding:'6px', fontFamily:'monospace', color:'#333'}}>{type}</td>
-                                                         <td style={{padding:'6px', fontWeight:'bold'}}>{count}</td>
-                                                     </tr>
-                                                 ))
-                                             }
-                                             {Object.keys(snapshotData.blocks.byType).length === 0 && (
-                                                 <tr><td colSpan={2} style={{padding:'10px', color:'#999', fontStyle:'italic'}}>No blocks found.</td></tr>
-                                             )}
-                                         </tbody>
-                                     </table>
-                                 </div>
-
-                                 {/* Integrations Breakdown (Roadmap #5.1) */}
-                                 <div style={{marginTop:'15px'}}>
-                                     <strong style={{display:'block', marginBottom:'5px', color:'#333'}}>Integrations</strong>
-                                     <div style={{marginBottom:'5px', fontSize:'0.9em'}}>
-                                         Total: <strong>{snapshotData.integrations.total}</strong>
-                                     </div>
-                                     {snapshotData.integrations.total > 0 && (
-                                         <table style={{width:'100%', borderCollapse:'collapse', fontSize:'0.9em', border:'1px solid #eee'}}>
-                                             <thead>
-                                                 <tr style={{background:'#f5f5f5', textAlign:'left'}}>
-                                                     <th style={{padding:'6px', borderBottom:'1px solid #ddd'}}>Type</th>
-                                                     <th style={{padding:'6px', borderBottom:'1px solid #ddd', width:'80px'}}>Count</th>
-                                                     <th style={{padding:'6px', borderBottom:'1px solid #ddd'}}>Capabilities {adapterCapsLoading && <span style={{fontSize:'0.8em', color:'#666'}}>(loading...)</span>}</th>
-                                                 </tr>
-                                             </thead>
-                                             <tbody>
-                                                 {snapshotData.integrations.byType && Object.entries(snapshotData.integrations.byType)
-                                                     .sort(([,a], [,b]) => (b as number) - (a as number))
-                                                     .map(([type, count]) => {
-                                                         const cap = adapterCaps[type];
-                                                         const badgeStyle = { fontSize:'0.75em', padding:'1px 5px', borderRadius:'3px', marginRight:'4px', fontWeight:'bold' };
-                                                         const green = { ...badgeStyle, background:'#e8f5e9', color:'#1b5e20', border:'1px solid #c8e6c9' };
-                                                         const gray = { ...badgeStyle, background:'#f5f5f5', color:'#777', border:'1px solid #ddd' };
-                                                         
-                                                         return (
-                                                             <tr key={type} style={{borderBottom:'1px solid #eee'}}>
-                                                                 <td style={{padding:'6px', fontFamily:'monospace', color:'#333'}}>{type}</td>
-                                                                 <td style={{padding:'6px', fontWeight:'bold'}}>{count as number}</td>
-                                                                 <td style={{padding:'6px'}}>
-                                                                     {!cap ? (
-                                                                         <span style={{color: adapterCapsError ? '#d32f2f' : '#888', fontStyle:'italic', fontSize:'0.85em'}}>
-                                                                             {adapterCapsError ? 'Error loading adapters' : 'NO ADAPTER'}
-                                                                         </span>
-                                                                     ) : (
-                                                                         <div style={{display:'flex', gap:'2px'}}>
-                                                                             <span style={cap.execute ? green : gray}>EXEC</span>
-                                                                             <span style={cap.dryRun ? green : gray}>DRY</span>
-                                                                             <span style={cap.productionSafe ? green : gray}>SAFE</span>
-                                                                             {cap.requiresSecrets && <span style={{...badgeStyle, background:'#fff3e0', color:'#e65100', border:'1px solid #ffe0b2'}}>SECRETS</span>}
-                                                                         </div>
-                                                                     )}
-                                                                 </td>
-                                                             </tr>
-                                                         );
-                                                     })
-                                                 }
-                                             </tbody>
-                                         </table>
-                                     )}
-                                     
-                                     {/* Warning for HTTP */}
-                                     {snapshotData.integrations.byType && Object.keys(snapshotData.integrations.byType).some(k => k.includes('shell.infra.api.http')) && (
-                                         <div style={{marginTop:'5px', padding:'5px', background:'#fff3e0', border:'1px solid #ffe0b2', borderRadius:'3px', fontSize:'0.85em', color:'#e65100'}}>
-                                              <strong>Note:</strong> HTTP integrations are not production-safe yet.
-                                         </div>
-                                     )}
-                                 </div>
-
-                                 {/* Integration Adapters (Available) - Roadmap #5.3.2 */}
-                                 <div style={{marginTop:'20px', borderTop:'1px solid #eee', paddingTop:'15px'}}>
-                                     <strong style={{display:'block', marginBottom:'10px', color:'#333'}}>Integration Adapters (Available)</strong>
-
-                                     {adapterCapsLoading && <div style={{color:'#666', fontStyle:'italic', fontSize:'0.9em'}}>Loading capabilities...</div>}
-                                     {adapterCapsError && <div style={{color:'#d32f2f', padding:'5px', border:'1px solid #ffcdd2', background:'#ffebee', borderRadius:'3px', fontSize:'0.9em'}}>Error: {adapterCapsError}</div>}
-
-                                     {!adapterCapsLoading && !adapterCapsError && (
-                                        <>
-                                            {Object.keys(adapterCaps).length === 0 ? (
-                                                <div style={{fontStyle:'italic', color:'#666', padding:'8px', background:'#f9f9f9', border:'1px solid #eee', fontSize:'0.9em'}}>No adapters registered.</div>
-                                            ) : (
-                                                <div>
-                                                    <table style={{width:'100%', borderCollapse:'collapse', fontSize:'0.85em', border:'1px solid #eee'}}>
-                                                        <thead>
-                                                            <tr style={{background:'#f5f5f5', textAlign:'left'}}>
-                                                                <th style={{padding:'6px', borderBottom:'1px solid #ddd'}}>Type</th>
-                                                                <th style={{padding:'6px', borderBottom:'1px solid #ddd', textAlign:'center'}}>EXEC</th>
-                                                                <th style={{padding:'6px', borderBottom:'1px solid #ddd', textAlign:'center'}}>DRY</th>
-                                                                <th style={{padding:'6px', borderBottom:'1px solid #ddd', textAlign:'center'}}>PROD SAFE</th>
-                                                                <th style={{padding:'6px', borderBottom:'1px solid #ddd', textAlign:'center'}}>SECRETS</th>
-                                                            </tr>
-                                                        </thead>
-                                                        <tbody>
-                                                            {Object.entries(adapterCaps)
-                                                                .sort(([typeA], [typeB]) => typeA.localeCompare(typeB))
-                                                                .map(([type, cap]) => {
-                                                                    const pillBase = { display:'inline-block', padding:'2px 6px', borderRadius:'10px', fontSize:'0.85em', fontWeight:'bold' };
-                                                                    const pillGreen = { ...pillBase, background:'#e8f5e9', color:'#2e7d32', border:'1px solid #c8e6c9' };
-                                                                    const pillGray = { ...pillBase, background:'#f5f5f5', color:'#9e9e9e', border:'1px solid #e0e0e0' };
-                                                                    
-                                                                    return (
-                                                                        <tr key={type} style={{borderBottom:'1px solid #eee'}}>
-                                                                            <td style={{padding:'6px', fontFamily:'monospace', color:'#333'}}>{type}</td>
-                                                                            <td style={{padding:'6px', textAlign:'center'}}>
-                                                                                 <span style={cap.execute ? pillGreen : pillGray}>{cap.execute ? 'YES' : 'NO'}</span>
-                                                                            </td>
-                                                                            <td style={{padding:'6px', textAlign:'center'}}>
-                                                                                 <span style={cap.dryRun ? pillGreen : pillGray}>{cap.dryRun ? 'YES' : 'NO'}</span>
-                                                                            </td>
-                                                                            <td style={{padding:'6px', textAlign:'center'}}>
-                                                                                 <span style={cap.productionSafe ? pillGreen : pillGray}>{cap.productionSafe ? 'YES' : 'NO'}</span>
-                                                                            </td>
-                                                                            <td style={{padding:'6px', textAlign:'center'}}>
-                                                                                 {cap.requiresSecrets ? 
-                                                                                     <span style={{...pillBase, background:'#fff3e0', color:'#e65100', border:'1px solid #ffe0b2'}}>REQ</span> : 
-                                                                                     <span style={{color:'#ccc'}}>-</span>}
-                                                                            </td>
-                                                                        </tr>
-                                                                    );
-                                                                })}
-                                                        </tbody>
-                                                    </table>
-                                                    
-                                                    {Object.values(adapterCaps).some(c => !c.productionSafe) && (
-                                                        <div style={{marginTop:'8px', padding:'6px', background:'#fff3e0', borderLeft:'3px solid #ff9800', fontSize:'0.85em', color:'#e65100'}}>
-                                                             <strong>Note:</strong> Some adapters are not production-safe yet.
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            )}
-                                        </>
-                                     )}
-                                 </div>
-                             </div>
-                         )}
-                     </div>
-                 );
+                 return renderSnapshotContent();
             }
             case 'Traces': {
                  return (
@@ -4876,6 +4910,22 @@ function App() {
   };
 
   const resolvePing = async () => {
+    // PRE-CHECK: Prevent 404 noise if ping route is clearly disabled in active config
+    if (bundleData && bundleData.blocks) {
+       const blocks = bundleData.blocks as any;
+       // Find infra_routing block (usually shell.infra.routing)
+       const routingBlock = Object.values(blocks).find((b:any) => b.blockType === 'shell.infra.routing') as any;
+       if (routingBlock && routingBlock.data && routingBlock.data.routes) {
+          const pingRoute = routingBlock.data.routes.ping;
+          if (!pingRoute || pingRoute.enabled === false) {
+              setLoading(false);
+              setPingData(null);
+              setError("Ping route not configured in active bundle (infra_routing.routes.ping missing or disabled).");
+              return;
+          }
+       }
+    }
+
     setLoading(true);
     setError(null);
     setPingData(null);
