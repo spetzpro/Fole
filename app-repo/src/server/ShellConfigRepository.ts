@@ -245,4 +245,83 @@ export class ShellConfigRepository {
       
       return { activeVersionId: versionId, activatedAt: now };
   }
+
+  async cloneVersionWithPatchedSysadmin(
+    baseVersionId: string, 
+    reason: string, 
+    sysadminBlocks: Record<string, BlockEnvelope>
+  ): Promise<{ newVersionId: string }> {
+      const baseArchivePath = path.join(this.configRoot, "archive", baseVersionId);
+      const baseBundlePath = path.join(baseArchivePath, "bundle");
+
+      // Validation
+      try {
+          await fs.access(baseBundlePath);
+          await fs.access(path.join(baseBundlePath, "shell.manifest.json"));
+      } catch {
+          throw new Error(`Base version ${baseVersionId} or its manifest does not exist.`);
+      }
+
+      // Generate New Version ID
+      const timestamp = new Date();
+      const newVersionId = `v${timestamp.getTime()}`;
+      const newArchivePath = path.join(this.configRoot, "archive", newVersionId);
+      const newBundlePath = path.join(newArchivePath, "bundle");
+
+      // Create Directories
+      await fs.mkdir(newArchivePath, { recursive: true });
+      await fs.mkdir(newBundlePath, { recursive: true });
+
+      // Copy All Files (fs.cp requires Node 16.7+)
+      const files = await fs.readdir(baseBundlePath);
+      for (const file of files) {
+          await (fs as any).cp(
+              path.join(baseBundlePath, file),
+              path.join(newBundlePath, file),
+              { recursive: true }
+          );
+      }
+      
+      // Patch Sysadmin Blocks
+      for (const [key, block] of Object.entries(sysadminBlocks)) {
+          // Normalize blockId to match filename key
+          const blockToSave = { ...block, blockId: key };
+          // Note: we don't strictly enforce filename inside block data if it wasn't there, 
+          // but repo conventions usually infer filename from file path.
+          
+          await fs.writeFile(
+              path.join(newBundlePath, `${key}.json`),
+              JSON.stringify(blockToSave, null, 2),
+              "utf-8"
+          );
+      }
+
+      // Create Meta
+      const meta: ConfigMeta = {
+          versionId: newVersionId,
+          timestamp: timestamp.toISOString(),
+          author: "system",
+          mode: "normal",
+          description: reason ? `Sysadmin patch: ${reason}` : "Sysadmin patch",
+          parentVersionId: baseVersionId
+      };
+      
+      await fs.writeFile(
+          path.join(newArchivePath, "meta.json"),
+          JSON.stringify(meta, null, 2),
+          "utf-8"
+      );
+
+      // Copy validation.json if exists
+      try {
+          await (fs as any).cp(
+              path.join(baseArchivePath, "validation.json"),
+              path.join(newArchivePath, "validation.json")
+          );
+      } catch {
+          // Ignore
+      }
+
+      return { newVersionId };
+  }
 }

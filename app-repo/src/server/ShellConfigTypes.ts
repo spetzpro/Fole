@@ -15,6 +15,8 @@ export interface ConfigMeta {
   author: string;
   timestamp: string;
   description: string;
+  mode?: string;
+  parentVersionId?: string;
 }
 
 export interface ConfigValidation {

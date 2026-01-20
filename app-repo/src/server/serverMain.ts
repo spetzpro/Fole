@@ -135,6 +135,47 @@ async function main() {
       }
   });
 
+  // Roadmap 7.1 Sysadmin Patch Endpoint
+  router.post("/api/debug/config/shell/clone-and-patch-sysadmin", async (req, res, _params, ctx) => {
+      if (!ModeGate.canUseDebugEndpoints(ctx)) {
+          return router.json(res, 403, { error: "Debug mode disabled" });
+      }
+      
+      try {
+          const body: any = await router.readJsonBody(req);
+          const { baseVersionId, reason, sysadminBlocks } = body;
+
+          // Validation
+          if (!baseVersionId || typeof baseVersionId !== 'string') {
+               return router.json(res, 400, { error: "Missing or invalid baseVersionId" });
+          }
+          if (!sysadminBlocks || typeof sysadminBlocks !== 'object') {
+               return router.json(res, 400, { error: "Missing or invalid sysadminBlocks" });
+          }
+          if (Object.keys(sysadminBlocks).length === 0) {
+               return router.json(res, 400, { error: "sysadminBlocks must not be empty" });
+          }
+          
+          // Execute
+          const result = await configRepo.cloneVersionWithPatchedSysadmin(baseVersionId, reason, sysadminBlocks);
+          
+          return router.json(res, 200, { 
+              ok: true, 
+              newVersionId: result.newVersionId,
+              baseVersionId,
+              reason
+          });
+
+      } catch (err: any) {
+          if (err.message && err.message.substring && err.message.includes("Base version")) {
+              return router.json(res, 404, { error: err.message });
+          }
+           // eslint-disable-next-line no-console
+          console.error("Clone patch error", err);
+          return router.json(res, 500, { error: "Internal Server Error" });
+      }
+  });
+
   // Debug dispatch traces endpoint (Epic 4 Step 4.1)
   router.get("/api/debug/runtime/dispatch-traces", async (_req, res, _params, ctx) => {
     if (!ModeGate.canUseDebugEndpoints(ctx)) {
