@@ -926,22 +926,11 @@ function ConfigSysadminView({ bundleData, renderKnownPanel }: { bundleData: Bund
                         </div>
                         <div style={{flex:1, overflowY:'auto', padding:'10px'}}>
                             
-                            {/* Render Known Panels if matched */}
-                            {renderKnownPanel && activeTab.contentBlockIds.some(bid => {
-                                const block = (bundleData.blocks as any)[bid] || (Array.isArray(bundleData.blocks) ? (bundleData.blocks as any[]).find(b => b.blockId === bid || b.id === bid) : null);
-                                return block && block.blockType === 'sysadmin.panel.snapshot';
-                            }) && (
-                                <div style={{marginBottom:'20px'}}>
-                                    {renderKnownPanel('sysadmin.panel.snapshot')}
-                                </div>
-                            )}
+
 
                             <details>
                                 <summary style={{cursor:'pointer', color:'#007acc', fontWeight:'bold', marginBottom:'10px'}}>
-                                    Raw Configuration {activeTab.contentBlockIds.some(bid => {
-                                        const block = (bundleData.blocks as any)[bid] || (Array.isArray(bundleData.blocks) ? (bundleData.blocks as any[]).find(b => b.blockId === bid || b.id === bid) : null);
-                                        return block && block.blockType === 'sysadmin.panel.snapshot';
-                                    }) ? '(Hidden)' : ''}
+                                    Raw Configuration
                                 </summary>
                                 <div style={{paddingLeft:'10px', borderLeft:'2px solid #eee'}}>
                                     <h4 style={{marginTop:0, borderBottom:'1px solid #eee'}}>Tab Configuration</h4>
@@ -972,6 +961,32 @@ function ConfigSysadminView({ bundleData, renderKnownPanel }: { bundleData: Bund
                                     })}
                                 </div>
                             </details>
+
+                            {/* Rendered Panel Section */}
+                            <div style={{marginTop:'20px', borderTop:'1px solid #eee', paddingTop:'15px'}}>
+                                <h4 style={{marginTop:0, marginBottom:'10px', color:'#333'}}>Rendered Panel</h4>
+                                
+                                {renderKnownPanel && activeTab.contentBlockIds.map(bid => {
+                                    const blocks: any = bundleData.blocks;
+                                    const block = blocks[bid] || (Array.isArray(blocks) ? blocks.find((b: any) => b.blockId === bid || b.id === bid) : null);
+                                    
+                                    if (!block) {
+                                        return <div key={bid} style={{color:'red', padding:'10px', border:'1px solid red', borderRadius:'4px', marginBottom:'10px'}}>MISSING block: {bid}</div>;
+                                    }
+
+                                    const content = renderKnownPanel(block.blockType);
+                                    
+                                    if (!content) {
+                                        return (
+                                            <div key={bid} style={{padding:'8px', background:'#fff3e0', color:'#e65100', borderRadius:'4px', marginBottom:'10px', fontSize:'0.9em'}}>
+                                                No renderer registered for blockType: <strong>{block.blockType}</strong>
+                                            </div>
+                                        );
+                                    }
+                                    
+                                    return <div key={bid} style={{marginBottom:'20px'}}>{content}</div>;
+                                })}
+                            </div>
                         </div>
                     </>
                 ) : (
