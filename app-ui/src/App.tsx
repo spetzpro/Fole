@@ -1656,6 +1656,10 @@ function SysadminPanel({
             
             setActivationMessage(`Successfully activated ${versionId}`);
             setConfirmActivate(false);
+            
+            // Auto-hide success banner
+            setTimeout(() => setActivationMessage(null), 5000);
+
             // Refresh versions to update 'activeVersionId'
             refreshVersions();
             // Refresh snapshot to update 'activeVersionId' and 'activationReason'
@@ -2665,8 +2669,25 @@ function SysadminPanel({
                                 <h3 style={{margin:0}}>Version: {selectedVersionId}</h3>
                                 {versionDetailLoading && <small>Loading...</small>}
 
+                                {activationMessage && (
+                                    <div style={{
+                                        marginLeft:'auto', 
+                                        padding:'6px 12px', 
+                                        background:'#e8f5e9', 
+                                        color:'#1b5e20', 
+                                        border:'1px solid #c8e6c9', 
+                                        borderRadius:'4px',
+                                        fontWeight:'bold', 
+                                        fontSize:'0.9em',
+                                        display:'flex',
+                                        alignItems:'center'
+                                    }}>
+                                        ✓ {activationMessage}
+                                    </div>
+                                )}
+
                                 {/* Activate Button Logic */}
-                                {shellVersions?.activeVersionId !== selectedVersionId && (
+                                {shellVersions?.activeVersionId !== selectedVersionId && !activationMessage && (
                                     <div style={{marginLeft:'auto', display:'flex', alignItems:'center', gap:'10px'}}>
                                         {confirmActivate ? (
                                             <div style={{display:'flex', flexDirection:'column', gap:'10px', background:'#fff3e0', padding:'10px', borderRadius:'4px', border:'1px solid #ffe0b2', minWidth:'400px', maxWidth:'600px', zIndex: 100, position:'relative'}}>
@@ -2778,7 +2799,7 @@ function SysadminPanel({
                                         )}
                                     </div>
                                 )}
-                                {shellVersions?.activeVersionId === selectedVersionId && (
+                                {shellVersions?.activeVersionId === selectedVersionId && !activationMessage && (
                                     <span style={{marginLeft:'auto', color:'green', fontWeight:'bold', border:'1px solid green', padding:'2px 8px', borderRadius:'4px'}}>ACTIVE</span>
                                 )}
                             </div>
