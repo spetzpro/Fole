@@ -1121,13 +1121,13 @@ function ConfigSysadminView({
                                 />
                                 <button 
                                     onClick={handleSaveToServer}
-                                    disabled={isSaving || (saveStatus === 'preflight_warning' && !preflightAck)}
+                                    disabled={isSaving || (pendingStage === 'awaiting_ack' && !pendingAck)}
                                     style={{
                                         width:'100%', 
                                         marginTop:'4px', 
                                         padding:'4px', 
-                                        cursor: (isSaving || (saveStatus === 'preflight_warning' && !preflightAck)) ? 'default' : 'pointer',
-                                        background: saveStatus === 'preflight_warning' ? '#f57c00' : '#e65100',
+                                        cursor: (isSaving || (pendingStage === 'awaiting_ack' && !pendingAck)) ? 'default' : 'pointer',
+                                        background: pendingStage === 'awaiting_ack' ? '#f57c00' : '#e65100',
                                         color: 'white',
                                         border: 'none',
                                         borderRadius: '3px',
@@ -1135,7 +1135,7 @@ function ConfigSysadminView({
                                         fontWeight: 'bold'
                                     }}
                                 >
-                                    {isSaving ? 'Saving...' : (saveStatus === 'preflight_warning' ? 'Confirm Save & Activate' : 'Save & Activate')}
+                                    {isSaving ? 'Saving...' : (pendingStage === 'awaiting_ack' ? 'Confirm Save & Activate' : 'Save & Activate')}
                                 </button>
                             </div>
 
