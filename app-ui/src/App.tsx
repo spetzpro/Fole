@@ -1657,9 +1657,6 @@ function SysadminPanel({
             setActivationMessage(`Successfully activated ${versionId}`);
             setConfirmActivate(false);
             
-            // Auto-hide success banner
-            setTimeout(() => setActivationMessage(null), 5000);
-
             // Refresh versions to update 'activeVersionId'
             refreshVersions();
             // Refresh snapshot to update 'activeVersionId' and 'activationReason'
@@ -2634,7 +2631,7 @@ function SysadminPanel({
                     // DETAIL VIEW
                     <div style={{display:'flex', flexDirection:'column', height:'100%'}}>
                             <div style={{marginBottom:'15px', display:'flex', alignItems:'center', gap:'15px'}}>
-                                <button onClick={() => { setSelectedVersionId(null); setConfirmLoadVersion(false); setConfirmActivate(false); setActivateReason('Activated from Sysadmin'); }}>&larr; Back to List</button>
+                                <button onClick={() => { setSelectedVersionId(null); setConfirmLoadVersion(false); setConfirmActivate(false); setActivateReason('Activated from Sysadmin'); setActivationMessage(null); }}>&larr; Back to List</button>
                                 
                                 {!versionDetailLoading && (
                                     confirmLoadVersion ? (
@@ -2680,15 +2677,27 @@ function SysadminPanel({
                                         fontWeight:'bold', 
                                         fontSize:'0.9em',
                                         display:'flex',
-                                        alignItems:'center'
+                                        alignItems:'center',
+                                        gap:'8px'
                                     }}>
-                                        ✓ {activationMessage}
+                                        <span>✓ {activationMessage}</span>
+                                        <button 
+                                            onClick={() => setActivationMessage(null)}
+                                            style={{
+                                                background:'none', border:'none', cursor:'pointer', 
+                                                fontSize:'1.1em', fontWeight:'bold', color:'inherit', 
+                                                lineHeight:1, padding:0, opacity:0.6
+                                            }}
+                                            title="Dismiss"
+                                        >
+                                            ×
+                                        </button>
                                     </div>
                                 )}
 
                                 {/* Activate Button Logic */}
-                                {shellVersions?.activeVersionId !== selectedVersionId && !activationMessage && (
-                                    <div style={{marginLeft:'auto', display:'flex', alignItems:'center', gap:'10px'}}>
+                                {shellVersions?.activeVersionId !== selectedVersionId && (
+                                    <div style={{marginLeft: activationMessage ? '10px' : 'auto', display:'flex', alignItems:'center', gap:'10px'}}>
                                         {confirmActivate ? (
                                             <div style={{display:'flex', flexDirection:'column', gap:'10px', background:'#fff3e0', padding:'10px', borderRadius:'4px', border:'1px solid #ffe0b2', minWidth:'400px', maxWidth:'600px', zIndex: 100, position:'relative'}}>
                                                 <div style={{fontWeight:'bold', borderBottom:'1px solid #ffd54f', paddingBottom:'5px', marginBottom:'5px', color:'#ef6c00'}}>Preflight Check</div>
@@ -2791,7 +2800,7 @@ function SysadminPanel({
                                             </div>
                                         ) : (
                                             <button 
-                                                onClick={() => { setConfirmActivate(true); fetchPreflight(selectedVersionId); }}
+                                                onClick={() => { setConfirmActivate(true); fetchPreflight(selectedVersionId); setActivationMessage(null); }}
                                                 style={{background:'#ef6c00', color:'white', border:'none', borderRadius:'6px', padding:'6px 12px', fontWeight:700, cursor:'pointer'}}
                                             >
                                                 Activate (debug)
@@ -2799,8 +2808,8 @@ function SysadminPanel({
                                         )}
                                     </div>
                                 )}
-                                {shellVersions?.activeVersionId === selectedVersionId && !activationMessage && (
-                                    <span style={{marginLeft:'auto', color:'green', fontWeight:'bold', border:'1px solid green', padding:'2px 8px', borderRadius:'4px'}}>ACTIVE</span>
+                                {shellVersions?.activeVersionId === selectedVersionId && (
+                                    <span style={{marginLeft: activationMessage ? '10px' : 'auto', color:'green', fontWeight:'bold', border:'1px solid green', padding:'2px 8px', borderRadius:'4px'}}>ACTIVE</span>
                                 )}
                             </div>
                             
@@ -2963,7 +2972,7 @@ function SysadminPanel({
                                                 <td style={{padding:'8px'}}>{v.mode}</td>
                                                 <td style={{padding:'8px', textAlign:'right'}}>
                                                     <button 
-                                                        onClick={() => { setSelectedVersionId(v.versionId); fetchVersionDetail(v.versionId); }}
+                                                        onClick={() => { setSelectedVersionId(v.versionId); fetchVersionDetail(v.versionId); setActivationMessage(null); }}
                                                         style={{cursor:'pointer'}}
                                                     >
                                                         View
