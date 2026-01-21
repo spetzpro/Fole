@@ -909,6 +909,82 @@ function ConfigSysadminView({
     // Step 7.2: Save State
     const [saveReason, setSaveReason] = useState("Sysadmin config edit");
     const [isSaving, setIsSaving] = useState(false);
+
+    // Roadmap 7.3: Draft Tabs Editor
+    const [newTabId, setNewTabId] = useState("");
+    const [newTabLabel, setNewTabLabel] = useState("");
+    const [newTabBlockIds, setNewTabBlockIds] = useState<string[]>([]);
+    
+    // Helpers for Tabs Editor
+    const availablePanelBlocks = useMemo(() => {
+        if (!bundleData || !bundleData.blocks) return [];
+        const blocks = Array.isArray(bundleData.blocks) ? bundleData.blocks : Object.values(bundleData.blocks);
+        return blocks
+            .map((b: any) => b.blockId || b.id || "")
+            .filter((id: string) => id.startsWith('sysadmin_panel_') || id.startsWith('sysadmin.panel.'))
+            .sort();
+    }, [bundleData]);
+
+    const draftTabs = useMemo(() => {
+        if (!editingShellJson) return [];
+        try {
+            const parsed = JSON.parse(editingShellJson);
+            if (parsed && parsed.data && Array.isArray(parsed.data.tabs)) {
+                return parsed.data.tabs;
+            }
+        } catch {}
+        return [];
+    }, [editingShellJson]);
+
+    const updateDraftTabs = (newTabs: any[]) => {
+        try {
+             const parsed = JSON.parse(editingShellJson);
+             if (!parsed.data) parsed.data = {};
+             parsed.data.tabs = newTabs;
+             
+             // Normalize again just in case
+             newTabs.forEach((t: any) => {
+                 if (t.content && !t.contentBlockIds) {
+                     t.contentBlockIds = t.content;
+                     delete t.content;
+                 }
+                 // Ensure boolean default sanity
+                 // If this tab is default, ensure others are not
+                 if (t.default === true) {
+                     newTabs.forEach(ot => { if (ot !== t) ot.default = false; });
+                 }
+             });
+
+             const newJson = JSON.stringify(parsed, null, 2);
+             setEditingShellJson(newJson);
+             setSysadminDraftDirty(true);
+             
+             // Sync to Preview immediately
+             if (sysadminDraft) {
+                 const root = findSysadminBlock(sysadminDraft.blocks);
+                 const rootId = root.blockId || root.id;
+                 const newBlocks = { ...sysadminDraft.blocks, [rootId]: parsed };
+                 setSysadminDraft({ blocks: newBlocks });
+             }
+        } catch(e) {
+            console.error(e);
+        }
+    };
+
+    const addDraftTab = () => {
+        if (!newTabId || !newTabLabel) return;
+        const newTab = {
+            id: newTabId,
+            label: newTabLabel,
+            layout: 'dashboard',
+            contentBlockIds: [...newTabBlockIds],
+            default: false
+        };
+        updateDraftTabs([...draftTabs, newTab]);
+        setNewTabId("");
+        setNewTabLabel("");
+        setNewTabBlockIds([]);
+    };
     
     // Legacy local state removed in favor of hoisted props
 
@@ -1211,8 +1287,59 @@ function ConfigSysadminView({
             <div style={{flex:1, display:'flex', flexDirection:'column', overflow:'hidden'}}>
                 {sysadminDraft && (
                     <div style={{padding:'10px', background:'#fff8e1', borderBottom:'1px solid #ffe0b2'}}>
+                        <div style={{marginBottom:'10px', borderBottom:'1px dashed #ffe0b2', paddingBottom:'10px'}}>
+                            <strong style={{color:'#e65100', fontSize:'0.9em'}}>Tabs Editor (Visual)</strong>
+                            <div style={{display:'flex', flexDirection:'column', gap:'4px', marginTop:'5px'}}>
+                                {draftTabs.map((t:any, idx:number) => (
+                                    <div key={idx} style={{display:'flex', alignItems:'center', gap:'8px', fontSize:'0.85em', background:'rgba(255,255,255,0.5)', padding:'4px', border:'1px solid rgba(0,0,0,0.05)'}}>
+                                        <div style={{display:'flex', flexDirection:'column'}}>
+                                            <button onClick={() => {
+                                                const nt = [...draftTabs];
+                                                if (idx > 0) {
+                                                    [nt[idx], nt[idx-1]] = [nt[idx-1], nt[idx]];
+                                                    updateDraftTabs(nt);
+                                                }
+                                            }} disabled={idx===0} style={{fontSize:'0.6em', lineHeight:'1', padding:'0 2px', cursor:'pointer'}}>▲</button>
+                                            <button onClick={() => {
+                                                const nt = [...draftTabs];
+                                                if (idx < draftTabs.length-1) {
+                                                    [nt[idx], nt[idx+1]] = [nt[idx+1], nt[idx]];
+                                                    updateDraftTabs(nt);
+                                                }
+                                            }} disabled={idx===draftTabs.length-1} style={{fontSize:'0.6em', lineHeight:'1', padding:'0 2px', cursor:'pointer'}}>▼</button>
+                                        </div>
+                                        <input type="radio" checked={!!t.default} onChange={() => {
+                                            const nt = draftTabs.map((ot:any) => ({...ot, default: ot === t}));
+                                            updateDraftTabs(nt);
+                                        }} title="Set as Default" style={{cursor:'pointer'}} />
+                                        <div style={{flex:1}}>
+                                            <span style={{fontWeight:'bold'}}>{t.label}</span>
+                                            <span style={{marginLeft:'5px', color:'#666', fontFamily:'monospace'}}>{t.id}</span>
+                                            <span style={{marginLeft:'5px', fontSize:'0.8em', color:'#999'}}>({(t.contentBlockIds||[]).length} blocks)</span>
+                                        </div>
+                                        <button onClick={() => { if(confirm('Delete tab?')) { const nt = [...draftTabs]; nt.splice(idx,1); updateDraftTabs(nt); }}} style={{color:'#c62828', border:'none', background:'none', cursor:'pointer', fontWeight:'bold'}}>×</button>
+                                    </div>
+                                ))}
+                            </div>
+                            
+                            <div style={{marginTop:'8px', display:'flex', gap:'5px', alignItems:'center', flexWrap:'wrap', background:'rgba(255,255,255,0.5)', padding:'4px'}}>
+                                <input placeholder="ID (e.g. tools)" value={newTabId} onChange={e=>setNewTabId(e.target.value)} style={{width:'80px', fontSize:'0.8em', padding:'2px'}} />
+                                <input placeholder="Label" value={newTabLabel} onChange={e=>setNewTabLabel(e.target.value)} style={{width:'100px', fontSize:'0.8em', padding:'2px'}} />
+                                <select 
+                                    multiple 
+                                    style={{height:'40px', fontSize:'0.7em', width:'150px'}} 
+                                    value={newTabBlockIds} 
+                                    onChange={e => setNewTabBlockIds(Array.from(e.target.selectedOptions, o => o.value))}
+                                    title="Hold Ctrl/Cmd to select multiple"
+                                >
+                                    {availablePanelBlocks.map((bid:string) => <option key={bid} value={bid}>{bid}</option>)}
+                                </select>
+                                <button onClick={addDraftTab} disabled={!newTabId||!newTabLabel} style={{fontSize:'0.8em', cursor:'pointer'}}>+ Add Tab</button>
+                            </div>
+                        </div>
+
                         <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'5px'}}>
-                            <strong style={{fontSize:'0.9em', color:'#e65100'}}>Edit sysadmin_shell.json</strong>
+                            <strong style={{fontSize:'0.9em', color:'#e65100'}}>Raw JSON</strong>
                             <div style={{display:'flex', gap:'10px', alignItems:'center'}}>
                                 {sysadminDraftError && <span style={{color:'#d32f2f', fontSize:'0.8em', fontWeight:'bold'}}>{sysadminDraftError}</span>}
                                 {sysadminDraftDirty && <span style={{fontSize:'0.8em', color:'#e65100', fontStyle:'italic'}}>Unsaved to draft</span>}
