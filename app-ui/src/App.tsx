@@ -1077,7 +1077,8 @@ function ConfigSysadminView({
                     message: `Tab missing "label".`,
                     path: path,
                     fixable: false,
-                    tabContext: ctx
+                    tabContext: ctx,
+                    jumpData: t.id ? { target: `"${t.id}"` } : undefined
                 });
             }
 
