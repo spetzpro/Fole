@@ -914,6 +914,33 @@ function ConfigSysadminView({
     const [newTabId, setNewTabId] = useState("");
     const [newTabLabel, setNewTabLabel] = useState("");
     const [newTabBlockIds, setNewTabBlockIds] = useState<string[]>([]);
+    
+    // Roadmap 7.5: JSON Textarea Cursor Stats & Focus
+    const [cursorStats, setCursorStats] = useState({ line: 1, col: 1, pos: 0 });
+    const jsonTextareaRef = useRef<HTMLTextAreaElement>(null);
+
+    const updateCursorStats = () => {
+        const el = jsonTextareaRef.current;
+        if (!el) return;
+        const pos = el.selectionStart;
+        const textUpTo = el.value.substring(0, pos);
+        const lines = textUpTo.split('\n');
+        const line = lines.length;
+        const col = lines[lines.length - 1].length + 1;
+        setCursorStats({ line, col, pos });
+    };
+
+    const handleJumpToError = (pos: number) => {
+        if (jsonTextareaRef.current && typeof pos === 'number') {
+             jsonTextareaRef.current.focus();
+             jsonTextareaRef.current.setSelectionRange(pos, pos+1);
+             // Rough scroll attempt
+             const fullText = jsonTextareaRef.current.value;
+             const lineNum = fullText.substring(0, pos).split('\n').length;
+             const lineHeight = 16; // approximate
+             jsonTextareaRef.current.scrollTop = (lineNum - 3) * lineHeight; 
+        }
+    };
 
     // Roadmap 7.4: Draft Issue Navigator
     type DraftIssueSeverity = 'ERROR' | 'WARN' | 'INFO';
@@ -927,6 +954,9 @@ function ConfigSysadminView({
         fixLabel?: string;
         fixData?: any; 
         copyToken?: string;
+        // UX Enhancement
+        tabContext?: string; 
+        errorPos?: number;
     }
 
     const [currentIssueIndex, setCurrentIssueIndex] = useState(0);
@@ -939,6 +969,13 @@ function ConfigSysadminView({
         try {
             parsed = JSON.parse(editingShellJson);
         } catch (e: any) {
+            // Attempt to extract position from "Unexpected token X in JSON at position Y"
+            let pos = -1;
+            const match = e.message.match(/position (\d+)/);
+            if (match && match[1]) {
+                pos = parseInt(match[1], 10);
+            }
+
             const errIssue: DraftIssue = {
                 id: 'parse_error',
                 severity: 'ERROR',
@@ -946,7 +983,8 @@ function ConfigSysadminView({
                 message: e.message || 'Invalid JSON',
                 path: 'root',
                 fixable: false,
-                copyToken: e.message
+                copyToken: e.message,
+                errorPos: pos > -1 ? pos : undefined
             };
             return [errIssue];
         }
@@ -968,6 +1006,12 @@ function ConfigSysadminView({
 
         tabs.forEach((t: any, idx: number) => {
             const path = `tabs[${idx}]`;
+            
+            // UX Context String
+            let ctx = `Tab: (missing id/label)`;
+            if (t.id && t.label) ctx = `Tab: ${t.label} (id="${t.id}")`;
+            else if (t.id) ctx = `Tab id="${t.id}"`;
+            else if (t.label) ctx = `Tab: ${t.label}`;
 
             // D. TAB_ID_MISSING_OR_EMPTY
             if (!t.id) {
@@ -977,7 +1021,8 @@ function ConfigSysadminView({
                     code: 'TAB_ID_MISSING_OR_EMPTY',
                     message: `Tab at index ${idx} missing "id" property.`,
                     path: path,
-                    fixable: false
+                    fixable: false,
+                    tabContext: ctx
                 });
             } else {
                  // E. TAB_ID_DUPLICATE
@@ -989,7 +1034,8 @@ function ConfigSysadminView({
                         message: `Duplicate Tab ID: "${t.id}"`,
                         path: path,
                         fixable: false,
-                        copyToken: t.id
+                        copyToken: t.id,
+                        tabContext: ctx
                     });
                  }
                  seenIds.add(t.id);
@@ -1003,7 +1049,8 @@ function ConfigSysadminView({
                     code: 'TAB_LABEL_MISSING_OR_EMPTY',
                     message: `Tab missing "label".`,
                     path: path,
-                    fixable: false
+                    fixable: false,
+                    tabContext: ctx
                 });
             }
 
@@ -1018,7 +1065,8 @@ function ConfigSysadminView({
                     fixable: true,
                     fixLabel: 'Remove field',
                     fixData: { index: idx },
-                    copyToken: '"default"'
+                    copyToken: '"default"',
+                    tabContext: ctx
                 });
             }
 
@@ -1030,7 +1078,8 @@ function ConfigSysadminView({
                     code: 'CONTENT_BLOCK_IDS_NOT_ARRAY',
                     message: 'contentBlockIds must be an array.',
                     path: `${path}.contentBlockIds`,
-                    fixable: false
+                    fixable: false,
+                    tabContext: ctx
                 });
             } else if (Array.isArray(t.contentBlockIds)) {
                 // H. MISSING_BLOCK_ID
@@ -1053,7 +1102,8 @@ function ConfigSysadminView({
                              fixable: true,
                              fixLabel: 'Remove reference',
                              fixData: { index: idx, blockId: bid },
-                             copyToken: bid
+                             copyToken: bid,
+                             tabContext: ctx
                          });
                      }
                 });
@@ -1538,6 +1588,11 @@ function ConfigSysadminView({
                                             }}>{draftIssues[currentIssueIndex].severity}</span>
                                             <span style={{fontWeight:'bold'}}>{draftIssues[currentIssueIndex].message}</span>
                                         </div>
+                                        {draftIssues[currentIssueIndex].tabContext && (
+                                            <div style={{fontSize:'0.85em', color:'#e65100', fontWeight:'bold'}}>
+                                                {draftIssues[currentIssueIndex].tabContext}
+                                            </div>
+                                        )}
                                         <div style={{fontFamily:'monospace', color:'#666', fontSize:'0.85em'}}>path: {draftIssues[currentIssueIndex].path}</div>
                                         <div style={{display:'flex', gap:'10px', marginTop:'4px'}}>
                                             {draftIssues[currentIssueIndex].copyToken && (
@@ -1547,6 +1602,28 @@ function ConfigSysadminView({
                                                 >
                                                     Copy Token
                                                 </button>
+                                            )}
+                                            {draftIssues[currentIssueIndex].errorPos !== undefined && (
+                                                 <>
+                                                     <button 
+                                                         onClick={() => {
+                                                             const p = draftIssues[currentIssueIndex].errorPos;
+                                                             if(p!==undefined) navigator.clipboard.writeText(`pos=${p}`);
+                                                         }}
+                                                         style={{cursor:'pointer', fontSize:'0.8em'}}
+                                                     >
+                                                         Copy Position
+                                                     </button>
+                                                     <button 
+                                                         onClick={() => {
+                                                             const p = draftIssues[currentIssueIndex].errorPos;
+                                                             if(p!==undefined) handleJumpToError(p);
+                                                         }}
+                                                         style={{cursor:'pointer', fontSize:'0.8em', background:'#fff9c4', border:'1px solid #fbc02d', fontWeight:'bold'}}
+                                                     >
+                                                         Jump to Error
+                                                     </button>
+                                                 </>
                                             )}
                                             {draftIssues[currentIssueIndex].fixable && (
                                                 <button 
@@ -1564,6 +1641,9 @@ function ConfigSysadminView({
 
                         <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'5px'}}>
                             <strong style={{fontSize:'0.9em', color:'#e65100'}}>Raw JSON</strong>
+                            <div style={{fontSize:'0.75em', color:'#666', fontFamily:'monospace'}}>
+                                Cursor: Ln {cursorStats.line}, Col {cursorStats.col}, Pos {cursorStats.pos}
+                            </div>
                             <div style={{display:'flex', gap:'10px', alignItems:'center'}}>
                                 {sysadminDraftError && <span style={{color:'#d32f2f', fontSize:'0.8em', fontWeight:'bold'}}>{sysadminDraftError}</span>}
                                 {sysadminDraftDirty && <span style={{fontSize:'0.8em', color:'#e65100', fontStyle:'italic'}}>Unsaved to draft</span>}
@@ -1571,8 +1651,17 @@ function ConfigSysadminView({
                             </div>
                         </div>
                         <textarea 
+                            ref={jsonTextareaRef}
                             value={editingShellJson}
-                            onChange={(e) => { setEditingShellJson(e.target.value); setSysadminDraftDirty(true); }}
+                            onClick={updateCursorStats}
+                            onKeyUp={updateCursorStats}
+                            onChange={(e) => { 
+                                setEditingShellJson(e.target.value); 
+                                setSysadminDraftDirty(true); 
+                                // cannot assume set immediately, but we can update pos from event
+                                // we will let next render or click fix it, or we can manually calc
+                                // updateCursorStats(); // state update conflict, skip for now or use effect
+                            }}
                             style={{width:'100%', height:'120px', fontFamily:'monospace', fontSize:'0.85em', resize:'vertical', padding:'5px'}}
                             spellCheck={false}
                         />
