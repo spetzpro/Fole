@@ -3363,19 +3363,46 @@ function SysadminPanel({
                                     <div style={{marginLeft: activationMessage ? '10px' : 'auto', display:'flex', alignItems:'center', gap:'10px'}}>
                                         <span style={{color:'green', fontWeight:'bold', border:'1px solid green', padding:'2px 8px', borderRadius:'4px'}}>ACTIVE</span>
                                         {selectedVersionDetail?.meta?.parentVersionId ? (
-                                            <button 
-                                                onClick={() => {
+                                            <div style={{display:'flex', alignItems:'center', gap:'8px'}}>
+                                                <button 
+                                                    onClick={() => {
+                                                        const pid = selectedVersionDetail.meta.parentVersionId;
+                                                        setSelectedVersionId(pid);
+                                                        setActivateReason("Rollback to previous version");
+                                                        setConfirmActivate(true);
+                                                        fetchPreflight(pid);
+                                                    }}
+                                                    title={`Rollback to ${selectedVersionDetail.meta.parentVersionId}`}
+                                                    style={{fontSize:'0.85em', cursor:'pointer', padding:'4px 8px', background:'#f5f5f5', border:'1px solid #ddd', borderRadius:'4px', color:'#333'}}
+                                                >
+                                                    ↺ Activate previous version
+                                                </button>
+                                                
+                                                {/* Rollback Preview */}
+                                                {(() => {
                                                     const pid = selectedVersionDetail.meta.parentVersionId;
-                                                    setSelectedVersionId(pid);
-                                                    setActivateReason("Rollback to previous version");
-                                                    setConfirmActivate(true);
-                                                    fetchPreflight(pid);
-                                                }}
-                                                title={`Rollback to ${selectedVersionDetail.meta.parentVersionId}`}
-                                                style={{fontSize:'0.85em', cursor:'pointer', padding:'4px 8px', background:'#f5f5f5', border:'1px solid #ddd', borderRadius:'4px', color:'#333'}}
-                                            >
-                                                ↺ Activate previous version
-                                            </button>
+                                                    const target = shellVersions?.versions?.find((v:any) => v.versionId === pid);
+                                                    if (!target) return null;
+                                                    
+                                                    return (
+                                                        <div style={{
+                                                            fontSize:'0.75em', 
+                                                            color:'#666', 
+                                                            borderLeft:'2px solid #ddd', 
+                                                            paddingLeft:'8px',
+                                                            lineHeight:'1.2'
+                                                        }}>
+                                                            <div style={{fontWeight:'bold'}}>Rollback target: {pid.substring(0,8)}...</div>
+                                                            <div style={{maxWidth:'200px', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis'}}>
+                                                                {target.meta?.reason || target.meta?.description || '(no description)'}
+                                                            </div>
+                                                            <div style={{fontSize:'0.9em', color:'#999'}}>
+                                                                {target.meta?.timestamp ? new Date(target.meta.timestamp).toLocaleDateString() + ' ' + new Date(target.meta.timestamp).toLocaleTimeString() : ''}
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })()}
+                                            </div>
                                         ) : (
                                             <span style={{fontSize:'0.8em', color:'#999', fontStyle:'italic'}}>(No previous version)</span>
                                         )}
