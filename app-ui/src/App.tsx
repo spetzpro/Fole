@@ -1105,6 +1105,32 @@ function ConfigSysadminView({
         return sourceRoot ? parseSysadminConfig(sourceRoot) : null;
     }, [bundleData, sysadminDraft]);
 
+    // Roadmap 6.3: Auto-select Default Sub-Tab
+    useEffect(() => {
+        if (!config) return;
+
+        const currentTabExists = selectedTabId && config.tabs.some(t => t.id === selectedTabId);
+
+        if (!selectedTabId || !currentTabExists) {
+             let targetId = config.defaultTabId;
+             
+             // Check rawBlock for "default: true" on tabs (ConfigSysadminView logic)
+             if (!targetId && config.rawBlock && config.rawBlock.data && Array.isArray(config.rawBlock.data.tabs)) {
+                 const defTab = config.rawBlock.data.tabs.find((t:any) => t.default === true);
+                 if (defTab) targetId = defTab.id;
+             }
+             
+             // Fallback to first tab
+             if (!targetId && config.tabs.length > 0) {
+                 targetId = config.tabs[0].id;
+             }
+             
+             if (targetId && targetId !== selectedTabId) {
+                 setSelectedTabId(targetId);
+             }
+        }
+    }, [config, selectedTabId]);
+
     if (!bundleData) return <div style={{padding:'20px', color:'#666'}}>Load bundle first</div>;
     if (!config) return <div style={{padding:'20px', color:'#666'}}>No sysadmin.shell config found (Recovery Sysadmin in use).</div>;
 
