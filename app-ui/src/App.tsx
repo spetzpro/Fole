@@ -932,13 +932,36 @@ function ConfigSysadminView({
 
     const handleJumpToError = (pos: number) => {
         if (jsonTextareaRef.current && typeof pos === 'number') {
+             const jumpPos = Math.max(0, pos - 1); // Select ONE CHAR BEFORE the error token
              jsonTextareaRef.current.focus();
-             jsonTextareaRef.current.setSelectionRange(pos, pos+1);
+             jsonTextareaRef.current.setSelectionRange(jumpPos, jumpPos+1);
              // Rough scroll attempt
              const fullText = jsonTextareaRef.current.value;
-             const lineNum = fullText.substring(0, pos).split('\n').length;
+             const lineNum = fullText.substring(0, jumpPos).split('\n').length;
              const lineHeight = 16; // approximate
              jsonTextareaRef.current.scrollTop = (lineNum - 3) * lineHeight; 
+        }
+    };
+    
+    // Roadmap 7.5.1: Text Search Jump for strings
+    const handleJumpToText = (target: string, context?: string) => {
+        if (!jsonTextareaRef.current || !target) return;
+        const text = jsonTextareaRef.current.value;
+        let startPos = 0;
+        
+        // Try to find context first (e.g. tab ID)
+        if (context) {
+            const ctxPos = text.indexOf(context);
+            if (ctxPos !== -1) startPos = ctxPos;
+        }
+        
+        const pos = text.indexOf(target, startPos);
+        if (pos !== -1) {
+             jsonTextareaRef.current.focus();
+             jsonTextareaRef.current.setSelectionRange(pos, pos + target.length);
+             const lineNum = text.substring(0, pos).split('\n').length;
+             const lineHeight = 16; 
+             jsonTextareaRef.current.scrollTop = (lineNum - 3) * lineHeight;
         }
     };
 
@@ -957,6 +980,7 @@ function ConfigSysadminView({
         // UX Enhancement
         tabContext?: string; 
         errorPos?: number;
+        jumpData?: { target: string; context?: string; }; // For non-fixable text jumps
     }
 
     const [currentIssueIndex, setCurrentIssueIndex] = useState(0);
@@ -1013,6 +1037,8 @@ function ConfigSysadminView({
             else if (t.id) ctx = `Tab id="${t.id}"`;
             else if (t.label) ctx = `Tab: ${t.label}`;
 
+            const contextStr = t.id ? `"${t.id}"` : undefined;
+
             // D. TAB_ID_MISSING_OR_EMPTY
             if (!t.id) {
                 issues.push({
@@ -1035,7 +1061,8 @@ function ConfigSysadminView({
                         path: path,
                         fixable: false,
                         copyToken: t.id,
-                        tabContext: ctx
+                        tabContext: ctx,
+                        jumpData: { target: `"${t.id}"` }
                     });
                  }
                  seenIds.add(t.id);
@@ -1066,7 +1093,8 @@ function ConfigSysadminView({
                     fixLabel: 'Remove field',
                     fixData: { index: idx },
                     copyToken: '"default"',
-                    tabContext: ctx
+                    tabContext: ctx,
+                    jumpData: { target: '"default"', context: contextStr }
                 });
             }
 
@@ -1103,7 +1131,8 @@ function ConfigSysadminView({
                              fixLabel: 'Remove reference',
                              fixData: { index: idx, blockId: bid },
                              copyToken: bid,
-                             tabContext: ctx
+                             tabContext: ctx,
+                             jumpData: { target: `"${bid}"`, context: contextStr }
                          });
                      }
                 });
@@ -1583,8 +1612,9 @@ function ConfigSysadminView({
                                     <div style={{padding:'8px', fontSize:'0.9em', display:'flex', flexDirection:'column', gap:'4px'}}>
                                         <div style={{display:'flex', alignItems:'center', gap:'8px'}}>
                                             <span style={{
-                                                fontSize:'0.75em', padding:'2px 4px', borderRadius:'3px', color:'white', fontWeight:'bold',
-                                                background: draftIssues[currentIssueIndex].severity==='ERROR' ? '#d32f2f' : (draftIssues[currentIssueIndex].severity==='WARN' ? '#f57c00' : '#1976d2')
+                                                fontSize:'0.75em', padding:'2px 4px', borderRadius:'3px', fontWeight:'bold',
+                                                color: draftIssues[currentIssueIndex].severity === 'WARN' ? 'black' : 'white',
+                                                background: draftIssues[currentIssueIndex].severity==='ERROR' ? '#d32f2f' : (draftIssues[currentIssueIndex].severity==='WARN' ? '#ffcc80' : '#1976d2')
                                             }}>{draftIssues[currentIssueIndex].severity}</span>
                                             <span style={{fontWeight:'bold'}}>{draftIssues[currentIssueIndex].message}</span>
                                         </div>
@@ -1598,37 +1628,37 @@ function ConfigSysadminView({
                                             {draftIssues[currentIssueIndex].copyToken && (
                                                 <button 
                                                     onClick={() => navigator.clipboard.writeText(draftIssues[currentIssueIndex].copyToken!)}
-                                                    style={{cursor:'pointer', fontSize:'0.8em'}}
+                                                    style={{cursor:'pointer', fontSize:'0.8em', padding: '2px 5px'}}
                                                 >
                                                     Copy Token
                                                 </button>
                                             )}
                                             {draftIssues[currentIssueIndex].errorPos !== undefined && (
-                                                 <>
-                                                     <button 
-                                                         onClick={() => {
-                                                             const p = draftIssues[currentIssueIndex].errorPos;
-                                                             if(p!==undefined) navigator.clipboard.writeText(`pos=${p}`);
-                                                         }}
-                                                         style={{cursor:'pointer', fontSize:'0.8em'}}
-                                                     >
-                                                         Copy Position
-                                                     </button>
-                                                     <button 
-                                                         onClick={() => {
-                                                             const p = draftIssues[currentIssueIndex].errorPos;
-                                                             if(p!==undefined) handleJumpToError(p);
-                                                         }}
-                                                         style={{cursor:'pointer', fontSize:'0.8em', background:'#fff9c4', border:'1px solid #fbc02d', fontWeight:'bold'}}
-                                                     >
-                                                         Jump to Error
-                                                     </button>
-                                                 </>
+                                                 <button 
+                                                     onClick={() => {
+                                                         const p = draftIssues[currentIssueIndex].errorPos;
+                                                         if(p!==undefined) handleJumpToError(p);
+                                                     }}
+                                                     style={{cursor:'pointer', fontSize:'0.8em', background:'#fff9c4', border:'1px solid #fbc02d', color: '#000', fontWeight:'bold', padding: '2px 5px'}}
+                                                 >
+                                                     Jump to Error
+                                                 </button>
+                                            )}
+                                            {draftIssues[currentIssueIndex].jumpData && (
+                                                <button 
+                                                    onClick={() => {
+                                                        const { target, context } = draftIssues[currentIssueIndex].jumpData!;
+                                                        handleJumpToText(target, context);
+                                                    }}
+                                                    style={{cursor:'pointer', fontSize:'0.8em', background:'#e1f5fe', border:'1px solid #039be5', color: '#01579b', fontWeight:'bold', padding: '2px 5px'}}
+                                                >
+                                                    Jump to Code
+                                                </button>
                                             )}
                                             {draftIssues[currentIssueIndex].fixable && (
                                                 <button 
                                                     onClick={() => handleFixIssue(draftIssues[currentIssueIndex])}
-                                                    style={{cursor:'pointer', fontSize:'0.8em', background:'#e8f5e9', border:'1px solid #a5d6a7', color:'#2e7d32', fontWeight:'bold'}}
+                                                    style={{cursor:'pointer', fontSize:'0.8em', background:'#e8f5e9', border:'1px solid #a5d6a7', color:'#000', fontWeight:'bold', padding: '2px 5px'}}
                                                 >
                                                     Fix: {draftIssues[currentIssueIndex].fixLabel}
                                                 </button>
