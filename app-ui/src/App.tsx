@@ -1413,6 +1413,23 @@ function SysadminPanel({
 
     // Tabs: ShellConfig, Blocks, Bindings, ActionIndex, Runtime
     const [activeTab, setActiveTab] = useState('ShellConfig');
+
+    // Roadmap 6.3: Auto-select ConfigSysadmin if available
+    // Runs only when opening the panel to switch default tab
+    const prevIsOpenRef = useRef(isOpen);
+    useEffect(() => {
+        const wasOpen = prevIsOpenRef.current;
+        if (!wasOpen && isOpen) {
+            // Panel just opened
+            if (activeTab === 'ShellConfig' && bundleData?.blocks) {
+                if (findSysadminBlock(bundleData.blocks)) {
+                    setActiveTab('ConfigSysadmin');
+                }
+            }
+        }
+        prevIsOpenRef.current = isOpen;
+    }, [isOpen, activeTab, bundleData]);
+
     const [filter, setFilter] = useState('');
     const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
     const [selectedBindingId, setSelectedBindingId] = useState<string | null>(null);
