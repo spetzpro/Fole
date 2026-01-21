@@ -948,11 +948,6 @@ function ConfigSysadminView({
                      t.contentBlockIds = t.content;
                      delete t.content;
                  }
-                 // Ensure boolean default sanity
-                 // If this tab is default, ensure others are not
-                 if (t.default === true) {
-                     newTabs.forEach(ot => { if (ot !== t) ot.default = false; });
-                 }
              });
 
              const newJson = JSON.stringify(parsed, null, 2);
@@ -977,8 +972,7 @@ function ConfigSysadminView({
             id: newTabId,
             label: newTabLabel,
             layout: 'dashboard',
-            contentBlockIds: [...newTabBlockIds],
-            default: false
+            contentBlockIds: [...newTabBlockIds]
         };
         updateDraftTabs([...draftTabs, newTab]);
         setNewTabId("");
@@ -1308,10 +1302,6 @@ function ConfigSysadminView({
                                                 }
                                             }} disabled={idx===draftTabs.length-1} style={{fontSize:'0.6em', lineHeight:'1', padding:'0 2px', cursor:'pointer'}}>▼</button>
                                         </div>
-                                        <input type="radio" checked={!!t.default} onChange={() => {
-                                            const nt = draftTabs.map((ot:any) => ({...ot, default: ot === t}));
-                                            updateDraftTabs(nt);
-                                        }} title="Set as Default" style={{cursor:'pointer'}} />
                                         <div style={{flex:1}}>
                                             <span style={{fontWeight:'bold'}}>{t.label}</span>
                                             <span style={{marginLeft:'5px', color:'#666', fontFamily:'monospace'}}>{t.id}</span>
