@@ -3360,7 +3360,26 @@ function SysadminPanel({
                                     </div>
                                 )}
                                 {shellVersions?.activeVersionId === selectedVersionId && (
-                                    <span style={{marginLeft: activationMessage ? '10px' : 'auto', color:'green', fontWeight:'bold', border:'1px solid green', padding:'2px 8px', borderRadius:'4px'}}>ACTIVE</span>
+                                    <div style={{marginLeft: activationMessage ? '10px' : 'auto', display:'flex', alignItems:'center', gap:'10px'}}>
+                                        <span style={{color:'green', fontWeight:'bold', border:'1px solid green', padding:'2px 8px', borderRadius:'4px'}}>ACTIVE</span>
+                                        {selectedVersionDetail?.meta?.parentVersionId ? (
+                                            <button 
+                                                onClick={() => {
+                                                    const pid = selectedVersionDetail.meta.parentVersionId;
+                                                    setSelectedVersionId(pid);
+                                                    setActivateReason("Rollback to previous version");
+                                                    setConfirmActivate(true);
+                                                    fetchPreflight(pid);
+                                                }}
+                                                title={`Rollback to ${selectedVersionDetail.meta.parentVersionId}`}
+                                                style={{fontSize:'0.85em', cursor:'pointer', padding:'4px 8px', background:'#f5f5f5', border:'1px solid #ddd', borderRadius:'4px', color:'#333'}}
+                                            >
+                                                ↺ Activate previous version
+                                            </button>
+                                        ) : (
+                                            <span style={{fontSize:'0.8em', color:'#999', fontStyle:'italic'}}>(No previous version)</span>
+                                        )}
+                                    </div>
                                 )}
                             </div>
                             
