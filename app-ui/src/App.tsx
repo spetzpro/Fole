@@ -914,6 +914,192 @@ function ConfigSysadminView({
     const [newTabId, setNewTabId] = useState("");
     const [newTabLabel, setNewTabLabel] = useState("");
     const [newTabBlockIds, setNewTabBlockIds] = useState<string[]>([]);
+
+    // Roadmap 7.4: Draft Issue Navigator
+    type DraftIssueSeverity = 'ERROR' | 'WARN' | 'INFO';
+    interface DraftIssue {
+        id: string; 
+        severity: DraftIssueSeverity;
+        code: string;
+        message: string;
+        path: string; 
+        fixable: boolean;
+        fixLabel?: string;
+        fixData?: any; 
+        copyToken?: string;
+    }
+
+    const [currentIssueIndex, setCurrentIssueIndex] = useState(0);
+
+    const draftIssues = useMemo(() => {
+        if (!sysadminDraft) return [];
+        const issues: DraftIssue[] = [];
+        let parsed: any;
+        
+        try {
+            parsed = JSON.parse(editingShellJson);
+        } catch (e: any) {
+            const errIssue: DraftIssue = {
+                id: 'parse_error',
+                severity: 'ERROR',
+                code: 'JSON_PARSE_ERROR',
+                message: e.message || 'Invalid JSON',
+                path: 'root',
+                fixable: false,
+                copyToken: e.message
+            };
+            return [errIssue];
+        }
+
+        const tabs = parsed?.data?.tabs;
+        if (!tabs || !Array.isArray(tabs)) {
+            issues.push({
+                id: 'tabs_not_array',
+                severity: 'ERROR',
+                code: 'TABS_NOT_ARRAY',
+                message: 'Required "tabs" array is missing or invalid.',
+                path: 'data.tabs',
+                fixable: false
+            });
+            return issues;
+        }
+
+        const seenIds = new Set<string>();
+
+        tabs.forEach((t: any, idx: number) => {
+            const path = `tabs[${idx}]`;
+
+            // D. TAB_ID_MISSING_OR_EMPTY
+            if (!t.id) {
+                issues.push({
+                    id: `missing_id_${idx}`,
+                    severity: 'ERROR',
+                    code: 'TAB_ID_MISSING_OR_EMPTY',
+                    message: `Tab at index ${idx} missing "id" property.`,
+                    path: path,
+                    fixable: false
+                });
+            } else {
+                 // E. TAB_ID_DUPLICATE
+                 if (seenIds.has(t.id)) {
+                    issues.push({
+                        id: `dup_id_${t.id}_${idx}`,
+                        severity: 'ERROR',
+                        code: 'TAB_ID_DUPLICATE',
+                        message: `Duplicate Tab ID: "${t.id}"`,
+                        path: path,
+                        fixable: false,
+                        copyToken: t.id
+                    });
+                 }
+                 seenIds.add(t.id);
+            }
+
+            // F. TAB_LABEL_MISSING_OR_EMPTY
+            if (!t.label) {
+                issues.push({
+                    id: `missing_label_${idx}`,
+                    severity: 'WARN',
+                    code: 'TAB_LABEL_MISSING_OR_EMPTY',
+                    message: `Tab missing "label".`,
+                    path: path,
+                    fixable: false
+                });
+            }
+
+            // B. DEPRECATED_TAB_DEFAULT
+            if (t.default !== undefined) {
+                issues.push({
+                    id: `dep_default_${idx}`,
+                    severity: 'INFO',
+                    code: 'DEPRECATED_TAB_DEFAULT',
+                    message: '"default" property is deprecated.',
+                    path: `${path}.default`,
+                    fixable: true,
+                    fixLabel: 'Remove field',
+                    fixData: { index: idx },
+                    copyToken: '"default"'
+                });
+            }
+
+            // G. CONTENT_BLOCK_IDS_NOT_ARRAY
+            if (t.contentBlockIds && !Array.isArray(t.contentBlockIds)) {
+                issues.push({
+                    id: `content_not_array_${idx}`,
+                    severity: 'WARN',
+                    code: 'CONTENT_BLOCK_IDS_NOT_ARRAY',
+                    message: 'contentBlockIds must be an array.',
+                    path: `${path}.contentBlockIds`,
+                    fixable: false
+                });
+            } else if (Array.isArray(t.contentBlockIds)) {
+                // H. MISSING_BLOCK_ID
+                t.contentBlockIds.forEach((bid: string, bidx: number) => {
+                     // Check against bundleData directly
+                     // Available panel blocks is just a filtered subset, we need to check existence in bundle
+                     const exists = bundleData?.blocks && 
+                        (Array.isArray(bundleData.blocks) 
+                            ? (bundleData.blocks as any[]).some(b => (b.blockId === bid || b.id === bid))
+                            : (bundleData.blocks as Record<string,any>)[bid]
+                        );
+                     
+                     if (!exists) {
+                         issues.push({
+                             id: `missing_block_${idx}_${bidx}`,
+                             severity: 'WARN',
+                             code: 'MISSING_BLOCK_ID',
+                             message: `Referenced block "${bid}" not found in bundle.`,
+                             path: `${path}.contentBlockIds[${bidx}]`,
+                             fixable: true,
+                             fixLabel: 'Remove reference',
+                             fixData: { index: idx, blockId: bid },
+                             copyToken: bid
+                         });
+                     }
+                });
+            }
+
+        });
+
+        return issues;
+    }, [editingShellJson, bundleData, sysadminDraft]);
+
+    const handleFixIssue = (issue: DraftIssue) => {
+        if (!issue.fixable || !issue.fixData) return;
+        
+        try {
+            const parsed = JSON.parse(editingShellJson);
+            const tabs = parsed.data.tabs;
+
+            if (issue.code === 'DEPRECATED_TAB_DEFAULT') {
+                 const t = tabs[issue.fixData.index];
+                 if (t) {
+                     delete t.default;
+                 }
+            } else if (issue.code === 'MISSING_BLOCK_ID') {
+                 const t = tabs[issue.fixData.index];
+                 if (t && Array.isArray(t.contentBlockIds)) {
+                     const idx = t.contentBlockIds.indexOf(issue.fixData.blockId);
+                     if (idx !== -1) t.contentBlockIds.splice(idx, 1);
+                 }
+            }
+
+            // Sync
+            const newJson = JSON.stringify(parsed, null, 2);
+            setEditingShellJson(newJson);
+            setSysadminDraftDirty(true);
+            
+            if (sysadminDraft) {
+                 const root = findSysadminBlock(sysadminDraft.blocks);
+                 const rootId = root.blockId || root.id;
+                 const newBlocks = { ...sysadminDraft.blocks, [rootId]: parsed };
+                 setSysadminDraft({ blocks: newBlocks });
+            }
+
+        } catch (e) {
+            console.error("Failed to apply fix", e);
+        }
+    };
     
     // Helpers for Tabs Editor
     const availablePanelBlocks = useMemo(() => {
@@ -1327,6 +1513,54 @@ function ConfigSysadminView({
                                 <button onClick={addDraftTab} disabled={!newTabId||!newTabLabel} style={{fontSize:'0.8em', cursor:'pointer'}}>+ Add Tab</button>
                             </div>
                         </div>
+
+                        {draftIssues.length > 0 && (
+                            <div style={{marginBottom:'10px', background:'#fff', padding:'5px', border:'1px solid #ccc'}}>
+                                <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', background:'#f0f0f0', padding:'4px', fontSize:'0.85em', fontWeight:'bold'}}>
+                                    <span>
+                                        Issues: {draftIssues.length} 
+                                        <span style={{fontWeight:'normal', marginLeft:'5px'}}>
+                                            ({draftIssues.filter(i=>i.severity==='ERROR').length} err, {draftIssues.filter(i=>i.severity==='WARN').length} warn)
+                                        </span>
+                                    </span>
+                                    <div style={{display:'flex', gap:'5px'}}>
+                                        <button disabled={currentIssueIndex<=0} onClick={() => setCurrentIssueIndex(p => Math.max(0, p-1))} style={{cursor:'pointer'}}>Prev</button>
+                                        <span>{currentIssueIndex+1} / {draftIssues.length}</span>
+                                        <button disabled={currentIssueIndex>=draftIssues.length-1} onClick={() => setCurrentIssueIndex(p => Math.min(draftIssues.length-1, p+1))} style={{cursor:'pointer'}}>Next</button>
+                                    </div>
+                                </div>
+                                {draftIssues[currentIssueIndex] && (
+                                    <div style={{padding:'8px', fontSize:'0.9em', display:'flex', flexDirection:'column', gap:'4px'}}>
+                                        <div style={{display:'flex', alignItems:'center', gap:'8px'}}>
+                                            <span style={{
+                                                fontSize:'0.75em', padding:'2px 4px', borderRadius:'3px', color:'white', fontWeight:'bold',
+                                                background: draftIssues[currentIssueIndex].severity==='ERROR' ? '#d32f2f' : (draftIssues[currentIssueIndex].severity==='WARN' ? '#f57c00' : '#1976d2')
+                                            }}>{draftIssues[currentIssueIndex].severity}</span>
+                                            <span style={{fontWeight:'bold'}}>{draftIssues[currentIssueIndex].message}</span>
+                                        </div>
+                                        <div style={{fontFamily:'monospace', color:'#666', fontSize:'0.85em'}}>path: {draftIssues[currentIssueIndex].path}</div>
+                                        <div style={{display:'flex', gap:'10px', marginTop:'4px'}}>
+                                            {draftIssues[currentIssueIndex].copyToken && (
+                                                <button 
+                                                    onClick={() => navigator.clipboard.writeText(draftIssues[currentIssueIndex].copyToken!)}
+                                                    style={{cursor:'pointer', fontSize:'0.8em'}}
+                                                >
+                                                    Copy Token
+                                                </button>
+                                            )}
+                                            {draftIssues[currentIssueIndex].fixable && (
+                                                <button 
+                                                    onClick={() => handleFixIssue(draftIssues[currentIssueIndex])}
+                                                    style={{cursor:'pointer', fontSize:'0.8em', background:'#e8f5e9', border:'1px solid #a5d6a7', color:'#2e7d32', fontWeight:'bold'}}
+                                                >
+                                                    Fix: {draftIssues[currentIssueIndex].fixLabel}
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
 
                         <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'5px'}}>
                             <strong style={{fontSize:'0.9em', color:'#e65100'}}>Raw JSON</strong>
