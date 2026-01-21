@@ -1076,7 +1076,9 @@ function ConfigSysadminView({
                     code: 'TAB_LABEL_MISSING_OR_EMPTY',
                     message: `Tab missing "label".`,
                     path: path,
-                    fixable: false,
+                    fixable: !!t.id,
+                    fixLabel: 'Add label',
+                    fixData: { index: idx, id: t.id },
                     tabContext: ctx,
                     jumpData: t.id ? { target: `"${t.id}"` } : undefined
                 });
@@ -1161,6 +1163,20 @@ function ConfigSysadminView({
                  if (t && Array.isArray(t.contentBlockIds)) {
                      const idx = t.contentBlockIds.indexOf(issue.fixData.blockId);
                      if (idx !== -1) t.contentBlockIds.splice(idx, 1);
+                 }
+            } else if (issue.code === 'TAB_LABEL_MISSING_OR_EMPTY') {
+                 const t = tabs[issue.fixData.index];
+                 if (t && issue.fixData.id && !t.label) {
+                     // Simple Title Case Helper
+                     const formatLabel = (s:string) => s
+                        .replace(/([a-z])([A-Z])/g, '$1 $2')
+                        .replace(/[_-]+/g, ' ')
+                        .trim()
+                        .split(/\s+/)
+                        .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+                        .join(' ');
+                        
+                     t.label = formatLabel(issue.fixData.id);
                  }
             }
 
