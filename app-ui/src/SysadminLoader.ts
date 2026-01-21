@@ -37,13 +37,13 @@ export interface SysadminTab {
  *         "id": "status",
  *         "label": "System Status",
  *         "layout": "dashboard",
- *         "content": ["metric-cpu", "metric-memory", "service-health"]
+ *         "contentBlockIds": ["metric-cpu", "metric-memory", "service-health"]
  *       },
  *       {
  *         "id": "advanced",
  *         "label": "Advanced Config",
  *         "layout": "full",
- *         "content": ["json-editor-block"]
+ *         "contentBlockIds": ["json-editor-block"]
  *       }
  *     ]
  *   }
@@ -88,7 +88,9 @@ export function parseSysadminConfig(block: any): SysadminConfig | null {
             id: String(t.id || 'tab-' + Math.random().toString(36).substr(2, 5)),
             label: String(t.label || 'Unnamed Tab'),
             layout: ['dashboard', 'full', 'list', 'custom'].includes(t.layout) ? t.layout : 'dashboard',
-            contentBlockIds: Array.isArray(t.content) ? t.content.map(String) : []
+            contentBlockIds: Array.isArray(t.contentBlockIds) 
+                ? t.contentBlockIds.map(String) 
+                : (Array.isArray(t.content) ? t.content.map(String) : [])
         }))
     };
 

@@ -929,6 +929,16 @@ function ConfigSysadminView({
         const rootId = root.blockId || root.id;
         addBlock(rootId);
 
+        // Normalize Root Block for the editor (Roadmap #6)
+        if (draftBlocks[rootId] && (draftBlocks[rootId] as any).data && Array.isArray((draftBlocks[rootId] as any).data.tabs)) {
+             (draftBlocks[rootId] as any).data.tabs.forEach((t: any) => {
+                 if (t.content && !t.contentBlockIds) {
+                     t.contentBlockIds = t.content;
+                     delete t.content;
+                 }
+             });
+        }
+
         try {
             const parsed = parseSysadminConfig(root);
             if (parsed && parsed.tabs) {
@@ -945,6 +955,17 @@ function ConfigSysadminView({
     const handleUpdateDraft = () => {
         try {
             const parsed = JSON.parse(editingShellJson);
+
+            // Normalize on save/update (Roadmap #6)
+            if (parsed && parsed.data && Array.isArray(parsed.data.tabs)) {
+                 parsed.data.tabs.forEach((t: any) => {
+                     if (t.content && !t.contentBlockIds) {
+                         t.contentBlockIds = t.content;
+                         delete t.content;
+                     }
+                 });
+            }
+
             if (!sysadminDraft) return;
             const root = findSysadminBlock(sysadminDraft.blocks);
             const rootId = root.blockId || root.id;

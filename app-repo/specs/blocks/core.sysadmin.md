@@ -24,13 +24,13 @@ The root container for the Sysadmin UI. It defines the top-level structure (usua
         "id": "overview",
         "label": "Overview",
         "layout": "dashboard",
-        "content": ["block-id-1", "block-id-2"]
+        "contentBlockIds": ["block-id-1", "block-id-2"]
       },
       {
         "id": "logs",
         "label": "Logs",
         "layout": "full",
-        "content": ["block-id-logs"]
+        "contentBlockIds": ["block-id-logs"]
       }
     ]
   }
@@ -45,8 +45,8 @@ The root container for the Sysadmin UI. It defines the top-level structure (usua
 **Tab Definition:**
 - `id` (string): Unique identifier for the tab.
 - `label` (string): Display text for the tab.
-- `layout` (string): Layout hint (e.g., `dashboard`, `full`, `list`).
-- `content` (array of strings): List of Block IDs to render in this tab.
+- `layout` (string, optional): Layout hint (e.g., `dashboard`, `full`, `list`). Defaults to `dashboard`.
+- `contentBlockIds` (array of strings): List of Block IDs to render in this tab. (Legacy `content` is supported but deprecated).
 
 ### 2. Sysadmin Panel Snapshot (`sysadmin.panel.snapshot`)
 Renders the State/Snapshot management interface.
