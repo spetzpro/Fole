@@ -5,6 +5,11 @@
 
 This document defines the strict contract for what Sysadmins (Normal Mode) and Advanced Users can edit in the Shell Configuration.
 
+## Stability Boundary (UX Freeze Line)
+
+UX Freeze Line: ShellRuntime + config-store + activation/preflight + rollback are considered stable infrastructure.
+Upcoming work is UI/UX polish only and must not change backend behavior without an explicit request.
+
 ## 1. Mode Definitions
 
 - **Normal Mode**: Standard administrative user.
