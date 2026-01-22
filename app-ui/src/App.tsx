@@ -914,6 +914,7 @@ function ConfigSysadminView({
     const [newTabId, setNewTabId] = useState("");
     const [newTabLabel, setNewTabLabel] = useState("");
     const [newTabBlockIds, setNewTabBlockIds] = useState<string[]>([]);
+    const [draggedTabIdx, setDraggedTabIdx] = useState<number | null>(null);
     
     // Roadmap 7.5: JSON Textarea Cursor Stats & Focus
     const [cursorStats, setCursorStats] = useState({ line: 1, col: 1, pos: 0 });
@@ -1566,8 +1567,45 @@ function ConfigSysadminView({
                         <div style={{marginBottom:'10px', borderBottom:'1px dashed #ffe0b2', paddingBottom:'10px'}}>
                             <strong style={{color:'#e65100', fontSize:'0.9em'}}>Tabs Editor (Visual)</strong>
                             <div style={{display:'flex', flexDirection:'column', gap:'4px', marginTop:'5px'}}>
-                                {draftTabs.map((t:any, idx:number) => (
-                                    <div key={idx} style={{display:'flex', alignItems:'center', gap:'8px', fontSize:'0.85em', background:'rgba(255,255,255,0.5)', padding:'4px', border:'1px solid rgba(0,0,0,0.05)'}}>
+                                {draftTabs.map((t:any, idx:number) => {
+                                    const isDragged = draggedTabIdx === idx;
+                                    return (
+                                    <div 
+                                        key={t.id || idx}
+                                        draggable={!!sysadminDraft}
+                                        onDragStart={(e) => {
+                                            if(!sysadminDraft) return;
+                                            setDraggedTabIdx(idx);
+                                            e.dataTransfer.effectAllowed = "move";
+                                        }}
+                                        onDragOver={(e) => {
+                                            if(draggedTabIdx === null) return;
+                                            e.preventDefault(); 
+                                            e.dataTransfer.dropEffect = "move";
+                                        }}
+                                        onDrop={(e) => {
+                                            if(draggedTabIdx === null) return;
+                                            e.preventDefault();
+                                            if (draggedTabIdx === idx) return;
+                                            
+                                            const nt = [...draftTabs];
+                                            const [removed] = nt.splice(draggedTabIdx, 1);
+                                            nt.splice(idx, 0, removed);
+                                            
+                                            updateDraftTabs(nt);
+                                            setDraggedTabIdx(null);
+                                        }}
+                                        onDragEnd={() => setDraggedTabIdx(null)}
+                                        style={{
+                                            display:'flex', alignItems:'center', gap:'8px', fontSize:'0.85em', 
+                                            background: isDragged ? '#e3f2fd' : 'rgba(255,255,255,0.5)', 
+                                            padding:'4px', 
+                                            border: isDragged ? '1px dashed #2196f3' : '1px solid rgba(0,0,0,0.05)',
+                                            opacity: isDragged ? 0.6 : 1,
+                                            cursor: sysadminDraft ? 'grab' : 'default'
+                                        }}
+                                    >
+                                        <div style={{color:'#bbb', fontSize:'1.2em', lineHeight:'1', userSelect:'none', padding:'0 4px', cursor:'grab'}} title="Drag to reorder">≡</div>
                                         <div style={{display:'flex', flexDirection:'column'}}>
                                             <button onClick={() => {
                                                 const nt = [...draftTabs];
@@ -1591,7 +1629,8 @@ function ConfigSysadminView({
                                         </div>
                                         <button onClick={() => { if(confirm('Delete tab?')) { const nt = [...draftTabs]; nt.splice(idx,1); updateDraftTabs(nt); }}} style={{color:'#c62828', border:'none', background:'none', cursor:'pointer', fontWeight:'bold'}}>×</button>
                                     </div>
-                                ))}
+                                    );
+                                })}
                             </div>
                             
                             <div style={{marginTop:'8px', display:'flex', gap:'5px', alignItems:'center', flexWrap:'wrap', background:'rgba(255,255,255,0.5)', padding:'4px'}}>
