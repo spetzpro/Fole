@@ -2,7 +2,7 @@
 **Core System Build Roadmap & Progress Tracker**
 
 Version: 1.0.0  
-Last Updated: 2025-11-23
+Last Updated: 2026-01-22
 
 This document tracks the implementation of FOLE's core systems according to the `_AI_*.md` specs under `app-repo/specs/core/`.
 
@@ -27,6 +27,8 @@ It is a planning and status aid only. The specs themselves remain the source of 
 8. release-readiness
 
 _The phases below are the core build plan detail; canonical status is tracked by the list above._
+
+Note: Canonical milestones may represent targeted hardening or validation work and do not necessarily imply full implementation of the corresponding long-horizon core phase below.
 
 ---
 
@@ -65,7 +67,7 @@ Each phase ties directly to one or more core specs.
 
 - [~] Implement `STORAGE_ROOT` folder structure as defined in `_AI_STORAGE_ARCHITECTURE.md`.  
 - [ ] Implement tmp-directory and atomic rename patterns for all write paths.  
-- [~] Implement manifest table and state transitions (`pending`  `committed`/`aborted`)  manifest repository abstraction defined and covered by tests (in-memory only, no live DB yet).  
+- [~] Implement manifest table and state transitions (`pending` -> `committed`/`aborted`) -> manifest repository abstraction defined and covered by tests (in-memory only, no live DB yet).  
 - [~] Implement orphan tmp cleanup respecting manifest rules.  
 - [ ] Wire CI checks that block PRs touching storage without spec alignment, as per storage spec.
 
