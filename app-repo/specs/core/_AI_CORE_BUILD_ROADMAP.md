@@ -10,6 +10,26 @@ It is a planning and status aid only. The specs themselves remain the source of 
 
 ---
 
+## Canonical Project Roadmap (Status)
+
+**Finished**
+1. dev-auth-hardening
+2. apply-hardening
+3. runtime-observability
+4. config-store-versioning
+5. integrations-real-adapters
+6. sysadmin-config-driven (See: `_AI_ADMIN_EDITING_CONTRACT.md`)
+
+**Current**
+7. production-shell-renderer
+
+**Upcoming**
+8. release-readiness
+
+_The phases below are the core build plan detail; canonical status is tracked by the list above._
+
+---
+
 ## 1. Legend
 
 - `[ ]` not started  
@@ -26,11 +46,9 @@ It is a planning and status aid only. The specs themselves remain the source of 
 3. Module System & Automation Engine  
 4. Core Runtime Operations & Jobs  
 5. Observability, Error Handling & Security  
-6. Sysadmin: Config-Driven Shell  
-7. Sysadmin: Editable UX  
-8. Search, Network/API & Integrations  
-9. User Preferences & Personalization  
-10. Backup, Recovery & Performance/Scaling
+6. Search, Network/API & Integrations  
+7. User Preferences & Personalization  
+8. Backup, Recovery & Performance/Scaling
 
 Each phase ties directly to one or more core specs.
 
@@ -147,33 +165,7 @@ Each phase ties directly to one or more core specs.
 
 ---
 
-## 8. Phase 6 – Sysadmin: Config-Driven Shell [COMPLETED]
-
-**Related specs:**
-- `specs/modules/core.ux.shell/core.ux.shell.SysadminUi.md`
-- `specs/modules/core.ux.shell/core.ux.shell.ShellConfigDeployAndRollback.md`
-
-- [x] Implement config-driven shell architecture and schema validation.
-- [x] Implement sysadmin panel (read-only view).
-- [x] Implement deployment and rollback lifecycle.
-- [x] Implement validation logic (blocking vs warnings).
-
----
-
-## 9. Phase 7 – Sysadmin: Editable UX [IN PROGRESS]
-
-**Related specs:**
-- `specs/modules/core.ux.shell/core.ux.shell.SysadminUi.md`
-- `specs/core/_AI_ADMIN_EDITING_CONTRACT.md`
-
-- [x] Implement "Fix Issue" quick actions in UI.
-- [x] Implement Rollback selection and preview.
-- [~] Implement visual block editing (Admin Editing Contract).
-- [ ] Implement full drag-and-drop structural editing.
-
----
-
-## 10. Phase 8 – Search, Network/API & Integrations
+## 8. Phase 6 – Search, Network/API & Integrations
 
 **Related specs:**  
 - `_AI_SEARCH_AND_INDEXING_SPEC.md`  
@@ -187,7 +179,7 @@ Each phase ties directly to one or more core specs.
 
 ---
 
-## 11. Phase 9 – User Preferences & Personalization
+## 9. Phase 7 – User Preferences & Personalization
 
 **Related specs:**  
 - `_AI_USER_PREFERENCES_AND_PERSONALIZATION_SPEC.md`  
@@ -199,7 +191,7 @@ Each phase ties directly to one or more core specs.
 
 ---
 
-## 12. Phase 10 – Backup, Recovery & Performance/Scaling
+## 10. Phase 8 – Backup, Recovery & Performance/Scaling
 
 **Related specs:**  
 - `_AI_BACKUP_AND_RECOVERY_SPEC.md`  
