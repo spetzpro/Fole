@@ -321,7 +321,74 @@ When importing:
 
 ---
 
-# 11. END OF DOCUMENT
+# 11. OBSERVABILITY REQUIREMENTS FOR CONFIG-DRIVEN BUILDER (v2)
+
+To ensure the v2 Config-Driven Builder is observable, audits and metrics MUST be tracked for the full lifecycle of configuration and data models.
+
+## 11.1 Metrics (MUST be emitted)
+
+All metrics below MUST be emitted to the central observability pipeline.
+
+### Config Lifecycle
+- `config.lifecycle.draft.count`: Frequency of new draft versions created.
+- `config.lifecycle.preflight.duration_ms`: Latency of the validation engine.
+- `config.lifecycle.preflight.failure_rate`: Ratio of failed vs successful compilations.
+- `config.lifecycle.activate.duration_ms`: Time taken to promote a draft to active.
+- `config.lifecycle.activate.failure_rate`: Rate of activation failures.
+- `config.lifecycle.rollback.count`: Frequency of emergency rollbacks.
+
+### Resolved Graph
+- `ui.graph.compile.duration_ms`: Server-side graph resolution latency.
+- `ui.graph.cache.hit_rate`: Efficiency of the "Compile-Once" cache.
+- `ui.graph.size.nodes`: Number of nodes in the resolved graph (for budget tracking).
+
+### Named Queries
+- `query.named.execution.count`: Total executions per query ID.
+- `query.named.latency_p50_ms`: Median execution time.
+- `query.named.latency_p95_ms`: 95th percentile latency.
+- `query.named.cache.hit_rate`: Ratio of cached results served.
+- `query.named.error.rate`: Frequency of execution failures or timeouts.
+
+### Data Model Builder (Sysadmin)
+- `datamodel.builder.preflight.duration_ms`: Validation latency for schema changes.
+- `datamodel.builder.apply.duration_ms`: Migration application time.
+- `datamodel.builder.destructive.attempts`: Count of destructive change requests.
+
+## 11.2 Events & Audit Logs
+
+The following actions MUST generate immutable audit events.
+
+### Mandatory Events
+- **Config Activation:** Records who promoted a version, the version Hash, and timestamp.
+- **Config Rollback:** Records who triggered rollback and the target version Hash.
+- **Named Query Exec:** Executions of sensitive queries MUST log `actor`, `queryId`, and `parameters`.
+- **Schema Migration:** All applied schema changes via the Builder MUST be logged.
+- **Permission Denied:** Any attempt to edit the graph or data model without `sysadmin` role.
+
+### Audit Log Schema
+Audit entries MUST include:
+- `actorId`: The user performing the action.
+- `versionId`: The config version active at the time.
+- `correlationId`: For tracing across services.
+
+## 11.3 Alerts (SHOULD be configurable)
+
+Sysadmins SHOULD be able to configure alerts for:
+- **Sustained Preflight Failures:** Indicates a broken authoring workflow or invalid external dependency.
+- **Repeated Activation Failures:** Critical inability to deploy updates.
+- **High Query Error Rate:** Named queries failing > 5% of the time.
+- **Migration Failures:** Data model changes failing to apply (requires manual intervention).
+- **Safe Mode Triggered:** Any incidence of the system falling back to Safe Mode.
+
+## 11.4 Cross-Links
+
+- **Budgets & Performance:** See [`_AI_PERFORMANCE_AND_SCALING_SPEC.md`](./_AI_PERFORMANCE_AND_SCALING_SPEC.md).
+- **Security & Audit:** See [`_AI_SECURITY_AND_COMPLIANCE_SPEC.md`](./_AI_SECURITY_AND_COMPLIANCE_SPEC.md).
+- **Logic & Queries:** See [`_AI_UI_BINDING_AND_LOGIC_SPEC.md`](./_AI_UI_BINDING_AND_LOGIC_SPEC.md).
+
+---
+
+# 12. END OF DOCUMENT
 
 _AI_MONITORING_AND_ALERTING_SPEC.md  
 This document is authoritative.  
