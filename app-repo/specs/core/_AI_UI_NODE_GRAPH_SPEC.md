@@ -108,25 +108,91 @@ Every node in the graph supports these base properties:
 
 ---
 
-## 5. Conditions Model
+## 5. Node Prop Schema Standard (v2)
 
-Logic is declarative and restricted to ensure safety and performance.
+To enable the Builder to generate property editors automatically, every Node Type must provide a **Schema Definition**.
 
-### 5.1 Operators
-- **Boolean:** `AND`, `OR`, `NOT`.
-- **Equality:** `EQUALS`, `NOT_EQUALS`, `IN`, `NOT_IN`.
-- **Existence:** `IS_EMPTY`, `IS_NOT_EMPTY`.
-- **String:** `STARTS_WITH`, `CONTAINS`.
-- **Regex:** Allowed **only** with explicit bounds (max length/complexity) pre-validated by the governance engine.
+### 5.1 Schema Fields
+The definition object uses a standard JSON-compatible structure:
 
-### 5.2 Data Integration
-- **Context Binding:** Conditions check values against the `BindingContext` (active record, global store).
-- **Query Results:** Conditions can check the results of a named query (e.g., `query.named.canEditProject(id)`).
-- **Security Note:** `visibleWhen` / `enabledWhen` are UX conveniences. **True security** is enforced by `requiredPermission` (structure) and Backend API checks (data).
+| Key | Type | Description |
+| :--- | :--- | :--- |
+| `name` | `string` | The stable property key (e.g., `label`, `onClick`). |
+| `type` | `enum` | `string`, `number`, `boolean`, `enum`, `object`, `array`, `binding`, `actionRef`, `icon`. |
+| `required` | `boolean` | If true, node validation fails if missing. |
+| `defaultValue` | `any` | Fallback if not provided. |
+| `constraints` | `object` | `{ min, max, regex, allowEmpty }`. |
+| `editorHint` | `string` | `textbox`, `textarea`, `colorPicker`, `iconPicker`, `dropdown`, `toggle`. |
+| `helpText` | `string` | Sysadmin-facing tooltip explaining the prop. |
+
+### 5.2 Binding & Inheritance
+- **Value Inheritance:** If a node inherits from a template, props are deeply merged.
+- **Binding Support:** Most scalar props (`string`, `boolean`, `number`) implicitly accept a **Binding Descriptor** (`{ bind: "source.path" }`) unless strictly typed as "static-only".
+
+### 5.3 Example Schemas
+
+**`ui.node.button`**
+```json
+{
+  "props": {
+    "label": { "type": "string", "required": true, "editorHint": "textbox" },
+    "icon": { "type": "icon", "editorHint": "iconPicker" },
+    "variant": { "type": "enum", "options": ["primary", "secondary", "ghost"], "defaultValue": "secondary" },
+    "onClick": { "type": "actionRef", "required": false }
+  }
+}
+```
+
+**`ui.node.window`**
+```json
+{
+  "props": {
+    "title": { "type": "string", "required": true, "editorHint": "textbox" },
+    "initialWidth": { "type": "number", "constraints": { "min": 200, "max": 1920 } },
+    "dockable": { "type": "boolean", "defaultValue": true }
+  }
+}
+```
 
 ---
 
-## 6. The Builder Boundary
+## 6. Slot Registry (v2)
+
+The Shell relies on a strictly defined **Slot Registry** to validate placements.
+Arbitrary placements are forbidden; a node must target a valid `slotId`.
+
+### 6.1 Registry Definition
+
+| Slot ID | Layout / Overflow | Allowed Types (Examples) | Max Items |
+| :--- | :--- | :--- | :--- |
+| **`app.header.left`** | Row / Wrap | `button`, `text`, `icon`, `group` | 5 |
+| **`app.header.right`** | Row / Wrap | `button`, `profile`, `group` | 5 |
+| **`app.menu.main`** | Col / Scroll | `button`, `separator`, `group` | 50 |
+| **`app.footer`** | Row / Ellipsis | `text`, `progress`, `status` | 3 |
+| **`app.overlay`** | Stack / Modal | `window`, `dialog`, `toast` | N/A |
+| **`window.toolbar`** | Row / Collapse | `button`, `icon`, `input` (search) | 8 |
+| **`window.content`** | Fill / Scroll | *ALL* | N/A |
+| **`table.row.actions`** | Row / Collapse | `button`, `icon` | 3 |
+
+### 6.2 Placement Validation
+- **Preflight Check:** The Validation Engine rejects configs where nodes target unknown slots or use forbidden types (e.g. putting a `table` in `app.header`).
+- **Dev Mode Warning:** If constraints (Max Items) are exceeded, the builder emits a warning but may allow render.
+
+---
+
+## 7. Conditions & Logic Governance
+
+All logic within the Graph (Bindings, Expressions, Conditionals) is governed by the strict safety rules defined in:
+- [`_AI_UI_BINDING_AND_LOGIC_SPEC.md`](./_AI_UI_BINDING_AND_LOGIC_SPEC.md)
+
+Refer to that spec for:
+- Expression Whitelists
+- Regex Bounds
+- Binding Source Restrictions
+
+---
+
+## 8. The Builder Boundary
 
 The "Sysadmin Builder" is the tool used to edit this graph.
 
