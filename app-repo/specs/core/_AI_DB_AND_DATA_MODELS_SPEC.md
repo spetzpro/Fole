@@ -342,3 +342,32 @@ Future improvements may include:
 - Sharding or separate DBs per customer/org (layer above project-level DB).
 
 This document should be revisited whenever we make a **structural change** to how projects, maps, or major entities are persisted.
+
+---
+
+## 9. Sysadmin-authored Data Models (v2)
+
+**Vision:** Allow sysadmins to define custom data structures (tables, fields, relations) for their projects without engineering deployment.
+
+### 9.1 Data Model Blocks (`data.model.*`)
+Sysadmins define models in configuration, which the core runtime maps to physical storage.
+
+- **`data.model.table`**: Defines a new entity collection.
+- **`data.model.field`**: Columns (Text, Number, Date, Boolean, Reference).
+- **`data.model.relation`**: 1:1, 1:N, N:M links between tables.
+
+### 9.2 Migration Governance
+Since sysadmins can change schemas, "Destructive Changes" are automated but governed.
+
+1. **Preflight Output:**
+   - The Builder MUST generate a **Risk Summary** (e.g., "Dropping column 'notes' will delete 450 records").
+   - **Affected Objects:** List of UI nodes/Queries dependent on the changing field.
+   - **Execution Plan:** The SQL steps to be run.
+2. **Permissions:**
+   - Separate permissions for `dataModel.create` (add tables), `dataModel.alter` (add columns), and `dataModel.migrate` (destructive drops/renames).
+
+### 9.3 Query Safety & Linkage
+- **Named Queries Only:** Sysadmin-defined models are accessed ONLY via the Named Query system.
+- **No Direct SQL:** The Builder generates safe parameterized queries.
+- **Dependency Guard:** A model cannot be deleted if a Named Query or UI Node references it.
+

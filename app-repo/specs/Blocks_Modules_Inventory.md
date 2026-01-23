@@ -49,6 +49,13 @@ Status legend:
 | core.ux.shell.BindingSystem | Module | core | Specced | Reactive data binding and event propagation. | specs/modules/core.ux.shell/core.ux.shell.BindingSystem.md |
 | core.ux.shell.TemplateSystem | Module | core | Specced | Workspace composition and template management. | specs/modules/core.ux.shell/core.ux.shell.TemplateSystem.md |
 | core.ux.shell.SysadminUi | Module | core | Specced | Administrative interface for shell configuration. | specs/modules/core.ux.shell/core.ux.shell.SysadminUi.md |
+| core.ui.nodeGraph | Module | core | Specced | Runtime interpreter for the UI Node Graph (v2). | specs/core/_AI_UI_NODE_GRAPH_SPEC.md |
+| core.ui.templates | Module | core | Planned | Value-level inheritance engine for UI templates. | specs/core/_AI_UI_NODE_GRAPH_SPEC.md |
+| core.ui.themes | Module | core | Planned | Theme engine and Sysadmin Builder profile tokens. | specs/core/_AI_UI_NODE_GRAPH_SPEC.md |
+| core.logic.conditions | Module | core | Planned | Declarative conditions engine with bounded regex support. | specs/core/_AI_UI_NODE_GRAPH_SPEC.md |
+| core.data.namedQueries | Module | core | Planned | Secure, named query execution system for UI data binding. | specs/core/_AI_UI_NODE_GRAPH_SPEC.md |
+| core.data.modelBuilder | Module | core | Planned | Sysadmin-authored data models and migration governance. | specs/core/_AI_DB_AND_DATA_MODELS_SPEC.md |
+| core.ui.widgets | Module | core | Planned | Built-in widget registry (PDF Viewer, Image Editor, Surface Viewport). | specs/core/_AI_UI_NODE_GRAPH_SPEC.md |
 
 
 ---

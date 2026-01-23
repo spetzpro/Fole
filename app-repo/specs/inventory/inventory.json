@@ -353,6 +353,62 @@
       "status": "Specced",
       "specPath": "specs/modules/core.ux.shell/core.ux.shell.SysadminUi.md",
       "notes": "Administrative interface for shell configuration."
+    },
+    {
+      "name": "core.ui.nodeGraph",
+      "kind": "Module",
+      "layer": "core",
+      "status": "Specced",
+      "specPath": "specs/core/_AI_UI_NODE_GRAPH_SPEC.md",
+      "notes": "Runtime interpreter for the UI Node Graph (v2)."
+    },
+    {
+      "name": "core.ui.templates",
+      "kind": "Module",
+      "layer": "core",
+      "status": "Planned",
+      "specPath": "specs/core/_AI_UI_NODE_GRAPH_SPEC.md",
+      "notes": "Value-level inheritance engine for UI templates."
+    },
+    {
+      "name": "core.ui.themes",
+      "kind": "Module",
+      "layer": "core",
+      "status": "Planned",
+      "specPath": "specs/core/_AI_UI_NODE_GRAPH_SPEC.md",
+      "notes": "Theme engine and Sysadmin Builder profile tokens."
+    },
+    {
+      "name": "core.logic.conditions",
+      "kind": "Module",
+      "layer": "core",
+      "status": "Planned",
+      "specPath": "specs/core/_AI_UI_NODE_GRAPH_SPEC.md",
+      "notes": "Declarative conditions engine with bounded regex support."
+    },
+    {
+      "name": "core.data.namedQueries",
+      "kind": "Module",
+      "layer": "core",
+      "status": "Planned",
+      "specPath": "specs/core/_AI_UI_NODE_GRAPH_SPEC.md",
+      "notes": "Secure, named query execution system for UI data binding."
+    },
+    {
+      "name": "core.data.modelBuilder",
+      "kind": "Module",
+      "layer": "core",
+      "status": "Planned",
+      "specPath": "specs/core/_AI_DB_AND_DATA_MODELS_SPEC.md",
+      "notes": "Sysadmin-authored data models and migration governance."
+    },
+    {
+      "name": "core.ui.widgets",
+      "kind": "Module",
+      "layer": "core",
+      "status": "Planned",
+      "specPath": "specs/core/_AI_UI_NODE_GRAPH_SPEC.md",
+      "notes": "Built-in widget registry (PDF Viewer, Image Editor, Surface Viewport)."
     }
   ]
 }
