@@ -189,18 +189,20 @@ AI MUST NOT:
 
 To support the v2 "Config-Driven Application Builder", the following specialized API surfaces are defined.
 
+> **Note:** Permission identifiers follow canonical dot-notation (e.g., `config.read`); see `_AI_ROLES_AND_PERMISSIONS.md` for definitions.
+
 ### 17.1 Config Bundle Lifecycle
 Operations for managing the UI Node Graph configurations.
 
 | Method | Endpoint | Description | Permission Required |
 | :--- | :--- | :--- | :--- |
-| `GET` | `/api/v2/config/versions` | List history of config versions. | `CONFIG_READ` |
-| `GET` | `/api/v2/config/versions/:id` | Get details (nodes/graph) of a specific version. | `CONFIG_READ` |
-| `POST` | `/api/v2/config/draft` | Create a new writable draft from a base version. | `CONFIG_WRITE` |
-| `PATCH`| `/api/v2/config/draft/:id` | Update draft (supports graph primitives: addNode, moveNode). | `CONFIG_WRITE` |
-| `POST` | `/api/v2/config/preflight` | Validate draft (returns warnings/errors/counts). | `CONFIG_WRITE` |
-| `POST` | `/api/v2/config/activate` | Promote a draft to "Active". Requires reason. | `CONFIG_DEPLOY` |
-| `POST` | `/api/v2/config/rollback` | Revert to a previous version. | `CONFIG_DEPLOY` |
+| `GET` | `/api/v2/config/versions` | List history of config versions. | `config.read` |
+| `GET` | `/api/v2/config/versions/:id` | Get details (nodes/graph) of a specific version. | `config.read` |
+| `POST` | `/api/v2/config/draft` | Create a new writable draft from a base version. | `config.edit` |
+| `PATCH`| `/api/v2/config/draft/:id` | Update draft (supports graph primitives: addNode, moveNode). | `config.edit` |
+| `POST` | `/api/v2/config/preflight` | Validate draft (returns warnings/errors/counts). | `config.edit` |
+| `POST` | `/api/v2/config/activate` | Promote a draft to "Active". Requires reason. | `config.activate` |
+| `POST` | `/api/v2/config/rollback` | Revert to a previous version. | `config.activate` |
 
 **Response Shape (Preflight/Activate):**
 ```json
@@ -217,7 +219,7 @@ Secure data access for UI Nodes. No raw SQL allowed.
 
 | Method | Endpoint | Description | Permission Required |
 | :--- | :--- | :--- | :--- |
-| `GET` | `/api/v2/queries` | List available named query definitions (metadata). | `PROJECT_READ` |
+| `GET` | `/api/v2/queries` | List available named query definitions (metadata). | `project.read` |
 | `POST` | `/api/v2/queries/:queryId/execute` | Execute a query with provided parameters. | Varies (Defined in Query) |
 
 **Constraints:**
@@ -230,10 +232,10 @@ Operations for defining tables and fields at runtime.
 
 | Method | Endpoint | Description | Permission Required |
 | :--- | :--- | :--- | :--- |
-| `GET` | `/api/v2/datamodels` | List custom models. | `DATAMODEL_READ` |
-| `POST` | `/api/v2/datamodels/draft` | Upsert model definition (tables/fields). | `DATAMODEL_WRITE` |
-| `POST` | `/api/v2/datamodels/preflight` | Generate migration plan & risk summary. | `DATAMODEL_WRITE` |
-| `POST` | `/api/v2/datamodels/migrate` | **Destructive Application** of changes. | `DATAMODEL_MIGRATE` |
+| `GET` | `/api/v2/datamodels` | List custom models. | `datamodel.read` |
+| `POST` | `/api/v2/datamodels/draft` | Upsert model definition (tables/fields). | `datamodel.edit` |
+| `POST` | `/api/v2/datamodels/preflight` | Generate migration plan & risk summary. | `datamodel.edit` |
+| `POST` | `/api/v2/datamodels/migrate` | **Destructive Application** of changes. | `datamodel.migrate` |
 
 **Governance:**
 - `migrate` endpoint MUST implement the **Destructive Change Governance** hook (requires pre-approval token or high-privilege confirmation).
