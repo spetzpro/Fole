@@ -377,7 +377,7 @@ These are not contractual SLAs, but the system must be designed so that violatin
 
 ---
 
-## 12. AI AGENT RULES (PERFORMANCE & SCALING)
+## 13. AI AGENT RULES (PERFORMANCE & SCALING)
 
 AI agents must:
 
@@ -405,7 +405,50 @@ AI agents must not:
 
 ---
 
-## 13. STOP CONDITIONS
+## 14. PERFORMANCE REQUIREMENTS FOR CONFIG-DRIVEN BUILDER (V2)
+
+The introduction of dynamic runtime configuration must not degrade system responsiveness.
+
+### 14.1 Resolved Graph Compilation & Caching
+- **Compile Once:** The backend MUST compile the graph (resolving `inheritFrom`, merging templates, pruning unauthorized nodes) **once** per config version activation.
+- **Cache Policy:** The "Resolved Graph" SHOULD be cached by Version ID.
+- **Invalidation:** Triggers include:
+    - Activation of a new config version.
+    - Updates to Sysadmin-authored Data Models.
+    - Deployment of new Factory Templates.
+- **No Per-Request Resolution:** The server must NOT re-resolve the graph for every HTTP request.
+
+### 14.2 Renderer Efficiency
+- **Stable IDs:** The compiled graph MUST provide stable `nodeId`s to React (or the frontend engine) to enable efficient DOM diffing.
+- **Update Dampening:** Reactive binding updates (`{{ input.value }}`) SHOULD be debounced (e.g., 16ms) to prevent re-render storms during rapid user input.
+
+### 14.3 Large Data UI Requirements
+- **Virtualization:** All `ui.node.table` and `ui.node.list` implementations MUST use virtualization (windowing).
+- **Pagination:** Queries returning > 100 rows MUST force pagination or windowed fetching.
+- **Render Caps:** Displays MUST cap the maximum number of rendered rows (e.g., 500) regardless of the dataset size, unless explicitly overridden with a `performanceBudget` waiver.
+
+### 14.4 Named Query Performance
+- **Bounded Execution:** Queries MUST enforce `LIMIT` clauses or default page sizes.
+- **Timeouts:** All named query executions MUST have a strict backend timeout (e.g., 30s).
+- **Result Size:** Responses MUST be rejected if they exceed the max payload size defined in `_AI_NETWORK_AND_API_SPEC.md`.
+
+### 14.5 Budgets & Guardrails
+Default budgets for the UI Graph (overridable via `performance_budget.json`):
+- **Max Nodes per View:** 1,000 active nodes.
+- **Max Tree Depth:** 20 levels.
+- **Max Bindings:** 2,000 active bindings.
+- **Preflight Requirement:** The Configuration Preflight check MUST report effective counts against these budgets.
+
+### 14.6 Observability Hooks
+The runtime MUST emit metrics for:
+- `config.compile_ms`: Time taken to resolve the graph.
+- `query.named.latency_ms`: Execution time per query ID.
+- `ui.render_count`: Frontend render cycles (if telemetry allows).
+- Refer to `_AI_MONITORING_AND_ALERTING_SPEC.md`.
+
+---
+
+## 15. STOP CONDITIONS
 
 AI MUST STOP and ask a human if:
 

@@ -216,6 +216,7 @@ The "Sysadmin Builder" is the tool used to edit this graph.
 - **Max Nodes:** The validation engine enforces a cap on total graph size.
 - **Max Depth:** Tree depth is limited to prevent stack overflows/render thrashing.
 - **Binding Limits:** Max listeners per node are capped.
+- Performance constraints and compilation expectations are defined in [`_AI_PERFORMANCE_AND_SCALING_SPEC.md`](./_AI_PERFORMANCE_AND_SCALING_SPEC.md).
 
 ---
 
