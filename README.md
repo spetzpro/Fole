@@ -1,189 +1,221 @@
-# FOLE
+# FOLE (Flexible Open Layout Engine)
 
-FOLE is a modular, map-centric web application designed to handle everything from
-floor plans and factories to terrain and globe-scale views, with millimeter-level
-precision and strong AI-assisted development rules.
+FOLE is a **configurable, runtime-editable platform** for building precise, map-centric applications — from millimeter-accurate indoor floor plans and factory layouts to globe-scale terrain visualization — all within a single coordinate system and governed by strong AI-assisted development rules.
 
-This repository is split into two main concerns:
+The long-term vision: sysadmins and power users compose entire features (UI, workflows, data models) live inside the running application via a declarative configuration builder, without redeploying code.
 
-- **Code & specs** (version controlled)  
-- **Runtime data** (under `STORAGE_ROOT`, usually outside the repo or in a dedicated hidden folder)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)  
+[![Status: Early Scaffolding](https://img.shields.io/badge/status-early--scaffolding-orange)](#status)
+
+---
+
+## Vision & Core Promises
+
+- Configuration is **authoritative** and stored as JSON blocks.
+- The application is **runtime-editable** with strong governance.
+- All changes are **versioned, validated, and rollbackable**.
+- The frontend is a **generic renderer/interpreter**, not a hardcoded feature set.
+- The backend is the **authority** for permissions, validation, and data integrity.
+- **Activated configurations are always recoverable** (via rollback).
 
 ---
 
 ## Repository Layout
 
-Top-level structure:
-
-- `app-repo/`  
-  Source-controlled application code and documentation:
-  - `docs/` – high-level and AI-specific documentation  
-    - `ai/` – AI guidance files (e.g. `_AI_MASTER_RULES.md`, context maps, etc.)
-  - `specs/` – system specifications
-    - `core/` – core system specs (storage, permissions, jobs, etc.)
-    - `modules/` – module-level specs (projects, maps, etc.)
-    - `blocks/` – block-level specs (renderer, tiler, calibration, etc.)
-
-- `.github/workflows/`  
-  CI workflows that validate JSON schemas, cross-references, and basic hygiene.
-
-- `tools/`  
-  Developer and CI tooling (Node-based validators, schemas, enforcement scripts).
-
--- `localstorage/` (ignored by Git)  
-  Default local runtime storage root (`STORAGE_ROOT` in development runs and AI/VS Code automation).  
-  Contains databases, tiles, uploads, logs, etc. **Never committed. Not used as the app’s canonical STORAGE_ROOT.**
-
-- `node_modules/` (ignored by Git)  
-  Local Node.js dependencies used **only for CI / validation tooling**, not for the
-  runtime application.
+- `app-repo/` – Source-controlled application code and documentation  
+  - `docs/` – High-level and AI governance docs  
+  - `specs/` – Core, module, and block specifications  
+- `.github/workflows/` – CI governance and validation  
+- `tools/` – Validation and enforcement tooling  
+- `localstorage/` – Local runtime storage (ignored by Git)  
+- `node_modules/` – Tooling dependencies only
 
 ---
 
 ## Storage Root
 
-By default in development:
-
-- `STORAGE_ROOT = ./localstorage`
-
-This directory contains **all runtime data for local dev and automation runs**:
-
-- Core DBs
-- Project DBs
-- Map DBs
-- Tiles, uploads, exports
-- Job/operation logs
-
-It is safe to back up or move `STORAGE_ROOT` independently from the code.
-
-When the application uses a storage directory **inside this repository**, the canonical in-repo storage root MUST be:
-
-- `STORAGE_ROOT = app-repo/.storage/`
-
-The `.storage/` directory is a hidden, non-source folder intended only for persistent runtime data and is ignored by Git.
+Runtime data lives under `STORAGE_ROOT` (outside Git).  
+In-repo storage must use `app-repo/.storage/` (hidden, ignored).
 
 ---
 
 ## AI Governance & Rules
 
-The AI development workflow is governed by:
+AI-assisted development is governed by:
 
 - `app-repo/docs/ai/_AI_MASTER_RULES.md`
 
-This file defines:
-
-- What AI agents are allowed to change
-- When human approval is required
-- How destructive changes are described and validated
-- How context and specs must be loaded
-
-Additional AI-facing documents (context maps, module/block standards, etc.)
-live under:
-
-- `app-repo/docs/ai/`
-- `app-repo/specs/core/`
-- `app-repo/specs/modules/`
-- `app-repo/specs/blocks/`
+These rules define:
+- allowed vs restricted changes
+- destructive-change handling
+- required spec alignment
+- approval boundaries
 
 ---
 
-## Contributor Workflow & Spec Alignment Overview
+## Config-Driven Application Builder (Release Vision)
 
-FOLE is developed using a **specification-first workflow**. Specs describe the
-target behavior; the code and tests must stay aligned with those specs; and
-an inventory tracks which modules and blocks are actually implemented.
+### 1 TL;DR
 
-At a high level:
+FOLE is a **governed, versioned, runtime-editable application builder**.
 
-- **Specs are authoritative**  
-  Every core system, module, and block has a spec under `app-repo/specs/`.
-  When behavior changes at a public surface (API, schema, permissions, UX),
-  the spec must be updated first or alongside the change.
-
-- **Inventory tracks implementation status**  
-  The module/block inventory file records which parts of the system are
-  Planned, Specced, InImplementation, or Implemented, and where their specs
-  live:
-  - `app-repo/specs/Blocks_Modules_Inventory.md`
-
-- **Changes are grouped into tiers**  
-  The workflow distinguishes between:
-  - **L1** – minor/internal changes with no external contract change
-  - **L2** – changes to APIs, schemas, permissions, or visible UX behavior
-  - **L3** – new modules, deprecations, or cross-module contract changes
-
-  Higher tiers require stricter steps (spec + inventory updates, sitreps,
-  and approvals); the details are defined in the workflow guide.
-
-- **Architecture rules live in one place**  
-  System-wide principles and non‑negotiable rules (atomicity, security,
-  spec‑first, drift prevention) are defined in `_AI_MASTER_RULES.md` and
-  apply across the entire repo.
-
-For full details (tier rules, responsibilities, and examples), see:
-
-- `app-repo/specs/Spec_Workflow_Guide.md`
-- `app-repo/docs/ai/_AI_MASTER_RULES.md`
+Sysadmins compose applications from shipped primitives (nodes, actions, templates, themes).  
+Changes flow through **Draft → Preflight → Activate → Rollback**.  
+The system is declarative, auditable, and safe by design.
 
 ---
 
-## Forking & Governance in Forks
+### 2 How it looks and feels to use
 
-If you fork this repository:
+- Create **Features** (feature groups).
+- Add navigation (header, menu, slots).
+- Define **Windows** and **UI Elements** (text, tables, forms, viewers).
+- Everything inherits defaults unless explicitly overridden.
+- Inherited values are visually marked.
+- Issues are detected before activation.
+- Rollback is always one click away.
 
-- You effectively become the **architecture owner of your fork**.  
-  CODEOWNERS entries that reference teams or users that don't exist in your
-  fork will simply not apply.
+You are effectively **building (and evolving) an app inside the running app** — safely, version by version.
 
-- The governance system is **opt‑in** at the CI level.  
-  The specs and workflow guide still describe how FOLE is intended to be
-  evolved, but CI enforcement (spec checks, inventory validation, etc.) only
-  runs if you enable GitHub Actions and keep the workflows.
+---
 
-- Your fork will still work without strict governance.  
-  You can ignore the workflow guide, change specs freely, or skip updating
-  the inventory—but you will lose the drift protection and guarantees that
-  the main repo aims to enforce.
+### 3 How it works (overview)
 
-If you want your fork to behave like the main governed repo:
+- **Frontend** interprets declarative UI graphs and renders nodes.
+- **Backend** validates, governs, and executes with authority.
 
-- Enable the CI workflows under `.github/workflows/`
-- Keep or adapt `CODEOWNERS` to your own users/teams
-- Follow `app-repo/specs/Spec_Workflow_Guide.md` for all L2/L3 changes
+<details>
+<summary><strong>Deeper dive: Frontend vs Backend responsibilities</strong></summary>
 
-When contributing changes back upstream, the **upstream** repo’s rules always
-apply: specs and inventory must be aligned, and higher‑tier changes require
-the appropriate approvals.
+**Frontend**
+- Interprets resolved config graphs.
+- Renders UI nodes generically.
+- Evaluates conditions for UX only.
+- Never grants permissions.
+
+**Backend**
+- Owns versions, activation, rollback.
+- Validates configs (schemas, inheritance, references).
+- Enforces permissions.
+- Manages data models and migrations.
+- Executes actions safely.
+</details>
+
+---
+
+## Terminology (UI ↔ Code)
+
+| UI Term | Code Term | Notes |
+|---|---|---|
+| Version | Config Bundle Version | Activation unit |
+| Block | Block | `{blockId, blockType, data}` |
+| Feature | Feature Group | `feature.group` |
+| Shell | Shell Block | `*.shell` |
+| Window | Window Node | `ui.node.window` |
+| UI Element | UI Node | `ui.node.*` |
+| Built-in Tool | Built-in Node | e.g. `ui.node.pdfViewer` |
+| Template | Template Block | via `inheritFrom` |
+| Theme | Theme Block | Token-based |
+| Action | Action Block | Server-authoritative |
+| Binding | Binding Descriptor | Data linkage |
+| Condition | Condition Expression | `visibleWhen`, `enabledWhen` |
+| Data Model | Model Block | Schema + migrations |
+
+All interactive nodes support:
+- `helpText`
+- `requiredPermission`
+- `visibleWhen` / `enabledWhen`
+
+---
+
+## Permissions, Conditions & Safety
+
+- **Permissions** decide what is allowed (server-side).
+- **Conditions** decide what is shown/enabled (UI only).
+- Conditions never grant access.
+- Actions are always permission-checked.
+
+<details>
+<summary><strong>Condition language (v1+)</strong></summary>
+
+Conditions support:
+- boolean logic (`and`, `or`, `not`)
+- comparisons (`== != > >= < <=`)
+- existence checks and basic string operations
+- named query results  
+
+Regex and advanced queries are gated, bounded, and validated when enabled.
+</details>
+
+---
+
+## Performance & Guardrails
+
+The system prioritizes predictability and safety over unbounded flexibility.
+
+<details>
+<summary><strong>Performance strategy</strong></summary>
+
+- Prefer backend compilation per version (resolved graph).
+- Stable IDs + memoization to minimize re-renders.
+- Virtualization for large tables/lists.
+- Enforced guardrails:
+  - max nodes per window
+  - max nesting depth
+  - max bindings/expressions per view
+</details>
+
+---
+
+## Contributor Workflow & Spec Alignment
+
+FOLE follows a **spec-first workflow**.
+
+| Change Type | Tier | Update Spec | Update Inventory | Approval |
+|---|---|---|---|---|
+| Docs, tests, refactors | L1 | No | No | No |
+| API / schema / UX change | L2 | Yes | Yes | Review |
+| New module / deprecation | L3 | Yes | Yes | Sitrep + Approval |
+
+Specs live under `app-repo/specs/`.  
+Inventory tracks implementation status.
+
+---
+
+## Forking & Governance
+
+Forks may relax governance.  
+Upstream contributions must follow spec and inventory rules.
 
 ---
 
 ## Tools & CI
 
-Node.js is used **only** as a tooling runtime:
+Node.js is used **only for tooling**:
+- schema validation
+- cross-reference checks
+- AI change-governance enforcement
 
-- JSON Schema validation (via `ajv-cli`)
-- Cross-reference checks
-- Future AI enforcement scripts
-
-These tools are configured via:
-
-- `package.json`
-- `tools/ai/*.json` – JSON schemas
-- `.github/workflows/*.yml` – CI workflows
-
-They do **not** run in production and do not handle user data directly.
+No production runtime dependency.
 
 ---
 
 ## Status
 
-This repository is in the early scaffolding phase:
+**Early scaffolding / design phase.**
 
-- Core rules and AI governance: defined
-- Storage and structure specs: in progress
-- Modules and blocks: to be added step-by-step with accompanying specs
+Near-term focus:
+- Finalize block graph semantics & resolved-graph compiler
+- Bootstrap sysadmin builder UI (hardcoded seed)
+- Define & implement initial built-in node types
 
-For details on the application core, concurrency model, and developer-focused roadmap, see:
-
-- `app-repo/README.md`
+See roadmap:
 - `app-repo/specs/core/_AI_CORE_BUILD_ROADMAP.md`
+
+---
+
+Curious about governed, runtime-configurable application platforms?
+
+→ Read the [AI Master Rules](app-repo/docs/ai/_AI_MASTER_RULES.md)  
+→ Review the [Core Roadmap](app-repo/specs/core/_AI_CORE_BUILD_ROADMAP.md)  
+→ Open an issue or discussion — early input shapes the direction.
