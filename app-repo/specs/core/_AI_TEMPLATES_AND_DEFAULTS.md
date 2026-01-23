@@ -39,6 +39,24 @@ Applies to:
 - UI presets and naming schemes
 - Module defaults
 
+1.1 TERMINOLOGY DISAMBIGUATION
+
+There are two distinct concepts referred to as "templates" in this repository. They are NOT interchangeable.
+
+1. File Templates (Factory Defaults)
+   - Scope: Repository & Operations.
+   - Purpose: Static JSON files in `app-repo/templates/` used to initialize new servers or projects with default data.
+   - Example: A "New Project Template" that pre-fills roles and map settings.
+   - Governed by: THIS document (`_AI_TEMPLATES_AND_DEFAULTS.md`).
+
+2. Graph Templates / Prototypes (UI Node Logic)
+   - Scope: UI Runtime & Node Graph.
+   - Purpose: Abstract nodes (`template.*` or `ui.blueprint.*`) within the v2 UI Graph that other nodes inherit properties from.
+   - Example: A `template.standardButton` that defines color and padding, which `ui.node.button` instances `inheritFrom`.
+   - Governed by: `_AI_UI_NODE_GRAPH_SPEC.md`.
+
+This document ONLY governs "File Templates".
+
 --------------------------------------------------------------------
 
 2. DEFINITIONS

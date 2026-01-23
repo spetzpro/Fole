@@ -15,12 +15,14 @@ This spec focuses on the v2 Node DSL (Nodes, Slots, Templates, Conditions). For 
 **Goal:** Transform the hardcoded shell into a fully data-driven runtime where the UI is a function of `(Configuration + UserPermissions + Context)`.
 This enables sysadmins to drag-and-drop construct the application layout, dashboards, and forms without engineering intervention.
 
-### Maturity Status:
-- **v2 Target (Planned):** This document describes the `v2` end-state.
-- **v1 (Current Bootstrap):** Current `core.ui` and `core.ux.shell` provide hardcoded implementations of Shell, WindowManager, and limited configuration.
-- **Transition Strategy:**
-  - New built-in widgets (PDF Viewer, etc.) will be written as v2-compatible nodes.
-  - The "Sysadmin Builder" itself will be transparently hosted as just another widget within the graph.
+### Maturity & Compatibility:
+- **v1 (Stable/Legacy):** The current runtime shell, `core.ui` window manager, and basic config bindings are implemented and working.
+- **v2 (Target/Planned):** The generalized "Node Graph" DSL described here is the *target state*. Some v2 concepts (like `ui.node.*` types) may be implemented incrementally.
+- **Data Persistence:** Both v1 and v2 stores are backed by JSON blocks. The transition does NOT require a database engine swap, merely a change in how the Configuration Service interprets the JSON payload (Static Config -> Resolved Graph).
+
+### Transition Strategy:
+- New built-in widgets (PDF Viewer, etc.) will be written as v2-compatible nodes.
+- The "Sysadmin Builder" itself will be transparently hosted as just another widget within the graph.
 
 ---
 
