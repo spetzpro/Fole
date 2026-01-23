@@ -4,7 +4,7 @@ FOLE is a **configurable, runtime-editable platform** for building precise, map-
 
 The long-term vision: sysadmins and power users compose entire features (UI, workflows, data models) live inside the running application via a declarative configuration builder, without redeploying code.
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)  
+[![License: LGPL-2.1](https://img.shields.io/badge/License-LGPL--2.1-blue.svg)](https://www.gnu.org/licenses/old-licenses/lgpl-2.1.html)  
 [![Status: Early Scaffolding](https://img.shields.io/badge/status-early--scaffolding-orange)](#status)
 
 ---
