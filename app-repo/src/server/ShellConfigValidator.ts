@@ -56,16 +56,20 @@ export class ShellConfigValidator {
   private ajv: Ajv;
   private schemasLoaded = false;
   private readonly schemaRoot: string;
+  private readonly uiNodeSchemaRoot: string;
 
   constructor(repoRoot: string) {
     this.schemaRoot = path.join(repoRoot, "app-repo", "src", "server", "schemas", "shell");
+    this.uiNodeSchemaRoot = path.join(repoRoot, "app-repo", "src", "server", "schemas", "ui-node");
     this.ajv = new Ajv({ allErrors: true });
+    this.ajv.addKeyword("x-ui-editorHint");
   }
 
   private async ensureSchemas(): Promise<void> {
     if (this.schemasLoaded) return;
 
     try {
+      // 1. Load legacy shell schemas (Hardcoded list for stability)
       const coreSchemas = [
         "block-envelope.schema.json",
         "shell-manifest.schema.json",
@@ -86,8 +90,26 @@ export class ShellConfigValidator {
       ];
 
       for (const schemaName of coreSchemas) {
-          const schemaContent = await this.readSchema(schemaName);
+          const schemaContent = await this.readSchema(this.schemaRoot, schemaName);
           this.ajv.addSchema(schemaContent, schemaName);
+      }
+
+      // 2. Load v2 ui-node schemas (Dynamic scan)
+      try {
+        const nodeFiles = await fs.readdir(this.uiNodeSchemaRoot);
+        for (const file of nodeFiles) {
+            if (file.endsWith(".schema.json")) {
+                const content = await this.readSchema(this.uiNodeSchemaRoot, file);
+                // Use filename as the key to match convention
+                if (!this.ajv.getSchema(file)) {
+                    this.ajv.addSchema(content, file);
+                }
+            }
+        }
+      } catch (e: any) {
+        // If directory doesn't exist yet, warn but don't fail, 
+        // as this is an additive feature.
+        if (e.code !== 'ENOENT') throw e;
       }
 
       this.schemasLoaded = true;
@@ -114,13 +136,14 @@ export class ShellConfigValidator {
       if (blockType.startsWith("shell.control.button")) return "shell.control.button.schema.json";
       if (blockType === "binding") return "binding-block.data.schema.json";
       if (blockType === "template") return "template-block.data.schema.json";
+      if (blockType.startsWith("ui.node.")) return `${blockType}.schema.json`;
       
       return null;
   }
 
 
-  private async readSchema(filename: string): Promise<any> {
-    const content = await fs.readFile(path.join(this.schemaRoot, filename), "utf-8");
+  private async readSchema(root: string, filename: string): Promise<any> {
+    const content = await fs.readFile(path.join(root, filename), "utf-8");
     return JSON.parse(content);
   }
 
