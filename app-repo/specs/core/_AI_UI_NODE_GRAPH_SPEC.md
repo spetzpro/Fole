@@ -159,7 +159,18 @@ Since JSON Schema describes *structure* and not necessarily *UI presentation*, a
 
 > **Note on Drift Prevention:** By using the *actual* validation schema to drive the UI, we ensure the Builder cannot produce configurations that the Server will reject.
 
+### 5.4 Planned Schema Locations (v2)
 
+To organize the expanding catalog of v2 nodes without cluttering the existing v1 shell schemas, the following structure is **planned**:
+
+- **Directory:** `app-repo/src/server/schemas/ui-node/` (Proposed)
+- **Format:** One file per node type (e.g., `ui.node.button.schema.json`).
+- **Authority:** These files are the Single Source of Truth for:
+  - **Server Validation:** AJV-based integrity checks during `preflight` and `activate`.
+  - **Builder Generation:** Providing the standard and `x-ui-editorHint` metadata to the editor.
+- **Compatibility:** existing v1 `shell` schemas remain stable. The v2 node schemas are additive and designed to be compatible with the v2 runtime interpreter. 
+
+*Note: This layout is provisional and may evolve as the implementation begins.*
 
 ---
 
