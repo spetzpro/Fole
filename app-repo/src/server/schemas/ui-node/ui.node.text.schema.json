@@ -1,0 +1,54 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://fole.app/schemas/ui-node/text.json",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string"
+    },
+    "type": {
+      "const": "ui.node.text"
+    },
+    "helpText": {
+      "type": "string"
+    },
+    "requiredPermission": {
+      "type": "string"
+    },
+    "visibleWhen": {
+      "type": "object"
+    },
+    "enabledWhen": {
+      "type": "object"
+    },
+    "content": {
+      "type": "string",
+      "x-ui-editorHint": "textarea"
+    },
+    "variant": {
+      "type": "string",
+      "enum": [
+        "body",
+        "h1",
+        "h2",
+        "h3",
+        "caption"
+      ],
+      "default": "body"
+    },
+    "align": {
+      "type": "string",
+      "enum": [
+        "left",
+        "center",
+        "right"
+      ],
+      "default": "left"
+    }
+  },
+  "required": [
+    "id",
+    "type",
+    "content"
+  ]
+}

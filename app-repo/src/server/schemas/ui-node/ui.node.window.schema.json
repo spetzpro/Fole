@@ -1,0 +1,43 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://fole.app/schemas/ui-node/window.json",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string"
+    },
+    "type": {
+      "const": "ui.node.window"
+    },
+    "helpText": {
+      "type": "string"
+    },
+    "requiredPermission": {
+      "type": "string"
+    },
+    "visibleWhen": {
+      "type": "object"
+    },
+    "enabledWhen": {
+      "type": "object"
+    },
+    "title": {
+      "type": "string",
+      "x-ui-editorHint": "textbox"
+    },
+    "initialWidth": {
+      "type": "number",
+      "minimum": 200,
+      "maximum": 1920
+    },
+    "dockable": {
+      "type": "boolean",
+      "default": true
+    }
+  },
+  "required": [
+    "id",
+    "type",
+    "title"
+  ]
+}

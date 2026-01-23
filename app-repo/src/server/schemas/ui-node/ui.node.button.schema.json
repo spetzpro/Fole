@@ -1,0 +1,52 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://fole.app/schemas/ui-node/button.json",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string"
+    },
+    "type": {
+      "const": "ui.node.button"
+    },
+    "helpText": {
+      "type": "string"
+    },
+    "requiredPermission": {
+      "type": "string"
+    },
+    "visibleWhen": {
+      "type": "object"
+    },
+    "enabledWhen": {
+      "type": "object"
+    },
+    "label": {
+      "type": "string",
+      "title": "Button Label",
+      "x-ui-editorHint": "textbox"
+    },
+    "variant": {
+      "type": "string",
+      "enum": [
+        "primary",
+        "secondary",
+        "ghost",
+        "dangerous"
+      ],
+      "default": "secondary"
+    },
+    "icon": {
+      "type": "string",
+      "x-ui-editorHint": "iconPicker"
+    },
+    "onClick": {
+      "type": "object"
+    }
+  },
+  "required": [
+    "id",
+    "type",
+    "label"
+  ]
+}

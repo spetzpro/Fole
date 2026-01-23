@@ -1,0 +1,48 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://fole.app/schemas/ui-node/container.json",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string"
+    },
+    "type": {
+      "const": "ui.node.container"
+    },
+    "helpText": {
+      "type": "string"
+    },
+    "requiredPermission": {
+      "type": "string"
+    },
+    "visibleWhen": {
+      "type": "object"
+    },
+    "enabledWhen": {
+      "type": "object"
+    },
+    "direction": {
+      "type": "string",
+      "enum": [
+        "row",
+        "column",
+        "grid"
+      ],
+      "default": "column"
+    },
+    "gap": {
+      "type": "number",
+      "default": 0
+    },
+    "children": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    }
+  },
+  "required": [
+    "id",
+    "type"
+  ]
+}
