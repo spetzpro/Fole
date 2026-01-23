@@ -3,6 +3,10 @@
 File: `specs/core/_AI_UI_SYSTEM_SPEC.md`  
 Scope: How the AI should think about the UI architecture, including routes, windowing, and the relationship between core.ui modules and UX specs.
 
+**Interlink Note:**  
+For the v2 declarative node graph DSL and sysadmin builder components, specifically consult:  
+- [`_AI_UI_NODE_GRAPH_SPEC.md`](./_AI_UI_NODE_GRAPH_SPEC.md)
+
 ---
 
 ## 1. Goals

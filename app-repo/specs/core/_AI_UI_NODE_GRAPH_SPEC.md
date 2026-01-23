@@ -4,6 +4,10 @@ File: `specs/core/_AI_UI_NODE_GRAPH_SPEC.md`
 Version: SPEC_V1.0
 Scope: Defines the "Config-Driven Application Builder" vision, where the UI is a resolved graph of nodes, slots, and bindings, authored by sysadmins.
 
+**Interlink Note:**  
+This spec focuses on the v2 Node DSL (Nodes, Slots, Templates, Conditions). For broader UI system principles, layouts, and windowing architecture, see:  
+- [`_AI_UI_SYSTEM_SPEC.md`](./_AI_UI_SYSTEM_SPEC.md)
+
 ---
 
 ## 1. Vision & Maturity
