@@ -110,49 +110,56 @@ Every node in the graph supports these base properties:
 
 ## 5. Node Prop Schema Standard (v2)
 
-To enable the Builder to generate property editors automatically, every Node Type must provide a **Schema Definition**.
+To enable the Builder to generate property editors automatically and ensure strict validation, every Node Type must provide a **JSON Schema Definition**.
 
-### 5.1 Schema Fields
-The definition object uses a standard JSON-compatible structure:
+### 5.1 Schema-First Approach
+- **Standard:** Node type contracts MUST be defined in **JSON Schema (Draft-7 compatible)**.
+- **Location:** Schemas must reside in `app-repo/src/server/schemas/shell/`.
+- **Consumption:**
+  - The **Validation Engine** uses these schemas to validate config integrity.
+  - The **Builder UI** SHOULD consume these schemas to dynamically generate the property editor forms.
+- **No Dual Pipelines:** Do NOT introduce an independent "prop schema" format (e.g., custom dictionaries) separate from the JSON Schema.
 
-| Key | Type | Description |
-| :--- | :--- | :--- |
-| `name` | `string` | The stable property key (e.g., `label`, `onClick`). |
-| `type` | `enum` | `string`, `number`, `boolean`, `enum`, `object`, `array`, `binding`, `actionRef`, `icon`. |
-| `required` | `boolean` | If true, node validation fails if missing. |
-| `defaultValue` | `any` | Fallback if not provided. |
-| `constraints` | `object` | `{ min, max, regex, allowEmpty }`. |
-| `editorHint` | `string` | `textbox`, `textarea`, `colorPicker`, `iconPicker`, `dropdown`, `toggle`. |
-| `helpText` | `string` | Sysadmin-facing tooltip explaining the prop. |
+### 5.2 UI Hints & Editors
+Since JSON Schema describes *structure* and not necessarily *UI presentation*, additional context MUST be provided via:
+1. **Standard Annotations:** Use `title`, `description`, `default`, `examples`, and `enum` fields.
+2. **UI Extension Fields:** Use the `x-ui-editorHint` convention for specific widget selection (e.g., `colorPicker`, `iconPicker`).
+3. **Companion uiSchema:** If complex logic is needed (e.g., hiding fields based on others), a separate `uiSchema` object may be served alongside the schema.
 
-### 5.2 Binding & Inheritance
-- **Value Inheritance:** If a node inherits from a template, props are deeply merged.
-- **Binding Support:** Most scalar props (`string`, `boolean`, `number`) implicitly accept a **Binding Descriptor** (`{ bind: "source.path" }`) unless strictly typed as "static-only".
+### 5.3 Example Schema (JSON Schema Style)
 
-### 5.3 Example Schemas
-
-**`ui.node.button`**
+**`ui.node.button` (Partial)**
 ```json
 {
-  "props": {
-    "label": { "type": "string", "required": true, "editorHint": "textbox" },
-    "icon": { "type": "icon", "editorHint": "iconPicker" },
-    "variant": { "type": "enum", "options": ["primary", "secondary", "ghost"], "defaultValue": "secondary" },
-    "onClick": { "type": "actionRef", "required": false }
-  }
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "label": {
+      "type": "string",
+      "title": "Button Label",
+      "description": "Text displayed on the button",
+      "x-ui-editorHint": "textbox"
+    },
+    "variant": {
+      "type": "string",
+      "enum": ["primary", "secondary", "ghost"],
+      "default": "secondary",
+      "description": "Visual style of the button"
+    },
+    "icon": {
+      "type": "string",
+      "pattern": "^[a-z-]+$",
+      "description": "Lucide icon name",
+      "x-ui-editorHint": "iconPicker"
+    }
+  },
+  "required": ["label"]
 }
 ```
 
-**`ui.node.window`**
-```json
-{
-  "props": {
-    "title": { "type": "string", "required": true, "editorHint": "textbox" },
-    "initialWidth": { "type": "number", "constraints": { "min": 200, "max": 1920 } },
-    "dockable": { "type": "boolean", "defaultValue": true }
-  }
-}
-```
+> **Note on Drift Prevention:** By using the *actual* validation schema to drive the UI, we ensure the Builder cannot produce configurations that the Server will reject.
+
+
 
 ---
 
