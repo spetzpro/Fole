@@ -110,6 +110,7 @@ To allow detailed data fetching without exposing raw SQL to Sysadmins.
 
 ### 6.1 Definition
 Named Queries are defined server-side (code) and referenced by ID in the UI. available queries function as server-managed capabilities.
+API execution details are defined in [`_AI_NETWORK_AND_API_SPEC.md`](./_AI_NETWORK_AND_API_SPEC.md#172-named-query-execution-v2-baseline).
 
 ### 6.2 Schema
 - **`queryId`**: Unique string (e.g. `core.users.listActive`).

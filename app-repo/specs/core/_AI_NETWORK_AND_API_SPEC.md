@@ -185,7 +185,66 @@ AI MUST NOT:
 - Create tokens
 - Invoke deprecated routes
 
-## 17. RELATION TO OTHER SPECS
+## 17. V2 BUILDER & SYSADMIN APIS (CONFIG-DRIVEN)
+
+To support the v2 "Config-Driven Application Builder", the following specialized API surfaces are defined.
+
+### 17.1 Config Bundle Lifecycle
+Operations for managing the UI Node Graph configurations.
+
+| Method | Endpoint | Description | Permission Required |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/api/v2/config/versions` | List history of config versions. | `CONFIG_READ` |
+| `GET` | `/api/v2/config/versions/:id` | Get details (nodes/graph) of a specific version. | `CONFIG_READ` |
+| `POST` | `/api/v2/config/draft` | Create a new writable draft from a base version. | `CONFIG_WRITE` |
+| `PATCH`| `/api/v2/config/draft/:id` | Update draft (supports graph primitives: addNode, moveNode). | `CONFIG_WRITE` |
+| `POST` | `/api/v2/config/preflight` | Validate draft (returns warnings/errors/counts). | `CONFIG_WRITE` |
+| `POST` | `/api/v2/config/activate` | Promote a draft to "Active". Requires reason. | `CONFIG_DEPLOY` |
+| `POST` | `/api/v2/config/rollback` | Revert to a previous version. | `CONFIG_DEPLOY` |
+
+**Response Shape (Preflight/Activate):**
+```json
+{
+  "ok": true,
+  "warnings": ["Node X references deprecated prop Y"],
+  "errors": [],
+  "stats": { "nodeCount": 150, "expressionCount": 12 }
+}
+```
+
+### 17.2 Named Query Execution (v2 Baseline)
+Secure data access for UI Nodes. No raw SQL allowed.
+
+| Method | Endpoint | Description | Permission Required |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/api/v2/queries` | List available named query definitions (metadata). | `PROJECT_READ` |
+| `POST` | `/api/v2/queries/:queryId/execute` | Execute a query with provided parameters. | Varies (Defined in Query) |
+
+**Constraints:**
+- **Params:** Must match the query's defined JSON schema.
+- **Result:** Typed according to `resultSchema` (used for binding validation).
+- **Caching:** Respects query-specific `cache-control` definitions.
+
+### 17.3 Data Model Builder (Sysadmin-Authored)
+Operations for defining tables and fields at runtime.
+
+| Method | Endpoint | Description | Permission Required |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/api/v2/datamodels` | List custom models. | `DATAMODEL_READ` |
+| `POST` | `/api/v2/datamodels/draft` | Upsert model definition (tables/fields). | `DATAMODEL_WRITE` |
+| `POST` | `/api/v2/datamodels/preflight` | Generate migration plan & risk summary. | `DATAMODEL_WRITE` |
+| `POST` | `/api/v2/datamodels/migrate` | **Destructive Application** of changes. | `DATAMODEL_MIGRATE` |
+
+**Governance:**
+- `migrate` endpoint MUST implement the **Destructive Change Governance** hook (requires pre-approval token or high-privilege confirmation).
+- Preflight must return a "Risk Score" (e.g., "High Risk: Deletes column 'status' with 500 rows").
+
+### 17.4 Error Model & Security Notes
+- **Authoritative Backend:** Logic in UI (`visibleWhen`) is cosmetic. The API enforces actual data access permissions (`403 Forbidden`).
+- **DoS Protection:** See `_AI_SECURITY_AND_COMPLIANCE_SPEC.md` for strict limits on query complexity and graph size.
+- **Logic Bounds:** See `_AI_UI_BINDING_AND_LOGIC_SPEC.md` for constraints on expressions sent during validation.
+
+## 18. RELATION TO OTHER SPECS
 - Storage rules: _AI_STORAGE_ARCHITECTURE.md
 - Auth/roles: _AI_ROLES_AND_PERMISSIONS.md
 - Error patterns: _AI_ERROR_HANDLING_AND_DIAGNOSTICS_SPEC.md
