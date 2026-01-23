@@ -7,6 +7,7 @@ Scope: Defines the "Config-Driven Application Builder" vision, where the UI is a
 **Interlink Note:**  
 This spec focuses on the v2 Node DSL (Nodes, Slots, Templates, Conditions). For broader UI system principles, layouts, and windowing architecture, see:  
 - [`_AI_UI_SYSTEM_SPEC.md`](./_AI_UI_SYSTEM_SPEC.md)
+- [`_AI_UI_BINDING_AND_LOGIC_SPEC.md`](./_AI_UI_BINDING_AND_LOGIC_SPEC.md) (Logic & Bindings)
 
 ---
 

@@ -19,6 +19,7 @@ This spec integrates with:
 - _AI_ROLES_AND_PERMISSIONS.md  
 - _AI_AUTOMATION_ENGINE_SPEC.md  
 - _AI_MONITORING_AND_ALERTING_SPEC.md  
+- _AI_UI_BINDING_AND_LOGIC_SPEC.md (Safe expression limits)
 
 ---
 
