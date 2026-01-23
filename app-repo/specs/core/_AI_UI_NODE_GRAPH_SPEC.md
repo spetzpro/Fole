@@ -22,7 +22,7 @@ This enables sysadmins to drag-and-drop construct the application layout, dashbo
 
 ### Transition Strategy:
 - New built-in widgets (PDF Viewer, etc.) will be written as v2-compatible nodes.
-- The "Sysadmin Builder" itself will be transparently hosted as just another widget within the graph.
+- The "Sysadmin Builder" is exposed as a built-in widget node (e.g. `ui.node.sysadminBuilder`) that can be placed in the graph, but its structure/behavior remains code-owned for safety; only visuals are tokenized (theme tokens + optional builder profile), with safe fallback + rollback.
 
 ---
 
