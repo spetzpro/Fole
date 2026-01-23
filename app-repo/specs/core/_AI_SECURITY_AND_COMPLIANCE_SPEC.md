@@ -314,9 +314,67 @@ Modules MUST NOT:
 - access outside their project  
 - alter global templates  
 
+# 15. SECURITY GUARDRAILS FOR CONFIG-DRIVEN BUILDER (V2)
+
+The v2 "Config-Driven application builder" introduces runtime logic and data definition capabilities. These features are strictly governed to prevent security degradation.
+
+## 15.1 Expression & Condition Safety
+To prevent Remote Code Execution (RCE) and Cross-Site Scripting (XSS):
+- **No Arbitrary JS:** Logic MUST use the governed Expression Engine defined in `_AI_UI_BINDING_AND_LOGIC_SPEC.md`. Evaluation via `eval()`, `new Function()`, or `setTimeout(string)` is STRICTLY FORBIDDEN.
+- **Whitelist Only:** Expressions MUST be parsed into an AST and validated against a strict whitelist of allowed operators and properties.
+- **Resource Limits:** Expressions MUST have hard limits on:
+    - AST Depth (e.g. max 10)
+    - Length (e.g. max 256 chars)
+    - Evaluation Cost (max steps)
+- **Fail-Closed:**
+    - **Preflight:** Expressions detected as unsafe or invalid MUST block the configuration save/deploy.
+    - **Runtime:** Evaluation errors MUST degrade safely (e.g., return `false` or `null`) and emit silent diagnostics. They MUST NEVER default to "allow" or grant permissions.
+
+## 15.2 Regex Safety (Anti-ReDoS)
+Regular Expressions are a primary vector for Denial of Service.
+- **Strict Validation:** Regex usage MUST be opt-in and validated as "Safe" (linear time complexity) or executed by a non-backtracking engine (e.g., RE2).
+- **Bounds Required:**
+    - Max Pattern Length (e.g., 50 chars)
+    - Max Input Length (e.g., 1000 chars)
+- **Rate Limits:** If regex is used in query filtering, strict rate limits MUST apply.
+- Refer to `_AI_UI_BINDING_AND_LOGIC_SPEC.md`.
+
+## 15.3 Named Queries & Data Access
+Sysadmins MUST NOT execute raw SQL or arbitrary DB commands.
+- **Server Authoritative:** Queries refer to server-side definitions via ID. The Config contains NO query logic, only IDs and parameters.
+- **Schema Validation:** Query execution MUST validate parameters against a strictly typed JSON schema.
+- **Permission Checks:** Execution MUST verify the caller holds the permissions defined in the Query Definition.
+- **Audit Logging:** All Named Query executions (success or failure) MUST be auditable (User, QueryID, Params, Timestamp).
+- **Data Scoping:** Queries MUST be scoped to the requestor's `PermissionContext` (Project/User/Workspace). Data exfiltration via cross-tenant selection is FORBIDDEN.
+- Refer to `_AI_NETWORK_AND_API_SPEC.md` and `_AI_UI_BINDING_AND_LOGIC_SPEC.md`.
+
+## 15.4 Sysadmin-Authored Data Models
+Runtime schema changes carry high risk.
+- **Explicit Permissions:** Operations defined in `_AI_DB_AND_DATA_MODELS_SPEC.md` require specific entitlements (`DATAMODEL_WRITE`, `DATAMODEL_MIGRATE`).
+- **Preflight Requirement:** Migrations MUST produce a **Migration Plan** and **Risk Summary** (e.g., "Dropping Table X").
+- **Destructive Governance:** Destructive changes (drops, type changes with data loss) MUST trigger the **Destructive Change Governance** hook (requiring confirmation or high-privilege approval).
+- **Audit:** Schema changes MUST be permanently logged.
+
+## 15.5 Config Activation & Lockout Prevention
+Config changes MUST NOT render the system unrecoverable.
+- **Atomic Activation:** Switching the active config version MUST be an atomic operation.
+- **Recovery Path:** The system MUST always retain the ability to:
+    - Rollback to the previous known-good version.
+    - Enter "Safe Mode" via a hardcoded entry point if the UI is broken.
+- **Code Ownership:** The underlying "Sysadmin Builder" structure MUST be code-owned. Configs only control layout/theming to prevent breaking the editor itself.
+- Refer to `_AI_ADMIN_EDITING_CONTRACT.md`.
+
+## 15.6 Denial of Service (DoS) & Resource Limits
+V2 features MUST enforce strict budgets to prevent resource exhaustion.
+- **UI Graph:** Max nodes per view, max bindings per node.
+- **Expressions:** Max usage per view.
+- **Queries:** Max complexity, timeouts, and result set sizes.
+- **Rate Limiting:** Specific limits for builder, query execution, and modeling endpoints.
+- Refer to `_AI_PERFORMANCE_AND_SCALING_SPEC.md`.
+
 ---
 
-# 15. INTEGRATION WITH OTHER SPECS
+# 16. INTEGRATION WITH OTHER SPECS
 
 Conflicts resolve in this priority:
 
@@ -328,7 +386,7 @@ Conflicts resolve in this priority:
 
 ---
 
-# 16. END OF DOCUMENT
+# 17. END OF DOCUMENT
 
 _AI_SECURITY_AND_COMPLIANCE_SPEC.md  
 This document is authoritative.  
