@@ -91,7 +91,7 @@ const V2_BUNDLE = {
                 data: {
                     id: "v2-btn-1",
                     type: "ui.node.button",
-                    label: "Click Me (V2 Action)",
+                    label: "Click Me",
                     behaviors: {
                         onClick: {
                             actionId: "action-logger-v2"
