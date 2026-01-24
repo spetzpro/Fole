@@ -20,7 +20,37 @@ const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 async function main() {
   const router = new Router();
   const cwd = process.cwd();
+  
+  // Handlers for body parsing (simple)
+  const parseJsonBody = (req: http.IncomingMessage): Promise<any> => {
+       return new Promise((resolve) => {
+           let body = '';
+           req.on('data', chunk => body += chunk);
+           req.on('end', () => {
+               try {
+                  resolve(body ? JSON.parse(body) : {});
+               } catch (e) {
+                  resolve({});
+               }
+           });
+       });
+  };
+
+  router.post("/api/actions/dispatch", async (req, res) => {
+      const body = await parseJsonBody(req);
+      if (!body.actionId || !body.nodeId) {
+          return router.json(res, 400, { error: "Missing actionId or nodeId" });
+      }
+      
+      // NG9: Audit/Log dispatch but NOOP execution as requested
+      // eslint-disable-next-line no-console
+      console.log(`[Action Dispatch] Node: ${body.nodeId}, Action: ${body.actionId}`);
+      
+      router.json(res, 200, { status: "ok", message: "Action dispatched (simulated)" });
+  });
+
   const configRepo = new ShellConfigRepository(cwd);
+
   const validator = new ShellConfigValidator(cwd);
   const deployer = new ShellConfigDeployer(configRepo, validator, cwd);
   

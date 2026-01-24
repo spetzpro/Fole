@@ -40,6 +40,22 @@
       "type": "string",
       "x-ui-editorHint": "iconPicker"
     },
+    "behaviors": {
+      "type": "object",
+      "properties": {
+        "onClick": {
+            "type": "object",
+             "properties": {
+                "actionId": {
+                     "type": "string"
+                 }
+             },
+             "required": ["actionId"],
+             "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
     "onClick": {
       "type": "object"
     }

@@ -597,6 +597,7 @@ export class ShellConfigValidator {
           nodesById[id] = {
               id: id,
               type: node.blockType,
+              props: node.data, // Pass through data as props (so behaviors are available)
               children: resolvedChildren
           };
 

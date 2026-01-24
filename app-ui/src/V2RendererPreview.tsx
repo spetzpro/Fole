@@ -73,8 +73,30 @@ export function V2RendererPreview({ onClose }: V2RendererPreviewProps) {
                     </div>
                 );
             case 'ui.node.button':
+                const handleButtonClick = async () => {
+                     // @ts-ignore
+                     const actionId = node.props.behaviors?.onClick?.actionId;
+                     if (actionId) {
+                         console.log("Dispatching Action:", actionId);
+                         try {
+                            const res = await fetch('/api/actions/dispatch', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ actionId, nodeId: node.id })
+                            });
+                            if (!res.ok) {
+                                console.error("Action Dispatch Failed:", res.status);
+                            }
+                         } catch (e) {
+                             console.error("Action Dispatch Network Error:", e);
+                         }
+                     } else {
+                         console.log('Button clicked (local):', node.id, node.props);
+                     }
+                };
+                
                 return (
-                    <button key={commonKey} style={{...style, cursor: 'pointer', backgroundColor: '#e0e0e0', padding: '5px 10px', border:'1px solid #999', borderRadius:'4px'}} onClick={() => console.log('Button clicked:', node.id, node.props)}>
+                    <button key={commonKey} style={{...style, cursor: 'pointer', backgroundColor: '#e0e0e0', padding: '5px 10px', border:'1px solid #999', borderRadius:'4px'}} onClick={handleButtonClick}>
                         {String(node.props.label || 'Button')}
                     </button>
                 );

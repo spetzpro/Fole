@@ -40,6 +40,7 @@ export interface ValidationError {
 export interface ResolvedUiNode {
     id: string;
     type: string;
+    props: Record<string, unknown>;
     children: string[]; 
 }
 
