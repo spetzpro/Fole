@@ -110,12 +110,13 @@ export function V2RendererPreview({ onClose }: V2RendererPreviewProps) {
                     </button>
                 );
             case 'ui.node.window':
+                 const windowTitle = node.props?.title || node.props?.label || 'Window';
                  return (
-                    <div key={commonKey} style={{...style, border: '2px solid #333', boxShadow: '0 2px 10px rgba(0,0,0,0.2)', backgroundColor: '#fff', minWidth: '300px', minHeight: '200px'}}>
+                    <div key={commonKey} style={{...style, border: '2px solid #333', boxShadow: '0 2px 10px rgba(0,0,0,0.2)', backgroundColor: '#fff', minWidth: '300px', minHeight: '200px', display:'flex', flexDirection:'column'}}>
                         <div style={{background:'#eee', padding:'5px', borderBottom:'1px solid #ccc', fontWeight:'bold'}}>
-                             {String(node.props?.title || 'Window')}
+                             {String(windowTitle)}
                         </div>
-                        <div style={{padding:'10px'}}>
+                        <div style={{padding:'10px', flex:1, overflow:'auto'}}>
                              {node.children?.map(childId => renderNode(childId))}
                         </div>
                     </div>
