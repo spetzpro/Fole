@@ -435,6 +435,26 @@ async function main() {
     }
   });
 
+  router.get("/api/config/shell/resolved-graph/active", async (req, res) => {
+    try {
+        const activePointer = await configRepo.getActivePointer();
+        if (!activePointer || !activePointer.activeVersionId) {
+             return router.json(res, 404, { code: "resolved_graph_not_found", error: "No active configuration set" });
+        }
+        
+        const graph = await configRepo.getResolvedUiGraph(activePointer.activeVersionId);
+        if (!graph) {
+             return router.json(res, 404, { code: "resolved_graph_not_found", error: "Graph not found for active version" });
+        }
+        
+        router.json(res, 200, graph);
+    } catch (err: any) {
+         // eslint-disable-next-line no-console
+        console.error("Error fetching active resolved graph", err);
+        router.json(res, 500, { error: err.message || "Internal Server Error" });
+    }
+  });
+
   router.get("/api/config/shell/resolved-graph/:versionId", async (_req, res, params) => {
     const versionId = params.versionId;
     if (!versionId) {

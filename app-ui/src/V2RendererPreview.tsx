@@ -25,20 +25,17 @@ export function V2RendererPreview({ onClose }: V2RendererPreviewProps) {
     useEffect(() => {
         const fetchGraph = async () => {
             try {
-                // 1. Get active version ID
-                const activeRes = await fetch('/api/config/shell/active');
-                if (!activeRes.ok) throw new Error('Failed to fetch active config pointer');
-                const activeData = await activeRes.json();
-                const versionId = activeData.activeVersionId;
-
-                if (!versionId) throw new Error('No active version ID found');
-
-                // 2. Get resolved graph
-                const graphRes = await fetch(`/api/config/shell/resolved-graph/${versionId}`);
+                // Single step: Get active resolved graph
+                const graphRes = await fetch('/api/config/shell/resolved-graph/active');
+                
                 if (graphRes.status === 404) {
-                     // Fallback/Graceful handling if version has no graph (e.g. old v1 version)
-                     throw new Error('This version does not support V2 Graph (not found)');
+                     const errData = await graphRes.json().catch(() => ({}));
+                     if (errData.code === "resolved_graph_not_found") {
+                         throw new Error("No active V2 graph found. Activate a config containing ui.node.* blocks.");
+                     }
+                     throw new Error('Graph not found (404)');
                 }
+                
                 if (!graphRes.ok) throw new Error('Failed to fetch resolved graph');
                 
                 const graphData = await graphRes.json();
