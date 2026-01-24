@@ -60,10 +60,16 @@ export function V2RendererPreview({ onClose }: V2RendererPreviewProps) {
 
         switch (node.type) {
             case 'ui.node.container':
+                // Layout logic
+                const directionProp = node.props?.layout || node.props?.direction || 'column';
+                const flexDirection = String(directionProp).toLowerCase() === 'row' ? 'row' : 'column';
+
                 return (
                     <div key={commonKey} style={{...style, border: '1px dashed #666', backgroundColor: '#f9f9f9'}}>
                         <small style={{color:'#666', display:'block', marginBottom:'5px'}}>Container ({node.id})</small>
-                        {node.children?.map(childId => renderNode(childId))}
+                        <div style={{ display: 'flex', flexDirection: flexDirection, gap: '10px' }}>
+                            {node.children?.map(childId => renderNode(childId))}
+                        </div>
                     </div>
                 );
             case 'ui.node.text':
