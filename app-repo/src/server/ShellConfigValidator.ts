@@ -1,7 +1,7 @@
 import Ajv from "ajv";
 import { promises as fs } from "fs";
 import * as path from "path";
-import { ShellBundle, ValidationReport, ValidationError } from "./ShellConfigTypes";
+import { ShellBundle, ValidationReport, ValidationError, ResolvedUiGraph, ResolvedUiNode } from "./ShellConfigTypes";
 
 type RegionSlot = 'header' | 'viewport' | 'footer';
 
@@ -512,8 +512,9 @@ export class ShellConfigValidator {
     }
 
     // NG3: V2 UI-Node Graph Compilation (Preflight Integrity Check)
+    let resolvedUiGraph: ResolvedUiGraph | undefined;
     try {
-        this.compileUiGraph(bundle);
+        resolvedUiGraph = this.compileUiGraph(bundle);
     } catch (err: any) {
         // If compilation throws a specific validation-like error (e.g. cycle),
         // we map it to the report.
@@ -543,24 +544,31 @@ export class ShellConfigValidator {
       status: errorCount === 0 ? "valid" : "invalid",
       validatorVersion: "1.0.0",
       severityCounts,
-      errors
+      errors,
+      resolvedUiGraph: errorCount === 0 ? resolvedUiGraph : undefined
     };
   }
 
-  // NG3 Implementation: Minimal Graph Compiler
-  // Validates integrity of v2 ui.node.* blocks: existence and cycles.
-  private compileUiGraph(bundle: ShellBundle["bundle"]): void {
+  // NG3/NG5 Implementation: Minimal Graph Compiler
+  // Validates integrity of v2 ui.node.* blocks and returns ResolvedUiGraph.
+  private compileUiGraph(bundle: ShellBundle["bundle"]): ResolvedUiGraph | undefined {
       const uiNodes = Object.values(bundle.blocks).filter(b => b.blockType.startsWith("ui.node."));
-      if (uiNodes.length === 0) return;
+      if (uiNodes.length === 0) return undefined;
 
       // Map for quick lookup
       const nodeMap = new Map<string, any>();
       uiNodes.forEach(n => nodeMap.set(n.blockId, n));
 
-      // 1. Validate Children Existence & Edges
+      const nodesById: Record<string, ResolvedUiNode> = {};
+      const allChildIds = new Set<string>();
+      let edgeCount = 0;
+
+      // 1. Validate Children Existence & Edges & Build Graph
       nodeMap.forEach((node, id) => {
-          const children = (node.data as any).children;
-          if (children && Array.isArray(children)) {
+          const children = (node.data as any).children || [];
+          const resolvedChildren: string[] = [];
+          
+          if (Array.isArray(children)) {
               children.forEach((childRef: any, index: number) => {
                   let childId: string | undefined;
                   
@@ -570,9 +578,7 @@ export class ShellConfigValidator {
 
                   if (!childId) return; // Ignore malformed children (schema validation handles types)
 
-                  // Check existence: Must exist in the MAIN bundle (can reference non-ui-node blocks too?)
-                  // Assumption: ui-nodes usually contain other ui-nodes.
-                  // If child is missing from bundle:
+                  // Check existence: Must exist in the MAIN bundle
                   if (!bundle.blocks[childId]) {
                       const err: any = new Error(`Node '${id}' references missing child '${childId}'`);
                       err.isUiGraphError = true;
@@ -580,8 +586,18 @@ export class ShellConfigValidator {
                       err.path = `/blocks/${id}/data/children/${index}`;
                       throw err;
                   }
+
+                  resolvedChildren.push(childId);
+                  allChildIds.add(childId);
+                  edgeCount++;
               });
           }
+
+          nodesById[id] = {
+              id: id,
+              type: node.blockType,
+              children: resolvedChildren
+          };
       });
 
       // 2. Cycle Detection (DFS)
@@ -603,7 +619,13 @@ export class ShellConfigValidator {
           recursionStack.add(currentId);
 
           const node = bundle.blocks[currentId];
-          if (node && node.blockType.startsWith("ui.node.")) {
+          // Follow edges into non-UI nodes if referenced? 
+          // For now, strict UI graph usually stays within UI nodes. 
+          // But missing child check ensures existence. Cycle check should follow links.
+          // Since validateBundle passes referencing non-ui nodes, we should only check children if it IS a known structure.
+          // But cycle check logic below only looked at bundle.blocks... ok.
+
+          if (node) { // We know it exists from previous pass
               const children = (node.data as any).children;
               if (children && Array.isArray(children)) {
                   children.forEach((childRef: any) => {
@@ -621,9 +643,27 @@ export class ShellConfigValidator {
           recursionStack.delete(currentId);
       };
 
-      // Run DFS from every node
+      // Run DFS from every UI node
+      // (Even if node is in allChildIds, we run it to be safe, visited set optimizes)
       for (const id of nodeMap.keys()) {
           checkCycle(id);
       }
+
+      // 3. Determine Roots (UI nodes not referenced as children by other UI nodes)
+      // Note: This logic only considers intra-graph references. 
+      // If a node is referenced by a non-UI node (like a Layout), it might still be a "root" of the UI graph.
+      // Def: Roots are nodes with in-degree 0 within the set of UI nodes.
+      const rootNodeIds = uiNodes
+          .map(n => n.blockId)
+          .filter(id => !allChildIds.has(id));
+
+      return {
+          nodesById,
+          rootNodeIds,
+          diagnostics: {
+              nodeCount: uiNodes.length,
+              edgeCount
+          }
+      };
   }
 }

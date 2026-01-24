@@ -37,6 +37,21 @@ export interface ValidationError {
   relatedBlockIds?: string[];
 }
 
+export interface ResolvedUiNode {
+    id: string;
+    type: string;
+    children: string[]; 
+}
+
+export interface ResolvedUiGraph {
+    nodesById: Record<string, ResolvedUiNode>;
+    rootNodeIds: string[];
+    diagnostics: {
+        nodeCount: number;
+        edgeCount: number;
+    };
+}
+
 export interface ValidationReport {
   status: "valid" | "invalid";
   validatorVersion: string;
@@ -46,6 +61,7 @@ export interface ValidationReport {
     B: number;
   };
   errors: ValidationError[];
+  resolvedUiGraph?: ResolvedUiGraph;
 }
 
 export interface BlockEnvelope {
