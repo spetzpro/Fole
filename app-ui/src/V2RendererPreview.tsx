@@ -3,8 +3,8 @@ import { useEffect, useState } from 'react';
 // Minimal types matching backend ResolvedUiGraph
 interface ResolvedUiNode {
     id: string;
-    kind: string;
-    props: Record<string, unknown>;
+    type: string;
+    props?: Record<string, unknown>;
     children?: string[]; // Child IDs
 }
 
@@ -58,7 +58,7 @@ export function V2RendererPreview({ onClose }: V2RendererPreviewProps) {
 
         const commonKey = node.id;
 
-        switch (node.kind) {
+        switch (node.type) {
             case 'ui.node.container':
                 return (
                     <div key={commonKey} style={{...style, border: '1px dashed #666', backgroundColor: '#f9f9f9'}}>
@@ -69,13 +69,13 @@ export function V2RendererPreview({ onClose }: V2RendererPreviewProps) {
             case 'ui.node.text':
                 return (
                     <div key={commonKey} style={{...style, backgroundColor: 'white'}}>
-                        {String(node.props.content || '')}
+                        {String(node.props?.content || '')}
                     </div>
                 );
             case 'ui.node.button':
                 const handleButtonClick = async () => {
                      // @ts-ignore
-                     const actionId = node.props.behaviors?.onClick?.actionId;
+                     const actionId = node.props?.behaviors?.onClick?.actionId;
                      if (actionId) {
                          console.log("Dispatching Action:", actionId);
                          try {
@@ -97,14 +97,14 @@ export function V2RendererPreview({ onClose }: V2RendererPreviewProps) {
                 
                 return (
                     <button key={commonKey} style={{...style, cursor: 'pointer', backgroundColor: '#e0e0e0', padding: '5px 10px', border:'1px solid #999', borderRadius:'4px'}} onClick={handleButtonClick}>
-                        {String(node.props.label || 'Button')}
+                        {String(node.props?.label || 'Button')}
                     </button>
                 );
             case 'ui.node.window':
                  return (
                     <div key={commonKey} style={{...style, border: '2px solid #333', boxShadow: '0 2px 10px rgba(0,0,0,0.2)', backgroundColor: '#fff', minWidth: '300px', minHeight: '200px'}}>
                         <div style={{background:'#eee', padding:'5px', borderBottom:'1px solid #ccc', fontWeight:'bold'}}>
-                             {String(node.props.title || 'Window')}
+                             {String(node.props?.title || 'Window')}
                         </div>
                         <div style={{padding:'10px'}}>
                              {node.children?.map(childId => renderNode(childId))}
@@ -114,7 +114,7 @@ export function V2RendererPreview({ onClose }: V2RendererPreviewProps) {
             default:
                 return (
                     <div key={commonKey} style={{...style, color: 'orange', border: '1px solid orange'}}>
-                        Unknown kind: {node.kind} ({node.id})
+                        Unknown node type: {node.type} ({node.id})
                     </div>
                 );
         }
