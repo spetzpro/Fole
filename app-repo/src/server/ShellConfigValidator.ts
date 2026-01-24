@@ -511,6 +511,26 @@ export class ShellConfigValidator {
         }
     }
 
+    // NG3: V2 UI-Node Graph Compilation (Preflight Integrity Check)
+    try {
+        this.compileUiGraph(bundle);
+    } catch (err: any) {
+        // If compilation throws a specific validation-like error (e.g. cycle),
+        // we map it to the report.
+        if (err.isUiGraphError) {
+             errors.push({
+                 severity: "A1", // Critical
+                 code: "ui_graph_compile_failed",
+                 message: err.message,
+                 path: err.path || "/blocks",
+                 blockId: err.blockId
+             });
+        } else {
+             // Unexpected compiler crash
+             throw err;
+        }
+    }
+
     const errorCount = errors.filter(e => e.severity === "A1").length;
     
     const severityCounts = {
@@ -525,5 +545,85 @@ export class ShellConfigValidator {
       severityCounts,
       errors
     };
+  }
+
+  // NG3 Implementation: Minimal Graph Compiler
+  // Validates integrity of v2 ui.node.* blocks: existence and cycles.
+  private compileUiGraph(bundle: ShellBundle["bundle"]): void {
+      const uiNodes = Object.values(bundle.blocks).filter(b => b.blockType.startsWith("ui.node."));
+      if (uiNodes.length === 0) return;
+
+      // Map for quick lookup
+      const nodeMap = new Map<string, any>();
+      uiNodes.forEach(n => nodeMap.set(n.blockId, n));
+
+      // 1. Validate Children Existence & Edges
+      nodeMap.forEach((node, id) => {
+          const children = (node.data as any).children;
+          if (children && Array.isArray(children)) {
+              children.forEach((childRef: any, index: number) => {
+                  let childId: string | undefined;
+                  
+                  // Support both string ID and { blockId: "..." } object
+                  if (typeof childRef === 'string') childId = childRef;
+                  else if (typeof childRef === 'object' && childRef.blockId) childId = childRef.blockId;
+
+                  if (!childId) return; // Ignore malformed children (schema validation handles types)
+
+                  // Check existence: Must exist in the MAIN bundle (can reference non-ui-node blocks too?)
+                  // Assumption: ui-nodes usually contain other ui-nodes.
+                  // If child is missing from bundle:
+                  if (!bundle.blocks[childId]) {
+                      const err: any = new Error(`Node '${id}' references missing child '${childId}'`);
+                      err.isUiGraphError = true;
+                      err.blockId = id;
+                      err.path = `/blocks/${id}/data/children/${index}`;
+                      throw err;
+                  }
+              });
+          }
+      });
+
+      // 2. Cycle Detection (DFS)
+      const visited = new Set<string>();
+      const recursionStack = new Set<string>();
+
+      const checkCycle = (currentId: string) => {
+          if (recursionStack.has(currentId)) {
+              // Cycle detected
+              const err: any = new Error(`Cycle detected in UI Graph involving node '${currentId}'`);
+              err.isUiGraphError = true;
+              err.blockId = currentId;
+              err.path = `/blocks/${currentId}`;
+              throw err;
+          }
+          if (visited.has(currentId)) return;
+
+          visited.add(currentId);
+          recursionStack.add(currentId);
+
+          const node = bundle.blocks[currentId];
+          if (node && node.blockType.startsWith("ui.node.")) {
+              const children = (node.data as any).children;
+              if (children && Array.isArray(children)) {
+                  children.forEach((childRef: any) => {
+                      let childId: string | undefined;
+                      if (typeof childRef === 'string') childId = childRef;
+                      else if (typeof childRef === 'object' && childRef.blockId) childId = childRef.blockId;
+                      
+                      if (childId && bundle.blocks[childId]) {
+                          checkCycle(childId);
+                      }
+                  });
+              }
+          }
+
+          recursionStack.delete(currentId);
+      };
+
+      // Run DFS from every node
+      for (const id of nodeMap.keys()) {
+          checkCycle(id);
+      }
   }
 }
