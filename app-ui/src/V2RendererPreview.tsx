@@ -57,6 +57,7 @@ export function V2RendererPreview({ onClose }: V2RendererPreviewProps) {
         };
 
         const commonKey = node.id;
+        const debugProps = <div style={{fontSize:'10px', color:'#999', marginTop:'2px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:'200px'}}>{JSON.stringify(node.props || {})}</div>;
 
         switch (node.type) {
             case 'ui.node.container':
@@ -64,12 +65,15 @@ export function V2RendererPreview({ onClose }: V2RendererPreviewProps) {
                     <div key={commonKey} style={{...style, border: '1px dashed #666', backgroundColor: '#f9f9f9'}}>
                         <small style={{color:'#666', display:'block', marginBottom:'5px'}}>Container ({node.id})</small>
                         {node.children?.map(childId => renderNode(childId))}
+                        {debugProps}
                     </div>
                 );
             case 'ui.node.text':
+                const displayText = node.props?.content || node.props?.text || node.props?.value || node.props?.label || "(missing text)";
                 return (
                     <div key={commonKey} style={{...style, backgroundColor: 'white'}}>
-                        {String(node.props?.content || '')}
+                        {String(displayText)}
+                        {debugProps}
                     </div>
                 );
             case 'ui.node.button':
@@ -95,10 +99,15 @@ export function V2RendererPreview({ onClose }: V2RendererPreviewProps) {
                      }
                 };
                 
+                const displayLabel = node.props?.label || node.props?.text || node.props?.content || "Button";
+
                 return (
-                    <button key={commonKey} style={{...style, cursor: 'pointer', backgroundColor: '#e0e0e0', padding: '5px 10px', border:'1px solid #999', borderRadius:'4px'}} onClick={handleButtonClick}>
-                        {String(node.props?.label || 'Button')}
-                    </button>
+                    <div key={commonKey} style={{display:'inline-block'}}>
+                        <button style={{...style, margin:0, cursor: 'pointer', backgroundColor: '#e0e0e0', padding: '5px 10px', border:'1px solid #999', borderRadius:'4px'}} onClick={handleButtonClick}>
+                            {String(displayLabel)}
+                        </button>
+                        {debugProps}
+                    </div>
                 );
             case 'ui.node.window':
                  return (
@@ -109,12 +118,14 @@ export function V2RendererPreview({ onClose }: V2RendererPreviewProps) {
                         <div style={{padding:'10px'}}>
                              {node.children?.map(childId => renderNode(childId))}
                         </div>
+                        <div style={{padding:'5px'}}>{debugProps}</div>
                     </div>
                  );
             default:
                 return (
                     <div key={commonKey} style={{...style, color: 'orange', border: '1px solid orange'}}>
                         Unknown node type: {node.type} ({node.id})
+                        {debugProps}
                     </div>
                 );
         }
