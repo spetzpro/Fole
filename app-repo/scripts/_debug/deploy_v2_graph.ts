@@ -1,5 +1,5 @@
 
-import { ShellBundle } from "../src/server/ShellConfigTypes";
+import { ShellBundle } from "../../src/server/ShellConfigTypes";
 
 const http = require("http");
 
