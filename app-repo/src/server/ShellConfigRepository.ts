@@ -1,6 +1,6 @@
 import { promises as fs } from "fs";
 import * as path from "path";
-import { ActivePointer, ShellBundle, ConfigMeta, ConfigValidation, ShellManifest, BlockEnvelope } from "./ShellConfigTypes";
+import { ActivePointer, ShellBundle, ConfigMeta, ConfigValidation, ShellManifest, BlockEnvelope, ResolvedUiGraph, ValidationReport } from "./ShellConfigTypes";
 
 export class ShellConfigRepository {
   private readonly configRoot: string;
@@ -33,6 +33,32 @@ export class ShellConfigRepository {
         return null;
       }
       throw err;
+    }
+  }
+
+  // NG7: Retrieve the Resolved UI Graph for a specific version.
+  // This is read from the persisted validation.json artifact if present.
+  async getResolvedUiGraph(versionId: string): Promise<ResolvedUiGraph | undefined> {
+    const archivePath = path.join(this.configRoot, "archive", versionId);
+
+    if (versionId.includes("..") || versionId.includes("/") || versionId.includes("\\")) {
+      throw new Error("Invalid versionId");
+    }
+
+    try {
+      const validationPath = path.join(archivePath, "validation.json");
+      const validationContent = await fs.readFile(validationPath, "utf-8");
+      const report = JSON.parse(validationContent) as ValidationReport;
+      
+      return report.resolvedUiGraph;
+    } catch (err: any) {
+        if (err.code === "ENOENT") {
+            // If validation.json doesn't exist, we could re-run validation on the bundle,
+            // but for now we follow the requirement: strict read path.
+            // If it's missing, it effectively means no graph is available or version doesn't exist.
+            return undefined;
+        }
+        throw err;
     }
   }
 
