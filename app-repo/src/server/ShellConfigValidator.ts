@@ -1,7 +1,7 @@
 import Ajv from "ajv";
 import { promises as fs } from "fs";
 import * as path from "path";
-import { ShellBundle, ValidationReport, ValidationError, ResolvedUiGraph, ResolvedUiNode } from "./ShellConfigTypes";
+import { ShellBundle, ValidationReport, ValidationError, ResolvedUiGraph, ResolvedUiNode, ResolvedValidSlot } from "./ShellConfigTypes";
 
 type RegionSlot = 'header' | 'viewport' | 'footer';
 
@@ -560,10 +560,11 @@ export class ShellConfigValidator {
       uiNodes.forEach(n => nodeMap.set(n.blockId, n));
 
       const nodesById: Record<string, ResolvedUiNode> = {};
+      const slotsById: Record<string, ResolvedValidSlot> = {};
       const allChildIds = new Set<string>();
       let edgeCount = 0;
 
-      // 1. Validate Children Existence & Edges & Build Graph
+      // 1. Validate Children Existence & Edges & Build Graph & Slots
       nodeMap.forEach((node, id) => {
           const children = (node.data as any).children || [];
           const resolvedChildren: string[] = [];
@@ -597,6 +598,17 @@ export class ShellConfigValidator {
               id: id,
               type: node.blockType,
               children: resolvedChildren
+          };
+
+          // NG6: Populate "children" slot
+          // In the future, specialized nodes might have named slots (e.g. window.toolbar).
+          // For now, the generic "children" array maps to a child-type slot.
+          const slotId = `${id}:children`;
+          slotsById[slotId] = {
+              id: slotId,
+              ownerNodeId: id,
+              kind: "children",
+              childIds: resolvedChildren
           };
       });
 
@@ -659,6 +671,7 @@ export class ShellConfigValidator {
 
       return {
           nodesById,
+          slotsById,
           rootNodeIds,
           diagnostics: {
               nodeCount: uiNodes.length,

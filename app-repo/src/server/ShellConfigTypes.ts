@@ -43,8 +43,16 @@ export interface ResolvedUiNode {
     children: string[]; 
 }
 
+export interface ResolvedValidSlot {
+    id: string;
+    ownerNodeId: string;
+    kind: "children"; // Expandable later (e.g. "header", "toolbar")
+    childIds: string[];
+}
+
 export interface ResolvedUiGraph {
     nodesById: Record<string, ResolvedUiNode>;
+    slotsById: Record<string, ResolvedValidSlot>;
     rootNodeIds: string[];
     diagnostics: {
         nodeCount: number;
