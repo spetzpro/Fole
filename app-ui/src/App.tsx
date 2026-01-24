@@ -5960,6 +5960,14 @@ function App() {
   const [baseUrl] = useState('');
   
   const [showV2, setShowV2] = useState(false);
+
+  // Check query param for v2 preview on mount
+  useEffect(() => {
+     const params = new URLSearchParams(window.location.search);
+     if (params.get('v2Preview')) {
+         setShowV2(true);
+     }
+  }, []);
   
   const [bundleData, setBundleData] = useState<BundleResponse | null>(null);
   const [pingData, setPingData] = useState<PingResponse | null>(null);
