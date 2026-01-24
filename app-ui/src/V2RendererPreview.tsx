@@ -11,7 +11,7 @@ interface ResolvedUiNode {
 interface ResolvedUiGraph {
     nodesById: Record<string, ResolvedUiNode>;
     slotsById?: Record<string, unknown>;
-    rootNodeId: string;
+    rootNodeIds: string[];
 }
 
 interface V2RendererPreviewProps {
@@ -140,9 +140,9 @@ export function V2RendererPreview({ onClose }: V2RendererPreviewProps) {
                 
                 {!graph && !error && <div>Loading graph...</div>}
 
-                {graph && (
+                {graph && graph.rootNodeIds && graph.rootNodeIds.length > 0 && (
                     <div style={{border:'1px solid #ddd', padding:'20px', flex:1, overflow:'auto', backgroundColor: '#eee'}}>
-                         {renderNode(graph.rootNodeId)}
+                         {renderNode(graph.rootNodeIds[0])}
                     </div>
                 )}
             </div>
