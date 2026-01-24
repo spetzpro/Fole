@@ -2013,6 +2013,7 @@ function SysadminPanel({
         tabs.push('Snapshot');
         tabs.push('Versions');
     }
+    tabs.push('Resolved Graph');
     tabs.push('ConfigSysadmin');
 
     // const [activeTab, setActiveTab] = useState('ShellConfig'); // Defined at top of component
@@ -2028,6 +2029,29 @@ function SysadminPanel({
     const [snapshotData, setSnapshotData] = useState<SnapshotResponse | null>(null);
     const [snapshotError, setSnapshotError] = useState<string | null>(null);
     const [snapshotLoading, setSnapshotLoading] = useState(false);
+
+    // Resolved Graph Inspector
+    const [resolvedGraph, setResolvedGraph] = useState<any | null>(null);
+    const [resolvedGraphError, setResolvedGraphError] = useState<string | null>(null);
+    const [resolvedGraphLoading, setResolvedGraphLoading] = useState(false);
+
+    const refreshResolvedGraph = () => {
+        setResolvedGraphLoading(true);
+        setResolvedGraphError(null);
+        fetch('/api/config/shell/resolved-graph/active')
+            .then(res => {
+                 if (!res.ok) throw new Error(`Fetch failed (${res.status})`);
+                 return res.json();
+            })
+            .then(json => {
+                setResolvedGraph(json);
+                setResolvedGraphLoading(false);
+            })
+            .catch(err => {
+                setResolvedGraphError(err.message);
+                setResolvedGraphLoading(false);
+            });
+    };
 
     // Traces (Phase 4.3)
     const [dispatchTraces, setDispatchTraces] = useState<DispatchTrace[] | null>(null);
@@ -2361,6 +2385,9 @@ function SysadminPanel({
         }
         if (activeTab === 'Snapshot') {
              refreshSnapshot();
+        }
+        if (activeTab === 'Resolved Graph') {
+             refreshResolvedGraph();
         }
         if (activeTab === 'Traces') {
              refreshTraces();
@@ -5869,6 +5896,91 @@ function SysadminPanel({
                          )}
                      </div>
                  );
+            }
+
+            case 'Resolved Graph': {
+                return (
+                    <div style={{display:'flex', flexDirection:'column', height:'100%'}}>
+                         <div style={{padding:'10px', borderBottom:'1px solid #ddd', display:'flex', alignItems:'center', justifyContent:'space-between', background:'#fafafa'}}>
+                             <div style={{display:'flex', alignItems:'center', gap:'10px'}}>
+                                 <strong style={{fontSize:'1.1em'}}>Resolved Graph Inspector</strong>
+                                 <button onClick={refreshResolvedGraph} style={{cursor:'pointer', padding:'2px 8px', fontSize:'0.9em'}}>Refresh</button>
+                             </div>
+                         </div>
+                         
+                         {resolvedGraphLoading && <div style={{padding:'20px', color:'#666'}}>Loading...</div>}
+                         {resolvedGraphError && <div style={{padding:'20px', color:'red'}}>Error: {resolvedGraphError}</div>}
+                         
+                         {!resolvedGraphLoading && !resolvedGraphError && resolvedGraph && (
+                             <div style={{flex:1, overflowY:'auto', padding:'10px'}}>
+                                 
+                                 {/* Overview Stats */}
+                                 <div style={{marginBottom:'20px', padding:'10px', background:'#f5f5f5', border:'1px solid #ddd', borderRadius:'4px'}}>
+                                     <div style={{fontWeight:'bold', marginBottom:'5px'}}>Overview</div>
+                                     <div style={{fontSize:'0.9em', display:'grid', gridTemplateColumns:'auto 1fr', gap:'5px 20px'}}>
+                                         <div style={{color:'#666'}}>Node Count:</div><div>{resolvedGraph.diagnostics?.nodeCount ?? '-'}</div>
+                                         <div style={{color:'#666'}}>Edge Count:</div><div>{resolvedGraph.diagnostics?.edgeCount ?? '-'}</div>
+                                         <div style={{color:'#666'}}>Root Nodes:</div><div>{resolvedGraph.rootNodeIds?.join(', ') || 'None'}</div>
+                                     </div>
+                                 </div>
+
+                                 {/* Data Sections */}
+                                 <div style={{display:'flex', flexDirection:'column', gap:'20px'}}>
+                                     
+                                     {/* Nodes Summary */}
+                                     <div>
+                                         <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'5px'}}>
+                                            <strong style={{fontSize:'1em'}}>Nodes ({Object.keys(resolvedGraph.nodesById || {}).length})</strong>
+                                            <CopyBtn k="rg-nodes" text={resolvedGraph.nodesById} label="Copy Nodes JSON" />
+                                         </div>
+                                         <div style={{maxHeight:'300px', overflow:'auto', border:'1px solid #eee'}}>
+                                             <table style={{width:'100%', borderCollapse:'collapse', fontSize:'0.85em'}}>
+                                                 <thead style={{background:'#eee', position:'sticky', top:0}}>
+                                                     <tr>
+                                                         <th style={{textAlign:'left', padding:'4px'}}>ID</th>
+                                                         <th style={{textAlign:'left', padding:'4px'}}>Type</th>
+                                                         <th style={{textAlign:'left', padding:'4px'}}>Children</th>
+                                                     </tr>
+                                                 </thead>
+                                                 <tbody>
+                                                     {Object.keys(resolvedGraph.nodesById || {}).map(nid => {
+                                                         const n = resolvedGraph.nodesById[nid];
+                                                         return (
+                                                             <tr key={nid} style={{borderBottom:'1px solid #f0f0f0'}}>
+                                                                 <td style={{padding:'4px', fontWeight:'bold'}}>{nid}</td>
+                                                                 <td style={{padding:'4px'}}>{n.type}</td>
+                                                                 <td style={{padding:'4px', color:'#666'}}>{n.children?.length || 0}</td>
+                                                             </tr>
+                                                         );
+                                                     })}
+                                                 </tbody>
+                                             </table>
+                                         </div>
+                                     </div>
+
+                                     {/* Slots Summary */}
+                                     <div>
+                                         <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'5px'}}>
+                                            <strong style={{fontSize:'1em'}}>Slots ({Object.keys(resolvedGraph.slotsById || {}).length})</strong>
+                                            <CopyBtn k="rg-slots" text={resolvedGraph.slotsById} label="Copy Slots JSON" />
+                                         </div>
+                                         <div style={{padding:'10px', background:'#fafafa', border:'1px solid #eee', fontSize:'0.9em', fontFamily:'monospace'}}>
+                                             {Object.keys(resolvedGraph.slotsById || {}).join(', ')}
+                                         </div>
+                                     </div>
+
+                                     {/* Full JSON Dump (Collapsed) */}
+                                     <details>
+                                         <summary style={{cursor:'pointer', color:'#007acc', fontWeight:'bold'}}>Show Full Resolved Graph JSON</summary>
+                                         <pre style={{marginTop:'10px', background:'#f5f5f5', padding:'10px', border:'1px solid #ddd', borderRadius:'4px', overflow:'auto', maxHeight:'400px'}}>
+                                             {JSON.stringify(resolvedGraph, null, 2)}
+                                         </pre>
+                                     </details>
+                                 </div>
+                             </div>
+                         )}
+                    </div>
+                );
             }
 
             default: return null;
