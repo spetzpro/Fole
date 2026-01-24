@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo, Fragment } from 'react';
 import './App.css';
+import V2RendererPreview from './V2RendererPreview';
 import { findSysadminBlock, parseSysadminConfig } from './SysadminLoader';
 
 interface PingResponse {
@@ -5958,6 +5959,8 @@ function App() {
   // Configured via vite proxy in dev
   const [baseUrl] = useState('');
   
+  const [showV2, setShowV2] = useState(false);
+  
   const [bundleData, setBundleData] = useState<BundleResponse | null>(null);
   const [pingData, setPingData] = useState<PingResponse | null>(null);
   const [loading, setLoading] = useState(false);
@@ -6239,6 +6242,9 @@ function App() {
                 <button onClick={() => setSysadminOpen(!sysadminOpen)} style={{marginTop:'10px', width:'100%', background: sysadminOpen ? '#333' : '#eee', color: sysadminOpen ? 'white' : 'black'}}>
                     {sysadminOpen ? 'Close Sysadmin' : 'Open Sysadmin'}
                 </button>
+                <button onClick={() => setShowV2(true)} style={{marginTop:'5px', width:'100%', background:'#e3f2fd', color: '#0d47a1'}}>
+                    V2 Renderer Preview
+                </button>
                 <button 
                   onClick={() => {
                      if (runtimePlan && runtimePlan.overlays && runtimePlan.overlays['overlay_menu']) {
@@ -6390,6 +6396,7 @@ function App() {
              />
           </div>
       </div>
+      {showV2 && <V2RendererPreview onClose={() => setShowV2(false)} />}
     </div>
   );
 }

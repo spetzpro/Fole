@@ -435,6 +435,25 @@ async function main() {
     }
   });
 
+  router.get("/api/config/shell/resolved-graph/:versionId", async (_req, res, params) => {
+    const versionId = params.versionId;
+    if (!versionId) {
+      return router.json(res, 400, { error: "Missing versionId" });
+    }
+
+    try {
+        const graph = await configRepo.getResolvedUiGraph(versionId);
+        if (!graph) {
+             return router.json(res, 404, { error: "Graph not found (or version missing)" });
+        }
+        router.json(res, 200, graph);
+    } catch (err: any) {
+         // eslint-disable-next-line no-console
+        console.error("Error fetching resolved graph", err);
+        router.json(res, 500, { error: err.message || "Internal Server Error" });
+    }
+  });
+
   router.get("/api/config/shell/versions/:versionId", async (_req, res, params) => {
     const versionId = params.versionId;
     if (!versionId) {
