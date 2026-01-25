@@ -2015,7 +2015,7 @@ function SysadminPanel({
     }
     tabs.push('Resolved Graph');
     tabs.push('ConfigSysadmin');
-    tabs.push('Node Editor'); // Added for Node Editor (Button)
+    tabs.push('Node Editor (Button)'); // Added for Node Editor (Button)
 
     // const [activeTab, setActiveTab] = useState('ShellConfig'); // Defined at top of component
     const [invocations, setInvocations] = useState<any[] | null>(null);
@@ -3925,7 +3925,7 @@ function SysadminPanel({
 
         switch(activeTab) {
 
-            case 'Node Editor': {
+            case 'Node Editor (Button)': {
                  // Ensure graph is loaded
                  if (!resolvedGraph && !resolvedGraphLoading && !resolvedGraphError) {
                      setTimeout(() => refreshResolvedGraph(), 0);
@@ -4059,6 +4059,9 @@ function SysadminPanel({
                                  <div style={{maxWidth:'600px'}}>
                                      <div style={{marginBottom:'20px', borderBottom:'1px solid #eee', paddingBottom:'10px'}}>
                                          <div style={{fontSize:'1.4em', fontWeight:'bold', color:'#333'}}>{selectedNode.label || selectedNode.id}</div>
+                                         <div style={{fontSize:'0.8em', color:'#e65100', background:'#fff3e0', padding:'4px', borderRadius:'3px', border:'1px solid #ffe0b2', marginTop:'5px'}}>
+                                            Prototype: hardcoded fields (label, actionId). Schema-driven form rendering comes next.
+                                         </div>
                                          <div style={{display:'flex', gap:'10px', alignItems:'center', marginTop:'5px'}}>
                                              <div style={{color:'#666', fontSize:'0.9em', fontFamily:'monospace', background:'#f5f5f5', padding:'2px 6px', borderRadius:'4px'}}>
                                                  ID: {selectedNode.id}
