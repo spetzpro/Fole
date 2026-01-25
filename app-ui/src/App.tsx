@@ -1938,6 +1938,7 @@ interface FieldDef {
   enumOptions?: string[];
   type: 'string' | 'boolean';
   required?: boolean;
+  minLength?: number;
 }
 
 const extractStringFields = (schema: any, prefix = ""): FieldDef[] => {
@@ -1959,7 +1960,8 @@ const extractStringFields = (schema: any, prefix = ""): FieldDef[] => {
               help: (prop as any).help, // simple cast
               enumOptions: prop.enum,
               type: 'string',
-              required: isRequired
+              required: isRequired,
+              minLength: prop.minLength
           });
       } else if (prop.type === 'boolean') {
           fields.push({
@@ -2008,14 +2010,18 @@ const sanitizeNodeDataForSchema = (fields: FieldDef[], data: any) => {
     fields.forEach(f => {
          let val = getValueByPath(newData, f.path);
          
-         const fieldName = f.path.split('.').pop();
-         const isEnum = f.enumOptions && Array.isArray(f.enumOptions) && f.enumOptions.length > 0;
-         const isOptional = ['helpText', 'requiredPermission', 'icon'].includes(fieldName || '');
-         
+         // Empty string is preserved unless invalid per schema to avoid losing intentional values.
          if (typeof val === 'string' && val === '') {
-             if (isEnum || isOptional) {
+             if (f.enumOptions && f.enumOptions.length > 0) {
+                 if (!f.enumOptions.includes('')) {
+                     newData = setValueByPath(newData, f.path, undefined);
+                 }
+             } else if (f.minLength !== undefined && f.minLength >= 1) {
                  newData = setValueByPath(newData, f.path, undefined);
              }
+             // Otherwise KEEP "" (valid empty string)
+         } else if (val === null) {
+             newData = setValueByPath(newData, f.path, undefined);
          }
     });
     return newData;
