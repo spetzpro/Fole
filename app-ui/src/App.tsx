@@ -2027,6 +2027,89 @@ const sanitizeNodeDataForSchema = (fields: FieldDef[], data: any) => {
     return newData;
 };
 
+// --- Minimal UI Components ---
+
+interface ModalProps {
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+    onCancel: () => void;
+    confirmLabel?: string;
+    cancelLabel?: string;
+}
+
+const ConfirmModal = ({ isOpen, title, message, onConfirm, onCancel, confirmLabel = 'Confirm', cancelLabel = 'Cancel' }: ModalProps) => {
+    useEffect(() => {
+        if (!isOpen) return;
+        const handler = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') onCancel();
+            if (e.key === 'Enter') onConfirm();
+        };
+        window.addEventListener('keydown', handler);
+        return () => window.removeEventListener('keydown', handler);
+    }, [isOpen, onCancel, onConfirm]);
+
+    if (!isOpen) return null;
+    return (
+        <div style={{
+            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+            background: 'rgba(0,0,0,0.5)', zIndex: 10000,
+            display: 'flex', alignItems: 'center', justifyContent: 'center'
+        }}>
+            <div style={{
+                background: 'white', padding: '20px', borderRadius: '4px',
+                width: '400px', maxWidth: '90%', boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+                display: 'flex', flexDirection: 'column', gap: '15px'
+            }}>
+                <h3 style={{ margin: 0, fontSize: '1.2em' }}>{title}</h3>
+                <div style={{ whiteSpace: 'pre-wrap', color: '#333', fontSize: '0.95em' }}>{message}</div>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                    <button onClick={onCancel} style={{
+                        padding: '6px 14px', background: 'white', border: '1px solid #bbb', color: '#111', 
+                        borderRadius: '4px', cursor: 'pointer', fontSize: '0.9em', fontWeight: 'bold'
+                    }}>{cancelLabel}</button>
+                    <button onClick={onConfirm} style={{
+                        padding: '6px 14px', background: '#e65100', color: 'white', border: '1px solid #e65100', 
+                        borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.9em'
+                    }}>{confirmLabel}</button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+interface ToastProps {
+    message: string;
+    onClose: () => void;
+    type?: 'success' | 'error' | 'info';
+}
+
+const ToastNotification = ({ message, onClose, type = 'info' }: ToastProps) => {
+    useEffect(() => {
+        // Longer duration for specific types
+        const duration = type === 'error' ? 8000 : (type === 'success' ? 4500 : 3000);
+        const timer = setTimeout(onClose, duration);
+        return () => clearTimeout(timer);
+    }, [onClose, type]);
+
+    const bg = type === 'success' ? '#2e7d32' : (type === 'error' ? '#c62828' : '#333');
+    
+    return (
+        <div style={{
+            position: 'fixed', bottom: '20px', right: '20px', zIndex: 10001,
+            background: bg, color: 'white', padding: '10px 15px', borderRadius: '4px',
+            boxShadow: '0 2px 4px rgba(0,0,0,0.2)', display: 'flex', alignItems: 'center', gap: '10px',
+            fontSize: '0.9em', animation: 'fadeIn 0.2s ease-out'
+        }}>
+            <span>{message}</span>
+            <button onClick={onClose} style={{
+                background: 'none', border: 'none', color: 'white', cursor: 'pointer', fontSize: '1.2em', lineHeight: 1
+            }}>×</button>
+        </div>
+    );
+};
+
 function SysadminPanel({ 
     isOpen, 
     onClose, 
@@ -2065,6 +2148,19 @@ function SysadminPanel({
 
     // Tabs: ShellConfig, Blocks, Bindings, ActionIndex, Runtime
     const [activeTab, setActiveTab] = useState('ShellConfig');
+
+    // UX State (Modal + Toast)
+    const [confirmModal, setConfirmModal] = useState<{
+        isOpen: boolean;
+        title: string;
+        message: string;
+        onConfirm: () => void;
+    }>({ isOpen: false, title: '', message: '', onConfirm: () => {} });
+
+    const [toast, setToast] = useState<{
+        message: string;
+        type: 'success' | 'error' | 'info';
+    } | null>(null);
 
     // Roadmap 6.3: Auto-select ConfigSysadmin if available
     // Runs only when opening the panel to switch default tab
@@ -3158,120 +3254,131 @@ function SysadminPanel({
 
     const handleRebaseDraft = () => {
         if (!bundleData) {
-            alert("No active bundle available to reset from.");
-            return;
-        }
-        if (!window.confirm("Reset Draft from Active?\n\nThis will DISCARD all unsaved draft changes and replace the draft with the currently active configuration.")) {
+            setToast({ message: "No active bundle available to reset from.", type: 'error' });
             return;
         }
         
-        // Reuse cloning logic (inline to ensure we have access to variables)
-        try {
-            const clone = deepClone(bundleData);
-            
-            // Normalize regions
-            if (clone.manifest) {
-                const srcRegions = clone.manifest.regions || {};
-                const normRegions: any = {};
-                (['header', 'viewport', 'footer'] as RegionSlot[]).forEach(slot => {
-                     const bid = readRegionBlockId(srcRegions, slot);
-                     if (bid) normRegions[slot] = { blockId: bid };
-                });
-                clone.manifest.regions = normRegions;
+        const runRebase = () => {
+            // Reuse cloning logic (inline to ensure we have access to variables)
+            try {
+                const clone = deepClone(bundleData);
+                
+                // Normalize regions
+                if (clone.manifest) {
+                    const srcRegions = clone.manifest.regions || {};
+                    const normRegions: any = {};
+                    (['header', 'viewport', 'footer'] as RegionSlot[]).forEach(slot => {
+                         const bid = readRegionBlockId(srcRegions, slot);
+                         if (bid) normRegions[slot] = { blockId: bid };
+                    });
+                    clone.manifest.regions = normRegions;
+                }
+    
+                setDraftBundle(clone);
+                setDraftError(null);
+                setDraftEditorText('');
+                setDraftEditorDirty(false);
+                setConfirmModal(prev => ({ ...prev, isOpen: false }));
+                setToast({ message: "Draft reset to match Active Bundle.", type: 'success' });
+            } catch (e: unknown) {
+                setToast({ message: "Failed to reset draft: " + (e instanceof Error ? e.message : String(e)), type: 'error' });
             }
+        };
 
-            setDraftBundle(clone);
-            setDraftError(null);
-            setDraftEditorText('');
-            setDraftEditorDirty(false);
-            // Optionally keep selection if it still exists in new bundle
-            // But safest to clear selection to avoid stale data display
-            // setDraftSelectedBlockId(null); 
-            
-            // Refresh to ensure UI updates
-            alert("Draft reset to match Active Bundle.");
-        } catch (e: unknown) {
-            alert("Failed to reset draft: " + (e instanceof Error ? e.message : String(e)));
-        }
+        setConfirmModal({
+            isOpen: true,
+            title: "Reset Draft from Active?",
+            message: "This will DISCARD all unsaved draft changes and replace the draft with the currently active configuration.",
+            onConfirm: runRebase
+        });
     };
 
     const handleActivateDraft = async () => {
         if (!draftBundle) return;
         
-        if (!window.confirm(`Deploy this draft as a new version to the server?`)) {
-            return;
-        }
-
-        setPendingStage('saving'); 
-        setSaveMessage('Deploying draft...');
-        
-        // Use local proxy (or absolute backend if needed) for standard API logic
-        // Centralized API base handling via apiUrl() helper.
-
-        // Prepare payload
-        // 1. Shallow Copy Bundle to prevent side-effects
-        const bundle = { ...(draftBundle as any) };
-        if (bundle.blocks) {
-             bundle.blocks = { ...bundle.blocks };
-             
-             // 2. Sanitize specific blocks if we have schema info
-             // This ensures that even if user didn't hit "Save", we clean up empty Enums for button nodes
-             // Note: schemaFields depends on currently loaded `buttonSchema`. 
-             // If user is editing a button, `schemaFields` will be populated.
-             if (schemaFields && schemaFields.length > 0) {
-                 const blockIds = Object.keys(bundle.blocks);
-                 let targetType = 'ui.node.button';
-                 if (activeTab === 'Node Editor (Text)') targetType = 'ui.node.text';
-                 if (activeTab === 'Node Editor (Container)') targetType = 'ui.node.container';
-                 if (activeTab === 'Node Editor (Window)') targetType = 'ui.node.window';
+        const runDeploy = async () => {
+            setConfirmModal(prev => ({ ...prev, isOpen: false }));
+            setPendingStage('saving'); 
+            setSaveMessage('Deploying draft...');
+            
+            // Use local proxy (or absolute backend if needed) for standard API logic
+            // Centralized API base handling via apiUrl() helper.
+    
+            // Prepare payload
+            // 1. Shallow Copy Bundle to prevent side-effects
+            const bundle = { ...(draftBundle as any) };
+            if (bundle.blocks) {
+                 bundle.blocks = { ...bundle.blocks };
                  
-                 blockIds.forEach(bid => {
-                     const blk = bundle.blocks[bid];
-                     if (blk && blk.blockType === targetType && blk.data) {
-                         // Apply Sanitization
-                         blk.data = sanitizeNodeDataForSchema(schemaFields, blk.data);
-                     }
-                 });
-             }
-        }
-
-        try {
-            // Use standard deploy pipeline which includes validation and graph resolution
-            const deployRes = await fetch(apiUrl('/api/config/shell/deploy'), {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({
-                    bundle: bundle,
-                    message: 'Deployed from Node Editor Draft'
-                })
-            });
-            
-            if (!deployRes.ok) {
-                const err = await deployRes.json();
-                // Check if validation error report provided
-                if (err.report) {
-                    const blockErr = err.report.errors?.[0];
-                    const errMsg = blockErr ? `${blockErr.code}: ${blockErr.message}` : (err.message || "Validation failed");
-                    throw new Error(errMsg);
-                }
-                throw new Error(err.error || err.message || "Deploy failed");
+                 // 2. Sanitize specific blocks if we have schema info
+                 // This ensures that even if user didn't hit "Save", we clean up empty Enums for button nodes
+                 // Note: schemaFields depends on currently loaded `buttonSchema`. 
+                 // If user is editing a button, `schemaFields` will be populated.
+                 if (schemaFields && schemaFields.length > 0) {
+                     const blockIds = Object.keys(bundle.blocks);
+                     let targetType = 'ui.node.button';
+                     if (activeTab === 'Node Editor (Text)') targetType = 'ui.node.text';
+                     if (activeTab === 'Node Editor (Container)') targetType = 'ui.node.container';
+                     if (activeTab === 'Node Editor (Window)') targetType = 'ui.node.window';
+                     
+                     blockIds.forEach(bid => {
+                         const blk = bundle.blocks[bid];
+                         if (blk && blk.blockType === targetType && blk.data) {
+                             // Apply Sanitization
+                             blk.data = sanitizeNodeDataForSchema(schemaFields, blk.data);
+                         }
+                     });
+                 }
             }
-            
-            const result = await deployRes.json();
-            
-            // Success
-            setPendingStage('success');
-            setSaveMessage(`Deployed ${result.activeVersionId}. Draft retained (discard manually to clear).`);
-            
-            // Cleanup
-            // handleResetDraft(); // Keep draft per user request
-            onRefresh(); 
-            refreshSnapshot();
-            
-        } catch (e: any) {
-            setPendingStage('error');
-            setSaveMessage(e.message || "Deploy failed");
-        }
+    
+            try {
+                // Use standard deploy pipeline which includes validation and graph resolution
+                const deployRes = await fetch(apiUrl('/api/config/shell/deploy'), {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        bundle: bundle,
+                        message: 'Deployed from Node Editor Draft'
+                    })
+                });
+                
+                if (!deployRes.ok) {
+                    const err = await deployRes.json();
+                    // Check if validation error report provided
+                    if (err.report) {
+                        const blockErr = err.report.errors?.[0];
+                        const errMsg = blockErr ? `${blockErr.code}: ${blockErr.message}` : (err.message || "Validation failed");
+                        throw new Error(errMsg);
+                    }
+                    throw new Error(err.error || err.message || "Deploy failed");
+                }
+                
+                const result = await deployRes.json();
+                
+                // Success
+                setPendingStage('success');
+                setSaveMessage(`Deployed ${result.activeVersionId}. Draft retained.`);
+                setToast({ message: `Successfully deployed version ${result.activeVersionId}`, type: 'success' });
+                
+                // Cleanup
+                // handleResetDraft(); // Keep draft per user request
+                onRefresh(); 
+                refreshSnapshot();
+                
+            } catch (e: any) {
+                setPendingStage('error');
+                let msg = e.message || "Deploy failed";
+                setSaveMessage(msg);
+                setToast({ message: "Deploy failed: " + msg, type: 'error' });
+            }
+        };
+
+        setConfirmModal({
+            isOpen: true,
+            title: "Confirm Deploy",
+            message: "Deploy this draft as a new version to the server?",
+            onConfirm: runDeploy
+        });
     };
 
     const handleSaveDraftBlock = () => {
@@ -7445,6 +7552,20 @@ function SysadminPanel({
             border: '2px solid #333', boxShadow: '0 5px 20px rgba(0,0,0,0.3)',
             zIndex: 9000, display: 'flex', flexDirection: 'column', overflow: 'hidden'
         }}>
+            <ConfirmModal 
+                isOpen={confirmModal.isOpen} 
+                title={confirmModal.title} 
+                message={confirmModal.message} 
+                onConfirm={confirmModal.onConfirm} 
+                onCancel={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))} 
+            />
+            {toast && (
+                <ToastNotification 
+                    message={toast.message} 
+                    type={toast.type} 
+                    onClose={() => setToast(null)} 
+                />
+            )}
             <div style={{background: '#333', color:'white', padding:'8px 12px', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
                 <div style={{display:'flex', alignItems:'center', gap:'10px'}}>
                     <h3 style={{margin:0, fontSize:'1em'}}>Sysadmin</h3>
