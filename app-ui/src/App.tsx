@@ -1928,6 +1928,61 @@ function ConfigSysadminView({
     );
 }
 
+// --- Helper for Schema Driven Form ---
+interface FieldDef {
+  path: string;
+  title: string;
+  description?: string;
+  help?: string;
+}
+
+const extractStringFields = (schema: any, prefix = ""): FieldDef[] => {
+  let fields: FieldDef[] = [];
+  if (!schema || !schema.properties) return fields;
+
+  for (const key in schema.properties) {
+      const prop = schema.properties[key];
+      const fullPath = prefix ? `${prefix}.${key}` : key;
+      
+      // We only care about pure string fields for now
+      if (prop.type === 'string') {
+          fields.push({
+              path: fullPath,
+              title: prop.title || key,
+              description: prop.description,
+              help: (prop as any).help // simple cast
+          });
+      } else if (prop.type === 'object' && prop.properties) {
+          fields.push(...extractStringFields(prop, fullPath));
+      }
+  }
+  return fields;
+};
+
+// Simple object path getter
+const getValueByPath = (obj: any, path: string) => {
+    if (!obj) return '';
+    return path.split('.').reduce((acc, part) => (acc && acc[part] !== undefined) ? acc[part] : undefined, obj) || '';
+};
+
+// Immutably set value by path
+const setValueByPath = (obj: any, path: string, value: any) => {
+    const keys = path.split('.');
+    const newObj = { ...obj };
+    let current = newObj;
+    for (let i = 0; i < keys.length; i++) {
+        const key = keys[i];
+        if (i === keys.length - 1) {
+            current[key] = value;
+        } else {
+            // Create nested object if missing or copy existing
+            current[key] = current[key] ? { ...current[key] } : {};
+            current = current[key];
+        }
+    }
+    return newObj;
+};
+
 function SysadminPanel({ 
     isOpen, 
     onClose, 
@@ -2040,6 +2095,27 @@ function SysadminPanel({
     const [nodeEditorSelectedId, setNodeEditorSelectedId] = useState<string | null>(null);
     const [nodeEditorForm, setNodeEditorForm] = useState<any>({});
     const [nodeEditorDirty, setNodeEditorDirty] = useState(false);
+
+    // Schema State
+    const [buttonSchema, setButtonSchema] = useState<any>(null);
+    const [buttonSchemaLoading, setButtonSchemaLoading] = useState(false);
+
+    useEffect(() => {
+        if (activeTab === 'Node Editor (Button)' && !buttonSchema && !buttonSchemaLoading) {
+            setButtonSchemaLoading(true);
+            fetch('/api/schemas/ui-node/ui.node.button')
+                .then(r => r.json())
+                .then(d => {
+                     setButtonSchema(d);
+                     setButtonSchemaLoading(false);
+                })
+                .catch(e => {
+                     // eslint-disable-next-line no-console
+                     console.error("Schema load failed", e);
+                     setButtonSchemaLoading(false);
+                });
+        }
+    }, [activeTab, buttonSchema, buttonSchemaLoading]);
 
     const refreshResolvedGraph = () => {
         setResolvedGraphLoading(true);
@@ -3935,27 +4011,23 @@ function SysadminPanel({
                  if (resolvedGraphError) return <div style={{padding:'20px', color:'red'}}>Error: {resolvedGraphError}</div>;
                  if (!resolvedGraph) return <div style={{padding:'20px'}}>No graph data.</div>;
 
+                 // Handle Schema Loading
+                 if (buttonSchemaLoading) return <div style={{padding:'20px'}}>Loading Schema...</div>;
+                 if (!buttonSchema) return <div style={{padding:'20px'}}>Waiting for schema...</div>;
+
                  // Filter Button Nodes (scan nodes object)
                  const nodes = resolvedGraph.nodes || {};
                  // Object.values might not be available if nodes is not an object, but it should be map
                  const buttonNodes = Object.values(nodes).filter((n: any) => n.type === 'ui.node.button');
                  
+                 // Memoize schema fields
+                 const schemaFields = useMemo(() => extractStringFields(buttonSchema), [buttonSchema]);
+
                  // Helper to get effective data (Draft > Active)
                  const getEffectiveNode = (id: string) => {
                      // Check if block exists in draft
                      const draftBlocks = (draftBundle as any)?.blocks || {};
                      const draftBlock = draftBlocks[id];
-                     
-                     // If draft block exists, we need to see if it has the data structure we expect
-                     // Draft block usually wraps data in 'data' prop if it's a generic block, 
-                     // OR it might be the flat node object depending on how Resolved Graph vs Draft Store works.
-                     // The DraftBundle usually stores blocks as { blockId:..., blockType:..., data: {...} }
-                     // Resolved Graph usually stores flattened nodes.
-                     
-                     // Schema for Button: top level label, behaviors.
-                     // In Bundle, this is likely inside `data`.
-                     // Let's check `test_routing_validation_failure.ts` or similar to see structure.
-                     // Assuming Bundle Format: { blockType: 'ui.node.button', data: { label: '...', behaviors: ... } }
                      
                      if (draftBlock) {
                          // Map bundle data to node structure
@@ -3977,10 +4049,11 @@ function SysadminPanel({
                      setNodeEditorSelectedId(id);
                      const n = getEffectiveNode(id);
                      if (n) {
-                        setNodeEditorForm({
-                            label: n.label || '',
-                            actionId: n.behaviors?.onClick?.actionId || ''
+                        const newForm: any = {};
+                        schemaFields.forEach(f => {
+                            newForm[f.path] = getValueByPath(n, f.path);
                         });
+                        setNodeEditorForm(newForm);
                         setNodeEditorDirty(false);
                      }
                  };
@@ -3999,17 +4072,10 @@ function SysadminPanel({
                      const baseData = existingDraftBlock ? existingDraftBlock.data : (activeNode || {});
                      
                      // Update Data
-                     const newData = {
-                         ...baseData,
-                         label: nodeEditorForm.label,
-                         behaviors: {
-                             ...(baseData.behaviors || {}),
-                             onClick: {
-                                 ...(baseData.behaviors?.onClick || {}),
-                                 actionId: nodeEditorForm.actionId
-                             }
-                         }
-                     };
+                     let newData = { ...baseData };
+                     schemaFields.forEach(f => {
+                         newData = setValueByPath(newData, f.path, nodeEditorForm[f.path]);
+                     });
                      
                      newDraft.blocks[nodeEditorSelectedId] = {
                          blockId: nodeEditorSelectedId,
@@ -4059,8 +4125,8 @@ function SysadminPanel({
                                  <div style={{maxWidth:'600px'}}>
                                      <div style={{marginBottom:'20px', borderBottom:'1px solid #eee', paddingBottom:'10px'}}>
                                          <div style={{fontSize:'1.4em', fontWeight:'bold', color:'#333'}}>{selectedNode.label || selectedNode.id}</div>
-                                         <div style={{fontSize:'0.8em', color:'#e65100', background:'#fff3e0', padding:'4px', borderRadius:'3px', border:'1px solid #ffe0b2', marginTop:'5px'}}>
-                                            Prototype: hardcoded fields (label, actionId). Schema-driven form rendering comes next.
+                                         <div style={{fontSize:'0.8em', color:'#2e7d32', background:'#e8f5e9', padding:'4px', borderRadius:'3px', border:'1px solid #c8e6c9', marginTop:'5px'}}>
+                                            Schema-Driven Form: Fetched from backend. Rendering {schemaFields.length} properties.
                                          </div>
                                          <div style={{display:'flex', gap:'10px', alignItems:'center', marginTop:'5px'}}>
                                              <div style={{color:'#666', fontSize:'0.9em', fontFamily:'monospace', background:'#f5f5f5', padding:'2px 6px', borderRadius:'4px'}}>
@@ -4079,35 +4145,25 @@ function SysadminPanel({
                                      </div>
                                      
                                      <div style={{background:'white', padding:'20px', border:'1px solid #ddd', borderRadius:'8px', boxShadow:'0 1px 3px rgba(0,0,0,0.05)'}}>
-                                         <div style={{marginBottom:'20px'}}>
-                                             <label style={{display:'block', fontWeight:'bold', marginBottom:'6px', color:'#333'}}>Button Label</label>
-                                             <input 
-                                                 type="text" 
-                                                 value={nodeEditorForm.label}
-                                                 onChange={(e) => {
-                                                     setNodeEditorForm({...nodeEditorForm, label: e.target.value});
-                                                     setNodeEditorDirty(true);
-                                                 }}
-                                                 style={{width:'100%', padding:'10px', fontSize:'1em', border:'1px solid #ccc', borderRadius:'4px', boxSizing:'border-box'}}
-                                                 placeholder="Enter button text..."
-                                             />
-                                             <div style={{fontSize:'0.8em', color:'#888', marginTop:'4px'}}>Internal text displayed to the user.</div>
-                                         </div>
                                          
-                                         <div style={{marginBottom:'20px'}}>
-                                             <label style={{display:'block', fontWeight:'bold', marginBottom:'6px', color:'#333'}}>Action ID (OnClick)</label>
-                                             <input 
-                                                 type="text" 
-                                                 value={nodeEditorForm.actionId}
-                                                 onChange={(e) => {
-                                                     setNodeEditorForm({...nodeEditorForm, actionId: e.target.value});
-                                                     setNodeEditorDirty(true);
-                                                 }}
-                                                 style={{width:'100%', padding:'10px', fontSize:'1em', fontFamily:'monospace', border:'1px solid #ccc', borderRadius:'4px', boxSizing:'border-box', background:'#fafafa'}}
-                                                 placeholder="e.g. action.calculate_total"
-                                             />
-                                             <div style={{fontSize:'0.8em', color:'#888', marginTop:'4px'}}>ID of the action to trigger when clicked.</div>
-                                         </div>
+                                         {schemaFields.map(f => (
+                                             <div key={f.path} style={{marginBottom:'20px'}}>
+                                                 <label style={{display:'block', fontWeight:'bold', marginBottom:'6px', color:'#333'}}>{f.title}</label>
+                                                 <input 
+                                                     type="text" 
+                                                     value={nodeEditorForm[f.path] || ''}
+                                                     onChange={(e) => {
+                                                         setNodeEditorForm({...nodeEditorForm, [f.path]: e.target.value});
+                                                         setNodeEditorDirty(true);
+                                                     }}
+                                                     style={{width:'100%', padding:'10px', fontSize:'1em', border:'1px solid #ccc', borderRadius:'4px', boxSizing:'border-box'}}
+                                                     placeholder={`Enter ${f.title}...`}
+                                                 />
+                                                 <div style={{fontSize:'0.8em', color:'#888', marginTop:'4px'}}>
+                                                    {f.description || `Mapped to ${f.path}`}
+                                                 </div>
+                                             </div>
+                                         ))}
                                          
                                          <div style={{display:'flex', gap:'15px', alignItems:'center', marginTop:'30px', paddingTop:'20px', borderTop:'1px solid #eee'}}>
                                              <button 
