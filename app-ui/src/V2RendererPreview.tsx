@@ -103,6 +103,7 @@ export function V2RendererPreview({ onClose }: V2RendererPreviewProps) {
                 };
                 
                 const displayLabel = node.props?.label || node.props?.text || "Button";
+                const helpText = (node.props?.helpText as string) || undefined;
                 const isDisabled = node.props?.enabled === false;
                 const variant = (node.props?.variant as string) || 'secondary';
 
@@ -142,6 +143,7 @@ export function V2RendererPreview({ onClose }: V2RendererPreviewProps) {
                     <button 
                          key={commonKey} 
                          disabled={isDisabled}
+                         title={helpText}
                          style={{
                              ...style, 
                              cursor: isDisabled ? 'not-allowed' : 'pointer', 
