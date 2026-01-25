@@ -1934,6 +1934,7 @@ interface FieldDef {
   title: string;
   description?: string;
   help?: string;
+  enumOptions?: string[];
 }
 
 const extractStringFields = (schema: any, prefix = ""): FieldDef[] => {
@@ -1950,7 +1951,8 @@ const extractStringFields = (schema: any, prefix = ""): FieldDef[] => {
               path: fullPath,
               title: prop.title || key,
               description: prop.description,
-              help: (prop as any).help // simple cast
+              help: (prop as any).help, // simple cast
+              enumOptions: prop.enum
           });
       } else if (prop.type === 'object' && prop.properties) {
           fields.push(...extractStringFields(prop, fullPath));
@@ -4154,16 +4156,32 @@ function SysadminPanel({
                                          {schemaFields.map(f => (
                                              <div key={f.path} style={{marginBottom:'20px'}}>
                                                  <label style={{display:'block', fontWeight:'bold', marginBottom:'6px', color:'#333'}}>{f.title}</label>
-                                                 <input 
-                                                     type="text" 
-                                                     value={nodeEditorForm[f.path] || ''}
-                                                     onChange={(e) => {
-                                                         setNodeEditorForm({...nodeEditorForm, [f.path]: e.target.value});
-                                                         setNodeEditorDirty(true);
-                                                     }}
-                                                     style={{width:'100%', padding:'10px', fontSize:'1em', border:'1px solid #ccc', borderRadius:'4px', boxSizing:'border-box'}}
-                                                     placeholder={`Enter ${f.title}...`}
-                                                 />
+                                                 {f.enumOptions && f.enumOptions.length > 0 ? (
+                                                     <select
+                                                         value={nodeEditorForm[f.path] || ''}
+                                                         onChange={(e) => {
+                                                             setNodeEditorForm({...nodeEditorForm, [f.path]: e.target.value});
+                                                             setNodeEditorDirty(true);
+                                                         }}
+                                                         style={{width:'100%', padding:'10px', fontSize:'1em', border:'1px solid #ccc', borderRadius:'4px', boxSizing:'border-box', backgroundColor:'#333', color:'white'}}
+                                                     >
+                                                         <option value="" style={{backgroundColor:'#333', color:'white'}}>(Select Option)</option>
+                                                         {f.enumOptions.map(opt => (
+                                                             <option key={opt} value={opt} style={{backgroundColor:'#333', color:'white'}}>{opt}</option>
+                                                         ))}
+                                                     </select>
+                                                 ) : (
+                                                     <input 
+                                                         type="text" 
+                                                         value={nodeEditorForm[f.path] || ''}
+                                                         onChange={(e) => {
+                                                             setNodeEditorForm({...nodeEditorForm, [f.path]: e.target.value});
+                                                             setNodeEditorDirty(true);
+                                                         }}
+                                                         style={{width:'100%', padding:'10px', fontSize:'1em', border:'1px solid #ccc', borderRadius:'4px', boxSizing:'border-box'}}
+                                                         placeholder={`Enter ${f.title}...`}
+                                                     />
+                                                 )}
                                                  <div style={{fontSize:'0.8em', color:'#888', marginTop:'4px'}}>
                                                     {f.description || `Mapped to ${f.path}`}
                                                  </div>
