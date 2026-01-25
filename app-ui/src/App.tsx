@@ -1936,15 +1936,19 @@ interface FieldDef {
   help?: string;
   enumOptions?: string[];
   type: 'string' | 'boolean';
+  required?: boolean;
 }
 
 const extractStringFields = (schema: any, prefix = ""): FieldDef[] => {
   let fields: FieldDef[] = [];
   if (!schema || !schema.properties) return fields;
 
+  const requiredKeys = Array.isArray(schema.required) ? schema.required : [];
+
   for (const key in schema.properties) {
       const prop = schema.properties[key];
       const fullPath = prefix ? `${prefix}.${key}` : key;
+      const isRequired = requiredKeys.includes(key);
       
       if (prop.type === 'string') {
           fields.push({
@@ -1953,7 +1957,8 @@ const extractStringFields = (schema: any, prefix = ""): FieldDef[] => {
               description: prop.description,
               help: (prop as any).help, // simple cast
               enumOptions: prop.enum,
-              type: 'string'
+              type: 'string',
+              required: isRequired
           });
       } else if (prop.type === 'boolean') {
           fields.push({
@@ -1961,7 +1966,8 @@ const extractStringFields = (schema: any, prefix = ""): FieldDef[] => {
               title: prop.title || key,
               description: prop.description,
               help: (prop as any).help,
-              type: 'boolean'
+              type: 'boolean',
+              required: isRequired
           });
       } else if (prop.type === 'object' && prop.properties) {
           fields.push(...extractStringFields(prop, fullPath));
@@ -4432,7 +4438,17 @@ function SysadminPanel({
                                      
                                      <div style={{background:'white', padding:'20px', border:'1px solid #ddd', borderRadius:'8px', boxShadow:'0 1px 3px rgba(0,0,0,0.05)'}}>
                                          
-                                         {schemaFields.map(f => (
+                                         {schemaFields.map(f => {
+                                             let errorMsg = null;
+                                             const val = nodeEditorForm[f.path];
+                                             
+                                             if (f.required && (val === undefined || val === null || val === '')) {
+                                                 errorMsg = "Required";
+                                             } else if (f.enumOptions && f.enumOptions.length > 0 && val && !f.enumOptions.includes(val)) {
+                                                 errorMsg = `Must be one of: ${f.enumOptions.join(', ')}`;
+                                             }
+
+                                             return (
                                              <div key={f.path} style={{marginBottom:'20px'}}>
                                                  {f.type === 'boolean' ? (
                                                      <div style={{display:'flex', alignItems:'center', gap:'10px', padding:'5px 0'}}>
@@ -4448,17 +4464,18 @@ function SysadminPanel({
                                                          <label 
                                                             style={{fontWeight:'bold', color:'#333', cursor:'pointer', userSelect:'none'}} 
                                                             onClick={() => {
-                                                                 // Toggle on label click
                                                                  setNodeEditorForm({...nodeEditorForm, [f.path]: !nodeEditorForm[f.path]});
                                                                  setNodeEditorDirty(true);
                                                             }}
                                                          >
-                                                             {f.title}
+                                                             {f.title} {f.required && <span style={{color:'#d32f2f'}}>*</span>}
                                                          </label>
                                                      </div>
                                                  ) : (
                                                      <>
-                                                        <label style={{display:'block', fontWeight:'bold', marginBottom:'6px', color:'#333'}}>{f.title}</label>
+                                                        <label style={{display:'block', fontWeight:'bold', marginBottom:'6px', color:'#333'}}>
+                                                            {f.title} {f.required && <span style={{color:'#d32f2f'}}>*</span>}
+                                                        </label>
                                                         {f.enumOptions && f.enumOptions.length > 0 ? (
                                                             <select
                                                                 value={nodeEditorForm[f.path] || ''}
@@ -4466,7 +4483,11 @@ function SysadminPanel({
                                                                     setNodeEditorForm({...nodeEditorForm, [f.path]: e.target.value});
                                                                     setNodeEditorDirty(true);
                                                                 }}
-                                                                style={{width:'100%', padding:'10px', fontSize:'1em', border:'1px solid #ccc', borderRadius:'4px', boxSizing:'border-box', backgroundColor:'#333', color:'white'}}
+                                                                style={{
+                                                                    width:'100%', padding:'10px', fontSize:'1em', 
+                                                                    border: errorMsg ? '1px solid #d32f2f' : '1px solid #ccc', 
+                                                                    borderRadius:'4px', boxSizing:'border-box', backgroundColor:'#333', color:'white'
+                                                                }}
                                                             >
                                                                 <option value="" style={{backgroundColor:'#333', color:'white'}}>(Select Option)</option>
                                                                 {f.enumOptions.map(opt => (
@@ -4481,17 +4502,27 @@ function SysadminPanel({
                                                                     setNodeEditorForm({...nodeEditorForm, [f.path]: e.target.value});
                                                                     setNodeEditorDirty(true);
                                                                 }}
-                                                                style={{width:'100%', padding:'10px', fontSize:'1em', border:'1px solid #ccc', borderRadius:'4px', boxSizing:'border-box'}}
+                                                                style={{
+                                                                    width:'100%', padding:'10px', fontSize:'1em', 
+                                                                    border: errorMsg ? '1px solid #d32f2f' : '1px solid #ccc',
+                                                                    borderRadius:'4px', boxSizing:'border-box'
+                                                                }}
                                                                 placeholder={`Enter ${f.title}...`}
                                                             />
                                                         )}
                                                      </>
                                                  )}
+                                                 {errorMsg && (
+                                                     <div style={{color:'#d32f2f', fontSize:'0.8em', marginTop:'2px', fontWeight:'bold'}}>
+                                                         {errorMsg}
+                                                     </div>
+                                                 )}
                                                  <div style={{fontSize:'0.8em', color:'#888', marginTop:'4px'}}>
                                                     {f.description || `Mapped to ${f.path}`}
                                                  </div>
                                              </div>
-                                         ))}
+                                             );
+                                         })}
                                          
                                          <div style={{display:'flex', gap:'15px', alignItems:'center', marginTop:'30px', paddingTop:'20px', borderTop:'1px solid #eee'}}>
                                              <button 
@@ -4613,7 +4644,17 @@ function SysadminPanel({
                                      </div>
 
                                      <div style={{display:'flex', flexDirection:'column', gap:'15px'}}>
-                                         {schemaFields.map(f => (
+                                         {schemaFields.map(f => {
+                                             let errorMsg = null;
+                                             const val = nodeEditorForm[f.path];
+                                             
+                                             if (f.required && (val === undefined || val === null || val === '')) {
+                                                 errorMsg = "Required";
+                                             } else if (f.enumOptions && f.enumOptions.length > 0 && val && !f.enumOptions.includes(val)) {
+                                                 errorMsg = `Must be one of: ${f.enumOptions.join(', ')}`;
+                                             }
+                                             
+                                             return (
                                              <div key={f.path}>
                                                  {f.type === 'boolean' ? (
                                                      <div style={{display:'flex', alignItems:'center', gap:'10px'}}>
@@ -4626,11 +4667,15 @@ function SysadminPanel({
                                                              }}
                                                              id={`field-${f.path}`}
                                                          />
-                                                         <label htmlFor={`field-${f.path}`} style={{cursor:'pointer', fontWeight:'bold', color:'#333'}}>{f.title}</label>
+                                                         <label htmlFor={`field-${f.path}`} style={{cursor:'pointer', fontWeight:'bold', color:'#333'}}>
+                                                            {f.title} {f.required && <span style={{color:'#d32f2f'}}>*</span>}
+                                                         </label>
                                                      </div>
                                                  ) : (
                                                      <>
-                                                        <label style={{display:'block', fontWeight:'bold', marginBottom:'6px', color:'#333'}}>{f.title}</label>
+                                                        <label style={{display:'block', fontWeight:'bold', marginBottom:'6px', color:'#333'}}>
+                                                            {f.title} {f.required && <span style={{color:'#d32f2f'}}>*</span>}
+                                                        </label>
                                                         {f.enumOptions && f.enumOptions.length > 0 ? (
                                                             <select
                                                                 value={nodeEditorForm[f.path] || ''}
@@ -4638,7 +4683,11 @@ function SysadminPanel({
                                                                     setNodeEditorForm({...nodeEditorForm, [f.path]: e.target.value});
                                                                     setNodeEditorDirty(true);
                                                                 }}
-                                                                style={{width:'100%', padding:'10px', fontSize:'1em', border:'1px solid #ccc', borderRadius:'4px', boxSizing:'border-box', backgroundColor:'#333', color:'white'}}
+                                                                style={{
+                                                                    width:'100%', padding:'10px', fontSize:'1em', 
+                                                                    border: errorMsg ? '1px solid #d32f2f' : '1px solid #ccc', 
+                                                                    borderRadius:'4px', boxSizing:'border-box', backgroundColor:'#333', color:'white'
+                                                                }}
                                                             >
                                                                 <option value="" style={{backgroundColor:'#333', color:'white'}}>(Select Option)</option>
                                                                 {f.enumOptions.map(opt => (
@@ -4653,17 +4702,27 @@ function SysadminPanel({
                                                                     setNodeEditorForm({...nodeEditorForm, [f.path]: e.target.value});
                                                                     setNodeEditorDirty(true);
                                                                 }}
-                                                                style={{width:'100%', padding:'10px', fontSize:'1em', border:'1px solid #ccc', borderRadius:'4px', boxSizing:'border-box'}}
+                                                                style={{
+                                                                    width:'100%', padding:'10px', fontSize:'1em', 
+                                                                    border: errorMsg ? '1px solid #d32f2f' : '1px solid #ccc',
+                                                                    borderRadius:'4px', boxSizing:'border-box'
+                                                                }}
                                                                 placeholder={`Enter ${f.title}...`}
                                                             />
                                                         )}
                                                      </>
                                                  )}
+                                                 {errorMsg && (
+                                                     <div style={{color:'#d32f2f', fontSize:'0.8em', marginTop:'2px', fontWeight:'bold'}}>
+                                                         {errorMsg}
+                                                     </div>
+                                                 )}
                                                  <div style={{fontSize:'0.8em', color:'#888', marginTop:'4px'}}>
                                                     {f.description || `Mapped to ${f.path}`}
                                                  </div>
                                              </div>
-                                         ))}
+                                             );
+                                         })}
                                          
                                          <div style={{display:'flex', gap:'15px', alignItems:'center', marginTop:'30px', paddingTop:'20px', borderTop:'1px solid #eee'}}>
                                              <button 
@@ -4785,7 +4844,17 @@ function SysadminPanel({
                                      </div>
 
                                      <div style={{display:'flex', flexDirection:'column', gap:'15px'}}>
-                                         {schemaFields.map(f => (
+                                         {schemaFields.map(f => {
+                                             let errorMsg = null;
+                                             const val = nodeEditorForm[f.path];
+                                             
+                                             if (f.required && (val === undefined || val === null || val === '')) {
+                                                 errorMsg = "Required";
+                                             } else if (f.enumOptions && f.enumOptions.length > 0 && val && !f.enumOptions.includes(val)) {
+                                                 errorMsg = `Must be one of: ${f.enumOptions.join(', ')}`;
+                                             }
+
+                                             return (
                                              <div key={f.path}>
                                                  {f.type === 'boolean' ? (
                                                      <div style={{display:'flex', alignItems:'center', gap:'10px'}}>
@@ -4798,11 +4867,15 @@ function SysadminPanel({
                                                              }}
                                                              id={`field-${f.path}`}
                                                          />
-                                                         <label htmlFor={`field-${f.path}`} style={{cursor:'pointer', fontWeight:'bold', color:'#333'}}>{f.title}</label>
+                                                         <label htmlFor={`field-${f.path}`} style={{cursor:'pointer', fontWeight:'bold', color:'#333'}}>
+                                                             {f.title} {f.required && <span style={{color:'#d32f2f'}}>*</span>}
+                                                         </label>
                                                      </div>
                                                  ) : (
                                                      <>
-                                                        <label style={{display:'block', fontWeight:'bold', marginBottom:'6px', color:'#333'}}>{f.title}</label>
+                                                        <label style={{display:'block', fontWeight:'bold', marginBottom:'6px', color:'#333'}}>
+                                                            {f.title} {f.required && <span style={{color:'#d32f2f'}}>*</span>}
+                                                        </label>
                                                         {f.enumOptions && f.enumOptions.length > 0 ? (
                                                             <select
                                                                 value={nodeEditorForm[f.path] || ''}
@@ -4810,7 +4883,11 @@ function SysadminPanel({
                                                                     setNodeEditorForm({...nodeEditorForm, [f.path]: e.target.value});
                                                                     setNodeEditorDirty(true);
                                                                 }}
-                                                                style={{width:'100%', padding:'10px', fontSize:'1em', border:'1px solid #ccc', borderRadius:'4px', boxSizing:'border-box', backgroundColor:'#333', color:'white'}}
+                                                                style={{
+                                                                    width:'100%', padding:'10px', fontSize:'1em', 
+                                                                    border: errorMsg ? '1px solid #d32f2f' : '1px solid #ccc',
+                                                                    borderRadius:'4px', boxSizing:'border-box', backgroundColor:'#333', color:'white'
+                                                                }}
                                                             >
                                                                 <option value="" style={{backgroundColor:'#333', color:'white'}}>(Select Option)</option>
                                                                 {f.enumOptions.map(opt => (
@@ -4825,17 +4902,27 @@ function SysadminPanel({
                                                                     setNodeEditorForm({...nodeEditorForm, [f.path]: e.target.value});
                                                                     setNodeEditorDirty(true);
                                                                 }}
-                                                                style={{width:'100%', padding:'10px', fontSize:'1em', border:'1px solid #ccc', borderRadius:'4px', boxSizing:'border-box'}}
+                                                                style={{
+                                                                    width:'100%', padding:'10px', fontSize:'1em', 
+                                                                    border: errorMsg ? '1px solid #d32f2f' : '1px solid #ccc',
+                                                                    borderRadius:'4px', boxSizing:'border-box'
+                                                                }}
                                                                 placeholder={`Enter ${f.title}...`}
                                                             />
                                                         )}
                                                      </>
                                                  )}
+                                                 {errorMsg && (
+                                                     <div style={{color:'#d32f2f', fontSize:'0.8em', marginTop:'2px', fontWeight:'bold'}}>
+                                                         {errorMsg}
+                                                     </div>
+                                                 )}
                                                  <div style={{fontSize:'0.8em', color:'#888', marginTop:'4px'}}>
                                                     {f.description || `Mapped to ${f.path}`}
                                                  </div>
                                              </div>
-                                         ))}
+                                             );
+                                         })}
                                          
                                          <div style={{display:'flex', gap:'15px', alignItems:'center', marginTop:'30px', paddingTop:'20px', borderTop:'1px solid #eee'}}>
                                              <button 
@@ -5001,13 +5088,57 @@ function SysadminPanel({
 
                  return (
                      <div style={{display:'flex', flexDirection:'column', height:'100%'}}>
-                         <input 
-                            type="text" 
-                            placeholder="Filter blocks (id/type/filename)..." 
-                            value={filter} 
-                            onChange={e=>setFilter(e.target.value)} 
-                            style={{width:'100%', marginBottom:'10px', padding:'6px', boxSizing:'border-box', border:'1px solid #ccc'}}
-                         />
+                         <div style={{marginBottom:'10px'}}>
+                             <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'4px'}}>
+                                 <label style={{fontSize:'0.85em', fontWeight:'bold', color:'#555'}}>
+                                     Filter Blocks
+                                 </label>
+                                 {filter && (
+                                     <span style={{fontSize:'0.75em', background:'#e3f2fd', color:'#0277bd', padding:'2px 8px', borderRadius:'10px', fontWeight:'bold'}}>
+                                         Filtered ({filtered.length})
+                                     </span>
+                                 )}
+                             </div>
+                             <div style={{display:'flex', gap:'5px'}}>
+                                 <input 
+                                    type="text" 
+                                    placeholder="Search by ID, type, or filename..." 
+                                    value={filter} 
+                                    onChange={e=>setFilter(e.target.value)} 
+                                    style={{
+                                        flex: 1, 
+                                        padding:'6px', 
+                                        boxSizing:'border-box', 
+                                        border: filter ? '2px solid #81d4fa' : '1px solid #ccc',
+                                        borderRadius: '3px',
+                                        outline:'none',
+                                        backgroundColor: filter ? '#fdfdfd' : 'white'
+                                    }}
+                                 />
+                                 {filter && (
+                                     <button 
+                                        onClick={() => setFilter('')}
+                                        style={{
+                                            border: '1px solid #ccc',
+                                            background: '#fff',
+                                            borderRadius: '3px',
+                                            padding: '0 10px',
+                                            cursor: 'pointer',
+                                            color: '#d32f2f',
+                                            fontWeight: 'bold',
+                                            fontSize: '0.85em',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '4px'
+                                        }}
+                                        title="Clear Filter"
+                                     >
+                                         <span>Clear filter</span>
+                                         <span>✕</span>
+                                     </button>
+                                 )}
+                             </div>
+                         </div>
                          <div style={{display:'flex', flex:1, overflow:'hidden', gap:'10px'}}>
                              {/* Left Column: List */}
                              <div style={{flex: '0 0 45%', overflowY:'auto', borderRight:'1px solid #ddd', paddingRight:'5px'}}>
