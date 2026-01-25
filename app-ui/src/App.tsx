@@ -2293,6 +2293,51 @@ function SysadminPanel({
     };
 
     const renderValidationSummary = () => {
+         // --- DIFF PREVIEW ---
+         let diffElement = null;
+         const nodeForDiff = nodeEditorSelectedId ? getEffectiveNode(nodeEditorSelectedId) : null;
+         if (nodeForDiff && resolvedGraph) {
+             let targetSchema = null;
+             if (nodeForDiff.type === 'ui.node.button') targetSchema = buttonSchema;
+             else if (nodeForDiff.type === 'ui.node.text') targetSchema = textSchema;
+             else if (nodeForDiff.type === 'ui.node.container') targetSchema = containerSchema;
+             
+             if (targetSchema) {
+                 const fields = extractStringFields(targetSchema);
+                 const activeNode = resolvedGraph.nodesById?.[nodeForDiff.id];
+                 if (activeNode) {
+                    const changes = [];
+                    fields.forEach(f => {
+                         let vActive = activeNode.props?.[f.path];
+                         let vDraft = nodeEditorForm[f.path];
+                         if (f.type === 'boolean') { vActive = !!vActive; vDraft = !!vDraft; }
+                         else {
+                             if (vActive === undefined || vActive === null) vActive = '';
+                             if (vDraft === undefined || vDraft === null) vDraft = '';
+                         }
+                         if (vActive !== vDraft) changes.push({ field: f.title || f.path, from: vActive, to: vDraft });
+                    });
+                    if (changes.length > 0) {
+                        diffElement = (
+                            <div style={{width:'100%', fontSize:'0.75em', background:'#fff', border:'1px solid #ddd', borderRadius:'4px', padding:'6px', marginBottom:'4px', textAlign:'left', boxShadow:'0 1px 2px rgba(0,0,0,0.05)'}}>
+                                <div style={{fontWeight:'bold', borderBottom:'1px solid #eee', paddingBottom:'2px', marginBottom:'2px', color:'#333'}}>Changes vs Active</div>
+                                {changes.map((c, i) => (
+                                    <div key={i} style={{marginBottom:'2px', fontFamily:'monospace', display:'flex', gap:'4px', alignItems:'center'}}>
+                                        <span style={{fontWeight:'bold', color:'#555'}}>{c.field}:</span> 
+                                        <span style={{color:'#d32f2f', textDecoration:'line-through', fontSize:'0.9em'}}>{typeof c.from === 'boolean' ? String(c.from) : (c.from||'""')}</span> 
+                                        <span style={{color:'#999'}}>&rarr;</span> 
+                                        <span style={{color:'#2e7d32', fontWeight:'bold'}}>{typeof c.to === 'boolean' ? String(c.to) : (c.to||'""')}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        );
+                    } else {
+                        diffElement = <div style={{width:'100%', fontSize:'0.75em', fontStyle:'italic', color:'#aaa', textAlign:'right', marginBottom:'4px'}}>No differences vs Active</div>;
+                    }
+                 }
+             }
+         }
+
          const { errors, warnings, status } = validationResult;
          
          // 0. Prepare Block Lookup for "Go to" resolution
@@ -2325,10 +2370,11 @@ function SysadminPanel({
          const otherWarnings = warnings.filter(w => !nodeEditorSelectedId || !w.includes(nodeEditorSelectedId));
          const hasGlobalIssues = otherErrors.length > 0 || otherWarnings.length > 0;
 
-         if (!hasNodeIssues && !hasGlobalIssues) return null;
+         if (!hasNodeIssues && !hasGlobalIssues && !diffElement) return null;
 
          return (
              <div style={{display:'flex', flexDirection:'column', alignItems:'flex-end', marginBottom:'8px', gap:'6px', maxWidth:'300px'}}>
+                 {diffElement}
                  
                  {/* Section 1: This Node */}
                  {hasNodeIssues ? (
