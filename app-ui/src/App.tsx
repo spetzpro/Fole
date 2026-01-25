@@ -2103,7 +2103,8 @@ function SysadminPanel({
     tabs.push('Resolved Graph');
     tabs.push('ConfigSysadmin');
     tabs.push('Node Editor (Button)');
-    tabs.push('Node Editor (Text)'); // Added for Node Editor (Text)
+    tabs.push('Node Editor (Text)');
+    tabs.push('Node Editor (Container)'); // Added for Node Editor (Container)
 
     // const [activeTab, setActiveTab] = useState('ShellConfig'); // Defined at top of component
     const [invocations, setInvocations] = useState<any[] | null>(null);
@@ -2137,6 +2138,10 @@ function SysadminPanel({
     const [textSchema, setTextSchema] = useState<any>(null);
     const [textSchemaLoading, setTextSchemaLoading] = useState(false);
 
+    // Container Node Schema State
+    const [containerSchema, setContainerSchema] = useState<any>(null);
+    const [containerSchemaLoading, setContainerSchemaLoading] = useState(false);
+
     useEffect(() => {
         if (activeTab === 'Node Editor (Button)' && !buttonSchema && !buttonSchemaLoading) {
             setButtonSchemaLoading(true);
@@ -2166,15 +2171,32 @@ function SysadminPanel({
                      setTextSchemaLoading(false);
                 });
         }
-    }, [activeTab, buttonSchema, buttonSchemaLoading, textSchema, textSchemaLoading]);
+        if (activeTab === 'Node Editor (Container)' && !containerSchema && !containerSchemaLoading) {
+            setContainerSchemaLoading(true);
+            fetch('/api/schemas/ui-node/ui.node.container')
+                .then(r => r.json())
+                .then(d => {
+                     setContainerSchema(d);
+                     setContainerSchemaLoading(false);
+                })
+                .catch(e => {
+                     // eslint-disable-next-line no-console
+                     console.error("Container schema load failed", e);
+                     setContainerSchemaLoading(false);
+                });
+        }
+    }, [activeTab, buttonSchema, buttonSchemaLoading, textSchema, textSchemaLoading, containerSchema, containerSchemaLoading]);
 
     // --- Node Editor Hooks & Helpers (Unconditional) ---
     const schemaFields = useMemo(() => {
         if (activeTab === 'Node Editor (Text)') {
             return extractStringFields(textSchema);
         }
+        if (activeTab === 'Node Editor (Container)') {
+            return extractStringFields(containerSchema);
+        }
         return extractStringFields(buttonSchema);
-    }, [activeTab, buttonSchema, textSchema]);
+    }, [activeTab, buttonSchema, textSchema, containerSchema]);
 
     const getEffectiveNode = (id: string) => {
          // Use draftBundle state for Draft source
@@ -2245,7 +2267,10 @@ function SysadminPanel({
          newData = sanitizeNodeDataForSchema(schemaFields, newData);
          
          // Determine Block Type
-         const defaultType = activeTab === 'Node Editor (Text)' ? 'ui.node.text' : 'ui.node.button';
+         let defaultType = 'ui.node.button';
+         if (activeTab === 'Node Editor (Text)') defaultType = 'ui.node.text';
+         if (activeTab === 'Node Editor (Container)') defaultType = 'ui.node.container';
+         
          const finalType = activeNode?.type || existingDraftBlock?.blockType || defaultType;
 
          newDraft.blocks[nodeEditorSelectedId] = {
@@ -2967,7 +2992,10 @@ function SysadminPanel({
              // If user is editing a button, `schemaFields` will be populated.
              if (schemaFields && schemaFields.length > 0) {
                  const blockIds = Object.keys(bundle.blocks);
-                 const targetType = activeTab === 'Node Editor (Text)' ? 'ui.node.text' : 'ui.node.button';
+                 let targetType = 'ui.node.button';
+                 if (activeTab === 'Node Editor (Text)') targetType = 'ui.node.text';
+                 if (activeTab === 'Node Editor (Container)') targetType = 'ui.node.container';
+                 
                  blockIds.forEach(bid => {
                      const blk = bundle.blocks[bid];
                      if (blk && blk.blockType === targetType && blk.data) {
@@ -4583,6 +4611,177 @@ function SysadminPanel({
                                  <div style={{height:'100%', display:'flex', alignItems:'center', justifyContent:'center', flexDirection:'column', color:'#ccc'}}>
                                      <div style={{fontSize:'3em', marginBottom:'10px'}}>📝</div>
                                      <div style={{fontSize:'1.2em'}}>Select a text node from the list</div>
+                                 </div>
+                             )}
+                         </div>
+                     </div>
+                 );
+            }
+
+            case 'Node Editor (Container)': {
+                 // Ensure graph is loaded
+                 if (!resolvedGraph && !resolvedGraphLoading && !resolvedGraphError) {
+                     setTimeout(() => refreshResolvedGraph(), 0);
+                 }
+
+                 if (resolvedGraphLoading) return <div style={{padding:'20px'}}>Loading graph...</div>;
+                 if (resolvedGraphError) return <div style={{padding:'20px', color:'red'}}>Error: {resolvedGraphError}</div>;
+                 if (!resolvedGraph) return <div style={{padding:'20px'}}>No graph data.</div>;
+
+                 // Handle Schema Loading
+                 if (containerSchemaLoading) return <div style={{padding:'20px'}}>Loading Schema...</div>;
+                 if (!containerSchema) return <div style={{padding:'20px'}}>Waiting for schema...</div>;
+
+                 // Filter Container Nodes
+                 const nodes = resolvedGraph.nodesById || {};
+                 const containerNodes = Object.values(nodes).filter((n: any) => n.type === 'ui.node.container');
+                 
+                 const selectedNode = nodeEditorSelectedId ? getEffectiveNode(nodeEditorSelectedId) : null;
+                 const draftBundle = bundleData; 
+
+                 return (
+                     <div style={{display:'flex', height:'100%'}}>
+                         <div style={{width:'250px', borderRight:'1px solid #ddd', overflowY:'auto', padding:'10px', background:'#fafafa'}}>
+                             <div style={{fontWeight:'bold', marginBottom:'10px', color:'#333'}}>Containers ({containerNodes.length})</div>
+                             {containerNodes.length === 0 && <div style={{fontStyle:'italic', color:'#666'}}>No container nodes.</div>}
+                             {containerNodes.map((n:any) => {
+                                 const isDraft = !!(draftBundle as any)?.blocks?.[n.id];
+                                 let displayLabel = n.id;
+                                 if (n.props?.direction) displayLabel += ` (${n.props.direction})`;
+                                 else if (n.props?.layout) displayLabel += ` (${n.props.layout})`;
+
+                                 return (
+                                     <div 
+                                        key={n.id} 
+                                        onClick={() => handleNodeSelect(n.id)}
+                                        style={{
+                                            padding:'8px', cursor:'pointer', 
+                                            background: nodeEditorSelectedId === n.id ? '#e3f2fd' : 'white',
+                                            borderBottom:'1px solid #eee',
+                                            borderRadius:'4px',
+                                            marginBottom:'2px',
+                                            border: nodeEditorSelectedId === n.id ? '1px solid #90caf9' : '1px solid transparent'
+                                        }}
+                                     >
+                                         <div style={{fontWeight:'bold', fontSize:'0.9em'}}>{displayLabel}</div>
+                                         <div style={{fontSize:'0.8em', color:'#666', fontFamily:'monospace'}}>{n.id}</div>
+                                         {isDraft && <span style={{fontSize:'0.7em', background:'#e8f5e9', color:'green', padding:'1px 4px', borderRadius:'3px', border:'1px solid #c8e6c9', fontWeight:'bold'}}>DRAFT</span>}
+                                     </div>
+                                 );
+                             })}
+                         </div>
+                         
+                         <div style={{flex:1, padding:'20px', overflowY:'auto'}}>
+                             {selectedNode ? (
+                                 <div style={{maxWidth:'600px'}}>
+                                     <div style={{borderBottom:'1px solid #ddd', paddingBottom:'10px', marginBottom:'20px'}}>
+                                         <h3>Editing: {selectedNode.id}</h3>
+                                         <div style={{color:'#666'}}>Type: {selectedNode.type}</div>
+                                         {selectedNode._source === 'ACTIVE' && <div style={{color:'#f57f17', fontSize:'0.9em', marginTop:'5px'}}>Editing Active Node (Will create Draft)</div>}
+                                         {selectedNode._source === 'DRAFT' && <div style={{color:'green', fontSize:'0.9em', marginTop:'5px'}}>Editing Draft</div>}
+                                     </div>
+
+                                     <div style={{display:'flex', flexDirection:'column', gap:'15px'}}>
+                                         {schemaFields.map(f => (
+                                             <div key={f.path}>
+                                                 {f.type === 'boolean' ? (
+                                                     <div style={{display:'flex', alignItems:'center', gap:'10px'}}>
+                                                         <input 
+                                                             type="checkbox" 
+                                                             checked={!!nodeEditorForm[f.path]} 
+                                                             onChange={(e) => {
+                                                                 setNodeEditorForm({...nodeEditorForm, [f.path]: e.target.checked});
+                                                                 setNodeEditorDirty(true);
+                                                             }}
+                                                             id={`field-${f.path}`}
+                                                         />
+                                                         <label htmlFor={`field-${f.path}`} style={{cursor:'pointer', fontWeight:'bold', color:'#333'}}>{f.title}</label>
+                                                     </div>
+                                                 ) : (
+                                                     <>
+                                                        <label style={{display:'block', fontWeight:'bold', marginBottom:'6px', color:'#333'}}>{f.title}</label>
+                                                        {f.enumOptions && f.enumOptions.length > 0 ? (
+                                                            <select
+                                                                value={nodeEditorForm[f.path] || ''}
+                                                                onChange={(e) => {
+                                                                    setNodeEditorForm({...nodeEditorForm, [f.path]: e.target.value});
+                                                                    setNodeEditorDirty(true);
+                                                                }}
+                                                                style={{width:'100%', padding:'10px', fontSize:'1em', border:'1px solid #ccc', borderRadius:'4px', boxSizing:'border-box', backgroundColor:'#333', color:'white'}}
+                                                            >
+                                                                <option value="" style={{backgroundColor:'#333', color:'white'}}>(Select Option)</option>
+                                                                {f.enumOptions.map(opt => (
+                                                                    <option key={opt} value={opt} style={{backgroundColor:'#333', color:'white'}}>{opt}</option>
+                                                                ))}
+                                                            </select>
+                                                        ) : (
+                                                            <input 
+                                                                type="text" 
+                                                                value={nodeEditorForm[f.path] || ''}
+                                                                onChange={(e) => {
+                                                                    setNodeEditorForm({...nodeEditorForm, [f.path]: e.target.value});
+                                                                    setNodeEditorDirty(true);
+                                                                }}
+                                                                style={{width:'100%', padding:'10px', fontSize:'1em', border:'1px solid #ccc', borderRadius:'4px', boxSizing:'border-box'}}
+                                                                placeholder={`Enter ${f.title}...`}
+                                                            />
+                                                        )}
+                                                     </>
+                                                 )}
+                                                 <div style={{fontSize:'0.8em', color:'#888', marginTop:'4px'}}>
+                                                    {f.description || `Mapped to ${f.path}`}
+                                                 </div>
+                                             </div>
+                                         ))}
+                                         
+                                         <div style={{display:'flex', gap:'15px', alignItems:'center', marginTop:'30px', paddingTop:'20px', borderTop:'1px solid #eee'}}>
+                                             <button 
+                                                 onClick={handleSaveNode}
+                                                 disabled={!nodeEditorDirty && !!draftBundle}
+                                                 style={{
+                                                     padding:'10px 20px', 
+                                                     background: nodeEditorDirty ? '#007acc' : '#e0e0e0', 
+                                                     color: nodeEditorDirty ? 'white' : '#888',
+                                                     border:'none', borderRadius:'4px', cursor: nodeEditorDirty ? 'pointer' : 'default', fontWeight:'bold',
+                                                     boxShadow: nodeEditorDirty ? '0 2px 4px rgba(0,122,204,0.3)' : 'none',
+                                                     transition: 'all 0.2s'
+                                                 }}
+                                             >
+                                                 {nodeEditorDirty ? 'Save Changes' : 'No Changes'}
+                                             </button>
+                                             
+                                             {!draftBundle && (
+                                                <div style={{color:'#e65100', fontSize:'0.9em', background:'#fff3e0', padding:'8px', borderRadius:'4px', border:'1px solid #ffe0b2'}}>
+                                                    <strong>Draft not started.</strong> Editing will initialize a new draft.
+                                                </div>
+                                             )}
+                                             
+                                             {/* Deployed Button inside Node Editor */}
+                                             {draftBundle && (
+                                                <div style={{marginLeft:'auto', display:'flex', flexDirection:'column', alignItems:'flex-end'}}>
+                                                <button 
+                                                    onClick={handleActivateDraft}
+                                                    disabled={pendingStage === 'saving'}
+                                                    style={{
+                                                        padding:'10px 20px', fontSize:'1em', 
+                                                        background: pendingStage === 'saving' ? '#ffcc80' : '#e65100', 
+                                                        color:'white', 
+                                                        border:'none', borderRadius:'4px', cursor:'pointer',
+                                                        fontWeight: 'bold'
+                                                    }}
+                                                    title="Save to server and activate as new version"
+                                                >
+                                                    {pendingStage === 'saving' ? 'Deploying...' : 'Activate (Deploy)'}
+                                                </button>
+                                                </div>
+                                             )}
+                                         </div>
+                                     </div>
+                                 </div>
+                             ) : (
+                                 <div style={{height:'100%', display:'flex', alignItems:'center', justifyContent:'center', flexDirection:'column', color:'#ccc'}}>
+                                     <div style={{fontSize:'3em', marginBottom:'10px'}}>📦</div>
+                                     <div style={{fontSize:'1.2em'}}>Select a container from the list</div>
                                  </div>
                              )}
                          </div>
