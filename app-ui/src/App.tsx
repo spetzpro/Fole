@@ -2015,6 +2015,7 @@ function SysadminPanel({
     }
     tabs.push('Resolved Graph');
     tabs.push('ConfigSysadmin');
+    tabs.push('Node Editor'); // Added for Node Editor (Button)
 
     // const [activeTab, setActiveTab] = useState('ShellConfig'); // Defined at top of component
     const [invocations, setInvocations] = useState<any[] | null>(null);
@@ -2034,6 +2035,11 @@ function SysadminPanel({
     const [resolvedGraph, setResolvedGraph] = useState<any | null>(null);
     const [resolvedGraphError, setResolvedGraphError] = useState<string | null>(null);
     const [resolvedGraphLoading, setResolvedGraphLoading] = useState(false);
+
+    // Node Editor State
+    const [nodeEditorSelectedId, setNodeEditorSelectedId] = useState<string | null>(null);
+    const [nodeEditorForm, setNodeEditorForm] = useState<any>({});
+    const [nodeEditorDirty, setNodeEditorDirty] = useState(false);
 
     const refreshResolvedGraph = () => {
         setResolvedGraphLoading(true);
@@ -3918,6 +3924,222 @@ function SysadminPanel({
         };
 
         switch(activeTab) {
+
+            case 'Node Editor': {
+                 // Ensure graph is loaded
+                 if (!resolvedGraph && !resolvedGraphLoading && !resolvedGraphError) {
+                     setTimeout(() => refreshResolvedGraph(), 0);
+                 }
+
+                 if (resolvedGraphLoading) return <div style={{padding:'20px'}}>Loading graph...</div>;
+                 if (resolvedGraphError) return <div style={{padding:'20px', color:'red'}}>Error: {resolvedGraphError}</div>;
+                 if (!resolvedGraph) return <div style={{padding:'20px'}}>No graph data.</div>;
+
+                 // Filter Button Nodes (scan nodes object)
+                 const nodes = resolvedGraph.nodes || {};
+                 // Object.values might not be available if nodes is not an object, but it should be map
+                 const buttonNodes = Object.values(nodes).filter((n: any) => n.type === 'ui.node.button');
+                 
+                 // Helper to get effective data (Draft > Active)
+                 const getEffectiveNode = (id: string) => {
+                     // Check if block exists in draft
+                     const draftBlocks = (draftBundle as any)?.blocks || {};
+                     const draftBlock = draftBlocks[id];
+                     
+                     // If draft block exists, we need to see if it has the data structure we expect
+                     // Draft block usually wraps data in 'data' prop if it's a generic block, 
+                     // OR it might be the flat node object depending on how Resolved Graph vs Draft Store works.
+                     // The DraftBundle usually stores blocks as { blockId:..., blockType:..., data: {...} }
+                     // Resolved Graph usually stores flattened nodes.
+                     
+                     // Schema for Button: top level label, behaviors.
+                     // In Bundle, this is likely inside `data`.
+                     // Let's check `test_routing_validation_failure.ts` or similar to see structure.
+                     // Assuming Bundle Format: { blockType: 'ui.node.button', data: { label: '...', behaviors: ... } }
+                     
+                     if (draftBlock) {
+                         // Map bundle data to node structure
+                        return { 
+                            id: draftBlock.blockId, 
+                            ...draftBlock.data, 
+                            _source: 'DRAFT' 
+                        };
+                     }
+                     
+                     // Active Graph Nodes are typically already resolved/flattened? 
+                     // Resolved Graph `nodes` usually contains the runtime model.
+                     return { ...nodes[id], _source: 'ACTIVE' };
+                 };
+
+                 const selectedNode = nodeEditorSelectedId ? getEffectiveNode(nodeEditorSelectedId) : null;
+
+                 const handleNodeSelect = (id: string) => {
+                     setNodeEditorSelectedId(id);
+                     const n = getEffectiveNode(id);
+                     if (n) {
+                        setNodeEditorForm({
+                            label: n.label || '',
+                            actionId: n.behaviors?.onClick?.actionId || ''
+                        });
+                        setNodeEditorDirty(false);
+                     }
+                 };
+
+                 const handleSaveNode = () => {
+                     if (!nodeEditorSelectedId || !draftBundle) return;
+                     
+                     const newDraft = { ...(draftBundle as any) };
+                     if (!newDraft.blocks) newDraft.blocks = {};
+                     
+                     // We need to save in Bundle Format
+                     const existingDraftBlock = newDraft.blocks[nodeEditorSelectedId];
+                     const activeNode = nodes[nodeEditorSelectedId];
+
+                     // Base Data
+                     const baseData = existingDraftBlock ? existingDraftBlock.data : (activeNode || {});
+                     
+                     // Update Data
+                     const newData = {
+                         ...baseData,
+                         label: nodeEditorForm.label,
+                         behaviors: {
+                             ...(baseData.behaviors || {}),
+                             onClick: {
+                                 ...(baseData.behaviors?.onClick || {}),
+                                 actionId: nodeEditorForm.actionId
+                             }
+                         }
+                     };
+                     
+                     newDraft.blocks[nodeEditorSelectedId] = {
+                         blockId: nodeEditorSelectedId,
+                         blockType: 'ui.node.button',
+                         schemaVersion: '1.0.0',
+                         filename: existingDraftBlock?.filename || `${nodeEditorSelectedId}.json`,
+                         data: newData
+                     };
+                     
+                     setDraftBundle(newDraft);
+                     setNodeEditorDirty(false);
+                     
+                     // Re-select to update source indicator
+                     setTimeout(() => handleNodeSelect(nodeEditorSelectedId), 0);
+                 };
+
+                 return (
+                     <div style={{display:'flex', height:'100%'}}>
+                         <div style={{width:'250px', borderRight:'1px solid #ddd', overflowY:'auto', padding:'10px', background:'#fafafa'}}>
+                             <div style={{fontWeight:'bold', marginBottom:'10px', color:'#333'}}>Buttons ({buttonNodes.length})</div>
+                             {buttonNodes.length === 0 && <div style={{fontStyle:'italic', color:'#666'}}>No buttons found in active graph.</div>}
+                             {buttonNodes.map((n:any) => {
+                                 const isDraft = !!(draftBundle as any)?.blocks?.[n.id];
+                                 return (
+                                     <div 
+                                        key={n.id} 
+                                        onClick={() => handleNodeSelect(n.id)}
+                                        style={{
+                                            padding:'8px', cursor:'pointer', 
+                                            background: nodeEditorSelectedId === n.id ? '#e3f2fd' : 'white',
+                                            borderBottom:'1px solid #eee',
+                                            borderRadius:'4px',
+                                            marginBottom:'2px',
+                                            border: nodeEditorSelectedId === n.id ? '1px solid #90caf9' : '1px solid transparent'
+                                        }}
+                                     >
+                                         <div style={{fontWeight:'bold', fontSize:'0.9em'}}>{n.label || '(No Label)'}</div>
+                                         <div style={{fontSize:'0.8em', color:'#666', fontFamily:'monospace'}}>{n.id}</div>
+                                         {isDraft && <span style={{fontSize:'0.7em', background:'#e8f5e9', color:'green', padding:'1px 4px', borderRadius:'3px', border:'1px solid #c8e6c9', fontWeight:'bold'}}>DRAFT</span>}
+                                     </div>
+                                 );
+                             })}
+                         </div>
+                         
+                         <div style={{flex:1, padding:'20px', overflowY:'auto'}}>
+                             {selectedNode ? (
+                                 <div style={{maxWidth:'600px'}}>
+                                     <div style={{marginBottom:'20px', borderBottom:'1px solid #eee', paddingBottom:'10px'}}>
+                                         <div style={{fontSize:'1.4em', fontWeight:'bold', color:'#333'}}>{selectedNode.label || selectedNode.id}</div>
+                                         <div style={{display:'flex', gap:'10px', alignItems:'center', marginTop:'5px'}}>
+                                             <div style={{color:'#666', fontSize:'0.9em', fontFamily:'monospace', background:'#f5f5f5', padding:'2px 6px', borderRadius:'4px'}}>
+                                                 ID: {selectedNode.id}
+                                             </div>
+                                             <div style={{
+                                                 fontSize:'0.8em', fontWeight:'bold', 
+                                                 color: selectedNode._source === 'DRAFT' ? '#2e7d32' : '#0277bd',
+                                                 background: selectedNode._source === 'DRAFT' ? '#e8f5e9' : '#e1f5fe',
+                                                 padding:'2px 8px', borderRadius:'10px',
+                                                 border: selectedNode._source === 'DRAFT' ? '1px solid #c8e6c9' : '1px solid #b3e5fc'
+                                             }}>
+                                                 SOURCE: {selectedNode._source}
+                                             </div>
+                                         </div>
+                                     </div>
+                                     
+                                     <div style={{background:'white', padding:'20px', border:'1px solid #ddd', borderRadius:'8px', boxShadow:'0 1px 3px rgba(0,0,0,0.05)'}}>
+                                         <div style={{marginBottom:'20px'}}>
+                                             <label style={{display:'block', fontWeight:'bold', marginBottom:'6px', color:'#333'}}>Button Label</label>
+                                             <input 
+                                                 type="text" 
+                                                 value={nodeEditorForm.label}
+                                                 onChange={(e) => {
+                                                     setNodeEditorForm({...nodeEditorForm, label: e.target.value});
+                                                     setNodeEditorDirty(true);
+                                                 }}
+                                                 style={{width:'100%', padding:'10px', fontSize:'1em', border:'1px solid #ccc', borderRadius:'4px', boxSizing:'border-box'}}
+                                                 placeholder="Enter button text..."
+                                             />
+                                             <div style={{fontSize:'0.8em', color:'#888', marginTop:'4px'}}>Internal text displayed to the user.</div>
+                                         </div>
+                                         
+                                         <div style={{marginBottom:'20px'}}>
+                                             <label style={{display:'block', fontWeight:'bold', marginBottom:'6px', color:'#333'}}>Action ID (OnClick)</label>
+                                             <input 
+                                                 type="text" 
+                                                 value={nodeEditorForm.actionId}
+                                                 onChange={(e) => {
+                                                     setNodeEditorForm({...nodeEditorForm, actionId: e.target.value});
+                                                     setNodeEditorDirty(true);
+                                                 }}
+                                                 style={{width:'100%', padding:'10px', fontSize:'1em', fontFamily:'monospace', border:'1px solid #ccc', borderRadius:'4px', boxSizing:'border-box', background:'#fafafa'}}
+                                                 placeholder="e.g. action.calculate_total"
+                                             />
+                                             <div style={{fontSize:'0.8em', color:'#888', marginTop:'4px'}}>ID of the action to trigger when clicked.</div>
+                                         </div>
+                                         
+                                         <div style={{display:'flex', gap:'15px', alignItems:'center', marginTop:'30px', paddingTop:'20px', borderTop:'1px solid #eee'}}>
+                                             <button 
+                                                 onClick={handleSaveNode}
+                                                 disabled={!nodeEditorDirty && !!draftBundle}
+                                                 style={{
+                                                     padding:'10px 20px', 
+                                                     background: nodeEditorDirty ? '#007acc' : '#e0e0e0', 
+                                                     color: nodeEditorDirty ? 'white' : '#888',
+                                                     border:'none', borderRadius:'4px', cursor: nodeEditorDirty ? 'pointer' : 'default', fontWeight:'bold',
+                                                     boxShadow: nodeEditorDirty ? '0 2px 4px rgba(0,122,204,0.3)' : 'none',
+                                                     transition: 'all 0.2s'
+                                                 }}
+                                             >
+                                                 {nodeEditorDirty ? 'Save Changes' : 'No Changes'}
+                                             </button>
+                                             
+                                             {!draftBundle && (
+                                                <div style={{color:'#e65100', fontSize:'0.9em', background:'#fff3e0', padding:'8px', borderRadius:'4px', border:'1px solid #ffe0b2'}}>
+                                                    <strong>Draft not started.</strong> Editing will initialize a new draft.
+                                                </div>
+                                             )}
+                                         </div>
+                                     </div>
+                                 </div>
+                             ) : (
+                                 <div style={{height:'100%', display:'flex', alignItems:'center', justifyContent:'center', flexDirection:'column', color:'#ccc'}}>
+                                     <div style={{fontSize:'3em', marginBottom:'10px'}}>🖱️</div>
+                                     <div style={{fontSize:'1.2em'}}>Select a button from the list</div>
+                                 </div>
+                             )}
+                         </div>
+                     </div>
+                 );
+            }
 
             case 'ConfigSysadmin': {
                 return (
