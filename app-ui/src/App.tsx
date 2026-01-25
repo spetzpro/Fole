@@ -2899,6 +2899,7 @@ function SysadminPanel({
 
         setPendingStage('saving'); 
         setSaveMessage('Deploying draft...');
+        setDeployDebugInfo(null);
         
         try {
             // Use standard deploy pipeline which includes validation and graph resolution
@@ -2923,6 +2924,23 @@ function SysadminPanel({
             }
             
             const result = await deployRes.json();
+
+            // --- TODO: Temporary Debug Instrumentation (Start) ---
+            try {
+                const activeGraphRes = await fetch(`${baseUrl}/api/config/shell/resolved-graph/active`);
+                const activeGraph = await activeGraphRes.json();
+                const nodes = activeGraph.nodesById || {};
+                const buttonNode = Object.values(nodes).find((n: any) => n.type === 'ui.node.button') as any;
+                const label = buttonNode ? (buttonNode.props?.label || buttonNode.label || "(No label found)") : "(No button found)";
+                
+                const debugMsg = `Deploy Debug: HTTP ${deployRes.status}, deploy returned version ${result.activeVersionId || result.versionId}, active graph button label is "${String(label)}"`;
+                console.log(debugMsg);
+                setDeployDebugInfo(debugMsg);
+            } catch (debugErr) {
+                console.error("Deploy debug check failed", debugErr);
+                setDeployDebugInfo(`Deploy Debug Failed: ${String(debugErr)}`);
+            }
+            // --- TODO: Temporary Debug Instrumentation (End) ---
             
             // Success
             setPendingStage('success');
@@ -2932,6 +2950,13 @@ function SysadminPanel({
             // handleResetDraft(); // Keep draft per user request
             onRefresh(); 
             refreshSnapshot();
+            
+            // Force V2 Preview Refresh
+            if (showV2) {
+                // If open, we can toggle it to force remount, or we can use a key.
+                // Since this function is inside App, we can define a refresh state.
+                setV2RefreshKey(prev => prev + 1);
+            }
             
         } catch (e: any) {
             setPendingStage('error');
@@ -4184,7 +4209,7 @@ function SysadminPanel({
                                             border: nodeEditorSelectedId === n.id ? '1px solid #90caf9' : '1px solid transparent'
                                         }}
                                      >
-                                         <div style={{fontWeight:'bold', fontSize:'0.9em'}}>{n.label || '(No Label)'}</div>
+                                         <div style={{fontWeight:'bold', fontSize:'0.9em'}}>{n.props?.label || n.label || '(No Label)'}</div>
                                          <div style={{fontSize:'0.8em', color:'#666', fontFamily:'monospace'}}>{n.id}</div>
                                          {isDraft && <span style={{fontSize:'0.7em', background:'#e8f5e9', color:'green', padding:'1px 4px', borderRadius:'3px', border:'1px solid #c8e6c9', fontWeight:'bold'}}>DRAFT</span>}
                                      </div>
@@ -4196,7 +4221,7 @@ function SysadminPanel({
                              {selectedNode ? (
                                  <div style={{maxWidth:'600px'}}>
                                      <div style={{marginBottom:'20px', borderBottom:'1px solid #eee', paddingBottom:'10px'}}>
-                                         <div style={{fontSize:'1.4em', fontWeight:'bold', color:'#333'}}>{selectedNode.label || selectedNode.id}</div>
+                                         <div style={{fontSize:'1.4em', fontWeight:'bold', color:'#333'}}>{selectedNode.props?.label || selectedNode.label || selectedNode.id}</div>
                                          <div style={{fontSize:'0.8em', color:'#2e7d32', background:'#e8f5e9', padding:'4px', borderRadius:'3px', border:'1px solid #c8e6c9', marginTop:'5px'}}>
                                             Schema-Driven Form: Fetched from backend. Rendering {schemaFields.length} properties.
                                          </div>
@@ -4303,6 +4328,7 @@ function SysadminPanel({
                                              
                                              {/* Deployed Button inside Node Editor */}
                                              {draftBundle && (
+                                                <div style={{marginLeft:'auto', display:'flex', flexDirection:'column', alignItems:'flex-end'}}>
                                                 <button 
                                                     onClick={handleActivateDraft}
                                                     disabled={pendingStage === 'saving'}
@@ -4311,13 +4337,14 @@ function SysadminPanel({
                                                         background: pendingStage === 'saving' ? '#ffcc80' : '#e65100', 
                                                         color:'white', 
                                                         border:'none', borderRadius:'4px', cursor:'pointer',
-                                                        fontWeight: 'bold',
-                                                        marginLeft: 'auto'
+                                                        fontWeight: 'bold'
                                                     }}
                                                     title="Save to server and activate as new version"
                                                 >
                                                     {pendingStage === 'saving' ? 'Deploying...' : 'Activate (Deploy)'}
                                                 </button>
+                                                {deployDebugInfo && <div style={{fontSize:'10px', color:'red', marginTop:'4px', fontWeight:'bold', maxWidth:'300px', textAlign:'right'}}>{deployDebugInfo}</div>}
+                                                </div>
                                              )}
                                          </div>
                                      </div>
@@ -5336,7 +5363,8 @@ function SysadminPanel({
                                      (Saved locally)
                                  </span>
                              </div>
-                             <div style={{display:'flex', gap:'10px'}}>
+                             <div style={{display:'flex', gap:'10px', alignItems:'center'}}>
+                                {deployDebugInfo && <div style={{fontSize:'10px', color:'red', fontWeight:'bold', maxWidth:'300px', textAlign:'right'}}>{deployDebugInfo}</div>}
                                 <button 
                                     onClick={handleActivateDraft}
                                     disabled={pendingStage === 'saving'}
@@ -6501,6 +6529,10 @@ function App() {
   const [baseUrl] = useState('');
   
   const [showV2, setShowV2] = useState(false);
+  const [v2RefreshKey, setV2RefreshKey] = useState(0);
+
+  // TODO: Temporary Debug State for Deploy Verification (Remove after fix)
+  const [deployDebugInfo, setDeployDebugInfo] = useState<string | null>(null);
 
   // Check query param for v2 preview on mount
   useEffect(() => {
@@ -6945,7 +6977,7 @@ function App() {
              />
           </div>
       </div>
-      {showV2 && <V2RendererPreview onClose={() => setShowV2(false)} />}
+      {showV2 && <V2RendererPreview key={v2RefreshKey} onClose={() => setShowV2(false)} />}
     </div>
   );
 }

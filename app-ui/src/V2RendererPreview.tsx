@@ -102,10 +102,24 @@ export function V2RendererPreview({ onClose }: V2RendererPreviewProps) {
                      }
                 };
                 
-                const displayLabel = node.props?.label || node.props?.text || node.props?.content || "Button";
+                const displayLabel = node.props?.label || node.props?.text || "Button";
+                const isDisabled = node.props?.enabled === false;
 
                 return (
-                    <button key={commonKey} style={{...style, cursor: 'pointer', backgroundColor: '#e0e0e0', padding: '5px 10px', border:'1px solid #999', borderRadius:'4px'}} onClick={handleButtonClick}>
+                    <button 
+                         key={commonKey} 
+                         disabled={isDisabled}
+                         style={{
+                             ...style, 
+                             cursor: isDisabled ? 'not-allowed' : 'pointer', 
+                             backgroundColor: isDisabled ? '#ccc' : '#e0e0e0',
+                             opacity: isDisabled ? 0.7 : 1,
+                             padding: '5px 10px', 
+                             border: '1px solid #999', 
+                             borderRadius: '4px'
+                         }} 
+                         onClick={handleButtonClick}
+                    >
                         {String(displayLabel)}
                     </button>
                 );
