@@ -2152,7 +2152,13 @@ function SysadminPanel({
          if (n) {
             const newForm: any = {};
             schemaFields.forEach(f => {
-                newForm[f.path] = getValueByPath(n, f.path);
+                const val = getValueByPath(n, f.path);
+                if (f.type === 'boolean') {
+                     // Ensure boolean fields default to false instead of empty string
+                     newForm[f.path] = (val === '' || val === undefined) ? false : val;
+                } else {
+                     newForm[f.path] = val;
+                }
             });
             setNodeEditorForm(newForm);
             setNodeEditorDirty(false);
@@ -5272,7 +5278,7 @@ function SysadminPanel({
                          
                          <div style={{display:'flex', flex:1, width:'100%', overflow:'hidden', gap:'10px', minHeight: 0}}>
                              {/* Left: Block List */}
-                             <div style={{flex: '0 0 260px', display:'flex', flexDirection:'column', borderRight:'1px solid #ddd', paddingRight:'5px'}}>
+                             <div style={{flex: '0 0 260px', display:'flex', flexDirection:'column', borderRight:'1px solid #ddd', paddingRight:'5px', overflowY:'auto', minHeight: 0}}>
                                  
                                  {/* Regions Editor */}
                                  <div style={{marginBottom:'10px', paddingBottom:'10px', borderBottom:'1px solid #eee'}}>
@@ -5538,7 +5544,7 @@ function SysadminPanel({
                                     onChange={e=>setDraftBlockFilter(e.target.value)} 
                                     style={{width:'100%', marginBottom:'10px', padding:'6px', boxSizing:'border-box', border:'1px solid #ccc'}}
                                  />
-                                 <div style={{flex:1, overflowY:'auto'}}>
+                                 <div>
                                      {filtered.map((b, i) => {
                                          const bid = b.blockId || b.id || `draft-block-${i}`;
                                          const isSel = bid === draftSelectedBlockId;
