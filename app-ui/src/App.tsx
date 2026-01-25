@@ -7470,8 +7470,6 @@ function SysadminPanel({
 }
 
 function App() {
-  // Configured via vite proxy in dev
-  const [baseUrl] = useState('');
   
   const [showV2, setShowV2] = useState(false);
   // v2RefreshKey removed to clean up unused state
@@ -7570,8 +7568,11 @@ function App() {
     setError(null);
     setBundleData(null);
     try {
-      const bundleRes = await fetch(`${baseUrl}/api/config/shell/bundle`);
-      if (!bundleRes.ok) throw new Error(`Bundle fetch failed: ${bundleRes.status} ${bundleRes.statusText}`);
+      const bundleRes = await fetch(apiUrl('/api/config/shell/bundle'));
+      if (!bundleRes.ok) {
+        const txt = await bundleRes.text().catch(() => '');
+        throw new Error(`Bundle fetch failed: ${bundleRes.status} ${bundleRes.statusText} ${txt}`);
+      }
       const rawJson = await bundleRes.json();
       
       const bundleObj = rawJson.bundle?.bundle ?? rawJson.bundle ?? rawJson;
@@ -7608,7 +7609,7 @@ function App() {
     setError(null);
     setPingData(null);
     try {
-      const pingRes = await fetch(`${baseUrl}/api/routing/resolve/ping`);
+      const pingRes = await fetch(apiUrl('/api/routing/resolve/ping'));
       
       // Special handling for 404 to distinguish missing route from server error
       if (pingRes.status === 404) {
@@ -7656,7 +7657,7 @@ function App() {
            permissions: permsArray
       };
       
-      const res = await fetch(`${baseUrl}/api/debug/action/dispatch`, {
+      const res = await fetch(apiUrl('/api/debug/action/dispatch'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(reqBody)
