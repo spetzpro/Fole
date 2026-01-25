@@ -104,6 +104,39 @@ export function V2RendererPreview({ onClose }: V2RendererPreviewProps) {
                 
                 const displayLabel = node.props?.label || node.props?.text || "Button";
                 const isDisabled = node.props?.enabled === false;
+                const variant = (node.props?.variant as string) || 'secondary';
+
+                let variantStyle: React.CSSProperties = {
+                    backgroundColor: '#e0e0e0',
+                    color: '#000000',
+                    border: '1px solid #999'
+                };
+
+                // Variant Mapping
+                switch (variant) {
+                    case 'primary':
+                        variantStyle = { backgroundColor: '#007acc', color: 'white', border: '1px solid #005a9e' };
+                        break;
+                    case 'ghost':
+                        variantStyle = { backgroundColor: 'transparent', color: '#333', border: '1px solid #ccc' };
+                        break;
+                    case 'dangerous':
+                        variantStyle = { backgroundColor: '#ffebee', color: '#b71c1c', border: '1px solid #ef5350' };
+                        break;
+                    case 'secondary':
+                    default:
+                        variantStyle = { backgroundColor: '#e0e0e0', color: '#000000', border: '1px solid #999' };
+                        break;
+                }
+
+                // Disabled Override
+                if (isDisabled) {
+                    variantStyle = {
+                        backgroundColor: '#d9d9d9',
+                        color: '#555555',
+                        border: '1px solid #999'
+                    };
+                }
 
                 return (
                     <button 
@@ -112,12 +145,11 @@ export function V2RendererPreview({ onClose }: V2RendererPreviewProps) {
                          style={{
                              ...style, 
                              cursor: isDisabled ? 'not-allowed' : 'pointer', 
-                             backgroundColor: isDisabled ? '#d9d9d9' : '#e0e0e0',
-                             color: isDisabled ? '#555555' : '#000000',
-                             opacity: isDisabled ? 0.9 : 1, // Higher opacity for readability, rely on color/cursor for state
+                             opacity: isDisabled ? 0.9 : 1, // Higher opacity for readability
                              padding: '5px 10px', 
-                             border: '1px solid #999', 
-                             borderRadius: '4px'
+                             borderRadius: '4px',
+                             ...variantStyle,
+                             fontWeight: variant === 'primary' ? 'bold' : 'normal'
                          }} 
                          onClick={handleButtonClick}
                     >
