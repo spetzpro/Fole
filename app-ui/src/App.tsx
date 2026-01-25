@@ -1995,6 +1995,25 @@ const setValueByPath = (obj: any, path: string, value: any) => {
     return newObj;
 };
 
+// Helper: Sanitize Data for Schema (Remove empty enums/optionals)
+const sanitizeNodeDataForSchema = (fields: FieldDef[], data: any) => {
+    let newData = { ...data };
+    fields.forEach(f => {
+         let val = getValueByPath(newData, f.path);
+         
+         const fieldName = f.path.split('.').pop();
+         const isEnum = f.enumOptions && Array.isArray(f.enumOptions) && f.enumOptions.length > 0;
+         const isOptional = ['helpText', 'requiredPermission', 'icon'].includes(fieldName || '');
+         
+         if (typeof val === 'string' && val === '') {
+             if (isEnum || isOptional) {
+                 newData = setValueByPath(newData, f.path, undefined);
+             }
+         }
+    });
+    return newData;
+};
+
 function SysadminPanel({ 
     isOpen, 
     onClose, 
@@ -2063,6 +2082,7 @@ function SysadminPanel({
     const [pendingPreflight, setPendingPreflight] = useState<any>(null);
     const [pendingAck, setPendingAck] = useState(false);
     const [pendingCandidateVersionId, setPendingCandidateVersionId] = useState<string | null>(null);
+    
     const saveDismissTimerRef = useRef<number | null>(null);
 
     // Cleanup timer on unmount
@@ -2196,6 +2216,9 @@ function SysadminPanel({
          schemaFields.forEach(f => {
              newData = setValueByPath(newData, f.path, nodeEditorForm[f.path]);
          });
+         
+         // Apply Sanitization
+         newData = sanitizeNodeDataForSchema(schemaFields, newData);
          
          newDraft.blocks[nodeEditorSelectedId] = {
              blockId: nodeEditorSelectedId,
@@ -2899,15 +2922,40 @@ function SysadminPanel({
 
         setPendingStage('saving'); 
         setSaveMessage('Deploying draft...');
-        setDeployDebugInfo(null);
         
+        // Use local proxy (or absolute backend if needed) for standard API logic
+        // But per requirement, we force backend URL for deploy to avoid 5173 issues if proxy is flaky
+        const backendOrigin = 'http://localhost:3000';
+
+        // Prepare payload
+        // 1. Shallow Copy Bundle to prevent side-effects
+        const bundle = { ...(draftBundle as any) };
+        if (bundle.blocks) {
+             bundle.blocks = { ...bundle.blocks };
+             
+             // 2. Sanitize specific blocks if we have schema info
+             // This ensures that even if user didn't hit "Save", we clean up empty Enums for button nodes
+             // Note: schemaFields depends on currently loaded `buttonSchema`. 
+             // If user is editing a button, `schemaFields` will be populated.
+             if (schemaFields && schemaFields.length > 0) {
+                 const blockIds = Object.keys(bundle.blocks);
+                 blockIds.forEach(bid => {
+                     const blk = bundle.blocks[bid];
+                     if (blk && blk.blockType === 'ui.node.button' && blk.data) {
+                         // Apply Sanitization
+                         blk.data = sanitizeNodeDataForSchema(schemaFields, blk.data);
+                     }
+                 });
+             }
+        }
+
         try {
             // Use standard deploy pipeline which includes validation and graph resolution
-            const deployRes = await fetch(`${baseUrl}/api/config/shell/deploy`, {
+            const deployRes = await fetch(`${backendOrigin}/api/config/shell/deploy`, {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({
-                    bundle: draftBundle,
+                    bundle: bundle,
                     message: 'Deployed from Node Editor Draft'
                 })
             });
@@ -2924,23 +2972,6 @@ function SysadminPanel({
             }
             
             const result = await deployRes.json();
-
-            // --- TODO: Temporary Debug Instrumentation (Start) ---
-            try {
-                const activeGraphRes = await fetch(`${baseUrl}/api/config/shell/resolved-graph/active`);
-                const activeGraph = await activeGraphRes.json();
-                const nodes = activeGraph.nodesById || {};
-                const buttonNode = Object.values(nodes).find((n: any) => n.type === 'ui.node.button') as any;
-                const label = buttonNode ? (buttonNode.props?.label || buttonNode.label || "(No label found)") : "(No button found)";
-                
-                const debugMsg = `Deploy Debug: HTTP ${deployRes.status}, deploy returned version ${result.activeVersionId || result.versionId}, active graph button label is "${String(label)}"`;
-                console.log(debugMsg);
-                setDeployDebugInfo(debugMsg);
-            } catch (debugErr) {
-                console.error("Deploy debug check failed", debugErr);
-                setDeployDebugInfo(`Deploy Debug Failed: ${String(debugErr)}`);
-            }
-            // --- TODO: Temporary Debug Instrumentation (End) ---
             
             // Success
             setPendingStage('success');
@@ -4343,7 +4374,7 @@ function SysadminPanel({
                                                 >
                                                     {pendingStage === 'saving' ? 'Deploying...' : 'Activate (Deploy)'}
                                                 </button>
-                                                {deployDebugInfo && <div style={{fontSize:'10px', color:'red', marginTop:'4px', fontWeight:'bold', maxWidth:'300px', textAlign:'right'}}>{deployDebugInfo}</div>}
+
                                                 </div>
                                              )}
                                          </div>
@@ -5364,7 +5395,7 @@ function SysadminPanel({
                                  </span>
                              </div>
                              <div style={{display:'flex', gap:'10px', alignItems:'center'}}>
-                                {deployDebugInfo && <div style={{fontSize:'10px', color:'red', fontWeight:'bold', maxWidth:'300px', textAlign:'right'}}>{deployDebugInfo}</div>}
+
                                 <button 
                                     onClick={handleActivateDraft}
                                     disabled={pendingStage === 'saving'}
@@ -6530,9 +6561,6 @@ function App() {
   
   const [showV2, setShowV2] = useState(false);
   const [v2RefreshKey, setV2RefreshKey] = useState(0);
-
-  // TODO: Temporary Debug State for Deploy Verification (Remove after fix)
-  const [deployDebugInfo, setDeployDebugInfo] = useState<string | null>(null);
 
   // Check query param for v2 preview on mount
   useEffect(() => {

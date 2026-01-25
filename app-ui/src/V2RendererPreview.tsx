@@ -112,8 +112,9 @@ export function V2RendererPreview({ onClose }: V2RendererPreviewProps) {
                          style={{
                              ...style, 
                              cursor: isDisabled ? 'not-allowed' : 'pointer', 
-                             backgroundColor: isDisabled ? '#ccc' : '#e0e0e0',
-                             opacity: isDisabled ? 0.7 : 1,
+                             backgroundColor: isDisabled ? '#d9d9d9' : '#e0e0e0',
+                             color: isDisabled ? '#555555' : '#000000',
+                             opacity: isDisabled ? 0.9 : 1, // Higher opacity for readability, rely on color/cursor for state
                              padding: '5px 10px', 
                              border: '1px solid #999', 
                              borderRadius: '4px'
