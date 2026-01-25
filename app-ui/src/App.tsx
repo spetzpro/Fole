@@ -2890,6 +2890,55 @@ function SysadminPanel({
          setDraftShowFullJson(false);
     };
 
+    const handleActivateDraft = async () => {
+        if (!draftBundle) return;
+        
+        if (!window.confirm(`Deploy this draft as a new version to the server?`)) {
+            return;
+        }
+
+        setPendingStage('saving'); 
+        setSaveMessage('Deploying draft...');
+        
+        try {
+            // Use standard deploy pipeline which includes validation and graph resolution
+            const deployRes = await fetch('/api/config/shell/deploy', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    bundle: draftBundle,
+                    message: 'Deployed from Node Editor Draft'
+                })
+            });
+            
+            if (!deployRes.ok) {
+                const err = await deployRes.json();
+                // Check if validation error report provided
+                if (err.report) {
+                    const blockErr = err.report.errors?.[0];
+                    const errMsg = blockErr ? `${blockErr.code}: ${blockErr.message}` : (err.message || "Validation failed");
+                    throw new Error(errMsg);
+                }
+                throw new Error(err.error || err.message || "Deploy failed");
+            }
+            
+            const result = await deployRes.json();
+            
+            // Success
+            setPendingStage('success');
+            setSaveMessage(`Deployed ${result.activeVersionId}. Draft retained (discard manually to clear).`);
+            
+            // Cleanup
+            // handleResetDraft(); // Keep draft per user request
+            onRefresh(); 
+            refreshSnapshot();
+            
+        } catch (e: any) {
+            setPendingStage('error');
+            setSaveMessage(e.message || "Deploy failed");
+        }
+    };
+
     const handleSaveDraftBlock = () => {
         if (!draftSelectedBlockId || !draftBundle) return;
         try {
@@ -5268,12 +5317,28 @@ function SysadminPanel({
                                      (Saved locally)
                                  </span>
                              </div>
-                             <button 
-                                onClick={handleResetDraft}
-                                style={{padding:'4px 10px', fontSize:'0.9em', background:'#d32f2f', color:'white', border:'none', borderRadius:'4px', cursor:'pointer'}}
-                             >
-                                Discard Draft (clears saved)
-                             </button>
+                             <div style={{display:'flex', gap:'10px'}}>
+                                <button 
+                                    onClick={handleActivateDraft}
+                                    disabled={pendingStage === 'saving'}
+                                    style={{
+                                        padding:'4px 10px', fontSize:'0.9em', 
+                                        background: pendingStage === 'saving' ? '#ffcc80' : '#e65100', 
+                                        color:'white', 
+                                        border:'none', borderRadius:'4px', cursor:'pointer',
+                                        fontWeight: 'bold'
+                                    }}
+                                    title="Save to server and activate as new version"
+                                >
+                                    {pendingStage === 'saving' ? 'Deploying...' : 'Activate (Deploy)'}
+                                </button>
+                                <button 
+                                    onClick={handleResetDraft}
+                                    style={{padding:'4px 10px', fontSize:'0.9em', background:'#d32f2f', color:'white', border:'none', borderRadius:'4px', cursor:'pointer'}}
+                                >
+                                    Discard Draft (clears saved)
+                                </button>
+                             </div>
                          </div>
                          
                          <div style={{display:'flex', flex:1, width:'100%', overflow:'hidden', gap:'10px', minHeight: 0}}>
