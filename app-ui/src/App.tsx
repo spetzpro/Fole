@@ -2289,6 +2289,26 @@ function SysadminPanel({
     const renderValidationSummary = () => {
          const { errors, warnings, status } = validationResult;
          
+         // 0. Prepare Block Lookup for "Go to" resolution
+         const blocksMap = (bundleData as any)?.blocks || {};
+         const allBlocks = Array.isArray(blocksMap) 
+             ? blocksMap 
+             : typeof blocksMap === 'object' 
+                 ? Object.values(blocksMap) 
+                 : [];
+
+         const resolveBlockTarget = (rawId: string) => {
+             // 1. Exact Match
+             if (allBlocks.some((b:any) => (b.blockId === rawId || b.id === rawId))) return rawId;
+             // 2. Dash vs Underscore Normalization
+             const withUnder = rawId.replace(/-/g, '_');
+             if (allBlocks.some((b:any) => (b.blockId === withUnder || b.id === withUnder))) return withUnder;
+             const withDash = rawId.replace(/_/g, '-');
+             if (allBlocks.some((b:any) => (b.blockId === withDash || b.id === withDash))) return withDash;
+             // 3. No match
+             return null;
+         };
+
          // 1. This Node Issues
          const nodeErrors = errors.filter(e => nodeEditorSelectedId && e.includes(nodeEditorSelectedId));
          const nodeWarnings = warnings.filter(w => nodeEditorSelectedId && w.includes(nodeEditorSelectedId));
@@ -2328,6 +2348,10 @@ function SysadminPanel({
                              const isErr = otherErrors.includes(msg);
                              // Attempt to extract block id from quotes, e.g. Block "foo" ...
                              const extractId = msg.match(/"([^"]+)"/)?.[1];
+                             
+                             // Resolve Target
+                             const targetId = extractId ? resolveBlockTarget(extractId) : null;
+                             
                              return (
                                  <div key={'global'+i} style={{marginBottom:'3px'}}>
                                      <div style={{fontSize:'0.7em', color: isErr?'#d32f2f':'#f57c00'}}>
@@ -2335,13 +2359,17 @@ function SysadminPanel({
                                      </div>
                                      {extractId && (
                                          <div 
-                                             style={{fontSize:'0.65em', color:'#007acc', cursor:'pointer', textDecoration:'underline'}}
+                                             style={{fontSize:'0.65em', color: targetId ? '#007acc' : '#999', cursor:'pointer', textDecoration:'underline'}}
                                              onClick={() => {
-                                                 setSelectedBlockId(extractId);
+                                                 const finalId = targetId || extractId;
+                                                 setFilter(finalId);
+                                                 if (targetId) setSelectedBlockId(targetId);
                                                  setActiveTab('Blocks');
                                              }}
+                                             title={targetId ? `Go to ${targetId}` : 'Block not found in active/draft set'}
                                          >
                                              Go to {extractId} &rarr;
+                                             {!targetId && <span style={{color:'#d32f2f', marginLeft:'4px', textDecoration:'none', fontWeight:'bold'}}>(Not found)</span>}
                                          </div>
                                      )}
                                  </div>
