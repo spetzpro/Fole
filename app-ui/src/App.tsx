@@ -1941,6 +1941,52 @@ interface FieldDef {
   minLength?: number;
 }
 
+const isMultilineField = (nodeType: string, fieldPath: string) => {
+    // Specific fields that should render as textarea
+    if (nodeType === 'ui.node.text' && (fieldPath === 'content' || fieldPath.endsWith('.content'))) return true;
+    if (nodeType === 'ui.node.button' && (fieldPath === 'helpText' || fieldPath.endsWith('.helpText'))) return true;
+    return false;
+};
+
+const AutoGrowTextArea = ({ value, onChange, placeholder, style }: any) => {
+    const ref = useRef<HTMLTextAreaElement>(null);
+    const adjustHeight = () => {
+        if (ref.current) {
+            ref.current.style.height = 'auto'; // Reset to calculate scrollHeight
+            const scroll = ref.current.scrollHeight;
+            const max = 240;
+            if (scroll > max) {
+                ref.current.style.height = max + 'px';
+                ref.current.style.overflowY = 'auto';
+            } else {
+                ref.current.style.height = scroll + 'px';
+                ref.current.style.overflowY = 'hidden';
+            }
+        }
+    };
+    
+    // Adjust on value change
+    useEffect(() => {
+        adjustHeight();
+    }, [value]);
+
+    return (
+        <textarea
+            ref={ref}
+            value={value}
+            onChange={(e) => { onChange(e); adjustHeight(); }}
+            placeholder={placeholder}
+            style={{ 
+                ...style, 
+                resize: 'none',
+                fontFamily: 'inherit',
+                lineHeight: '1.4'
+            }}
+            rows={1}
+        />
+    );
+};
+
 const extractStringFields = (schema: any, prefix = ""): FieldDef[] => {
   let fields: FieldDef[] = [];
   if (!schema || !schema.properties) return fields;
@@ -4684,6 +4730,8 @@ function SysadminPanel({
                                                  errorMsg = `Must be one of: ${f.enumOptions.join(', ')}`;
                                              }
 
+                                             const isMulti = isMultilineField('ui.node.button', f.path);
+
                                              return (
                                              <div key={f.path} style={{marginBottom:'20px'}}>
                                                  {f.type === 'boolean' ? (
@@ -4731,20 +4779,36 @@ function SysadminPanel({
                                                                 ))}
                                                             </select>
                                                         ) : (
-                                                            <input 
-                                                                type="text" 
-                                                                value={nodeEditorForm[f.path] || ''}
-                                                                onChange={(e) => {
-                                                                    setNodeEditorForm({...nodeEditorForm, [f.path]: e.target.value});
-                                                                    setNodeEditorDirty(true);
-                                                                }}
-                                                                style={{
-                                                                    width:'100%', padding:'10px', fontSize:'1em', 
-                                                                    border: errorMsg ? '1px solid #d32f2f' : '1px solid #ccc',
-                                                                    borderRadius:'4px', boxSizing:'border-box'
-                                                                }}
-                                                                placeholder={`Enter ${f.title}...`}
-                                                            />
+                                                            isMulti ? (
+                                                                <AutoGrowTextArea
+                                                                    value={nodeEditorForm[f.path] || ''}
+                                                                    onChange={(e: any) => {
+                                                                        setNodeEditorForm({...nodeEditorForm, [f.path]: e.target.value});
+                                                                        setNodeEditorDirty(true);
+                                                                    }}
+                                                                    style={{
+                                                                        width:'100%', padding:'10px', fontSize:'1em', 
+                                                                        border: errorMsg ? '1px solid #d32f2f' : '1px solid #ccc',
+                                                                        borderRadius:'4px', boxSizing:'border-box'
+                                                                    }}
+                                                                    placeholder={`Enter ${f.title}...`}
+                                                                />
+                                                            ) : (
+                                                                <input 
+                                                                    type="text" 
+                                                                    value={nodeEditorForm[f.path] || ''}
+                                                                    onChange={(e) => {
+                                                                        setNodeEditorForm({...nodeEditorForm, [f.path]: e.target.value});
+                                                                        setNodeEditorDirty(true);
+                                                                    }}
+                                                                    style={{
+                                                                        width:'100%', padding:'10px', fontSize:'1em', 
+                                                                        border: errorMsg ? '1px solid #d32f2f' : '1px solid #ccc',
+                                                                        borderRadius:'4px', boxSizing:'border-box'
+                                                                    }}
+                                                                    placeholder={`Enter ${f.title}...`}
+                                                                />
+                                                            )
                                                         )}
                                                      </>
                                                  )}
@@ -4884,6 +4948,7 @@ function SysadminPanel({
                                          {schemaFields.map(f => {
                                              let errorMsg = null;
                                              const val = nodeEditorForm[f.path];
+                                             const isMulti = isMultilineField('ui.node.text', f.path);
                                              
                                              if (f.required && (val === undefined || val === null || val === '')) {
                                                  errorMsg = "Required";
@@ -4932,20 +4997,36 @@ function SysadminPanel({
                                                                 ))}
                                                             </select>
                                                         ) : (
-                                                            <input 
-                                                                type="text" 
-                                                                value={nodeEditorForm[f.path] || ''}
-                                                                onChange={(e) => {
-                                                                    setNodeEditorForm({...nodeEditorForm, [f.path]: e.target.value});
-                                                                    setNodeEditorDirty(true);
-                                                                }}
-                                                                style={{
-                                                                    width:'100%', padding:'10px', fontSize:'1em', 
-                                                                    border: errorMsg ? '1px solid #d32f2f' : '1px solid #ccc',
-                                                                    borderRadius:'4px', boxSizing:'border-box'
-                                                                }}
-                                                                placeholder={`Enter ${f.title}...`}
-                                                            />
+                                                            isMulti ? (
+                                                                <AutoGrowTextArea
+                                                                    value={nodeEditorForm[f.path] || ''}
+                                                                    onChange={(e: any) => {
+                                                                        setNodeEditorForm({...nodeEditorForm, [f.path]: e.target.value});
+                                                                        setNodeEditorDirty(true);
+                                                                    }}
+                                                                    style={{
+                                                                        width:'100%', padding:'10px', fontSize:'1em', 
+                                                                        border: errorMsg ? '1px solid #d32f2f' : '1px solid #ccc',
+                                                                        borderRadius:'4px', boxSizing:'border-box'
+                                                                    }}
+                                                                    placeholder={`Enter ${f.title}...`}
+                                                                />
+                                                            ) : (
+                                                                <input 
+                                                                    type="text" 
+                                                                    value={nodeEditorForm[f.path] || ''}
+                                                                    onChange={(e) => {
+                                                                        setNodeEditorForm({...nodeEditorForm, [f.path]: e.target.value});
+                                                                        setNodeEditorDirty(true);
+                                                                    }}
+                                                                    style={{
+                                                                        width:'100%', padding:'10px', fontSize:'1em', 
+                                                                        border: errorMsg ? '1px solid #d32f2f' : '1px solid #ccc',
+                                                                        borderRadius:'4px', boxSizing:'border-box'
+                                                                    }}
+                                                                    placeholder={`Enter ${f.title}...`}
+                                                                />
+                                                            )
                                                         )}
                                                      </>
                                                  )}

@@ -76,7 +76,7 @@ export function V2RendererPreview({ onClose }: V2RendererPreviewProps) {
             case 'ui.node.text':
                 const displayText = node.props?.content || node.props?.text || node.props?.value || node.props?.label || "(missing text)";
                 return (
-                    <div key={commonKey} style={{...style, backgroundColor: 'white'}}>
+                    <div key={commonKey} style={{...style, backgroundColor: 'white', whiteSpace: 'pre-wrap'}}>
                         {String(displayText)}
                     </div>
                 );
