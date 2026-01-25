@@ -4300,6 +4300,25 @@ function SysadminPanel({
                                                     <strong>Draft not started.</strong> Editing will initialize a new draft.
                                                 </div>
                                              )}
+                                             
+                                             {/* Deployed Button inside Node Editor */}
+                                             {draftBundle && (
+                                                <button 
+                                                    onClick={handleActivateDraft}
+                                                    disabled={pendingStage === 'saving'}
+                                                    style={{
+                                                        padding:'10px 20px', fontSize:'1em', 
+                                                        background: pendingStage === 'saving' ? '#ffcc80' : '#e65100', 
+                                                        color:'white', 
+                                                        border:'none', borderRadius:'4px', cursor:'pointer',
+                                                        fontWeight: 'bold',
+                                                        marginLeft: 'auto'
+                                                    }}
+                                                    title="Save to server and activate as new version"
+                                                >
+                                                    {pendingStage === 'saving' ? 'Deploying...' : 'Activate (Deploy)'}
+                                                </button>
+                                             )}
                                          </div>
                                      </div>
                                  </div>
