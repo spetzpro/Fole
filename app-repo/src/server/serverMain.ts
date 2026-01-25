@@ -1,5 +1,6 @@
 import http from "http";
 import * as path from "path";
+import { promises as fs } from "fs";
 import { parse } from "url";
 import { Router } from "./Router";
 import { ShellConfigRepository } from "./ShellConfigRepository";
@@ -99,6 +100,31 @@ async function main() {
   // Health check endpoint
   router.get("/api/health", (_req, res) => {
     router.json(res, 200, { ok: true });
+  });
+
+  // UI Node Schema Endpoint
+  router.get("/api/schemas/ui-node/:nodeType", async (_req, res, params) => {
+      const { nodeType } = params;
+
+      // Security Validation: Alphanumeric, dots, dashes, underscores only
+      if (!nodeType || typeof nodeType !== 'string' || !/^[a-z0-9._-]+$/.test(nodeType)) {
+           return router.json(res, 400, { error: "Invalid nodeType parameter" });
+      }
+
+      const schemaPath = path.join(__dirname, "schemas", "ui-node", `${nodeType}.schema.json`);
+
+      try {
+          const content = await fs.readFile(schemaPath, 'utf-8');
+          const json = JSON.parse(content);
+          return router.json(res, 200, json);
+      } catch (err: any) {
+          if (err.code === 'ENOENT') {
+              return router.json(res, 404, { code: "schema_not_found", error: "Schema not found" });
+          }
+          // eslint-disable-next-line no-console
+          console.error(`Schema read error for ${nodeType}:`, err);
+          return router.json(res, 500, { error: "Internal Server Error" });
+      }
   });
 
   // Debug activate version endpoint (Roadmap #4 Step 2)
