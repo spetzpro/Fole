@@ -1,3 +1,13 @@
+/**
+ * REPL Deployment Script (Dev Only)
+ * 
+ * Usage:
+ *   npx ts-node app-repo/scripts/_debug/deploy_v2_graph.ts
+ * 
+ * Purpose:
+ *   Deploys a V2 graph bundle with a Window Node to the running backend.
+ *   This generates a proper validation structure in the active archive.
+ */
 
 import { ShellBundle } from "../../src/server/ShellConfigTypes";
 
@@ -63,6 +73,18 @@ const V2_BUNDLE = {
                 schemaVersion: "1.0.0",
                 data: { allowZoom: true, defaultZoom: 1, minZoom: 0.5, maxZoom: 2 }
             },
+            "root-window": {
+                blockId: "root-window",
+                blockType: "ui.node.window",
+                schemaVersion: "1.0.0",
+                data: {
+                    id: "root-window",
+                    type: "ui.node.window",
+                    title: "Main Window",
+                    dockable: true,
+                    children: [ { blockId: "root-container" } ]
+                }
+            },
             "root-container": {
                 blockId: "root-container",
                 blockType: "ui.node.container",
@@ -116,8 +138,8 @@ const V2_BUNDLE = {
                     tokens: { "color.primary": "#007bff" }
                 }
             },
-            "infra-windows": {
-                blockId: "infra-windows",
+            "window_registry": {
+                blockId: "window_registry",
                 blockType: "shell.infra.window_registry",
                 schemaVersion: "1.0.0",
                 data: {
@@ -154,6 +176,7 @@ async function deploy() {
     } catch (e) {
         console.error("Connection failed. Is the server running on port 3000?");
         console.error(e);
+        process.exit(1);
     }
 }
 

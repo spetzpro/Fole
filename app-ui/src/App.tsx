@@ -2949,11 +2949,12 @@ function SysadminPanel({
     const handleAddWindow = () => {
         if (!draftBundle || !newWinId.trim()) return;
         const blocks = (draftBundle as any).blocks || {};
-        const infra = blocks['infra_windows'];
+        // Support canonical 'window_registry' OR mapped 'infra_windows'
+        const infra = blocks['window_registry'] || blocks['infra_windows'];
         
         // Safety check: ensure block exists
         if (!infra || infra.blockType !== 'shell.infra.window_registry') {
-            alert("Error: 'infra_windows' block missing or invalid type.");
+            alert("Error: 'window_registry' or 'infra_windows' block missing.");
             return;
         }
 
@@ -2964,11 +2965,14 @@ function SysadminPanel({
         }
 
         const newBlocks = deepClone(blocks);
-        // Ensure path exists
-        if (!newBlocks.infra_windows.data) newBlocks.infra_windows.data = {};
-        if (!newBlocks.infra_windows.data.windows) newBlocks.infra_windows.data.windows = {};
+        // Determine which key we found
+        const key = blocks['window_registry'] ? 'window_registry' : 'infra_windows';
         
-        newBlocks.infra_windows.data.windows[newWinId.trim()] = {
+        // Ensure path exists
+        if (!newBlocks[key].data) newBlocks[key].data = {};
+        if (!newBlocks[key].data.windows) newBlocks[key].data.windows = {};
+        
+        newBlocks[key].data.windows[newWinId.trim()] = {
             id: newWinId.trim(),
             mode: newWinMode
         };
@@ -2981,13 +2985,14 @@ function SysadminPanel({
     const handleRemoveWindow = (wid: string) => {
         if (!draftBundle) return;
         const blocks = (draftBundle as any).blocks || {};
-        if (!blocks['infra_windows']) return;
+        const key = blocks['window_registry'] ? 'window_registry' : (blocks['infra_windows'] ? 'infra_windows' : null);
+        if (!key) return;
 
         if (!confirm(`Remove window definition "${wid}"?`)) return;
 
         const newBlocks = deepClone(blocks);
-        if (newBlocks.infra_windows?.data?.windows) {
-             delete newBlocks.infra_windows.data.windows[wid];
+        if (newBlocks[key]?.data?.windows) {
+             delete newBlocks[key].data.windows[wid];
         }
 
         setDraftBundle({ ...(draftBundle as any), blocks: newBlocks });
@@ -2996,11 +3001,12 @@ function SysadminPanel({
     const handleUpdateWindowMode = (wid: string, newMode: string) => {
         if (!draftBundle) return;
         const blocks = (draftBundle as any).blocks || {};
-        if (!blocks['infra_windows']) return;
-
+        const key = blocks['window_registry'] ? 'window_registry' : (blocks['infra_windows'] ? 'infra_windows' : null);
+        if (!key) return;
+        
         const newBlocks = deepClone(blocks);
-        if (newBlocks.infra_windows.data?.windows?.[wid]) {
-             newBlocks.infra_windows.data.windows[wid].mode = newMode;
+        if (newBlocks[key].data?.windows?.[wid]) {
+             newBlocks[key].data.windows[wid].mode = newMode;
         }
 
         setDraftBundle({ ...(draftBundle as any), blocks: newBlocks });
@@ -3148,6 +3154,45 @@ function SysadminPanel({
          setDraftEditorDirty(false);
          setDraftEditorError(null);
          setDraftShowFullJson(false);
+    };
+
+    const handleRebaseDraft = () => {
+        if (!bundleData) {
+            alert("No active bundle available to reset from.");
+            return;
+        }
+        if (!window.confirm("Reset Draft from Active?\n\nThis will DISCARD all unsaved draft changes and replace the draft with the currently active configuration.")) {
+            return;
+        }
+        
+        // Reuse cloning logic (inline to ensure we have access to variables)
+        try {
+            const clone = deepClone(bundleData);
+            
+            // Normalize regions
+            if (clone.manifest) {
+                const srcRegions = clone.manifest.regions || {};
+                const normRegions: any = {};
+                (['header', 'viewport', 'footer'] as RegionSlot[]).forEach(slot => {
+                     const bid = readRegionBlockId(srcRegions, slot);
+                     if (bid) normRegions[slot] = { blockId: bid };
+                });
+                clone.manifest.regions = normRegions;
+            }
+
+            setDraftBundle(clone);
+            setDraftError(null);
+            setDraftEditorText('');
+            setDraftEditorDirty(false);
+            // Optionally keep selection if it still exists in new bundle
+            // But safest to clear selection to avoid stale data display
+            // setDraftSelectedBlockId(null); 
+            
+            // Refresh to ensure UI updates
+            alert("Draft reset to match Active Bundle.");
+        } catch (e: unknown) {
+            alert("Failed to reset draft: " + (e instanceof Error ? e.message : String(e)));
+        }
     };
 
     const handleActivateDraft = async () => {
@@ -3415,11 +3460,11 @@ function SysadminPanel({
         });
 
         // Windows Registry Check
-        const infra = blocks['infra_windows'];
+        const infra = blocks['window_registry'] || blocks['infra_windows'];
         if (!infra) {
-             res.warnings.push(`Block "infra_windows" is missing. Runtime may fail.`);
+             res.warnings.push(`Block "window_registry" is missing. Runtime may fail.`);
         } else if (!infra.data?.windows) {
-             res.warnings.push(`Block "infra_windows" missing data.windows.`);
+             res.warnings.push(`Block "window_registry" missing data.windows.`);
         }
 
         if (res.errors.length > 0) res.status = 'BLOCKED';
@@ -6324,7 +6369,14 @@ function SysadminPanel({
                                     onClick={handleResetDraft}
                                     style={{padding:'4px 10px', fontSize:'0.9em', background:'#d32f2f', color:'white', border:'none', borderRadius:'4px', cursor:'pointer'}}
                                 >
-                                    Discard Draft (clears saved)
+                                    Discard Draft
+                                </button>
+                                <button 
+                                    onClick={handleRebaseDraft}
+                                    style={{padding:'4px 10px', fontSize:'0.9em', background:'#f57f17', color:'white', border:'none', borderRadius:'4px', cursor:'pointer', fontWeight:'bold'}}
+                                    title="Replace draft with current Active Bundle (Fixes stale missing blocks)"
+                                >
+                                    Reset Draft from Active
                                 </button>
                              </div>
                          </div>
