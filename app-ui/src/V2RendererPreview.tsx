@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { apiUrl } from './lib/apiBase';
 
 // Minimal types matching backend ResolvedUiGraph
 interface ResolvedUiNode {
@@ -26,7 +27,7 @@ export function V2RendererPreview({ onClose }: V2RendererPreviewProps) {
         const fetchGraph = async () => {
             try {
                 // Single step: Get active resolved graph
-                const graphRes = await fetch('/api/config/shell/resolved-graph/active');
+                const graphRes = await fetch(apiUrl('/api/config/shell/resolved-graph/active'));
                 
                 if (graphRes.status === 404) {
                      const errData = await graphRes.json().catch(() => ({}));
@@ -61,7 +62,7 @@ export function V2RendererPreview({ onClose }: V2RendererPreviewProps) {
         switch (node.type) {
             case 'ui.node.container':
                 // Layout logic
-                const directionProp = node.props?.layout || node.props?.direction || 'column';
+                const directionProp = node.props?.direction || node.props?.layout || 'column';
                 const flexDirection = String(directionProp).toLowerCase() === 'row' ? 'row' : 'column';
 
                 return (
@@ -84,9 +85,8 @@ export function V2RendererPreview({ onClose }: V2RendererPreviewProps) {
                      // @ts-ignore
                      const actionId = node.props?.behaviors?.onClick?.actionId;
                      if (actionId) {
-                         console.log("Dispatching Action:", actionId);
                          try {
-                            const res = await fetch('/api/actions/dispatch', {
+                            const res = await fetch(apiUrl('/api/actions/dispatch'), {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({ actionId, nodeId: node.id })
@@ -98,7 +98,7 @@ export function V2RendererPreview({ onClose }: V2RendererPreviewProps) {
                              console.error("Action Dispatch Network Error:", e);
                          }
                      } else {
-                         console.log('Button clicked (local):', node.id, node.props);
+                         // Local Fallback
                      }
                 };
                 

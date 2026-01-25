@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo, Fragment } from 'react';
 import './App.css';
+import { apiUrl } from './lib/apiBase';
 import V2RendererPreview from './V2RendererPreview';
 import { findSysadminBlock, parseSysadminConfig } from './SysadminLoader';
 
@@ -1404,7 +1405,7 @@ function ConfigSysadminView({
             setPendingCandidateVersionId(newVersionId);
 
             // 2. Preflight on CANDIDATE version
-            const pfRes = await fetch(`/api/debug/config/shell/preflight/${newVersionId}`);
+            const pfRes = await fetch(apiUrl(`/api/debug/config/shell/preflight/${newVersionId}`));
             if (!pfRes.ok) throw new Error("Preflight request failed");
             const pfData = await pfRes.json();
             
@@ -2151,7 +2152,7 @@ function SysadminPanel({
     useEffect(() => {
         if (activeTab === 'Node Editor (Button)' && !buttonSchema && !buttonSchemaLoading) {
             setButtonSchemaLoading(true);
-            fetch('/api/schemas/ui-node/ui.node.button')
+            fetch(apiUrl('/api/schemas/ui-node/ui.node.button'))
                 .then(r => r.json())
                 .then(d => {
                      setButtonSchema(d);
@@ -2165,7 +2166,7 @@ function SysadminPanel({
         }
         if (activeTab === 'Node Editor (Text)' && !textSchema && !textSchemaLoading) {
             setTextSchemaLoading(true);
-            fetch('/api/schemas/ui-node/ui.node.text')
+            fetch(apiUrl('/api/schemas/ui-node/ui.node.text'))
                 .then(r => r.json())
                 .then(d => {
                      setTextSchema(d);
@@ -2179,7 +2180,7 @@ function SysadminPanel({
         }
         if (activeTab === 'Node Editor (Container)' && !containerSchema && !containerSchemaLoading) {
             setContainerSchemaLoading(true);
-            fetch('/api/schemas/ui-node/ui.node.container')
+            fetch(apiUrl('/api/schemas/ui-node/ui.node.container'))
                 .then(r => r.json())
                 .then(d => {
                      setContainerSchema(d);
@@ -2306,7 +2307,7 @@ function SysadminPanel({
                  const fields = extractStringFields(targetSchema);
                  const activeNode = resolvedGraph.nodesById?.[nodeForDiff.id];
                  if (activeNode) {
-                    const changes = [];
+                    const changes: { field: string, from: any, to: any }[] = [];
                     fields.forEach(f => {
                          let vActive = activeNode.props?.[f.path];
                          let vDraft = nodeEditorForm[f.path];
@@ -2338,7 +2339,7 @@ function SysadminPanel({
              }
          }
 
-         const { errors, warnings, status } = validationResult;
+         const { errors, warnings } = validationResult;
          
          // 0. Prepare Block Lookup for "Go to" resolution
          const blocksMap = (bundleData as any)?.blocks || {};
@@ -2442,7 +2443,7 @@ function SysadminPanel({
     const refreshResolvedGraph = () => {
         setResolvedGraphLoading(true);
         setResolvedGraphError(null);
-        fetch('/api/config/shell/resolved-graph/active')
+        fetch(apiUrl('/api/config/shell/resolved-graph/active'))
             .then(res => {
                  if (!res.ok) throw new Error(`Fetch failed (${res.status})`);
                  return res.json();
@@ -2471,7 +2472,7 @@ function SysadminPanel({
     const refreshSnapshot = () => {
         setSnapshotLoading(true);
         setSnapshotError(null);
-        return fetch('/api/debug/runtime/snapshot')
+        return fetch(apiUrl('/api/debug/runtime/snapshot'))
             .then(res => {
                  if (!res.ok) {
                      if (res.status === 403) throw new Error('Debug endpoints disabled (403)');
@@ -2494,7 +2495,7 @@ function SysadminPanel({
 
     const refreshTraces = () => {
         setDispatchTracesError(null);
-        fetch('/api/debug/runtime/dispatch-traces')
+        fetch(apiUrl('/api/debug/runtime/dispatch-traces'))
             .then(async (res) => {
                  const j = await res.json();
                  if (res.status === 403) {
@@ -2517,7 +2518,7 @@ function SysadminPanel({
 
     const refreshExecuteMode = () => {
         setExecuteModeError(null);
-        fetch('/api/debug/runtime/integrations/execute-mode')
+        fetch(apiUrl('/api/debug/runtime/integrations/execute-mode'))
             .then(async (res) => {
                  const j = await res.json();
                  if (res.status === 403) {
@@ -2540,7 +2541,7 @@ function SysadminPanel({
         setExecuteModeError(null);
         try {
             const newState = !executeMode;
-            const res = await fetch('/api/debug/runtime/integrations/execute-mode', {
+            const res = await fetch(apiUrl('/api/debug/runtime/integrations/execute-mode'), {
                 method: 'POST',
                 headers: { 
                     'Content-Type': 'application/json'
@@ -2564,7 +2565,7 @@ function SysadminPanel({
 
     const refreshInvocations = () => {
         setInvocationsError(null);
-        fetch('/api/debug/runtime/integrations/invocations')
+        fetch(apiUrl('/api/debug/runtime/integrations/invocations'))
             .then(async (res) => {
                 const j = await res.json();
                 if (res.status === 403) {
@@ -2622,7 +2623,7 @@ function SysadminPanel({
     const fetchAdapterCaps = () => {
         setAdapterCapsLoading(true);
         setAdapterCapsError(null);
-        fetch('/api/debug/runtime/integrations/adapter-capabilities')
+        fetch(apiUrl('/api/debug/runtime/integrations/adapter-capabilities'))
             .then(res => {
                 if (!res.ok) throw new Error(`Fetch failed: ${res.status}`);
                 return res.json();
@@ -2650,7 +2651,7 @@ function SysadminPanel({
         setPreflightError(null);
         setAckPreflightWarnings(false);
         try {
-            const res = await fetch(`/api/debug/config/shell/preflight/${vid}`);
+            const res = await fetch(apiUrl(`/api/debug/config/shell/preflight/${vid}`));
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || "Preflight check failed");
             setPreflightResult(data);
@@ -2665,7 +2666,7 @@ function SysadminPanel({
         setActivationMessage(null);
         setShellVersionsError(null);
         try {
-            const res = await fetch('/api/debug/config/shell/activate', {
+            const res = await fetch(apiUrl('/api/debug/config/shell/activate'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ versionId, reason: activateReason })
@@ -2690,7 +2691,7 @@ function SysadminPanel({
 
     const refreshVersions = () => {
         setShellVersionsError(null);
-        fetch('/api/debug/config/shell/versions')
+        fetch(apiUrl('/api/debug/config/shell/versions'))
             .then(async (res) => {
                 const j = await res.json();
                 if (res.status === 403) {
@@ -2713,7 +2714,7 @@ function SysadminPanel({
         setVersionDiffLoading(true);
         setVersionDiffError(null);
 
-        fetch(`/api/debug/config/shell/version/${vId}?includeBlocks=1`)
+        fetch(apiUrl(`/api/debug/config/shell/version/${vId}?includeBlocks=1`))
             .then(async (res) => {
                 if (res.status === 403) throw new Error("Debug endpoints disabled (403)");
                 if (res.status === 413) throw new Error("Payload too large (413)");
@@ -2731,7 +2732,7 @@ function SysadminPanel({
                 }
 
                 // Fetch Parent
-                return fetch(`/api/debug/config/shell/version/${parentId}?includeBlocks=1`)
+                return fetch(apiUrl(`/api/debug/config/shell/version/${parentId}?includeBlocks=1`))
                     .then(async (pRes) => {
                          if (pRes.status === 413) throw new Error("Diff unavailable (too large)");
                          if (!pRes.ok) throw new Error(`Parent fetch failed (${pRes.status})`);
@@ -3130,8 +3131,7 @@ function SysadminPanel({
         setSaveMessage('Deploying draft...');
         
         // Use local proxy (or absolute backend if needed) for standard API logic
-        // But per requirement, we force backend URL for deploy to avoid 5173 issues if proxy is flaky
-        const backendOrigin = 'http://localhost:3000';
+        // Centralized API base handling via apiUrl() helper.
 
         // Prepare payload
         // 1. Shallow Copy Bundle to prevent side-effects
@@ -3161,7 +3161,7 @@ function SysadminPanel({
 
         try {
             // Use standard deploy pipeline which includes validation and graph resolution
-            const deployRes = await fetch(`${backendOrigin}/api/config/shell/deploy`, {
+            const deployRes = await fetch(apiUrl('/api/config/shell/deploy'), {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({
@@ -3191,13 +3191,6 @@ function SysadminPanel({
             // handleResetDraft(); // Keep draft per user request
             onRefresh(); 
             refreshSnapshot();
-            
-            // Force V2 Preview Refresh
-            if (showV2) {
-                // If open, we can toggle it to force remount, or we can use a key.
-                // Since this function is inside App, we can define a refresh state.
-                setV2RefreshKey(prev => prev + 1);
-            }
             
         } catch (e: any) {
             setPendingStage('error');
@@ -3600,7 +3593,7 @@ function SysadminPanel({
     // Fetch Runtime Data Helper
     const refreshRuntimeDataBlocks = async () => {
         try {
-            const res = await fetch('/api/debug/runtime/data-blocks?ids=SourceBlock,TargetBlock');
+            const res = await fetch(apiUrl('/api/debug/runtime/data-blocks?ids=SourceBlock,TargetBlock'));
             if (res.status === 403) {
                  setRuntimeDataError('Debug endpoints disabled (403)');
                  // Keep stale data or null? Spec says "fall back to bundleData" which happens in render
@@ -3670,7 +3663,7 @@ function SysadminPanel({
          
          try {
              // Fetch with explicit includeBlocks
-             const res = await fetch(`/api/debug/config/shell/version/${selectedVersionId}?includeBlocks=1`);
+             const res = await fetch(apiUrl(`/api/debug/config/shell/version/${selectedVersionId}?includeBlocks=1`));
              
              if (res.status === 413) {
                  alert("Version too large to load into draft (limit exceeded).");
@@ -5059,7 +5052,7 @@ function SysadminPanel({
                             if (!currentVersionId) throw new Error("No active base version found");
                             
                             // 1. Clone & Patch
-                            const patchRes = await fetch('/api/debug/config/shell/clone-and-patch-sysadmin', {
+                            const patchRes = await fetch(apiUrl('/api/debug/config/shell/clone-and-patch-sysadmin'), {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({
@@ -5076,7 +5069,7 @@ function SysadminPanel({
                             return patchJson.newVersionId;
                         }}
                         onActivateVersion={async (versionId, reason) => {
-                            const activateRes = await fetch('/api/debug/config/shell/activate', {
+                            const activateRes = await fetch(apiUrl('/api/debug/config/shell/activate'), {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({
@@ -7200,6 +7193,10 @@ function SysadminPanel({
                                 setSelectedBindingId(null); 
                                 setSelectedActionId(null);
                                 setConfirmActivate(false);
+                                setNodeEditorSelectedId(null);
+                                setNodeEditorForm({});
+                                setNodeEditorDirty(false);
+
                                 if (t === 'Snapshot') {
                                     refreshSnapshot();
                                     fetchAdapterCaps();
@@ -7239,7 +7236,7 @@ function App() {
   const [baseUrl] = useState('');
   
   const [showV2, setShowV2] = useState(false);
-  const [v2RefreshKey, setV2RefreshKey] = useState(0);
+  // v2RefreshKey removed to clean up unused state
 
   // Check query param for v2 preview on mount
   useEffect(() => {
@@ -7684,7 +7681,7 @@ function App() {
              />
           </div>
       </div>
-      {showV2 && <V2RendererPreview key={v2RefreshKey} onClose={() => setShowV2(false)} />}
+      {showV2 && <V2RendererPreview onClose={() => setShowV2(false)} />}
     </div>
   );
 }
