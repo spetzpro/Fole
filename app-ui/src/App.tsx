@@ -2902,7 +2902,7 @@ function SysadminPanel({
         
         try {
             // Use standard deploy pipeline which includes validation and graph resolution
-            const deployRes = await fetch('/api/config/shell/deploy', {
+            const deployRes = await fetch(`${baseUrl}/api/config/shell/deploy`, {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({
