@@ -12,4 +12,6 @@ They are preserved here for historical reference or manual troubleshooting.
 - `*.txt`: Captured logs or error outputs.
 
 ### Preview Seeding
-- `deploy_v2_graph.ts`: Manual deployment script to seed the active server (port 3000) with a valid V2 UI graph (Container, Text, Button) for testing the V2 Renderer Preview.
+- `deploy_v2_graph.ts`: **DEV ONLY**. Manual deployment script to seed the active server (port 3000) with a valid V2 UI graph.
+    - Usage: `npx ts-node app-repo/scripts/_debug/deploy_v2_graph.ts`
+    - **Note:** This logic is strictly for seeding a dev environment and is NOT reused by the production runtime or deployment pipeline.

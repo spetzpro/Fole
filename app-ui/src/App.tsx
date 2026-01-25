@@ -3050,7 +3050,7 @@ function SysadminPanel({
         
         // Safety check: ensure block exists
         if (!infra || infra.blockType !== 'shell.infra.window_registry') {
-            alert("Error: 'window_registry' or 'infra_windows' block missing.");
+            alert("Error: 'window_registry' block missing. Runtime may fail.");
             return;
         }
 
@@ -3278,6 +3278,15 @@ function SysadminPanel({
                 setDraftError(null);
                 setDraftEditorText('');
                 setDraftEditorDirty(false);
+                setDraftEditorError(null);
+                
+                // Reset derived/selection state to prevent stale panels
+                setDraftSelectedBlockId(null);
+                setNodeEditorSelectedId(null);
+                setNodeEditorForm({});
+                setNodeEditorDirty(false);
+                setDraftBlockFilter('');
+                
                 setConfirmModal(prev => ({ ...prev, isOpen: false }));
                 setToast({ message: "Draft reset to match Active Bundle.", type: 'success' });
             } catch (e: unknown) {
@@ -6609,9 +6618,9 @@ function SysadminPanel({
                                      <div style={{fontWeight:'bold', marginBottom:'5px', color:'#333', fontSize:'0.9em'}}>Windows Registry (Draft)</div>
                                      {(() => {
                                          const blocks = (draftBundle as any).blocks || {};
-                                         const infra = blocks['infra_windows'];
+                                         const infra = blocks['window_registry'] || blocks['infra_windows'];
                                          if (!infra || infra.blockType !== 'shell.infra.window_registry') {
-                                             return <div style={{color:'#d32f2f', fontSize:'0.8em'}}>Missing infra_windows block.</div>;
+                                             return <div style={{color:'#d32f2f', fontSize:'0.8em'}}>Missing 'window_registry' block.</div>;
                                          }
                                          
                                          const windows = infra.data?.windows || {};
