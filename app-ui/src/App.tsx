@@ -2286,6 +2286,79 @@ function SysadminPanel({
          setTimeout(() => handleNodeSelect(nodeEditorSelectedId), 0);
     };
 
+    const renderValidationSummary = () => {
+         const { errors, warnings, status } = validationResult;
+         
+         // 1. This Node Issues
+         const nodeErrors = errors.filter(e => nodeEditorSelectedId && e.includes(nodeEditorSelectedId));
+         const nodeWarnings = warnings.filter(w => nodeEditorSelectedId && w.includes(nodeEditorSelectedId));
+         const hasNodeIssues = nodeErrors.length > 0 || nodeWarnings.length > 0;
+
+         // 2. Global Issues (Exclude current node issues to avoid duplication)
+         const otherErrors = errors.filter(e => !nodeEditorSelectedId || !e.includes(nodeEditorSelectedId));
+         const otherWarnings = warnings.filter(w => !nodeEditorSelectedId || !w.includes(nodeEditorSelectedId));
+         const hasGlobalIssues = otherErrors.length > 0 || otherWarnings.length > 0;
+
+         if (!hasNodeIssues && !hasGlobalIssues) return null;
+
+         return (
+             <div style={{display:'flex', flexDirection:'column', alignItems:'flex-end', marginBottom:'8px', gap:'6px', maxWidth:'300px'}}>
+                 
+                 {/* Section 1: This Node */}
+                 {hasNodeIssues ? (
+                     <div style={{textAlign:'right', borderRight:'3px solid #d32f2f', paddingRight:'6px', backgroundColor:'#fff0f0', borderRadius:'2px', padding:'4px'}}>
+                         <div style={{fontSize:'0.75em', fontWeight:'bold', color:'#d32f2f', marginBottom:'2px'}}>This Node</div>
+                         {[...nodeErrors, ...nodeWarnings].map((msg, i) => (
+                             <div key={'node'+i} style={{fontSize:'0.7em', color: nodeErrors.includes(msg)?'#d32f2f':'#ef6c00', marginBottom:'1px'}}>
+                                 {msg}
+                             </div>
+                         ))}
+                     </div>
+                 ) : (
+                     <div style={{textAlign:'right', borderRight:'3px solid #4caf50', paddingRight:'6px'}}>
+                         <div style={{fontSize:'0.75em', fontWeight:'bold', color:'#4caf50'}}>This Node: VALID</div>
+                     </div>
+                 )}
+
+                 {/* Section 2: Global (Draft) */}
+                 {hasGlobalIssues && (
+                     <div style={{textAlign:'right', borderRight:'3px solid #bbb', paddingRight:'6px', marginTop:'4px'}}>
+                         <div style={{fontSize:'0.75em', fontWeight:'bold', color:'#555', marginBottom:'2px'}}>Draft (Global Issues)</div>
+                         {[...otherErrors, ...otherWarnings].slice(0, 3).map((msg, i) => {
+                             const isErr = otherErrors.includes(msg);
+                             // Attempt to extract block id from quotes, e.g. Block "foo" ...
+                             const extractId = msg.match(/"([^"]+)"/)?.[1];
+                             return (
+                                 <div key={'global'+i} style={{marginBottom:'3px'}}>
+                                     <div style={{fontSize:'0.7em', color: isErr?'#d32f2f':'#f57c00'}}>
+                                         {msg}
+                                     </div>
+                                     {extractId && (
+                                         <div 
+                                             style={{fontSize:'0.65em', color:'#007acc', cursor:'pointer', textDecoration:'underline'}}
+                                             onClick={() => {
+                                                 setSelectedBlockId(extractId);
+                                                 setActiveTab('Blocks');
+                                             }}
+                                         >
+                                             Go to {extractId} &rarr;
+                                         </div>
+                                     )}
+                                 </div>
+                             );
+                         })}
+                         {(otherErrors.length + otherWarnings.length) > 3 && (
+                             <div style={{fontSize:'0.65em', color:'#888', fontStyle:'italic'}}>
+                                 ...and {(otherErrors.length + otherWarnings.length) - 3} more
+                             </div>
+                         )}
+                     </div>
+                 )}
+
+             </div>
+         );
+    };
+
     const refreshResolvedGraph = () => {
         setResolvedGraphLoading(true);
         setResolvedGraphError(null);
@@ -4417,17 +4490,18 @@ function SysadminPanel({
                                              {/* Deployed Button inside Node Editor */}
                                              {draftBundle && (
                                                 <div style={{marginLeft:'auto', display:'flex', flexDirection:'column', alignItems:'flex-end'}}>
+                                                {renderValidationSummary()}
                                                 <button 
                                                     onClick={handleActivateDraft}
-                                                    disabled={pendingStage === 'saving'}
+                                                    disabled={pendingStage === 'saving' || validationResult.status === 'BLOCKED'}
                                                     style={{
                                                         padding:'10px 20px', fontSize:'1em', 
-                                                        background: pendingStage === 'saving' ? '#ffcc80' : '#e65100', 
+                                                        background: pendingStage === 'saving' ? '#ffcc80' : (validationResult.status === 'BLOCKED' ? '#e57373' : '#e65100'), 
                                                         color:'white', 
-                                                        border:'none', borderRadius:'4px', cursor:'pointer',
+                                                        border:'none', borderRadius:'4px', cursor: (pendingStage === 'saving' || validationResult.status === 'BLOCKED') ? 'not-allowed' : 'pointer',
                                                         fontWeight: 'bold'
                                                     }}
-                                                    title="Save to server and activate as new version"
+                                                    title={validationResult.status === 'BLOCKED' ? "Fix errors to deploy" : "Save to server and activate as new version"}
                                                 >
                                                     {pendingStage === 'saving' ? 'Deploying...' : 'Activate (Deploy)'}
                                                 </button>
@@ -4588,17 +4662,18 @@ function SysadminPanel({
                                              {/* Deployed Button inside Node Editor */}
                                              {draftBundle && (
                                                 <div style={{marginLeft:'auto', display:'flex', flexDirection:'column', alignItems:'flex-end'}}>
+                                                {renderValidationSummary()}
                                                 <button 
                                                     onClick={handleActivateDraft}
-                                                    disabled={pendingStage === 'saving'}
+                                                    disabled={pendingStage === 'saving' || validationResult.status === 'BLOCKED'}
                                                     style={{
                                                         padding:'10px 20px', fontSize:'1em', 
-                                                        background: pendingStage === 'saving' ? '#ffcc80' : '#e65100', 
+                                                        background: pendingStage === 'saving' ? '#ffcc80' : (validationResult.status === 'BLOCKED' ? '#e57373' : '#e65100'), 
                                                         color:'white', 
-                                                        border:'none', borderRadius:'4px', cursor:'pointer',
+                                                        border:'none', borderRadius:'4px', cursor: (pendingStage === 'saving' || validationResult.status === 'BLOCKED') ? 'not-allowed' : 'pointer',
                                                         fontWeight: 'bold'
                                                     }}
-                                                    title="Save to server and activate as new version"
+                                                    title={validationResult.status === 'BLOCKED' ? "Fix errors to deploy" : "Save to server and activate as new version"}
                                                 >
                                                     {pendingStage === 'saving' ? 'Deploying...' : 'Activate (Deploy)'}
                                                 </button>
@@ -4759,17 +4834,18 @@ function SysadminPanel({
                                              {/* Deployed Button inside Node Editor */}
                                              {draftBundle && (
                                                 <div style={{marginLeft:'auto', display:'flex', flexDirection:'column', alignItems:'flex-end'}}>
+                                                {renderValidationSummary()}
                                                 <button 
                                                     onClick={handleActivateDraft}
-                                                    disabled={pendingStage === 'saving'}
+                                                    disabled={pendingStage === 'saving' || validationResult.status === 'BLOCKED'}
                                                     style={{
                                                         padding:'10px 20px', fontSize:'1em', 
-                                                        background: pendingStage === 'saving' ? '#ffcc80' : '#e65100', 
+                                                        background: pendingStage === 'saving' ? '#ffcc80' : (validationResult.status === 'BLOCKED' ? '#e57373' : '#e65100'), 
                                                         color:'white', 
-                                                        border:'none', borderRadius:'4px', cursor:'pointer',
+                                                        border:'none', borderRadius:'4px', cursor: (pendingStage === 'saving' || validationResult.status === 'BLOCKED') ? 'not-allowed' : 'pointer',
                                                         fontWeight: 'bold'
                                                     }}
-                                                    title="Save to server and activate as new version"
+                                                    title={validationResult.status === 'BLOCKED' ? "Fix errors to deploy" : "Save to server and activate as new version"}
                                                 >
                                                     {pendingStage === 'saving' ? 'Deploying...' : 'Activate (Deploy)'}
                                                 </button>
