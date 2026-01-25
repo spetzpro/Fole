@@ -2121,15 +2121,16 @@ function SysadminPanel({
     const schemaFields = useMemo(() => extractStringFields(buttonSchema), [buttonSchema]);
 
     const getEffectiveNode = (id: string) => {
-         const draftBlocks = (bundleData as any)?.blocks || {};
+         // Use draftBundle state for Draft source
+         const draftBlocks = (draftBundle as any)?.blocks || {};
          const draftBlock = draftBlocks[id];
          if (draftBlock) {
+            // Draft block data is the source of truth for properties when in text editor
             return { id: draftBlock.blockId, ...draftBlock.data, _source: 'DRAFT' };
          }
-         // Updated to use nodesById and props per user requirement
+         // Updated to use nodesById and props
          const nodes = resolvedGraph?.nodesById || {};
          const activeNode = nodes[id];
-         // Flatten props into the returned object for the form to consume
          return activeNode ? { id: activeNode.id, type: activeNode.type, ...activeNode.props, _source: 'ACTIVE' } : null;
     };
 
@@ -2147,16 +2148,30 @@ function SysadminPanel({
     };
 
     const handleSaveNode = () => {
-         if (!nodeEditorSelectedId || !bundleData) return;
+         if (!nodeEditorSelectedId) return;
          
-         const newDraft = { ...(bundleData as any) };
+         // Initialize from Draft or Clone Active
+         let newDraft: any;
+         if (draftBundle) {
+             newDraft = { ...(draftBundle as any) };
+         } else if (bundleData) {
+             // Deep clone active bundle to start a new draft
+             // Assuming deepClone is available in scope (used by handleCreateDraft)
+             try {
+                newDraft = JSON.parse(JSON.stringify(bundleData)); 
+             } catch(e) { return; }
+         } else {
+             return;
+         }
+
          if (!newDraft.blocks) newDraft.blocks = {};
          
          const existingDraftBlock = newDraft.blocks[nodeEditorSelectedId];
          const nodes = resolvedGraph?.nodesById || {};
          const activeNode = nodes[nodeEditorSelectedId];
 
-         // If creating new draft from active, grab active props
+         // Base Data: Default to Active Props (which includes id/type from resolved graph) if no existing draft
+         // This ensures the generic "data" object in Draft JSON looks like the runtime props
          const baseData = existingDraftBlock ? existingDraftBlock.data : (activeNode ? activeNode.props : {});
          
          let newData = { ...baseData };
@@ -2172,7 +2187,7 @@ function SysadminPanel({
              data: newData
          };
          
-         onApplyDraft(newDraft);
+         setDraftBundle(newDraft);
          setNodeEditorDirty(false);
          setTimeout(() => handleNodeSelect(nodeEditorSelectedId), 0);
     };
@@ -6260,7 +6275,7 @@ function SysadminPanel({
 
     return (
         <div style={{
-            position: 'absolute', top: '50px', right: '20px', width: '1180px', maxWidth: '95vw', maxHeight: '80vh',
+            position: 'absolute', top: '2.5%', left: '2.5%', width: '95%', height: '95%',
             backgroundColor: 'white', color: '#222', 
             border: '2px solid #333', boxShadow: '0 5px 20px rgba(0,0,0,0.3)',
             zIndex: 9000, display: 'flex', flexDirection: 'column', overflow: 'hidden'
@@ -6282,8 +6297,7 @@ function SysadminPanel({
             
             <div style={{
                 display:'flex', 
-                overflowX: 'auto', 
-                overflowY: 'hidden', 
+                flexWrap: 'wrap',
                 alignItems: 'flex-end',
                 minHeight: '44px',
                 background: '#e5e5e5', 
