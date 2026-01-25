@@ -2117,6 +2117,62 @@ function SysadminPanel({
         }
     }, [activeTab, buttonSchema, buttonSchemaLoading]);
 
+    // --- Node Editor Hooks & Helpers (Unconditional) ---
+    const schemaFields = useMemo(() => extractStringFields(buttonSchema), [buttonSchema]);
+
+    const getEffectiveNode = (id: string) => {
+         const draftBlocks = (bundleData as any)?.blocks || {};
+         const draftBlock = draftBlocks[id];
+         if (draftBlock) {
+            return { id: draftBlock.blockId, ...draftBlock.data, _source: 'DRAFT' };
+         }
+         const nodes = resolvedGraph?.nodes || {};
+         return { ...nodes[id], _source: 'ACTIVE' };
+    };
+
+    const handleNodeSelect = (id: string) => {
+         setNodeEditorSelectedId(id);
+         const n = getEffectiveNode(id);
+         if (n) {
+            const newForm: any = {};
+            schemaFields.forEach(f => {
+                newForm[f.path] = getValueByPath(n, f.path);
+            });
+            setNodeEditorForm(newForm);
+            setNodeEditorDirty(false);
+         }
+    };
+
+    const handleSaveNode = () => {
+         if (!nodeEditorSelectedId || !bundleData) return;
+         
+         const newDraft = { ...(bundleData as any) };
+         if (!newDraft.blocks) newDraft.blocks = {};
+         
+         const existingDraftBlock = newDraft.blocks[nodeEditorSelectedId];
+         const nodes = resolvedGraph?.nodes || {};
+         const activeNode = nodes[nodeEditorSelectedId];
+
+         const baseData = existingDraftBlock ? existingDraftBlock.data : (activeNode || {});
+         
+         let newData = { ...baseData };
+         schemaFields.forEach(f => {
+             newData = setValueByPath(newData, f.path, nodeEditorForm[f.path]);
+         });
+         
+         newDraft.blocks[nodeEditorSelectedId] = {
+             blockId: nodeEditorSelectedId,
+             blockType: 'ui.node.button',
+             schemaVersion: '1.0.0',
+             filename: existingDraftBlock?.filename || `${nodeEditorSelectedId}.json`,
+             data: newData
+         };
+         
+         onApplyDraft(newDraft);
+         setNodeEditorDirty(false);
+         setTimeout(() => handleNodeSelect(nodeEditorSelectedId), 0);
+    };
+
     const refreshResolvedGraph = () => {
         setResolvedGraphLoading(true);
         setResolvedGraphError(null);
@@ -4020,77 +4076,8 @@ function SysadminPanel({
                  // Object.values might not be available if nodes is not an object, but it should be map
                  const buttonNodes = Object.values(nodes).filter((n: any) => n.type === 'ui.node.button');
                  
-                 // Memoize schema fields
-                 const schemaFields = useMemo(() => extractStringFields(buttonSchema), [buttonSchema]);
-
-                 // Helper to get effective data (Draft > Active)
-                 const getEffectiveNode = (id: string) => {
-                     // Check if block exists in draft
-                     const draftBlocks = (draftBundle as any)?.blocks || {};
-                     const draftBlock = draftBlocks[id];
-                     
-                     if (draftBlock) {
-                         // Map bundle data to node structure
-                        return { 
-                            id: draftBlock.blockId, 
-                            ...draftBlock.data, 
-                            _source: 'DRAFT' 
-                        };
-                     }
-                     
-                     // Active Graph Nodes are typically already resolved/flattened? 
-                     // Resolved Graph `nodes` usually contains the runtime model.
-                     return { ...nodes[id], _source: 'ACTIVE' };
-                 };
-
                  const selectedNode = nodeEditorSelectedId ? getEffectiveNode(nodeEditorSelectedId) : null;
-
-                 const handleNodeSelect = (id: string) => {
-                     setNodeEditorSelectedId(id);
-                     const n = getEffectiveNode(id);
-                     if (n) {
-                        const newForm: any = {};
-                        schemaFields.forEach(f => {
-                            newForm[f.path] = getValueByPath(n, f.path);
-                        });
-                        setNodeEditorForm(newForm);
-                        setNodeEditorDirty(false);
-                     }
-                 };
-
-                 const handleSaveNode = () => {
-                     if (!nodeEditorSelectedId || !draftBundle) return;
-                     
-                     const newDraft = { ...(draftBundle as any) };
-                     if (!newDraft.blocks) newDraft.blocks = {};
-                     
-                     // We need to save in Bundle Format
-                     const existingDraftBlock = newDraft.blocks[nodeEditorSelectedId];
-                     const activeNode = nodes[nodeEditorSelectedId];
-
-                     // Base Data
-                     const baseData = existingDraftBlock ? existingDraftBlock.data : (activeNode || {});
-                     
-                     // Update Data
-                     let newData = { ...baseData };
-                     schemaFields.forEach(f => {
-                         newData = setValueByPath(newData, f.path, nodeEditorForm[f.path]);
-                     });
-                     
-                     newDraft.blocks[nodeEditorSelectedId] = {
-                         blockId: nodeEditorSelectedId,
-                         blockType: 'ui.node.button',
-                         schemaVersion: '1.0.0',
-                         filename: existingDraftBlock?.filename || `${nodeEditorSelectedId}.json`,
-                         data: newData
-                     };
-                     
-                     setDraftBundle(newDraft);
-                     setNodeEditorDirty(false);
-                     
-                     // Re-select to update source indicator
-                     setTimeout(() => handleNodeSelect(nodeEditorSelectedId), 0);
-                 };
+                 const draftBundle = bundleData; // Alias for UI logic below
 
                  return (
                      <div style={{display:'flex', height:'100%'}}>
