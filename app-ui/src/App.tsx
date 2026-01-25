@@ -2118,6 +2118,7 @@ function SysadminPanel({
     tabs.push('Node Editor (Button)');
     tabs.push('Node Editor (Text)');
     tabs.push('Node Editor (Container)'); // Added for Node Editor (Container)
+    tabs.push('Node Editor (Window)');
 
     // const [activeTab, setActiveTab] = useState('ShellConfig'); // Defined at top of component
     const [invocations, setInvocations] = useState<any[] | null>(null);
@@ -2154,6 +2155,10 @@ function SysadminPanel({
     // Container Node Schema State
     const [containerSchema, setContainerSchema] = useState<any>(null);
     const [containerSchemaLoading, setContainerSchemaLoading] = useState(false);
+
+    // Window Node Schema State
+    const [windowSchema, setWindowSchema] = useState<any>(null);
+    const [windowSchemaLoading, setWindowSchemaLoading] = useState(false);
 
     useEffect(() => {
         if (activeTab === 'Node Editor (Button)' && !buttonSchema && !buttonSchemaLoading) {
@@ -2198,7 +2203,21 @@ function SysadminPanel({
                      setContainerSchemaLoading(false);
                 });
         }
-    }, [activeTab, buttonSchema, buttonSchemaLoading, textSchema, textSchemaLoading, containerSchema, containerSchemaLoading]);
+        if (activeTab === 'Node Editor (Window)' && !windowSchema && !windowSchemaLoading) {
+            setWindowSchemaLoading(true);
+            fetch(apiUrl('/api/schemas/ui-node/ui.node.window'))
+                .then(r => r.json())
+                .then(d => {
+                     setWindowSchema(d);
+                     setWindowSchemaLoading(false);
+                })
+                .catch(e => {
+                     // eslint-disable-next-line no-console
+                     console.error("Window schema load failed", e);
+                     setWindowSchemaLoading(false);
+                });
+        }
+    }, [activeTab, buttonSchema, buttonSchemaLoading, textSchema, textSchemaLoading, containerSchema, containerSchemaLoading, windowSchema, windowSchemaLoading]);
 
     // --- Node Editor Hooks & Helpers (Unconditional) ---
     const schemaFields = useMemo(() => {
@@ -2208,8 +2227,11 @@ function SysadminPanel({
         if (activeTab === 'Node Editor (Container)') {
             return extractStringFields(containerSchema);
         }
+        if (activeTab === 'Node Editor (Window)') {
+            return extractStringFields(windowSchema);
+        }
         return extractStringFields(buttonSchema);
-    }, [activeTab, buttonSchema, textSchema, containerSchema]);
+    }, [activeTab, buttonSchema, textSchema, containerSchema, windowSchema]);
 
     const getEffectiveNode = (id: string) => {
          // Use draftBundle state for Draft source
@@ -2283,6 +2305,7 @@ function SysadminPanel({
          let defaultType = 'ui.node.button';
          if (activeTab === 'Node Editor (Text)') defaultType = 'ui.node.text';
          if (activeTab === 'Node Editor (Container)') defaultType = 'ui.node.container';
+         if (activeTab === 'Node Editor (Window)') defaultType = 'ui.node.window';
          
          const finalType = activeNode?.type || existingDraftBlock?.blockType || defaultType;
 
@@ -2308,6 +2331,7 @@ function SysadminPanel({
              if (nodeForDiff.type === 'ui.node.button') targetSchema = buttonSchema;
              else if (nodeForDiff.type === 'ui.node.text') targetSchema = textSchema;
              else if (nodeForDiff.type === 'ui.node.container') targetSchema = containerSchema;
+             else if (nodeForDiff.type === 'ui.node.window') targetSchema = windowSchema;
              
              if (targetSchema) {
                  const fields = extractStringFields(targetSchema);
@@ -3154,6 +3178,7 @@ function SysadminPanel({
                  let targetType = 'ui.node.button';
                  if (activeTab === 'Node Editor (Text)') targetType = 'ui.node.text';
                  if (activeTab === 'Node Editor (Container)') targetType = 'ui.node.container';
+                 if (activeTab === 'Node Editor (Window)') targetType = 'ui.node.window';
                  
                  blockIds.forEach(bid => {
                      const blk = bundle.blocks[bid];
@@ -5025,6 +5050,206 @@ function SysadminPanel({
                                  <div style={{height:'100%', display:'flex', alignItems:'center', justifyContent:'center', flexDirection:'column', color:'#ccc'}}>
                                      <div style={{fontSize:'3em', marginBottom:'10px'}}>📦</div>
                                      <div style={{fontSize:'1.2em'}}>Select a container from the list</div>
+                                 </div>
+                             )}
+                         </div>
+                     </div>
+                 );
+            }
+
+            case 'Node Editor (Window)': {
+                 // Ensure graph is loaded
+                 if (!resolvedGraph && !resolvedGraphLoading && !resolvedGraphError) {
+                     setTimeout(() => refreshResolvedGraph(), 0);
+                 }
+
+                 if (resolvedGraphLoading) return <div style={{padding:'20px'}}>Loading graph...</div>;
+                 if (resolvedGraphError) return <div style={{padding:'20px', color:'red'}}>Error: {resolvedGraphError}</div>;
+                 if (!resolvedGraph) return <div style={{padding:'20px'}}>No graph data.</div>;
+
+                 // Handle Schema Loading
+                 if (windowSchemaLoading) return <div style={{padding:'20px'}}>Loading Schema...</div>;
+                 if (!windowSchema) return <div style={{padding:'20px'}}>Waiting for schema...</div>;
+
+                 // Filter Window Nodes
+                 const nodes = resolvedGraph.nodesById || {};
+                 const windowNodes = Object.values(nodes).filter((n: any) => n.type === 'ui.node.window');
+                 
+                 const selectedNode = nodeEditorSelectedId ? getEffectiveNode(nodeEditorSelectedId) : null;
+                 const draftBundle = bundleData; 
+
+                 return (
+                     <div style={{display:'flex', height:'100%'}}>
+                         <div style={{width:'250px', borderRight:'1px solid #ddd', overflowY:'auto', padding:'10px', background:'#fafafa'}}>
+                             <div style={{fontWeight:'bold', marginBottom:'10px', color:'#333'}}>Windows ({windowNodes.length})</div>
+                             {windowNodes.length === 0 && <div style={{fontStyle:'italic', color:'#666'}}>No window nodes.</div>}
+                             {windowNodes.map((n:any) => {
+                                 const isDraft = !!(draftBundle as any)?.blocks?.[n.id];
+                                 let displayLabel = n.id;
+                                 if (n.props?.title) displayLabel += ` (${n.props.title})`;
+
+                                 return (
+                                     <div 
+                                        key={n.id} 
+                                        onClick={() => handleNodeSelect(n.id)}
+                                        style={{
+                                            padding:'8px', cursor:'pointer', 
+                                            background: nodeEditorSelectedId === n.id ? '#e3f2fd' : 'white',
+                                            borderBottom:'1px solid #eee',
+                                            borderRadius:'4px',
+                                            marginBottom:'2px',
+                                            border: nodeEditorSelectedId === n.id ? '1px solid #90caf9' : '1px solid transparent'
+                                        }}
+                                     >
+                                         <div style={{fontWeight:'bold', fontSize:'0.9em'}}>{displayLabel}</div>
+                                         <div style={{fontSize:'0.8em', color:'#666', fontFamily:'monospace'}}>{n.id}</div>
+                                         {isDraft && <span style={{fontSize:'0.7em', background:'#e8f5e9', color:'green', padding:'1px 4px', borderRadius:'3px', border:'1px solid #c8e6c9', fontWeight:'bold'}}>DRAFT</span>}
+                                     </div>
+                                 );
+                             })}
+                         </div>
+                         
+                         <div style={{flex:1, padding:'20px', overflowY:'auto'}}>
+                             {selectedNode ? (
+                                 <div style={{maxWidth:'600px'}}>
+                                     <div style={{borderBottom:'1px solid #ddd', paddingBottom:'10px', marginBottom:'20px'}}>
+                                         <h3>Editing: {selectedNode.id}</h3>
+                                         {snapshotData?.activeVersionId && <div style={{color:'#666', fontSize:'0.9em', marginTop:'2px'}}>Active Version: <strong>{snapshotData.activeVersionId}</strong></div>}
+                                         <div style={{color:'#666'}}>Type: {selectedNode.type}</div>
+                                         {selectedNode._source === 'ACTIVE' && <div style={{color:'#f57f17', fontSize:'0.9em', marginTop:'5px'}}>Editing Active Node (Will create Draft)</div>}
+                                         {selectedNode._source === 'DRAFT' && <div style={{color:'green', fontSize:'0.9em', marginTop:'5px'}}>Editing Draft</div>}
+                                     </div>
+
+                                     <div style={{display:'flex', flexDirection:'column', gap:'15px'}}>
+                                         {schemaFields.map(f => {
+                                             let errorMsg = null;
+                                             const val = nodeEditorForm[f.path];
+                                             
+                                             if (f.required && (val === undefined || val === null || val === '')) {
+                                                 errorMsg = "Required";
+                                             } else if (f.enumOptions && f.enumOptions.length > 0 && val && !f.enumOptions.includes(val)) {
+                                                 errorMsg = `Must be one of: ${f.enumOptions.join(', ')}`;
+                                             }
+
+                                             return (
+                                             <div key={f.path}>
+                                                 {f.type === 'boolean' ? (
+                                                     <div style={{display:'flex', alignItems:'center', gap:'10px'}}>
+                                                         <input 
+                                                             type="checkbox" 
+                                                             checked={!!nodeEditorForm[f.path]} 
+                                                             onChange={(e) => {
+                                                                 setNodeEditorForm({...nodeEditorForm, [f.path]: e.target.checked});
+                                                                 setNodeEditorDirty(true);
+                                                             }}
+                                                             id={`field-${f.path}`}
+                                                         />
+                                                         <label htmlFor={`field-${f.path}`} style={{cursor:'pointer', fontWeight:'bold', color:'#333'}}>
+                                                             {f.title} {f.required && <span style={{color:'#d32f2f'}}>*</span>}
+                                                         </label>
+                                                     </div>
+                                                 ) : (
+                                                     <>
+                                                        <label style={{display:'block', fontWeight:'bold', marginBottom:'6px', color:'#333'}}>
+                                                            {f.title} {f.required && <span style={{color:'#d32f2f'}}>*</span>}
+                                                        </label>
+                                                        {f.enumOptions && f.enumOptions.length > 0 ? (
+                                                            <select
+                                                                value={nodeEditorForm[f.path] || ''}
+                                                                onChange={(e) => {
+                                                                    setNodeEditorForm({...nodeEditorForm, [f.path]: e.target.value});
+                                                                    setNodeEditorDirty(true);
+                                                                }}
+                                                                style={{
+                                                                    width:'100%', padding:'10px', fontSize:'1em', 
+                                                                    border: errorMsg ? '1px solid #d32f2f' : '1px solid #ccc',
+                                                                    borderRadius:'4px', boxSizing:'border-box', backgroundColor:'#333', color:'white'
+                                                                }}
+                                                            >
+                                                                <option value="" style={{backgroundColor:'#333', color:'white'}}>(Select Option)</option>
+                                                                {f.enumOptions.map(opt => (
+                                                                    <option key={opt} value={opt} style={{backgroundColor:'#333', color:'white'}}>{opt}</option>
+                                                                ))}
+                                                            </select>
+                                                        ) : (
+                                                            <input 
+                                                                type="text" 
+                                                                value={nodeEditorForm[f.path] || ''}
+                                                                onChange={(e) => {
+                                                                    setNodeEditorForm({...nodeEditorForm, [f.path]: e.target.value});
+                                                                    setNodeEditorDirty(true);
+                                                                }}
+                                                                style={{
+                                                                    width:'100%', padding:'10px', fontSize:'1em', 
+                                                                    border: errorMsg ? '1px solid #d32f2f' : '1px solid #ccc',
+                                                                    borderRadius:'4px', boxSizing:'border-box'
+                                                                }}
+                                                                placeholder={`Enter ${f.title}...`}
+                                                            />
+                                                        )}
+                                                     </>
+                                                 )}
+                                                 {errorMsg && (
+                                                     <div style={{color:'#d32f2f', fontSize:'0.8em', marginTop:'2px', fontWeight:'bold'}}>
+                                                         {errorMsg}
+                                                     </div>
+                                                 )}
+                                                 <div style={{fontSize:'0.8em', color:'#888', marginTop:'4px'}}>
+                                                    {f.description || `Mapped to ${f.path}`}
+                                                 </div>
+                                             </div>
+                                             );
+                                         })}
+                                         
+                                         <div style={{display:'flex', gap:'15px', alignItems:'center', marginTop:'30px', paddingTop:'20px', borderTop:'1px solid #eee'}}>
+                                             <button 
+                                                 onClick={handleSaveNode}
+                                                 disabled={!nodeEditorDirty && !!draftBundle}
+                                                 style={{
+                                                     padding:'10px 20px', 
+                                                     background: nodeEditorDirty ? '#007acc' : '#e0e0e0', 
+                                                     color: nodeEditorDirty ? 'white' : '#888',
+                                                     border:'none', borderRadius:'4px', cursor: nodeEditorDirty ? 'pointer' : 'default', fontWeight:'bold',
+                                                     boxShadow: nodeEditorDirty ? '0 2px 4px rgba(0,122,204,0.3)' : 'none',
+                                                     transition: 'all 0.2s'
+                                                 }}
+                                             >
+                                                 {nodeEditorDirty ? 'Save Changes' : 'No Changes'}
+                                             </button>
+                                             
+                                             {!draftBundle && (
+                                                <div style={{color:'#e65100', fontSize:'0.9em', background:'#fff3e0', padding:'8px', borderRadius:'4px', border:'1px solid #ffe0b2'}}>
+                                                    <strong>Draft not started.</strong> Editing will initialize a new draft.
+                                                </div>
+                                             )}
+                                             
+                                             {/* Deployed Button inside Node Editor */}
+                                             {draftBundle && (
+                                                <div style={{marginLeft:'auto', display:'flex', flexDirection:'column', alignItems:'flex-end'}}>
+                                                {renderValidationSummary()}
+                                                <button 
+                                                    onClick={handleActivateDraft}
+                                                    disabled={pendingStage === 'saving' || validationResult.status === 'BLOCKED'}
+                                                    style={{
+                                                        padding:'10px 20px', fontSize:'1em', 
+                                                        background: pendingStage === 'saving' ? '#ffcc80' : (validationResult.status === 'BLOCKED' ? '#e57373' : '#e65100'), 
+                                                        color:'white', 
+                                                        border:'none', borderRadius:'4px', cursor: (pendingStage === 'saving' || validationResult.status === 'BLOCKED') ? 'not-allowed' : 'pointer',
+                                                        fontWeight: 'bold'
+                                                    }}
+                                                    title={validationResult.status === 'BLOCKED' ? "Fix errors to deploy" : "Save to server and activate as new version"}
+                                                >
+                                                    {pendingStage === 'saving' ? 'Deploying...' : 'Activate (Deploy)'}
+                                                </button>
+                                                </div>
+                                             )}
+                                         </div>
+                                     </div>
+                                 </div>
+                             ) : (
+                                 <div style={{height:'100%', display:'flex', alignItems:'center', justifyContent:'center', flexDirection:'column', color:'#ccc'}}>
+                                     <div style={{fontSize:'3em', marginBottom:'10px'}}>🔲</div>
+                                     <div style={{fontSize:'1.2em'}}>Select a window from the list</div>
                                  </div>
                              )}
                          </div>
