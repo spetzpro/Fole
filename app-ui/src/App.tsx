@@ -4472,6 +4472,11 @@ function SysadminPanel({
                                              }}>
                                                  SOURCE: {selectedNode._source}
                                              </div>
+                                             {snapshotData?.activeVersionId && (
+                                                <div style={{fontSize:'0.8em', color:'#666', background:'#f5f5f5', padding:'2px 6px', borderRadius:'4px'}}>
+                                                    Active: <strong>{snapshotData.activeVersionId}</strong>
+                                                </div>
+                                             )}
                                          </div>
                                      </div>
                                      
@@ -4677,6 +4682,7 @@ function SysadminPanel({
                                  <div style={{maxWidth:'600px'}}>
                                      <div style={{borderBottom:'1px solid #ddd', paddingBottom:'10px', marginBottom:'20px'}}>
                                          <h3>Editing: {selectedNode.id}</h3>
+                                         {snapshotData?.activeVersionId && <div style={{color:'#666', fontSize:'0.9em', marginTop:'2px'}}>Active Version: <strong>{snapshotData.activeVersionId}</strong></div>}
                                          <div style={{color:'#666'}}>Type: {selectedNode.type}</div>
                                          {selectedNode._source === 'ACTIVE' && <div style={{color:'#f57f17', fontSize:'0.9em', marginTop:'5px'}}>Editing Active Node (Will create Draft)</div>}
                                          {selectedNode._source === 'DRAFT' && <div style={{color:'green', fontSize:'0.9em', marginTop:'5px'}}>Editing Draft</div>}
@@ -4877,6 +4883,7 @@ function SysadminPanel({
                                  <div style={{maxWidth:'600px'}}>
                                      <div style={{borderBottom:'1px solid #ddd', paddingBottom:'10px', marginBottom:'20px'}}>
                                          <h3>Editing: {selectedNode.id}</h3>
+                                         {snapshotData?.activeVersionId && <div style={{color:'#666', fontSize:'0.9em', marginTop:'2px'}}>Active Version: <strong>{snapshotData.activeVersionId}</strong></div>}
                                          <div style={{color:'#666'}}>Type: {selectedNode.type}</div>
                                          {selectedNode._source === 'ACTIVE' && <div style={{color:'#f57f17', fontSize:'0.9em', marginTop:'5px'}}>Editing Active Node (Will create Draft)</div>}
                                          {selectedNode._source === 'DRAFT' && <div style={{color:'green', fontSize:'0.9em', marginTop:'5px'}}>Editing Draft</div>}
@@ -7157,7 +7164,7 @@ function SysadminPanel({
         }}>
             <div style={{background: '#333', color:'white', padding:'8px 12px', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
                 <div style={{display:'flex', alignItems:'center', gap:'10px'}}>
-                    <h3 style={{margin:0, fontSize:'1em'}}>Sysadmin (read-only)</h3>
+                    <h3 style={{margin:0, fontSize:'1em'}}>Sysadmin</h3>
                     <span style={{
                         fontSize:'0.75em', fontWeight:'bold', 
                         padding:'1px 6px', borderRadius:'10px',
