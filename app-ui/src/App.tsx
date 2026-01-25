@@ -1935,6 +1935,7 @@ interface FieldDef {
   description?: string;
   help?: string;
   enumOptions?: string[];
+  type: 'string' | 'boolean';
 }
 
 const extractStringFields = (schema: any, prefix = ""): FieldDef[] => {
@@ -1945,14 +1946,22 @@ const extractStringFields = (schema: any, prefix = ""): FieldDef[] => {
       const prop = schema.properties[key];
       const fullPath = prefix ? `${prefix}.${key}` : key;
       
-      // We only care about pure string fields for now
       if (prop.type === 'string') {
           fields.push({
               path: fullPath,
               title: prop.title || key,
               description: prop.description,
               help: (prop as any).help, // simple cast
-              enumOptions: prop.enum
+              enumOptions: prop.enum,
+              type: 'string'
+          });
+      } else if (prop.type === 'boolean') {
+          fields.push({
+              path: fullPath,
+              title: prop.title || key,
+              description: prop.description,
+              help: (prop as any).help,
+              type: 'boolean'
           });
       } else if (prop.type === 'object' && prop.properties) {
           fields.push(...extractStringFields(prop, fullPath));
@@ -1964,7 +1973,8 @@ const extractStringFields = (schema: any, prefix = ""): FieldDef[] => {
 // Simple object path getter
 const getValueByPath = (obj: any, path: string) => {
     if (!obj) return '';
-    return path.split('.').reduce((acc, part) => (acc && acc[part] !== undefined) ? acc[part] : undefined, obj) || '';
+    const val = path.split('.').reduce((acc, part) => (acc && acc[part] !== undefined) ? acc[part] : undefined, obj);
+    return val !== undefined ? val : '';
 };
 
 // Immutably set value by path
@@ -4155,32 +4165,58 @@ function SysadminPanel({
                                          
                                          {schemaFields.map(f => (
                                              <div key={f.path} style={{marginBottom:'20px'}}>
-                                                 <label style={{display:'block', fontWeight:'bold', marginBottom:'6px', color:'#333'}}>{f.title}</label>
-                                                 {f.enumOptions && f.enumOptions.length > 0 ? (
-                                                     <select
-                                                         value={nodeEditorForm[f.path] || ''}
-                                                         onChange={(e) => {
-                                                             setNodeEditorForm({...nodeEditorForm, [f.path]: e.target.value});
-                                                             setNodeEditorDirty(true);
-                                                         }}
-                                                         style={{width:'100%', padding:'10px', fontSize:'1em', border:'1px solid #ccc', borderRadius:'4px', boxSizing:'border-box', backgroundColor:'#333', color:'white'}}
-                                                     >
-                                                         <option value="" style={{backgroundColor:'#333', color:'white'}}>(Select Option)</option>
-                                                         {f.enumOptions.map(opt => (
-                                                             <option key={opt} value={opt} style={{backgroundColor:'#333', color:'white'}}>{opt}</option>
-                                                         ))}
-                                                     </select>
+                                                 {f.type === 'boolean' ? (
+                                                     <div style={{display:'flex', alignItems:'center', gap:'10px', padding:'5px 0'}}>
+                                                         <input 
+                                                             type="checkbox" 
+                                                             checked={!!nodeEditorForm[f.path]}
+                                                             onChange={(e) => {
+                                                                 setNodeEditorForm({...nodeEditorForm, [f.path]: e.target.checked});
+                                                                 setNodeEditorDirty(true);
+                                                             }}
+                                                             style={{width:'20px', height:'20px', cursor:'pointer', accentColor:'#333'}} 
+                                                         />
+                                                         <label 
+                                                            style={{fontWeight:'bold', color:'#333', cursor:'pointer', userSelect:'none'}} 
+                                                            onClick={() => {
+                                                                 // Toggle on label click
+                                                                 setNodeEditorForm({...nodeEditorForm, [f.path]: !nodeEditorForm[f.path]});
+                                                                 setNodeEditorDirty(true);
+                                                            }}
+                                                         >
+                                                             {f.title}
+                                                         </label>
+                                                     </div>
                                                  ) : (
-                                                     <input 
-                                                         type="text" 
-                                                         value={nodeEditorForm[f.path] || ''}
-                                                         onChange={(e) => {
-                                                             setNodeEditorForm({...nodeEditorForm, [f.path]: e.target.value});
-                                                             setNodeEditorDirty(true);
-                                                         }}
-                                                         style={{width:'100%', padding:'10px', fontSize:'1em', border:'1px solid #ccc', borderRadius:'4px', boxSizing:'border-box'}}
-                                                         placeholder={`Enter ${f.title}...`}
-                                                     />
+                                                     <>
+                                                        <label style={{display:'block', fontWeight:'bold', marginBottom:'6px', color:'#333'}}>{f.title}</label>
+                                                        {f.enumOptions && f.enumOptions.length > 0 ? (
+                                                            <select
+                                                                value={nodeEditorForm[f.path] || ''}
+                                                                onChange={(e) => {
+                                                                    setNodeEditorForm({...nodeEditorForm, [f.path]: e.target.value});
+                                                                    setNodeEditorDirty(true);
+                                                                }}
+                                                                style={{width:'100%', padding:'10px', fontSize:'1em', border:'1px solid #ccc', borderRadius:'4px', boxSizing:'border-box', backgroundColor:'#333', color:'white'}}
+                                                            >
+                                                                <option value="" style={{backgroundColor:'#333', color:'white'}}>(Select Option)</option>
+                                                                {f.enumOptions.map(opt => (
+                                                                    <option key={opt} value={opt} style={{backgroundColor:'#333', color:'white'}}>{opt}</option>
+                                                                ))}
+                                                            </select>
+                                                        ) : (
+                                                            <input 
+                                                                type="text" 
+                                                                value={nodeEditorForm[f.path] || ''}
+                                                                onChange={(e) => {
+                                                                    setNodeEditorForm({...nodeEditorForm, [f.path]: e.target.value});
+                                                                    setNodeEditorDirty(true);
+                                                                }}
+                                                                style={{width:'100%', padding:'10px', fontSize:'1em', border:'1px solid #ccc', borderRadius:'4px', boxSizing:'border-box'}}
+                                                                placeholder={`Enter ${f.title}...`}
+                                                            />
+                                                        )}
+                                                     </>
                                                  )}
                                                  <div style={{fontSize:'0.8em', color:'#888', marginTop:'4px'}}>
                                                     {f.description || `Mapped to ${f.path}`}

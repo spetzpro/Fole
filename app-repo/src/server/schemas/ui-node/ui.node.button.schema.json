@@ -36,6 +36,11 @@
       ],
       "default": "secondary"
     },
+    "disabled": {
+      "type": "boolean",
+      "title": "Start Disabled",
+      "default": false
+    },
     "icon": {
       "type": "string",
       "x-ui-editorHint": "iconPicker"
