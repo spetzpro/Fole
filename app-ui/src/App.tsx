@@ -2126,8 +2126,11 @@ function SysadminPanel({
          if (draftBlock) {
             return { id: draftBlock.blockId, ...draftBlock.data, _source: 'DRAFT' };
          }
-         const nodes = resolvedGraph?.nodes || {};
-         return { ...nodes[id], _source: 'ACTIVE' };
+         // Updated to use nodesById and props per user requirement
+         const nodes = resolvedGraph?.nodesById || {};
+         const activeNode = nodes[id];
+         // Flatten props into the returned object for the form to consume
+         return activeNode ? { id: activeNode.id, type: activeNode.type, ...activeNode.props, _source: 'ACTIVE' } : null;
     };
 
     const handleNodeSelect = (id: string) => {
@@ -2150,10 +2153,11 @@ function SysadminPanel({
          if (!newDraft.blocks) newDraft.blocks = {};
          
          const existingDraftBlock = newDraft.blocks[nodeEditorSelectedId];
-         const nodes = resolvedGraph?.nodes || {};
+         const nodes = resolvedGraph?.nodesById || {};
          const activeNode = nodes[nodeEditorSelectedId];
 
-         const baseData = existingDraftBlock ? existingDraftBlock.data : (activeNode || {});
+         // If creating new draft from active, grab active props
+         const baseData = existingDraftBlock ? existingDraftBlock.data : (activeNode ? activeNode.props : {});
          
          let newData = { ...baseData };
          schemaFields.forEach(f => {
@@ -4071,9 +4075,8 @@ function SysadminPanel({
                  if (buttonSchemaLoading) return <div style={{padding:'20px'}}>Loading Schema...</div>;
                  if (!buttonSchema) return <div style={{padding:'20px'}}>Waiting for schema...</div>;
 
-                 // Filter Button Nodes (scan nodes object)
-                 const nodes = resolvedGraph.nodes || {};
-                 // Object.values might not be available if nodes is not an object, but it should be map
+                 // Filter Button Nodes (scan nodesById)
+                 const nodes = resolvedGraph.nodesById || {};
                  const buttonNodes = Object.values(nodes).filter((n: any) => n.type === 'ui.node.button');
                  
                  const selectedNode = nodeEditorSelectedId ? getEffectiveNode(nodeEditorSelectedId) : null;
