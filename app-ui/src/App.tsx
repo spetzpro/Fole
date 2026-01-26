@@ -888,7 +888,8 @@ function ConfigSysadminView({
     pendingStage, setPendingStage, saveMessage, setSaveMessage, 
     pendingPreflight, setPendingPreflight, pendingAck, setPendingAck, 
     pendingCandidateVersionId, setPendingCandidateVersionId,
-    dismissTimerRef
+    dismissTimerRef,
+    setConfirmModal
 }: { 
     bundleData: BundleResponse | null; 
     renderKnownPanel?: (blockType: string) => React.ReactNode | null;
@@ -907,6 +908,7 @@ function ConfigSysadminView({
     pendingCandidateVersionId: string | null;
     setPendingCandidateVersionId: (id: string | null) => void;
     dismissTimerRef: React.MutableRefObject<number | null>;
+    setConfirmModal: React.Dispatch<React.SetStateAction<{ isOpen: boolean; title: string; message: string; onConfirm: () => void; }>>;
 }) {
     const caps = useCapabilities();
     const isExpertMode = caps.devModeOverridesEnabled;
@@ -1658,7 +1660,19 @@ function ConfigSysadminView({
                                             <span style={{marginLeft:'5px', color:'#666', fontFamily:'monospace'}}>{t.id}</span>
                                             <span style={{marginLeft:'5px', fontSize:'0.8em', color:'#999'}}>({(t.contentBlockIds||[]).length} blocks)</span>
                                         </div>
-                                        <button onClick={() => { if(confirm('Delete tab?')) { const nt = [...draftTabs]; nt.splice(idx,1); updateDraftTabs(nt); }}} disabled={!isExpertMode} style={{color: isExpertMode ? '#c62828' : '#ccc', border:'none', background:'none', cursor: isExpertMode ? 'pointer' : 'default', fontWeight:'bold'}}>×</button>
+                                        <button onClick={() => { 
+                                            setConfirmModal({
+                                                isOpen: true,
+                                                title: "Delete Tab",
+                                                message: "Are you sure you want to delete this tab?",
+                                                onConfirm: () => {
+                                                    const nt = [...draftTabs];
+                                                    nt.splice(idx,1);
+                                                    updateDraftTabs(nt);
+                                                    setConfirmModal((p:any)=>({...p, isOpen:false}));
+                                                }
+                                            });
+                                        }} disabled={!isExpertMode} style={{color: isExpertMode ? '#c62828' : '#ccc', border:'none', background:'none', cursor: isExpertMode ? 'pointer' : 'default', fontWeight:'bold'}}>×</button>
                                     </div>
                                     );
                                 })}
@@ -3196,13 +3210,13 @@ function SysadminPanel({
         
         // Safety check: ensure block exists
         if (!infra || infra.blockType !== 'shell.infra.window_registry') {
-            alert("Error: 'window_registry' block missing. Runtime may fail.");
+            setToast({ message: "Error: 'window_registry' block missing. Runtime may fail.", type: 'error' });
             return;
         }
 
         const currentWindows = infra.data?.windows || {};
         if (currentWindows[newWinId.trim()]) {
-            alert(`Window ID "${newWinId}" already exists.`);
+            setToast({ message: `Window ID "${newWinId}" already exists.`, type: 'error' });
             return;
         }
 
@@ -3226,18 +3240,24 @@ function SysadminPanel({
 
     const handleRemoveWindow = (wid: string) => {
         if (!draftBundle) return;
-        const blocks = (draftBundle as any).blocks || {};
-        const key = blocks['window_registry'] ? 'window_registry' : (blocks['infra_windows'] ? 'infra_windows' : null);
-        if (!key) return;
-
-        if (!confirm(`Remove window definition "${wid}"?`)) return;
-
-        const newBlocks = deepClone(blocks);
-        if (newBlocks[key]?.data?.windows) {
-             delete newBlocks[key].data.windows[wid];
-        }
-
-        setDraftBundle({ ...(draftBundle as any), blocks: newBlocks });
+        
+        setConfirmModal({
+             isOpen: true,
+             title: "Remove Window",
+             message: `Remove window definition "${wid}"?`,
+             onConfirm: () => {
+                const blocks = (draftBundle as any).blocks || {};
+                const key = blocks['window_registry'] ? 'window_registry' : (blocks['infra_windows'] ? 'infra_windows' : null);
+                if (key) {
+                    const newBlocks = deepClone(blocks);
+                    if (newBlocks[key]?.data?.windows) {
+                        delete newBlocks[key].data.windows[wid];
+                    }
+                    setDraftBundle({ ...(draftBundle as any), blocks: newBlocks });
+                }
+                setConfirmModal(p => ({ ...p, isOpen: false }));
+             }
+        });
     };
 
     const handleUpdateWindowMode = (wid: string, newMode: string) => {
@@ -3624,26 +3644,32 @@ function SysadminPanel({
     const handleDeleteBlock = () => {
         if (!draftSelectedBlockId || !draftBundle) return;
         
-        if (!window.confirm(`Delete block "${draftSelectedBlockId}" from Draft?`)) return;
-
-        const newDraft = deepClone(draftBundle) as any;
-        if (newDraft.blocks) {
-             delete newDraft.blocks[draftSelectedBlockId];
-        }
-        
-        setDraftBundle(newDraft);
-        setShowDeletePreview(false);
-        
-        // Update selection
-        const remaining = Object.keys(newDraft.blocks || {}).sort();
-        if (remaining.length > 0) {
-            // Try to select next or previous, or just first
-            handleDraftSelectBlock(remaining[0], newDraft); 
-        } else {
-            setDraftSelectedBlockId(null);
-            setDraftEditorText('');
-            setDraftEditorDirty(false);
-        }
+        setConfirmModal({
+            isOpen: true,
+            title: "Delete Block",
+            message: `Delete block "${draftSelectedBlockId}" from Draft?`,
+            onConfirm: () => {
+                const newDraft = deepClone(draftBundle) as any;
+                if (newDraft.blocks) {
+                    delete newDraft.blocks[draftSelectedBlockId];
+                }
+                
+                setDraftBundle(newDraft);
+                setShowDeletePreview(false);
+                
+                // Update selection
+                const remaining = Object.keys(newDraft.blocks || {}).sort();
+                if (remaining.length > 0) {
+                    // Try to select next or previous, or just first
+                    handleDraftSelectBlock(remaining[0], newDraft); 
+                } else {
+                    setDraftSelectedBlockId(null);
+                    setDraftEditorText('');
+                    setDraftEditorDirty(false);
+                }
+                setConfirmModal(p => ({ ...p, isOpen: false }));
+            }
+        });
     };
 
     const draftDiff = useMemo(() => {
@@ -4010,19 +4036,19 @@ function SysadminPanel({
 
          if (!res) {
              setConfirmLoadVersion(false);
-             alert("Cannot load version: Debug endpoints check failed.");
+             setToast({ message: "Cannot load version: Debug endpoints check failed.", type: 'error' });
              return;
          }
 
          if (res.status === 413) {
-             alert("Version too large to load into draft (limit exceeded).");
+             setToast({ message: "Version too large to load into draft (limit exceeded).", type: 'error' });
              setConfirmLoadVersion(false);
              return;
          }
          
          if (!res.ok) {
              const txt = await res.text().catch(() => '');
-             alert(`Fetch failed (${res.status}): ${txt}`);
+             setToast({ message: `Fetch failed (${res.status}): ${txt}`, type: 'error' });
              setConfirmLoadVersion(false);
              return;
          }
@@ -4032,7 +4058,7 @@ function SysadminPanel({
 
              // Validation: Check for blocks presence
              if (!fullVersion.blocks) {
-                 alert("This version detail endpoint does not include blocks; cannot load into draft yet.");
+                 setToast({ message: "This version does not include blocks; cannot load into draft.", type: 'error' });
                  setConfirmLoadVersion(false);
                  return;
              }
@@ -4058,7 +4084,7 @@ function SysadminPanel({
              
              setActiveTab('Draft');
          } catch (e: any) {
-             alert("Failed to load version: " + e.message);
+             setToast({ message: "Failed to load version: " + e.message, type: 'error' });
          }
     };
 
@@ -5684,6 +5710,7 @@ function SysadminPanel({
                                 refreshVersions();
                             }, 500);
                         }}
+                        setConfirmModal={setConfirmModal}
                     />
                 );
             }
@@ -6594,9 +6621,15 @@ function SysadminPanel({
                                                 <button 
                                                     disabled={!canRollback} 
                                                     onClick={() => {
-                                                        if (window.confirm('Rollback to last ACTIVE bundle? This will reinitialize runtime.')) {
-                                                            onRollback();
-                                                        }
+                                                        setConfirmModal({
+                                                            isOpen: true,
+                                                            title: "Rollback?",
+                                                            message: "Rollback to last ACTIVE bundle? This will reinitialize runtime.",
+                                                            onConfirm: () => {
+                                                                onRollback();
+                                                                setConfirmModal((p:any) => ({...p, isOpen: false}));
+                                                            }
+                                                        });
                                                     }}
                                                     style={{
                                                         background: canRollback ? '#f44336' : '#f5f5f5', 
