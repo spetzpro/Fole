@@ -128,6 +128,108 @@ async function main() {
       }
   });
 
+  // Preflight Endpoint (Governed)
+  router.get("/api/config/shell/preflight/:versionId", async (req, res, params, ctx) => {
+    // Note: This endpoint is governed but NOT debug-gated (required for normal operations)
+    // In a real system, this would need permission checks (e.g. config.read/write)
+    // For now, it mirrors existing open config endpoints (like /api/config/shell/bundle)
+
+    const { versionId } = params;
+    if (!versionId) {
+        return router.json(res, 400, { error: "Missing versionId" });
+    }
+
+    try {
+        const bundle = await configRepo.getBundle(versionId);
+        const report = await validator.validateBundle(bundle.bundle);
+
+        const errors = report.errors.filter(e => e.severity === "A1" || e.severity === "A2");
+        const warnings = report.errors.filter(e => e.severity === "B");
+
+        const canActivate = report.status === "valid" && errors.length === 0;
+
+        return router.json(res, 200, {
+            ok: true,
+            versionId,
+            canActivate,
+            errors,
+            warnings,
+            summary: report.severityCounts
+        });
+    } catch (err: any) {
+        const status = err.message.includes("not found") ? 404 : 500;
+        return router.json(res, status, { error: err.message });
+    }
+  });
+
+  // Activate Version Endpoint (Governed)
+  router.post("/api/config/shell/activate", async (req, res, _params, ctx) => {
+      // Governed operation - required for Sysadmin
+      // Should eventually use similar auth to /api/config/shell/deploy
+
+      try {
+          const body = await router.readJsonBody(req);
+          const { versionId, reason } = body;
+
+          if (!versionId || typeof versionId !== "string") {
+              return router.json(res, 400, { error: "Missing or invalid versionId" });
+          }
+
+          const result = await configRepo.activateVersion(versionId, reason);
+          await runtimeManager.reload();
+          
+          return router.json(res, 200, {
+              ok: true,
+              activeVersionId: result.activeVersionId,
+              activatedAt: result.activatedAt,
+              reason
+          });
+      } catch (err: any) {
+          return router.json(res, 400, { error: err.message });
+      }
+  });
+
+  // Clone & Patch Sysadmin (Sysadmin Tooling - Standard)
+  router.post("/api/config/shell/clone-and-patch-sysadmin", async (req, res, _params, ctx) => {
+    // Used by UI Sysadmin flow - needs to vary independent of debug mode
+    try {
+        const body: any = await router.readJsonBody(req);
+        const { baseVersionId, reason, sysadminBlocks, manifestPatch } = body;
+
+        // Validation
+        if (!baseVersionId || typeof baseVersionId !== 'string') {
+             return router.json(res, 400, { error: "Missing or invalid baseVersionId" });
+        }
+        if (typeof reason !== 'string') {
+             return router.json(res, 400, { error: "Missing or invalid reason" });
+        }
+        if (!sysadminBlocks || typeof sysadminBlocks !== 'object') {
+             return router.json(res, 400, { error: "Missing or invalid sysadminBlocks" });
+        }
+        if (Object.keys(sysadminBlocks).length === 0) {
+             return router.json(res, 400, { error: "sysadminBlocks must not be empty" });
+        }
+        
+        // Execute
+        const result = await configRepo.cloneVersionWithPatchedSysadmin(baseVersionId, reason, sysadminBlocks, manifestPatch);
+        
+        return router.json(res, 200, { 
+            ok: true, 
+            newVersionId: result.newVersionId,
+            baseVersionId,
+            reason
+        });
+
+    } catch (err: any) {
+        if (err.message && err.message.substring && err.message.includes("Base version")) {
+            return router.json(res, 404, { error: err.message });
+        }
+         // eslint-disable-next-line no-console
+        console.error("Clone patch error", err);
+        return router.json(res, 500, { error: "Internal Server Error" });
+    }
+  });
+
   // Debug activate version endpoint (Roadmap #4 Step 2)
   router.get("/api/debug/config/shell/preflight/:versionId", async (req, res, params, ctx) => {
     if (!canAccessDebug(ctx)) {

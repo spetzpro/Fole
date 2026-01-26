@@ -908,7 +908,7 @@ function ConfigSysadminView({
     setPendingCandidateVersionId: (id: string | null) => void;
     dismissTimerRef: React.MutableRefObject<number | null>;
 }) {
-    const caps = useCapabilities();
+    // const caps = useCapabilities(); // Removed unused
     const [selectedTabId, setSelectedTabId] = useState<string | null>(null);
 
     // Roadmap 7.1 Step 2.1: Local Sysadmin Draft State
@@ -1413,33 +1413,31 @@ function ConfigSysadminView({
             const newVersionId = await onCloneSysadminDraft(sysadminDraft.blocks, draftReason);
             setPendingCandidateVersionId(newVersionId);
 
-            // 2. Preflight on CANDIDATE version
-            if (caps.debugEndpointsEnabled) {
-                const pfRes = await fetch(apiUrl(`/api/debug/config/shell/preflight/${newVersionId}`));
-                if (!pfRes.ok) throw new Error("Preflight request failed");
-                const pfData = await pfRes.json();
-                
-                setPendingPreflight(pfData);
+            // 2. Preflight on CANDIDATE version (Standard Governed Endpoint)
+            // Note: Now utilizing /api/config/shell/preflight (non-debug)
+            
+            const pfRes = await fetch(apiUrl(`/api/config/shell/preflight/${newVersionId}`));
+            if (!pfRes.ok) throw new Error("Preflight request failed");
+            const pfData = await pfRes.json();
+            
+            setPendingPreflight(pfData);
 
-                // Gating Logic
-                const hasBlockers = !pfData.canActivate || (pfData.summary?.A1 > 0) || (pfData.summary?.A2 > 0);
-                const hasWarnings = (pfData.summary?.B > 0);
+            // Gating Logic
+            const hasBlockers = !pfData.canActivate || (pfData.summary?.A1 > 0) || (pfData.summary?.A2 > 0);
+            const hasWarnings = (pfData.summary?.B > 0);
 
-                if (hasBlockers) {
-                    setPendingStage('error');
-                    setSaveMessage('Preflight BLOCKED — cannot save/activate.');
-                    setIsSaving(false);
-                    return; // Abort
-                }
+            if (hasBlockers) {
+                setPendingStage('error');
+                setSaveMessage('Preflight BLOCKED — cannot save/activate.');
+                setIsSaving(false);
+                return; // Abort
+            }
 
-                if (hasWarnings) {
-                    setPendingStage('awaiting_ack');
-                    setSaveMessage('Preflight Warning: Issues detected that requires acknowledgement.');
-                    setIsSaving(false);
-                    return; // Abort first pass, wait for user ack
-                }
-            } else {
-                setPendingPreflight(null);
+            if (hasWarnings) {
+                setPendingStage('awaiting_ack');
+                setSaveMessage('Preflight Warning: Issues detected that requires acknowledgement.');
+                setIsSaving(false);
+                return; // Abort first pass, wait for user ack
             }
 
             // 3. Activate (Direct path if safe)
