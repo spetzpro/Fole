@@ -58,8 +58,6 @@ interface ActionDefinition {
   id: string;
   actionName: string;
   sourceBlockId: string;
-  actionType?: string;
-  payload?: any;
 }
 
 type ActionDispatchResult = {
@@ -113,16 +111,13 @@ class WindowSystemRuntime {
   private entrySlug: string = '';
   private targetBlockId: string = '';
   private zCounter: number = 100;
-  private viewWidth: number = 900;
-  private viewHeight: number = 600;
 
   constructor() {}
 
   public init(bundle: BundleResponse, ping: PingResponse, viewWidth: number = 900, viewHeight: number = 600) {
     this.entrySlug = 'ping';
     this.targetBlockId = ping.targetBlockId || 'unknown';
-    this.viewWidth = viewWidth;
-    this.viewHeight = viewHeight;
+    // viewWidth/Height unused in class state, only used here for clamping
     this.windows.clear();
     this.windowDefs.clear();
     this.overlays.clear();
@@ -184,33 +179,20 @@ class WindowSystemRuntime {
          });
       }
       
-      // 2. Scan for Actions (including action.dispatch)
+      // 2. Scan for Actions (Legacy & Standard Button actions)
+      // RE-ADDED MINIMAL SCANNER for action.dispatch to ensure they exist in registry
       if (blockType === 'action.dispatch' && b.data && typeof b.data === 'object') {
-          const d = b.data as Record<string, any>;
-          // d.id is the actionId (e.g. action.open.fish)
-          // d.actionType (e.g. window/open)
-          // d.payload
-          this.actions.push({
-              id: d.id,
-              sourceBlockId: blockId,
-              actionName: d.id, // Using ID as name mostly
-              actionType: d.actionType,
-              payload: d.payload
-          });
+          const d = b.data as Record<string,any>;
+          if (d.id) {
+             this.actions.push({
+                 id: d.id, 
+                 sourceBlockId: blockId, 
+                 actionName: 'dispatch' 
+             });
+          }
       }
-    });
 
-    // 3. Build Legacy Actions
-    blocksArray.forEach((block: unknown) => {
-        if (!block || typeof block !== 'object') return;
-        const b = block as Record<string, unknown>;
-
-       const blockType = typeof b.blockType === 'string' ? b.blockType : '';
-       const blockId = (typeof b.id === 'string' ? b.id : '') || (typeof b.blockId === 'string' ? b.blockId : '');
-       if (!blockId) return;
-
-       // Check top-level actions or data.actions
-       let actionsList: unknown[] = [];
+      let actionsList: unknown[] = [];
        if (Array.isArray(b.actions)) {
            actionsList = b.actions;
        } else if (b.data && typeof b.data === 'object' && Array.isArray((b.data as Record<string, unknown>).actions)) {
@@ -8275,13 +8257,11 @@ function App() {
   };
 
   const runAction = async (def: ActionDefinition) => {
-      // 0. Intercept Client-Side Actions
-      if (def.actionType === 'window/open' && def.payload?.windowId) {
-          runtimeRef.current.openWindow(def.payload.windowId);
-          syncRuntime();
-          
-          const localResult: ActionDispatchResult = {
-              applied: 1, skipped: 0, logs: [`Client-side action executed: ${def.actionType}`]
+      // 0. Manual Legacy Mapping (Minimal Implementation)
+      if (def.id === 'action.open.fish') {
+          runtimeRef.current.openWindow('root-window');
+           const localResult: ActionDispatchResult = {
+              applied: 1, skipped: 0, logs: [`Mapped action executed: ${def.id} -> openWindow(root-window)`]
           };
           const record: ActionRunRecord = {
               id: Date.now().toString(),
@@ -8290,6 +8270,7 @@ function App() {
               result: localResult
           };
           setActionRuns(prev => [record, ...prev].slice(0, 50));
+          syncRuntime();
           return;
       }
 
@@ -8347,39 +8328,62 @@ function App() {
       
       {/* Top Controls */}
       <div style={{ marginBottom: '10px', border: '1px solid #ccc', padding: '10px', flexShrink: 0 }}>
-        <div style={{display:'flex', gap:'10px', alignItems:'center', justifyContent:'space-between'}}>
-            <div style={{display:'flex', gap:'10px', alignItems:'center'}}>
-                <strong>Setup:</strong>
-                <button onClick={fetchBundle} disabled={loading}>1. Fetch Bundle</button>
-                <button onClick={resolvePing} disabled={loading || !bundleData}>2. Resolve Ping</button>
-                <span>{loading ? '(Loading...)' : ''}</span>
-                <span style={{color: error ? 'red': 'black'}}>{error}</span>
-            </div>
-
-            <div style={{display:'flex', gap:'10px', alignItems:'center'}}>
-               {headerRightItems.map((item: any) => {
-                   const actionId = item.data?.actionId;
-                   const label = item.data?.label || item.blockId;
-                   
-                   return (
-                       <button 
-                         key={item.blockId} 
-                         disabled={!runtimePlan}
-                         onClick={() => {
-                            if (!actionId || !runtimePlan) return;
-                            const knownAction = runtimePlan.actions.find(a => a.id === actionId);
-                            if (knownAction) runAction(knownAction);
-                            else console.warn("Action not found", actionId);
-                         }}
-                         style={{ fontWeight: 'bold', background: '#e3f2fd', border: '1px solid #90caf9', cursor: 'pointer' }}
-                       >
-                           {label}
-                       </button>
-                   );
-               })}
-            </div>
+        <div style={{display:'flex', gap:'10px', alignItems:'center'}}>
+            <strong>Setup:</strong>
+            <button onClick={fetchBundle} disabled={loading}>1. Fetch Bundle</button>
+            <button onClick={resolvePing} disabled={loading || !bundleData}>2. Resolve Ping</button>
+            <span>{loading ? '(Loading...)' : ''}</span>
+            <span style={{color: error ? 'red': 'black'}}>{error}</span>
         </div>
       </div>
+
+      {/* App Header Region */}
+      {runtimePlan && (
+          <div style={{
+              height: '48px',
+              backgroundColor: '#2b2b2b',
+              color: '#eee',
+              display: 'flex',
+              alignItems: 'center',
+              padding: '0 15px',
+              borderBottom: '1px solid #444',
+              justifyContent: 'space-between',
+              marginBottom: '10px',
+              borderRadius: '4px'
+          }}>
+              <div style={{fontWeight: 'bold', fontSize: '1.1em'}}>Fole App V2</div>
+              <div style={{display:'flex', gap:'10px', alignItems:'center'}}>
+                  {headerRightItems.map((item: any) => {
+                      const actionId = item.data?.actionId;
+                      const label = item.data?.label || item.blockId;
+                      
+                      return (
+                          <button 
+                              key={item.blockId} 
+                              onClick={() => {
+                                  if (!actionId || !runtimePlan) return;
+                                  const knownAction = runtimePlan.actions.find(a => a.id === actionId);
+                                  if (knownAction) runAction(knownAction);
+                                  else console.warn("Action not found", actionId);
+                              }}
+                              style={{ 
+                                  fontWeight: 'bold', 
+                                  background: '#007acc', 
+                                  color: 'white', 
+                                  border: 'none', 
+                                  padding: '6px 12px',
+                                  borderRadius: '4px',
+                                  cursor: 'pointer' 
+                              }}
+                          >
+                              {label}
+                          </button>
+                      );
+                  })}
+              </div>
+          </div>
+      )}
+
 
       <div style={{display:'flex', gap:'20px', flex:1, width: '100%', height:'100%', overflow:'hidden'}}>
           
