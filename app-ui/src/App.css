@@ -42,3 +42,53 @@
 .read-the-docs {
   color: #888;
 }
+
+/* --- SAFE MODE OVERRIDES --- */
+
+/* Force highest Z-Order and high-contrast styles for the main panel */
+.sysadmin-panel.safe-mode {
+  background-color: #ffffff !important;
+  color: #000000 !important;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif !important;
+  border: 4px solid #d32f2f !important; /* Red border indicates Safe Mode */
+  z-index: 2147483647 !important; /* Max Z-Index to ensure visibility */
+}
+
+/* Ensure all text is black and visible */
+.sysadmin-panel.safe-mode * {
+  box-sizing: border-box;
+}
+
+/* Modals in Safe Mode */
+.sysadmin-panel.safe-mode .confirm-modal-overlay {
+  background-color: rgba(0, 0, 0, 0.85) !important;
+  z-index: 2147483647 !important;
+}
+
+.sysadmin-panel.safe-mode .confirm-modal-content {
+  background-color: #ffffff !important;
+  color: #000000 !important;
+  border: 2px solid #d32f2f !important;
+  box-shadow: 0 0 20px rgba(0,0,0,0.5) !important;
+}
+
+/* Toasts in Safe Mode */
+.sysadmin-panel.safe-mode .toast-notification {
+  background-color: #ffffff !important;
+  color: #000000 !important;
+  border: 2px solid #d32f2f !important;
+  box-shadow: 0 0 10px rgba(0,0,0,0.3) !important;
+}
+
+/* Buttons in Safe Mode - ensure clickability */
+.sysadmin-panel.safe-mode button {
+  background-color: #f0f0f0 !important;
+  color: #000000 !important;
+  border: 1px solid #333 !important;
+  cursor: pointer !important;
+}
+
+.sysadmin-panel.safe-mode button:hover {
+  background-color: #e0e0e0 !important;
+}
+

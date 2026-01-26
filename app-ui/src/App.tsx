@@ -2140,12 +2140,12 @@ const ConfirmModal = ({ isOpen, title, message, onConfirm, onCancel, confirmLabe
 
     if (!isOpen) return null;
     return (
-        <div style={{
+        <div className="confirm-modal-overlay" style={{
             position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
             background: 'rgba(0,0,0,0.5)', zIndex: 10000,
             display: 'flex', alignItems: 'center', justifyContent: 'center'
         }}>
-            <div style={{
+            <div className="confirm-modal-content" style={{
                 background: 'white', padding: '20px', borderRadius: '4px',
                 width: '400px', maxWidth: '90%', boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
                 display: 'flex', flexDirection: 'column', gap: '15px'
@@ -2184,7 +2184,7 @@ const ToastNotification = ({ message, onClose, type = 'info' }: ToastProps) => {
     const bg = type === 'success' ? '#2e7d32' : (type === 'error' ? '#c62828' : '#333');
     
     return (
-        <div style={{
+        <div className={`toast-notification toast-${type}`} style={{
             position: 'fixed', bottom: '20px', right: '20px', zIndex: 10001,
             background: bg, color: 'white', padding: '10px 15px', borderRadius: '4px',
             boxShadow: '0 2px 4px rgba(0,0,0,0.2)', display: 'flex', alignItems: 'center', gap: '10px',
@@ -2209,7 +2209,8 @@ function SysadminPanel({
     onApplyDraft,
     onRollback,
     canRollback,
-    onRefresh
+    onRefresh,
+    safeModeEnabled
 }: { 
     isOpen: boolean; 
     onClose: () => void; 
@@ -2222,6 +2223,7 @@ function SysadminPanel({
     onRollback: () => void;
     canRollback: boolean;
     onRefresh: () => void;
+    safeModeEnabled: boolean;
 }) {
     const caps = useCapabilities();
 
@@ -7784,7 +7786,7 @@ function SysadminPanel({
     };
 
     return (
-        <div style={{
+        <div className={safeModeEnabled ? "sysadmin-panel safe-mode" : "sysadmin-panel"} style={{
             position: 'absolute', top: '2.5%', left: '2.5%', width: '95%', height: '95%',
             backgroundColor: 'white', color: '#222', 
             border: '2px solid #333', boxShadow: '0 5px 20px rgba(0,0,0,0.3)',
@@ -7934,6 +7936,13 @@ function App() {
 
   // Sysadmin Toggle
   const [sysadminOpen, setSysadminOpen] = useState(false);
+  
+  // Safe Mode Override (Recovery)
+  const [safeModeEnabled, setSafeModeEnabled] = useState(() => localStorage.getItem('FOLE_SAFE_MODE') === '1');
+
+  useEffect(() => {
+    localStorage.setItem('FOLE_SAFE_MODE', safeModeEnabled ? '1' : '0');
+  }, [safeModeEnabled]);
   
   // Runtime Source State (Prep for Apply phase)
   const [runningSource, setRunningSource] = useState<'ACTIVE' | 'DRAFT'>('ACTIVE');
@@ -8231,6 +8240,15 @@ function App() {
                 <button onClick={() => setSysadminOpen(!sysadminOpen)} style={{marginTop:'10px', width:'100%', background: sysadminOpen ? '#333' : '#eee', color: sysadminOpen ? 'white' : 'black'}}>
                     {sysadminOpen ? 'Close Sysadmin' : 'Open Sysadmin'}
                 </button>
+                
+                <div style={{marginTop:'10px', padding:'5px', border:'1px dashed #ccc', display:'flex', alignItems:'center', justifyContent:'space-between', fontSize:'0.8em'}}>
+                    <span title="Forces safe theme for admin UI if styling becomes unreadable.">Safe Mode</span>
+                    <label style={{display:'flex', alignItems:'center', gap:'5px', cursor:'pointer'}}>
+                        <input type="checkbox" checked={safeModeEnabled} onChange={e => setSafeModeEnabled(e.target.checked)} />
+                        {safeModeEnabled ? 'ON' : 'OFF'}
+                    </label>
+                </div>
+
                 {caps.debugEndpointsEnabled && (
                     <>
                         <button onClick={() => setShowV2(true)} style={{marginTop:'5px', width:'100%', background:'#e3f2fd', color: '#0d47a1'}}>
@@ -8386,6 +8404,7 @@ function App() {
                  onRollback={rollbackActive}
                  canRollback={!!lastActiveBundle && runningSource === 'DRAFT'}
                  onRefresh={fetchBundle}
+                 safeModeEnabled={safeModeEnabled}
              />
           </div>
       </div>
