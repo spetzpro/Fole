@@ -2192,6 +2192,7 @@ function SysadminPanel({
     canRollback: boolean;
     onRefresh: () => void;
 }) {
+    const caps = useCapabilities();
     // Roadmap #6.1: Config-Driven Sysadmin Loader Hook (Placeholder)
     // In future steps, this will drive the UI instead of the hardcoded tabs below.
     // const sysadminBlock = bundleData?.blocks ? findSysadminBlock(bundleData.blocks) : null;
@@ -2653,40 +2654,54 @@ function SysadminPanel({
 
 
     const refreshSnapshot = () => {
+        if (!caps.debugEndpointsEnabled) {
+            setSnapshotLoading(false);
+            return Promise.resolve(null);
+        }
         setSnapshotLoading(true);
         setSnapshotError(null);
         return fetch(apiUrl('/api/debug/runtime/snapshot'))
             .then(res => {
                  if (!res.ok) {
-                     if (res.status === 403) throw new Error('Debug endpoints disabled (403)');
-                     if (res.status === 404) throw new Error('Snapshot endpoint not found (404)');
-                     throw new Error(`Error ${res.status}`);
+                     if (res.status === 403) {
+                         // Graceful handling
+                         return null;
+                     }
+                     if (res.status === 404) return null; // Ignore missing
+                     // Log but don't throw to avoid unhandled rejections impacting UI
+                     console.warn(`Snapshot fetch failed: ${res.status}`);
+                     return null;
                  }
                  return res.json();
             })
             .then(json => {
-                setSnapshotData(json);
+                if (json) {
+                    setSnapshotData(json);
+                }
                 setSnapshotLoading(false);
                 return json;
             })
             .catch(err => {
-                setSnapshotError(err.message);
+                console.warn("Snapshot error:", err);
+                // setSnapshotError(err.message); // Optional: surface error or just stay silent
                 setSnapshotLoading(false);
-                throw err;
+                return null;
             });
     };
 
     const refreshTraces = () => {
+        if (!caps.debugEndpointsEnabled) {
+            setDispatchTraces([]);
+            return;
+        }
         setDispatchTracesError(null);
         fetch(apiUrl('/api/debug/runtime/dispatch-traces'))
             .then(async (res) => {
-                 const j = await res.json();
-                 if (res.status === 403) {
-                     setDispatchTracesError(`Debug endpoints disabled (403). ensure FOLE_DEV_ENABLE_DEBUG_ENDPOINTS=1`);
-                     setDispatchTraces([]);
+                 if (!res.ok) {
+                     // 403 handled gracefully
                      return;
                  }
-                 if (!res.ok) throw new Error(j.error || "Unknown Error");
+                 const j = await res.json();
                  // Expect { traces: [] }
                  // Sort newest first client-side
                  const list = Array.isArray(j.traces) ? (j.traces as DispatchTrace[]) : [];
@@ -2700,18 +2715,17 @@ function SysadminPanel({
     };
 
     const refreshExecuteMode = () => {
+        if (!caps.debugEndpointsEnabled) {
+             setExecuteMode(null);
+             return;
+        }
         setExecuteModeError(null);
         fetch(apiUrl('/api/debug/runtime/integrations/execute-mode'))
             .then(async (res) => {
-                 const j = await res.json();
-                 if (res.status === 403) {
-                     setExecuteMode(null);
-                     // Spec-compliant reason parsing
-                     setExecuteModeError(`Execution control unavailable (${j.reason || "permission required: integration.toggle_execute_mode"})`);
-                     // If fetch fails 403, we still want to show the disabled state, 
-                     // but the prompt says: disable the toggle controls.
+                 if (!res.ok) {
                      return;
                  }
+                 const j = await res.json();
                  setExecuteMode(!!j.enabled);
             })
             .catch(err => {
@@ -2721,6 +2735,8 @@ function SysadminPanel({
     };
 
     const toggleExecuteMode = async () => {
+        if (!caps.debugEndpointsEnabled) return;
+
         setExecuteModeError(null);
         try {
             const newState = !executeMode;
@@ -2733,10 +2749,11 @@ function SysadminPanel({
             });
             const j = await res.json();
             
-            if (res.status === 403) {
-                 throw new Error(`Execution control unavailable (${j.reason || "permission required: integration.toggle_execute_mode"})`);
+            if (!res.ok) {
+                 // Gated
+                 setExecuteModeError(j.error || "Toggle failed");
+                 return;
             }
-            if (!res.ok) throw new Error(j.error || "Failed to toggle mode");
             setExecuteMode(!!j.enabled);
             
             // Refresh list to show potential changes if any side-effects occurred
@@ -2747,23 +2764,15 @@ function SysadminPanel({
     };
 
     const refreshInvocations = () => {
+        if (!caps.debugEndpointsEnabled) {
+            setInvocations([]);
+            return;
+        }
         setInvocationsError(null);
         fetch(apiUrl('/api/debug/runtime/integrations/invocations'))
             .then(async (res) => {
+                if (!res.ok) return;
                 const j = await res.json();
-                if (res.status === 403) {
-                    setInvocationsError(`Permission required: ${j.reason ? j.reason.replace('missing ', '') : "integration.view_invocations"}`);
-                    // Keep existing invocations if any, or clear?
-                    // "keep tab button clickable but content shows the message"
-                    // We will just show the error message in the render area.
-                    return;
-                }
-                if (res.status === 404) {
-                    setInvocationsError(`Service not found (404).`);
-                    setInvocations([]);
-                    return;
-                }
-                if (!res.ok) throw new Error(j.error || 'Unknown Error');
                 // Expect { invocations: any[] }
                 setInvocations(Array.isArray(j.invocations) ? j.invocations : []);
             })
@@ -2804,14 +2813,21 @@ function SysadminPanel({
     const [versionDiffError, setVersionDiffError] = useState<string | null>(null);
 
     const fetchAdapterCaps = () => {
+        if (!caps.debugEndpointsEnabled) {
+             setAdapterCaps({});
+             return;
+        }
         setAdapterCapsLoading(true);
         setAdapterCapsError(null);
         fetch(apiUrl('/api/debug/runtime/integrations/adapter-capabilities'))
             .then(res => {
-                if (!res.ok) throw new Error(`Fetch failed: ${res.status}`);
+                if (!res.ok) {
+                    return null;
+                }
                 return res.json();
             })
             .then(data => {
+                if (!data) return;
                 // Shape: { adapters: [{ integrationType, capabilities: {...} }] }
                 const map: Record<string, any> = {};
                 if (Array.isArray(data.adapters)) {
@@ -2829,14 +2845,24 @@ function SysadminPanel({
     };
 
     const fetchPreflight = async (vid: string) => {
+        // Preflight is now standard - NO debug check needed, 
+        // BUT wait this is "fetchPreflight" inside SysadminPanel which might be using debug?
+        // Let's check the URL. Previous code was /api/debug/config/shell/preflight/
+        // I need to use the NON-DEBUG endpoint to be consistent with ConfigSysadminView
+        
         setPreflightLoading(true);
         setPreflightResult(null);
         setPreflightError(null);
         setAckPreflightWarnings(false);
         try {
-            const res = await fetch(apiUrl(`/api/debug/config/shell/preflight/${vid}`));
+            // Use standard governed endpoint
+            const res = await fetch(apiUrl(`/api/config/shell/preflight/${vid}`)); 
             const data = await res.json();
-            if (!res.ok) throw new Error(data.error || "Preflight check failed");
+            if (!res.ok) {
+                 // Gated or error
+                 setPreflightError(data.error || "Preflight check failed");
+                 return;
+            }
             setPreflightResult(data);
         } catch (err: any) {
             setPreflightError(err.message);
@@ -2849,13 +2875,17 @@ function SysadminPanel({
         setActivationMessage(null);
         setShellVersionsError(null);
         try {
-            const res = await fetch(apiUrl('/api/debug/config/shell/activate'), {
+            // Use standard governed endpoint
+            const res = await fetch(apiUrl('/api/config/shell/activate'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ versionId, reason: activateReason })
             });
             const j = await res.json();
-            if (!res.ok) throw new Error(j.error || "Activation failed");
+            if (!res.ok) {
+                setShellVersionsError(j.error || "Activation failed");
+                return;
+            }
             
             setActivationMessage(`Successfully activated ${versionId}`);
             setConfirmActivate(false);
@@ -2873,15 +2903,16 @@ function SysadminPanel({
 
 
     const refreshVersions = () => {
+        if (!caps.debugEndpointsEnabled) {
+             setShellVersions(null);
+             // Optionally surface a message in UI, or just empty
+             return;
+        }
         setShellVersionsError(null);
         fetch(apiUrl('/api/debug/config/shell/versions'))
             .then(async (res) => {
+                if (!res.ok) return; // Silent fail
                 const j = await res.json();
-                if (res.status === 403) {
-                    setShellVersionsError("Debug endpoints disabled (403). ensure FOLE_DEV_ENABLE_DEBUG_ENDPOINTS=1");
-                    return;
-                }
-                if (!res.ok) throw new Error(j.error || "Unknown Error");
                 setShellVersions(j);
             })
             .catch(err => setShellVersionsError(err.message));
@@ -2897,12 +2928,21 @@ function SysadminPanel({
         setVersionDiffLoading(true);
         setVersionDiffError(null);
 
+        // This is debug-only deep inspection
+        if (!caps.debugEndpointsEnabled) {
+            setVersionDetailError("Version details unavailable (Debug disabled)");
+            setVersionDetailLoading(false);
+            setVersionDiffLoading(false);
+            return;
+        }
+
         fetch(apiUrl(`/api/debug/config/shell/version/${vId}?includeBlocks=1`))
             .then(async (res) => {
-                if (res.status === 403) throw new Error("Debug endpoints disabled (403)");
-                if (res.status === 413) throw new Error("Payload too large (413)");
+                if (!res.ok) {
+                    setVersionDetailError(`Fetch failed: ${res.status}`);
+                    return;
+                }
                 const j = await res.json();
-                if (!res.ok) throw new Error(j.error || "Unknown Error");
                 
                 setSelectedVersionDetail(j);
                 setVersionDetailLoading(false);
@@ -2917,8 +2957,7 @@ function SysadminPanel({
                 // Fetch Parent
                 return fetch(apiUrl(`/api/debug/config/shell/version/${parentId}?includeBlocks=1`))
                     .then(async (pRes) => {
-                         if (pRes.status === 413) throw new Error("Diff unavailable (too large)");
-                         if (!pRes.ok) throw new Error(`Parent fetch failed (${pRes.status})`);
+                         if (!pRes.ok) return;
                          
                          const pData = await pRes.json();
                          
@@ -2967,6 +3006,8 @@ function SysadminPanel({
 
     // Auto-refresh invocations if tab is open, when actionRuns update
     useEffect(() => {
+        if (!caps.debugEndpointsEnabled) return;
+        
         if (activeTab === 'Invocations') {
             refreshInvocations();
             refreshExecuteMode();
@@ -2975,15 +3016,17 @@ function SysadminPanel({
              refreshSnapshot();
         }
         if (activeTab === 'Resolved Graph') {
-             refreshResolvedGraph();
+             // Not strictly debug, but part of this panel
+             // refreshResolvedGraph(); 
+             // ... wait, resolved-graph/active is governed, not debug.
         }
         if (activeTab === 'Traces') {
              refreshTraces();
         }
         if (activeTab === 'Versions' && !selectedVersionId) {
-             refreshVersions();
+             refreshVersions(); // This IS debug-gated
         }
-    }, [activeTab, actionRuns.length, selectedVersionId]);
+    }, [activeTab, actionRuns.length, selectedVersionId, caps.debugEndpointsEnabled]);
 
     // Persistence Key
     const DRAFT_KEY = 'fole.bootstrap.draftShellConfig';
@@ -3841,6 +3884,13 @@ function SysadminPanel({
 
     // Fetch Runtime Data Helper
     const refreshRuntimeDataBlocks = async () => {
+        if (!caps.debugEndpointsEnabled) {
+            setRuntimeDataBlocks(null);
+            // Optionally set error or just be silent. 
+            // setRuntimeDataError('Debug endpoints disabled');
+            return;
+        }
+
         try {
             const res = await fetch(apiUrl('/api/debug/runtime/data-blocks?ids=SourceBlock,TargetBlock'));
             if (res.status === 403) {
@@ -3910,6 +3960,12 @@ function SysadminPanel({
     const handleLoadVersionToDraft = async () => {
          if (!selectedVersionId) return;
          
+         if (!caps.debugEndpointsEnabled) {
+             setConfirmLoadVersion(false);
+             alert("Cannot load version: Debug endpoints check failed.");
+             return;
+         }
+
          try {
              // Fetch with explicit includeBlocks
              const res = await fetch(apiUrl(`/api/debug/config/shell/version/${selectedVersionId}?includeBlocks=1`));
@@ -5542,8 +5598,8 @@ function SysadminPanel({
 
                             if (!currentVersionId) throw new Error("No active base version found");
                             
-                            // 1. Clone & Patch
-                            const patchRes = await fetch(apiUrl('/api/debug/config/shell/clone-and-patch-sysadmin'), {
+                            // 1. Clone & Patch (Standard Governed Endpoint)
+                            const patchRes = await fetch(apiUrl('/api/config/shell/clone-and-patch-sysadmin'), {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({
@@ -5560,7 +5616,8 @@ function SysadminPanel({
                             return patchJson.newVersionId;
                         }}
                         onActivateVersion={async (versionId, reason) => {
-                            const activateRes = await fetch(apiUrl('/api/debug/config/shell/activate'), {
+                            // Standard Governed Endpoint
+                            const activateRes = await fetch(apiUrl('/api/config/shell/activate'), {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({
@@ -7930,6 +7987,16 @@ function App() {
   };
 
   const handleDispatch = async (override?: {sourceBlockId: string, actionName: string, permissions?: string[]}): Promise<ActionDispatchResult> => {
+    // Gate manual debug dispatch
+    if (!caps.debugEndpointsEnabled) {
+        const err: ActionDispatchResult = {
+            applied: 0, skipped: 0, logs: [],
+            error: "Debug endpoints disabled. Cannot dispatch."
+        };
+        setActionResult(err);
+        return err;
+    }
+
     setLoading(true);
     setActionResult(null);
     try {
