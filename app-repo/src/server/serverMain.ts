@@ -238,8 +238,8 @@ async function main() {
 
   // Debug dispatch traces endpoint (Epic 4 Step 4.1)
   router.get("/api/debug/runtime/dispatch-traces", async (_req, res, _params, ctx) => {
-    if (!ModeGate.canUseDebugEndpoints(ctx)) {
-        return router.json(res, 403, { error: "Debug mode disabled" });
+    if (!canAccessDebug(ctx)) {
+        return router.json(res, 403, { error: "Access Denied: Debug mode disabled or insufficient permissions" });
     }
 
     const runtime = runtimeManager.getRuntime();
@@ -249,8 +249,8 @@ async function main() {
 
   // Debug adapter capabilities endpoint (Roadmap #5.3.2 Step 1)
   router.get("/api/debug/runtime/integrations/adapter-capabilities", (_req, res, _params, ctx) => {
-    if (!ModeGate.canUseDebugEndpoints(ctx)) {
-        return router.json(res, 403, { error: "Debug mode disabled" });
+    if (!canAccessDebug(ctx)) {
+        return router.json(res, 403, { error: "Access Denied: Debug mode disabled or insufficient permissions" });
     }
 
     const registry = IntegrationAdapterRegistry.getInstance();
@@ -260,8 +260,8 @@ async function main() {
 
   // Debug snapshot endpoint (Epic 4 Step 1)
   router.get("/api/debug/runtime/snapshot", async (_req, res, _params, ctx) => {
-    if (!ModeGate.canUseDebugEndpoints(ctx)) {
-        return router.json(res, 403, { error: "Debug mode disabled" });
+    if (!canAccessDebug(ctx)) {
+        return router.json(res, 403, { error: "Access Denied: Debug mode disabled or insufficient permissions" });
     }
 
     const runtime = runtimeManager.getRuntime();
@@ -405,8 +405,8 @@ async function main() {
   });
 
   router.get("/api/debug/config/shell/versions", async (_req, res, _params, ctx) => {
-    if (!ModeGate.canUseDebugEndpoints(ctx)) {
-       return router.json(res, 403, { error: "Debug mode disabled" });
+    if (!canAccessDebug(ctx)) {
+       return router.json(res, 403, { error: "Access Denied: Debug mode disabled or insufficient permissions" });
     }
     
     try {
@@ -434,8 +434,8 @@ async function main() {
   });
 
   router.get("/api/debug/config/shell/version/:versionId", async (req, res, params, ctx) => {
-     if (!ModeGate.canUseDebugEndpoints(ctx)) {
-       return router.json(res, 403, { error: "Debug mode disabled" });
+     if (!canAccessDebug(ctx)) {
+       return router.json(res, 403, { error: "Access Denied: Debug mode disabled or insufficient permissions" });
     }
 
     const versionId = params.versionId;
@@ -623,8 +623,8 @@ async function main() {
   // Debug Action Dispatch Endpoint
   router.post("/api/debug/action/dispatch", async (req, res, _params, ctx) => {
     // 1. Strict Gating
-    if (!ModeGate.canUseDebugEndpoints(ctx)) {
-       return router.json(res, 403, { error: "Forbidden: Debug endpoints require Debug Mode" });
+    if (!canAccessDebug(ctx)) {
+       return router.json(res, 403, { error: "Access Denied: Debug mode disabled or insufficient permissions" });
     }
 
     try {
@@ -671,8 +671,8 @@ async function main() {
   // Debug Derived Tick Endpoint
   router.post("/api/debug/bindings/derived-tick", async (req, res, _params, ctx) => {
     // 1. Strict Gating
-    if (!ModeGate.canUseDebugEndpoints(ctx)) {
-       return router.json(res, 403, { error: "Forbidden: Debug endpoints require Debug Mode" });
+    if (!canAccessDebug(ctx)) {
+       return router.json(res, 403, { error: "Access Denied: Debug mode disabled or insufficient permissions" });
     }
 
     try {
@@ -697,8 +697,8 @@ async function main() {
   // Debug Runtime Data Blocks Endpoint
   router.get("/api/debug/runtime/data-blocks", async (req, res, _params, ctx) => {
     // 1. Strict Gating
-    if (!ModeGate.canUseDebugEndpoints(ctx)) {
-       return router.json(res, 403, { error: "Forbidden: Debug endpoints require Debug Mode" });
+    if (!canAccessDebug(ctx)) {
+       return router.json(res, 403, { error: "Access Denied: Debug mode disabled or insufficient permissions" });
     }
 
     try {
@@ -763,8 +763,8 @@ async function main() {
 
   // Debug Runtime Bindings Endpoint
   router.get("/api/debug/runtime/bindings", async (req, res, _params, ctx) => {
-    if (!ModeGate.canUseDebugEndpoints(ctx)) {
-       return router.json(res, 403, { error: "Forbidden: Debug endpoints require Debug Mode" });
+    if (!canAccessDebug(ctx)) {
+       return router.json(res, 403, { error: "Access Denied: Debug mode disabled or insufficient permissions" });
     }
 
     try {
@@ -780,8 +780,8 @@ async function main() {
 
   // Debug Internal State Store Endpoint
   router.get("/api/debug/runtime/state-store", async (req, res, _params, ctx) => {
-    if (!ModeGate.canUseDebugEndpoints(ctx)) {
-       return router.json(res, 403, { error: "Forbidden: Debug endpoints require Debug Mode" });
+    if (!canAccessDebug(ctx)) {
+       return router.json(res, 403, { error: "Access Denied: Debug mode disabled or insufficient permissions" });
     }
 
     try {
@@ -800,8 +800,8 @@ async function main() {
   // Debug Integration Invocations Endpoint
   router.get("/api/debug/runtime/integrations/invocations", async (req, res, _params, ctx) => {
     // 1. Strict Gating
-    if (!ModeGate.canUseDebugEndpoints(ctx)) {
-       return router.json(res, 403, { error: "Forbidden: Debug endpoints require Debug Mode" });
+    if (!canAccessDebug(ctx)) {
+       return router.json(res, 403, { error: "Access Denied: Debug mode disabled or insufficient permissions" });
     }
     // 2. Permission Check
     // In dev debug/runtime, we might not always have granular permissions attached to the request unless auth middleware runs.
@@ -836,8 +836,8 @@ async function main() {
 
   // Debug: Execute Mode Toggle
   router.get("/api/debug/runtime/integrations/execute-mode", async (req, res, _params, ctx) => {
-    if (!ModeGate.canUseDebugEndpoints(ctx)) {
-       return router.json(res, 403, { error: "Forbidden: Debug endpoints require Debug Mode" });
+    if (!canAccessDebug(ctx)) {
+       return router.json(res, 403, { error: "Access Denied: Debug mode disabled or insufficient permissions" });
     }
     
     // Permission Extraction (copy-paste consistency)
@@ -855,8 +855,8 @@ async function main() {
   });
 
   router.post("/api/debug/runtime/integrations/execute-mode", async (req, res, _params, ctx) => {
-    if (!ModeGate.canUseDebugEndpoints(ctx)) {
-       return router.json(res, 403, { error: "Forbidden: Debug endpoints require Debug Mode" });
+    if (!canAccessDebug(ctx)) {
+       return router.json(res, 403, { error: "Access Denied: Debug mode disabled or insufficient permissions" });
     }
 
     // Permission Extraction
@@ -1027,6 +1027,21 @@ async function main() {
   // Alias for legacy frontend path
   router.get("/api/routing/resolve/:entrySlug", resolveRoutingHandler);
 
+
+  // Runtime Capabilities Endpoint
+  router.get("/api/runtime/capabilities", async (req, res, _params, ctx) => {
+     // NOTE: This reflects environment availability, NOT user authorization.
+     // It helps the UI decide whether to show debug tools or not.
+     // Actual access is guarded by DebugGuard on specific routes.
+     const canDebug = ModeGate.canUseDebugEndpoints(ctx);
+     // canUseDeveloperMode might be different depending on config
+     const canDev = ModeGate.canUseDeveloperMode(ctx);
+     
+     router.json(res, 200, {
+         debugEndpointsEnabled: canDebug,
+         devModeOverridesEnabled: canDev
+     });
+  });
 
   const server = http.createServer((req, res) => {
     router.handle(req, res).catch((err) => {
