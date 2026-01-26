@@ -7787,7 +7787,13 @@ function SysadminPanel({
 
     return (
         <div className={safeModeEnabled ? "sysadmin-panel safe-mode" : "sysadmin-panel"} style={{
-            position: 'absolute', top: '2.5%', left: '2.5%', width: '95%', height: '95%',
+            position: safeModeEnabled ? 'fixed' : 'absolute',
+            top: safeModeEnabled ? '8px' : '2.5%',
+            left: safeModeEnabled ? '8px' : '2.5%',
+            right: safeModeEnabled ? '8px' : undefined,
+            bottom: safeModeEnabled ? '8px' : undefined,
+            width: safeModeEnabled ? 'auto' : '95%',
+            height: safeModeEnabled ? 'auto' : '95%',
             backgroundColor: 'white', color: '#222', 
             border: '2px solid #333', boxShadow: '0 5px 20px rgba(0,0,0,0.3)',
             zIndex: 9000, display: 'flex', flexDirection: 'column', overflow: 'hidden'
@@ -7885,6 +7891,8 @@ function SysadminPanel({
 function App() {
   
   const [caps, setCaps] = useState<RuntimeCapabilities>({ debugEndpointsEnabled: false, devModeOverridesEnabled: false });
+  const hasDevAuth = !!localStorage.getItem('FOLE_DEV_AUTH');
+  const canUseDebugUi = caps.debugEndpointsEnabled && hasDevAuth;
 
   useEffect(() => {
      fetch(apiUrl('/api/runtime/capabilities'))
@@ -8227,9 +8235,9 @@ function App() {
           
           {/* Left Panel: Logic & Debug */}
           <div style={{width: '300px', overflowY: 'auto', borderRight: '1px solid #ddd', paddingRight:'10px'}}>
-             {caps.debugEndpointsEnabled ? <h4>Debug Controls</h4> : <h4>System</h4>}
+             {canUseDebugUi ? <h4>Debug Controls</h4> : <h4>System</h4>}
              <div style={{marginBottom:'20px'}}>
-                {caps.debugEndpointsEnabled && (
+                {canUseDebugUi && (
                     <>
                         <input type="text" placeholder="Block ID" value={sourceBlockId} onChange={e=>setSourceBlockId(e.target.value)} style={{width:'100%'}}/>
                         <input type="text" placeholder="Action (e.g. click)" value={actionName} onChange={e=>setActionName(e.target.value)} style={{width:'100%', marginTop:'5px'}}/>
@@ -8249,7 +8257,7 @@ function App() {
                     </label>
                 </div>
 
-                {caps.debugEndpointsEnabled && (
+                {canUseDebugUi && (
                     <>
                         <button onClick={() => setShowV2(true)} style={{marginTop:'5px', width:'100%', background:'#e3f2fd', color: '#0d47a1'}}>
                             V2 Renderer Preview
@@ -8408,7 +8416,7 @@ function App() {
              />
           </div>
       </div>
-      {caps.debugEndpointsEnabled && showV2 && <V2RendererPreview onClose={() => setShowV2(false)} />}
+      {canUseDebugUi && showV2 && <V2RendererPreview onClose={() => setShowV2(false)} />}
     </div>
     </CapabilitiesContext.Provider>
   );
