@@ -58,6 +58,8 @@ interface ActionDefinition {
   id: string;
   actionName: string;
   sourceBlockId: string;
+  actionType?: string;
+  payload?: any;
 }
 
 type ActionDispatchResult = {
@@ -105,18 +107,24 @@ interface RuntimePlan {
 // --- Simulated Runtime Class (Stateful, held in Ref) ---
 class WindowSystemRuntime {
   private windows: Map<string, WindowState> = new Map();
+  private windowDefs: Map<string, { title: string }> = new Map();
   private overlays: Map<string, OverlayState> = new Map();
   private actions: ActionDefinition[] = [];
   private entrySlug: string = '';
   private targetBlockId: string = '';
   private zCounter: number = 100;
+  private viewWidth: number = 900;
+  private viewHeight: number = 600;
 
   constructor() {}
 
   public init(bundle: BundleResponse, ping: PingResponse, viewWidth: number = 900, viewHeight: number = 600) {
     this.entrySlug = 'ping';
     this.targetBlockId = ping.targetBlockId || 'unknown';
+    this.viewWidth = viewWidth;
+    this.viewHeight = viewHeight;
     this.windows.clear();
+    this.windowDefs.clear();
     this.overlays.clear();
     this.actions = [];
     this.zCounter = 100;
@@ -156,6 +164,9 @@ class WindowSystemRuntime {
           title
         });
       } else if (blockType.includes('window') || blockId.includes('win') || blockType.includes('panel')) {
+         // Store Definition
+         this.windowDefs.set(blockId, { title });
+
          // Default Window Layout
          const startX = 50 + (this.windows.size * 30);
          const startY = 50 + (this.windows.size * 30);
@@ -172,10 +183,24 @@ class WindowSystemRuntime {
             zOrder: this.zCounter++
          });
       }
+      
+      // 2. Scan for Actions (including action.dispatch)
+      if (blockType === 'action.dispatch' && b.data && typeof b.data === 'object') {
+          const d = b.data as Record<string, any>;
+          // d.id is the actionId (e.g. action.open.fish)
+          // d.actionType (e.g. window/open)
+          // d.payload
+          this.actions.push({
+              id: d.id,
+              sourceBlockId: blockId,
+              actionName: d.id, // Using ID as name mostly
+              actionType: d.actionType,
+              payload: d.payload
+          });
+      }
     });
 
-    // 2. Build Actions
-    const actionIdx: ActionDefinition[] = [];
+    // 3. Build Legacy Actions
     blocksArray.forEach((block: unknown) => {
         if (!block || typeof block !== 'object') return;
         const b = block as Record<string, unknown>;
@@ -195,17 +220,46 @@ class WindowSystemRuntime {
        if (actionsList.length > 0) {
           actionsList.forEach((act: unknown) => {
              if (typeof act === 'string') {
-                 actionIdx.push({ id: `${blockId}:${act}`, actionName: act, sourceBlockId: blockId });
+                 this.actions.push({ id: `${blockId}:${act}`, actionName: act, sourceBlockId: blockId });
              }
           });
        } else if (blockType.includes('button')) {
-          actionIdx.push({ id: `${blockId}:click`, actionName: 'click', sourceBlockId: blockId });
+          this.actions.push({ id: `${blockId}:click`, actionName: 'click', sourceBlockId: blockId });
        }
     });
-    this.actions = actionIdx;
   }
 
   // --- Window Operations ---
+  public openWindow(windowId: string) {
+      // 1. If already open, focus it
+      if (this.windows.has(windowId)) {
+          this.focusWindow(windowId);
+          // Always ensure unminimized
+          this.setMinimized(windowId, false);
+          return;
+      }
+      
+      // 2. If not open, look up def and create
+      const def = this.windowDefs.get(windowId);
+      if (def) {
+         const startX = 100;
+         const startY = 100;
+         this.windows.set(windowId, {
+             id: windowId,
+             title: def.title,
+             x: startX,
+             y: startY,
+             width: 400,
+             height: 300,
+             isMinimized: false,
+             dockMode: 'none',
+             zOrder: ++this.zCounter
+         });
+      } else {
+          console.warn(`Window definition not found for: ${windowId}`);
+      }
+  }
+
   public focusWindow(id: string) {
     const w = this.windows.get(id);
     if (!w) return;
@@ -8221,6 +8275,24 @@ function App() {
   };
 
   const runAction = async (def: ActionDefinition) => {
+      // 0. Intercept Client-Side Actions
+      if (def.actionType === 'window/open' && def.payload?.windowId) {
+          runtimeRef.current.openWindow(def.payload.windowId);
+          syncRuntime();
+          
+          const localResult: ActionDispatchResult = {
+              applied: 1, skipped: 0, logs: [`Client-side action executed: ${def.actionType}`]
+          };
+          const record: ActionRunRecord = {
+              id: Date.now().toString(),
+              timestamp: Date.now(),
+              actionId: `${def.sourceBlockId}::${def.actionName}`,
+              result: localResult
+          };
+          setActionRuns(prev => [record, ...prev].slice(0, 50));
+          return;
+      }
+
       // 1. Run Dispatch
       const result = await handleDispatch({
           sourceBlockId: def.sourceBlockId,
@@ -8237,6 +8309,20 @@ function App() {
       };
       setActionRuns(prev => [record, ...prev].slice(0, 50)); 
   };
+
+  const headerRightItems = useMemo(() => {
+     if (!bundleData?.blocks) return [];
+     const blocks = Array.isArray(bundleData.blocks) 
+        ? bundleData.blocks 
+        : typeof bundleData.blocks === 'object' && bundleData.blocks 
+           ? Object.values(bundleData.blocks) 
+           : [];
+           
+     return blocks.filter((b: any) => 
+         b.blockType === 'shell.slot.item' && 
+         b.data?.slotId === 'app.header.right'
+     );
+  }, [bundleData]);
 
   // UI Handlers wiring to Runtime
   const winOps = {
@@ -8261,12 +8347,37 @@ function App() {
       
       {/* Top Controls */}
       <div style={{ marginBottom: '10px', border: '1px solid #ccc', padding: '10px', flexShrink: 0 }}>
-        <div style={{display:'flex', gap:'10px', alignItems:'center'}}>
-            <strong>Setup:</strong>
-            <button onClick={fetchBundle} disabled={loading}>1. Fetch Bundle</button>
-            <button onClick={resolvePing} disabled={loading || !bundleData}>2. Resolve Ping</button>
-            <span>{loading ? '(Loading...)' : ''}</span>
-            <span style={{color: error ? 'red': 'black'}}>{error}</span>
+        <div style={{display:'flex', gap:'10px', alignItems:'center', justifyContent:'space-between'}}>
+            <div style={{display:'flex', gap:'10px', alignItems:'center'}}>
+                <strong>Setup:</strong>
+                <button onClick={fetchBundle} disabled={loading}>1. Fetch Bundle</button>
+                <button onClick={resolvePing} disabled={loading || !bundleData}>2. Resolve Ping</button>
+                <span>{loading ? '(Loading...)' : ''}</span>
+                <span style={{color: error ? 'red': 'black'}}>{error}</span>
+            </div>
+
+            <div style={{display:'flex', gap:'10px', alignItems:'center'}}>
+               {headerRightItems.map((item: any) => {
+                   const actionId = item.data?.actionId;
+                   const label = item.data?.label || item.blockId;
+                   
+                   return (
+                       <button 
+                         key={item.blockId} 
+                         disabled={!runtimePlan}
+                         onClick={() => {
+                            if (!actionId || !runtimePlan) return;
+                            const knownAction = runtimePlan.actions.find(a => a.id === actionId);
+                            if (knownAction) runAction(knownAction);
+                            else console.warn("Action not found", actionId);
+                         }}
+                         style={{ fontWeight: 'bold', background: '#e3f2fd', border: '1px solid #90caf9', cursor: 'pointer' }}
+                       >
+                           {label}
+                       </button>
+                   );
+               })}
+            </div>
         </div>
       </div>
 
