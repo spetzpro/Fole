@@ -1575,6 +1575,25 @@ function ConfigSysadminView({
                         </div>
                     );
                 })}
+                
+                {/* Special View: Features & Slots */}
+                <div 
+                    onClick={() => setSelectedTabId('features-slots')}
+                    style={{
+                        padding:'8px 10px', 
+                        cursor:'pointer',
+                        background: selectedTabId === 'features-slots' ? '#e8f5e9' : 'transparent',
+                        color: selectedTabId === 'features-slots' ? '#2e7d32' : '#333',
+                        borderBottom:'1px solid #eee',
+                        fontSize:'0.9em',
+                        marginTop: '10px',
+                        borderTop: '2px solid #ddd'
+                    }}
+                >
+                    <div style={{fontWeight:'bold'}}>Features & Slots</div>
+                    <div style={{fontSize:'0.8em', color:'#666'}}>Config Registry</div>
+                </div>
+
             </div>
 
             {/* Right Column: Tab Details */}
@@ -1804,7 +1823,20 @@ function ConfigSysadminView({
                         />
                     </div>
                 )}
-                {activeTab ? (
+                {selectedTabId === 'features-slots' ? (
+                     (() => {
+                        const sourceBlocks = sysadminDraft ? sysadminDraft.blocks : (bundleData.blocks || {});
+                        const features = Object.values(sourceBlocks).filter((b:any) => b.blockType === 'feature.group');
+                        const slots = Object.values(sourceBlocks).filter((b:any) => b.blockType === 'shell.slot.item');
+                        const slotsById: Record<string, any[]> = {};
+                        slots.forEach((s:any) => {
+                            const sid = s.data?.slotId || 'unknown';
+                            if(!slotsById[sid]) slotsById[sid] = [];
+                            slotsById[sid].push(s);
+                        });
+                        return <FeaturesSlotsView features={features} slotsById={slotsById} />;
+                    })()
+                ) : activeTab ? (
                     <>
                         <div style={{padding:'10px', borderBottom:'1px solid #eee', background:'#fff'}}>
                             <strong style={{fontSize:'1.1em'}}>{activeTab.label}</strong>
@@ -8428,6 +8460,71 @@ function App() {
     </div>
     </CapabilitiesContext.Provider>
   );
+}
+
+function FeaturesSlotsView({ features, slotsById }: { features: any[], slotsById: Record<string, any[]> }) {
+    const [selectedBlock, setSelectedBlock] = useState<any>(null);
+
+    return (
+        <div style={{display:'flex', height:'100%'}}>
+             <div style={{width:'300px', borderRight:'1px solid #ddd', overflowY:'auto', padding:'10px', background:'#fff'}}>
+                <h4 style={{marginTop:0, marginBottom:'10px', borderBottom:'1px solid #eee', paddingBottom:'5px'}}>Feature Groups ({features.length})</h4>
+                {features.map(f => (
+                    <div 
+                        key={f.blockId} 
+                        onClick={() => setSelectedBlock(f)}
+                        style={{
+                            padding:'5px', cursor:'pointer', marginBottom:'5px',
+                            background: selectedBlock===f ? '#e3f2fd' : '#f9f9f9',
+                            border: '1px solid #eee', borderRadius:'3px'
+                        }}
+                    >
+                        <div style={{fontWeight:'bold', fontSize:'0.9em'}}>{f.data?.title || f.blockId}</div>
+                        <div style={{fontSize:'0.75em', color:'#666'}}>{f.data?.id}</div>
+                    </div>
+                ))}
+                
+                <h4 style={{marginTop:'20px', marginBottom:'10px', borderBottom:'1px solid #eee', paddingBottom:'5px'}}>Slot Items</h4>
+                {Object.keys(slotsById).map(slotId => (
+                    <div key={slotId} style={{marginBottom:'10px'}}>
+                        <div style={{fontSize:'0.8em', fontWeight:'bold', color:'#555', marginBottom:'3px'}}>Slot: {slotId}</div>
+                        {slotsById[slotId].map(s => (
+                            <div 
+                                key={s.blockId}
+                                onClick={() => setSelectedBlock(s)}
+                                style={{
+                                    padding:'5px', cursor:'pointer', marginBottom:'3px', marginLeft:'5px',
+                                    background: selectedBlock===s ? '#e3f2fd' : '#f9f9f9',
+                                    border: '1px solid #eee', borderRadius:'3px'
+                                }}
+                            >
+                                <div style={{fontSize:'0.9em'}}>{s.data?.label || s.blockId}</div>
+                                <div style={{fontSize:'0.75em', color:'#666'}}>Action: {s.data?.actionId}</div>
+                            </div>
+                        ))}
+                    </div>
+                ))}
+             </div>
+             
+             <div style={{flex:1, padding:'10px', overflow:'hidden', display:'flex', flexDirection:'column', background:'#fafafa'}}>
+                 {selectedBlock ? (
+                     <>
+                        <div style={{marginBottom:'10px', paddingBottom:'10px', borderBottom:'1px solid #ddd'}}>
+                            <strong>{selectedBlock.blockType}</strong>: {selectedBlock.blockId}
+                        </div>
+                        <pre style={{
+                            flex:1, overflow:'auto', background:'#fff', padding:'10px', 
+                            border:'1px solid #ccc', borderRadius:'4px', fontSize:'0.85em'
+                        }}>
+                            {JSON.stringify(selectedBlock, null, 2)}
+                        </pre>
+                     </>
+                 ) : (
+                     <div style={{color:'#999', marginTop:'50px', textAlign:'center'}}>Select a block to view details</div>
+                 )}
+             </div>
+        </div>
+    );
 }
 
 export default App;

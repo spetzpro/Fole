@@ -86,7 +86,9 @@ export class ShellConfigValidator {
         "shell.overlay.main_menu.data.schema.json",
         "shell.overlay.advanced_menu.data.schema.json",
         "binding-block.data.schema.json",
-        "template-block.data.schema.json"
+        "template-block.data.schema.json",
+        "feature.group.schema.json",
+        "shell.slot.item.schema.json"
       ];
 
       for (const schemaName of coreSchemas) {
