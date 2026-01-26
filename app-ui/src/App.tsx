@@ -191,6 +191,18 @@ class WindowSystemRuntime {
              });
           }
       }
+      
+      // Supported Action Type: action.openWindow
+      if (blockType === 'action.openWindow' && b.data && typeof b.data === 'object') {
+          const d = b.data as Record<string,any>;
+          // Use ID from block or data.id
+          const actId = (typeof d.id === 'string' ? d.id : '') || blockId;
+          this.actions.push({
+              id: actId,
+              sourceBlockId: blockId,
+              actionName: 'openWindow'
+          });
+      }
 
       let actionsList: unknown[] = [];
        if (Array.isArray(b.actions)) {
@@ -8257,21 +8269,27 @@ function App() {
   };
 
   const runAction = async (def: ActionDefinition) => {
-      // 0. Manual Legacy Mapping (Minimal Implementation)
-      if (def.id === 'action.open.fish') {
-          runtimeRef.current.openWindow('root-window');
-           const localResult: ActionDispatchResult = {
-              applied: 1, skipped: 0, logs: [`Mapped action executed: ${def.id} -> openWindow(root-window)`]
-          };
-          const record: ActionRunRecord = {
-              id: Date.now().toString(),
-              timestamp: Date.now(),
-              actionId: `${def.sourceBlockId}::${def.actionName}`,
-              result: localResult
-          };
-          setActionRuns(prev => [record, ...prev].slice(0, 50));
-          syncRuntime();
-          return;
+      // 0. Manual Legacy Mapping (Removed generic type check, resolving by block)
+      if (bundleData?.blocks) {
+          // Resolve block by sourceBlockId
+          const blocks = bundleData.blocks as Record<string, any>;
+          const block = blocks[def.sourceBlockId];
+          if (block && block.blockType === 'action.openWindow' && block.data?.windowId) {
+             runtimeRef.current.openWindow(block.data.windowId);
+             
+              const localResult: ActionDispatchResult = {
+                  applied: 1, skipped: 0, logs: [`Open Window Action: ${block.data.windowId}`]
+              };
+              const record: ActionRunRecord = {
+                  id: Date.now().toString(),
+                  timestamp: Date.now(),
+                  actionId: `${def.sourceBlockId}::${def.actionName}`,
+                  result: localResult
+              };
+              setActionRuns(prev => [record, ...prev].slice(0, 50));
+              syncRuntime();
+              return;
+          }
       }
 
       // 1. Run Dispatch

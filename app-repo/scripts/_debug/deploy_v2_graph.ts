@@ -169,12 +169,11 @@ const V2_BUNDLE = {
             // --- Action: Open Fish Window ---
             "action-open-fish": {
                 blockId: "action-open-fish",
-                blockType: "action.dispatch", 
+                blockType: "action.openWindow", 
                 schemaVersion: "1.0.0",
                 data: {
                     id: "action.open.fish",
-                    actionType: "window/open",
-                    payload: { windowId: "root-window" } // Reusing root-window for demo
+                    windowId: "root-window"
                 }
             },
             // --- Slot Item: Header Button ---

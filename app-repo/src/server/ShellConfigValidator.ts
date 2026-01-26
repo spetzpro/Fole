@@ -57,10 +57,12 @@ export class ShellConfigValidator {
   private schemasLoaded = false;
   private readonly schemaRoot: string;
   private readonly uiNodeSchemaRoot: string;
+  private readonly actionSchemaRoot: string;
 
   constructor(repoRoot: string) {
     this.schemaRoot = path.join(repoRoot, "app-repo", "src", "server", "schemas", "shell");
     this.uiNodeSchemaRoot = path.join(repoRoot, "app-repo", "src", "server", "schemas", "ui-node");
+    this.actionSchemaRoot = path.join(repoRoot, "app-repo", "src", "server", "schemas", "action");
     this.ajv = new Ajv({ allErrors: true });
     this.ajv.addKeyword("x-ui-editorHint");
   }
@@ -102,16 +104,28 @@ export class ShellConfigValidator {
         for (const file of nodeFiles) {
             if (file.endsWith(".schema.json")) {
                 const content = await this.readSchema(this.uiNodeSchemaRoot, file);
-                // Use filename as the key to match convention
                 if (!this.ajv.getSchema(file)) {
                     this.ajv.addSchema(content, file);
                 }
             }
         }
       } catch (e: any) {
-        // If directory doesn't exist yet, warn but don't fail, 
-        // as this is an additive feature.
         if (e.code !== 'ENOENT') throw e;
+      }
+
+      // 3. Load Action Schemas (Dynamic scan)
+      try {
+        const actionFiles = await fs.readdir(this.actionSchemaRoot);
+        for (const file of actionFiles) {
+            if (file.endsWith(".schema.json")) {
+                const content = await this.readSchema(this.actionSchemaRoot, file);
+                if (!this.ajv.getSchema(file)) {
+                    this.ajv.addSchema(content, file);
+                }
+            }
+        }
+      } catch (e: any) {
+         if (e.code !== 'ENOENT') throw e;
       }
 
       this.schemasLoaded = true;
@@ -140,6 +154,7 @@ export class ShellConfigValidator {
       if (blockType === "template") return "template-block.data.schema.json";
       if (blockType === "feature.group") return "feature.group.schema.json";
       if (blockType === "shell.slot.item") return "shell.slot.item.schema.json";
+      if (blockType === "action.openWindow") return "action.openWindow.schema.json";
       if (blockType.startsWith("ui.node.")) return `${blockType}.schema.json`;
       
       return null;
