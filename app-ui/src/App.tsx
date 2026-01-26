@@ -908,7 +908,9 @@ function ConfigSysadminView({
     setPendingCandidateVersionId: (id: string | null) => void;
     dismissTimerRef: React.MutableRefObject<number | null>;
 }) {
-    // const caps = useCapabilities(); // Removed unused
+    const caps = useCapabilities();
+    const isExpertMode = caps.devModeOverridesEnabled;
+
     const [selectedTabId, setSelectedTabId] = useState<string | null>(null);
 
     // Roadmap 7.1 Step 2.1: Local Sysadmin Draft State
@@ -1579,13 +1581,29 @@ function ConfigSysadminView({
                     <div style={{padding:'10px', background:'#fff8e1', borderBottom:'1px solid #ffe0b2'}}>
                         <div style={{marginBottom:'10px', borderBottom:'1px dashed #ffe0b2', paddingBottom:'10px'}}>
                             <strong style={{color:'#e65100', fontSize:'0.9em'}}>Tabs Editor (Visual)</strong>
+                            
+                            {!isExpertMode && (
+                                <div style={{marginTop:'5px', padding:'6px', background:'#fff3cd', color:'#856404', borderRadius:'4px', border:'1px solid #ffeeba', fontSize:'0.85em'}}>
+                                    <strong>Expert Mode Required</strong><br/>
+                                    Editing Sysadmin structure can break the tool. <br/>
+                                    <em>Enable dev overrides to edit.</em>
+                                </div>
+                            )}
+
+                            {isExpertMode && (
+                                 <div style={{marginTop:'5px', padding:'6px', background:'#e1f5fe', color:'#01579b', borderRadius:'4px', border:'1px solid #b3e5fc', fontSize:'0.85em'}}>
+                                    <strong>Expert Mode Active</strong><br/>
+                                    Use caution. Changes affect all sysadmins.
+                                </div>
+                            )}
+
                             <div style={{display:'flex', flexDirection:'column', gap:'4px', marginTop:'5px'}}>
                                 {draftTabs.map((t:any, idx:number) => {
                                     const isDragged = draggedTabIdx === idx;
                                     return (
                                     <div 
                                         key={t.id || idx}
-                                        draggable={!!sysadminDraft}
+                                        draggable={!!sysadminDraft && isExpertMode}
                                         onDragStart={(e) => {
                                             if(!sysadminDraft) return;
                                             setDraggedTabIdx(idx);
@@ -1615,7 +1633,7 @@ function ConfigSysadminView({
                                             padding:'4px', 
                                             border: isDragged ? '1px dashed #2196f3' : '1px solid rgba(0,0,0,0.05)',
                                             opacity: isDragged ? 0.6 : 1,
-                                            cursor: sysadminDraft ? 'grab' : 'default'
+                                            cursor: (sysadminDraft && isExpertMode) ? 'grab' : 'default'
                                         }}
                                     >
                                         <div style={{color:'#bbb', fontSize:'1.2em', lineHeight:'1', userSelect:'none', padding:'0 4px', cursor:'grab'}} title="Drag to reorder">≡</div>
@@ -1626,39 +1644,40 @@ function ConfigSysadminView({
                                                     [nt[idx], nt[idx-1]] = [nt[idx-1], nt[idx]];
                                                     updateDraftTabs(nt);
                                                 }
-                                            }} disabled={idx===0} style={{fontSize:'0.6em', lineHeight:'1', padding:'0 2px', cursor:'pointer'}}>▲</button>
+                                            }} disabled={idx===0 || !isExpertMode} style={{fontSize:'0.6em', lineHeight:'1', padding:'0 2px', cursor:'pointer'}}>▲</button>
                                             <button onClick={() => {
                                                 const nt = [...draftTabs];
                                                 if (idx < draftTabs.length-1) {
                                                     [nt[idx], nt[idx+1]] = [nt[idx+1], nt[idx]];
                                                     updateDraftTabs(nt);
                                                 }
-                                            }} disabled={idx===draftTabs.length-1} style={{fontSize:'0.6em', lineHeight:'1', padding:'0 2px', cursor:'pointer'}}>▼</button>
+                                            }} disabled={idx===draftTabs.length-1 || !isExpertMode} style={{fontSize:'0.6em', lineHeight:'1', padding:'0 2px', cursor:'pointer'}}>▼</button>
                                         </div>
                                         <div style={{flex:1}}>
                                             <span style={{fontWeight:'bold'}}>{t.label}</span>
                                             <span style={{marginLeft:'5px', color:'#666', fontFamily:'monospace'}}>{t.id}</span>
                                             <span style={{marginLeft:'5px', fontSize:'0.8em', color:'#999'}}>({(t.contentBlockIds||[]).length} blocks)</span>
                                         </div>
-                                        <button onClick={() => { if(confirm('Delete tab?')) { const nt = [...draftTabs]; nt.splice(idx,1); updateDraftTabs(nt); }}} style={{color:'#c62828', border:'none', background:'none', cursor:'pointer', fontWeight:'bold'}}>×</button>
+                                        <button onClick={() => { if(confirm('Delete tab?')) { const nt = [...draftTabs]; nt.splice(idx,1); updateDraftTabs(nt); }}} disabled={!isExpertMode} style={{color: isExpertMode ? '#c62828' : '#ccc', border:'none', background:'none', cursor: isExpertMode ? 'pointer' : 'default', fontWeight:'bold'}}>×</button>
                                     </div>
                                     );
                                 })}
                             </div>
                             
                             <div style={{marginTop:'8px', display:'flex', gap:'5px', alignItems:'center', flexWrap:'wrap', background:'rgba(255,255,255,0.5)', padding:'4px'}}>
-                                <input placeholder="ID (e.g. tools)" value={newTabId} onChange={e=>setNewTabId(e.target.value)} style={{width:'80px', fontSize:'0.8em', padding:'2px'}} />
-                                <input placeholder="Label" value={newTabLabel} onChange={e=>setNewTabLabel(e.target.value)} style={{width:'100px', fontSize:'0.8em', padding:'2px'}} />
+                                <input placeholder="ID (e.g. tools)" value={newTabId} onChange={e=>setNewTabId(e.target.value)} disabled={!isExpertMode} style={{width:'80px', fontSize:'0.8em', padding:'2px', background: !isExpertMode?'#eee':'#fff'}} />
+                                <input placeholder="Label" value={newTabLabel} onChange={e=>setNewTabLabel(e.target.value)} disabled={!isExpertMode} style={{width:'100px', fontSize:'0.8em', padding:'2px', background: !isExpertMode?'#eee':'#fff'}} />
                                 <select 
                                     multiple 
-                                    style={{height:'40px', fontSize:'0.7em', width:'150px'}} 
+                                    style={{height:'40px', fontSize:'0.7em', width:'150px', background: !isExpertMode?'#eee':'#fff'}} 
                                     value={newTabBlockIds} 
                                     onChange={e => setNewTabBlockIds(Array.from(e.target.selectedOptions, o => o.value))}
                                     title="Hold Ctrl/Cmd to select multiple"
+                                    disabled={!isExpertMode}
                                 >
                                     {availablePanelBlocks.map((bid:string) => <option key={bid} value={bid}>{bid}</option>)}
                                 </select>
-                                <button onClick={addDraftTab} disabled={!newTabId||!newTabLabel} style={{fontSize:'0.8em', cursor:'pointer'}}>+ Add Tab</button>
+                                <button onClick={addDraftTab} disabled={!newTabId||!newTabLabel || !isExpertMode} style={{fontSize:'0.8em', cursor: (!newTabId||!newTabLabel||!isExpertMode) ? 'default' : 'pointer'}}>+ Add Tab</button>
                             </div>
                         </div>
 
@@ -1746,22 +1765,20 @@ function ConfigSysadminView({
                             <div style={{display:'flex', gap:'10px', alignItems:'center'}}>
                                 {sysadminDraftError && <span style={{color:'#d32f2f', fontSize:'0.8em', fontWeight:'bold'}}>{sysadminDraftError}</span>}
                                 {sysadminDraftDirty && <span style={{fontSize:'0.8em', color:'#e65100', fontStyle:'italic'}}>Unsaved to draft</span>}
-                                <button onClick={handleUpdateDraft} style={{cursor:'pointer', fontSize:'0.85em'}}>Update & Preview</button>
+                                <button onClick={handleUpdateDraft} disabled={!isExpertMode} style={{cursor: isExpertMode ? 'pointer' : 'default', fontSize:'0.85em', opacity: isExpertMode ? 1 : 0.5}}>Update & Preview</button>
                             </div>
                         </div>
                         <textarea 
                             ref={jsonTextareaRef}
                             value={editingShellJson}
+                            disabled={!isExpertMode}
                             onClick={updateCursorStats}
                             onKeyUp={updateCursorStats}
                             onChange={(e) => { 
                                 setEditingShellJson(e.target.value); 
                                 setSysadminDraftDirty(true); 
-                                // cannot assume set immediately, but we can update pos from event
-                                // we will let next render or click fix it, or we can manually calc
-                                // updateCursorStats(); // state update conflict, skip for now or use effect
                             }}
-                            style={{width:'100%', height:'120px', fontFamily:'monospace', fontSize:'0.85em', resize:'vertical', padding:'5px'}}
+                            style={{width:'100%', height:'120px', fontFamily:'monospace', fontSize:'0.85em', resize:'vertical', padding:'5px', background: !isExpertMode ? '#eee' : '#fff'}}
                             spellCheck={false}
                         />
                     </div>
@@ -2193,6 +2210,28 @@ function SysadminPanel({
     onRefresh: () => void;
 }) {
     const caps = useCapabilities();
+
+    const debugFetch = async (inputPath: string, init?: RequestInit): Promise<Response | null> => {
+        if (!caps.debugEndpointsEnabled) return null;
+
+        // temporary dev bridge; final system uses real auth permissions.
+        const devAuth = localStorage.getItem('FOLE_DEV_AUTH');
+        if (!devAuth) return null;
+
+        try {
+             const headers = new Headers(init?.headers || {});
+             headers.set('X-Dev-Auth', devAuth);
+
+             return await fetch(apiUrl(inputPath), {
+                 ...init,
+                 headers
+             });
+        } catch (e) {
+             console.warn("Debug fetch blocked/failed", e);
+             return null;
+        }
+    };
+
     // Roadmap #6.1: Config-Driven Sysadmin Loader Hook (Placeholder)
     // In future steps, this will drive the UI instead of the hardcoded tabs below.
     // const sysadminBlock = bundleData?.blocks ? findSysadminBlock(bundleData.blocks) : null;
@@ -2653,104 +2692,98 @@ function SysadminPanel({
 
 
 
-    const refreshSnapshot = () => {
-        if (!caps.debugEndpointsEnabled) {
-            setSnapshotLoading(false);
-            return Promise.resolve(null);
-        }
+    const refreshSnapshot = async () => {
         setSnapshotLoading(true);
         setSnapshotError(null);
-        return fetch(apiUrl('/api/debug/runtime/snapshot'))
-            .then(res => {
-                 if (!res.ok) {
-                     if (res.status === 403) {
-                         // Graceful handling
-                         return null;
-                     }
-                     if (res.status === 404) return null; // Ignore missing
-                     // Log but don't throw to avoid unhandled rejections impacting UI
-                     console.warn(`Snapshot fetch failed: ${res.status}`);
-                     return null;
-                 }
-                 return res.json();
-            })
-            .then(json => {
-                if (json) {
-                    setSnapshotData(json);
-                }
-                setSnapshotLoading(false);
-                return json;
-            })
-            .catch(err => {
-                console.warn("Snapshot error:", err);
-                // setSnapshotError(err.message); // Optional: surface error or just stay silent
-                setSnapshotLoading(false);
-                return null;
-            });
-    };
-
-    const refreshTraces = () => {
-        if (!caps.debugEndpointsEnabled) {
-            setDispatchTraces([]);
-            return;
+        
+        const res = await debugFetch('/api/debug/runtime/snapshot');
+        if (!res) {
+            setSnapshotLoading(false);
+            return null;
         }
-        setDispatchTracesError(null);
-        fetch(apiUrl('/api/debug/runtime/dispatch-traces'))
-            .then(async (res) => {
-                 if (!res.ok) {
-                     // 403 handled gracefully
-                     return;
-                 }
-                 const j = await res.json();
-                 // Expect { traces: [] }
-                 // Sort newest first client-side
-                 const list = Array.isArray(j.traces) ? (j.traces as DispatchTrace[]) : [];
-                 list.sort((a,b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-                 setDispatchTraces(list);
-            })
-            .catch(err => {
-                setDispatchTracesError(err.message);
-                setDispatchTraces([]);
-            });
+
+        if (!res.ok) {
+             if (res.status !== 403 && res.status !== 404) {
+                 console.warn(`Snapshot fetch failed: ${res.status}`);
+             }
+             setSnapshotLoading(false);
+             return null;
+        }
+
+        try {
+             const json = await res.json();
+             if (json) {
+                 setSnapshotData(json);
+             }
+             setSnapshotLoading(false);
+             return json;
+        } catch (e) {
+             console.warn("Snapshot error:", e);
+             setSnapshotLoading(false);
+             return null;
+        }
     };
 
-    const refreshExecuteMode = () => {
-        if (!caps.debugEndpointsEnabled) {
+    const refreshTraces = async () => {
+        setDispatchTracesError(null);
+        
+        const res = await debugFetch('/api/debug/runtime/dispatch-traces');
+        if (!res) {
+             setDispatchTraces([]);
+             return;
+        }
+
+        if (!res.ok) {
+             return;
+        }
+
+        try {
+             const j = await res.json();
+             const list = Array.isArray(j.traces) ? (j.traces as DispatchTrace[]) : [];
+             list.sort((a,b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+             setDispatchTraces(list);
+        } catch (e) {
+             setDispatchTracesError(String(e));
+             setDispatchTraces([]);
+        }
+    };
+
+    const refreshExecuteMode = async () => {
+        setExecuteModeError(null);
+        
+        const res = await debugFetch('/api/debug/runtime/integrations/execute-mode');
+        if (!res) {
              setExecuteMode(null);
              return;
         }
-        setExecuteModeError(null);
-        fetch(apiUrl('/api/debug/runtime/integrations/execute-mode'))
-            .then(async (res) => {
-                 if (!res.ok) {
-                     return;
-                 }
-                 const j = await res.json();
-                 setExecuteMode(!!j.enabled);
-            })
-            .catch(err => {
-                setExecuteMode(null);
-                setExecuteModeError(err.message);
-            });
+
+        if (!res.ok) return;
+
+        try {
+             const j = await res.json();
+             setExecuteMode(!!j.enabled);
+        } catch (e) {
+             setExecuteMode(null);
+             setExecuteModeError(String(e));
+        }
     };
 
     const toggleExecuteMode = async () => {
-        if (!caps.debugEndpointsEnabled) return;
-
         setExecuteModeError(null);
+        const newState = !executeMode;
+        
+        const res = await debugFetch('/api/debug/runtime/integrations/execute-mode', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ enabled: newState })
+        });
+
+        if (!res) return;
+
         try {
-            const newState = !executeMode;
-            const res = await fetch(apiUrl('/api/debug/runtime/integrations/execute-mode'), {
-                method: 'POST',
-                headers: { 
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ enabled: newState })
-            });
             const j = await res.json();
             
             if (!res.ok) {
-                 // Gated
                  setExecuteModeError(j.error || "Toggle failed");
                  return;
             }
@@ -2763,22 +2796,23 @@ function SysadminPanel({
         }
     };
 
-    const refreshInvocations = () => {
-        if (!caps.debugEndpointsEnabled) {
+    const refreshInvocations = async () => {
+        setInvocationsError(null);
+        
+        const res = await debugFetch('/api/debug/runtime/integrations/invocations');
+        if (!res) {
             setInvocations([]);
             return;
         }
-        setInvocationsError(null);
-        fetch(apiUrl('/api/debug/runtime/integrations/invocations'))
-            .then(async (res) => {
-                if (!res.ok) return;
-                const j = await res.json();
-                // Expect { invocations: any[] }
-                setInvocations(Array.isArray(j.invocations) ? j.invocations : []);
-            })
-            .catch(err => {
-                setInvocationsError(err.message);
-            });
+
+        if (!res.ok) return;
+
+        try {
+            const j = await res.json();
+            setInvocations(Array.isArray(j.invocations) ? j.invocations : []);
+        } catch (e) {
+            setInvocationsError(String(e));
+        }
     };
 
     // Versions (Roadmap #4 Step 2)
@@ -2812,36 +2846,38 @@ function SysadminPanel({
     const [versionDiffLoading, setVersionDiffLoading] = useState(false);
     const [versionDiffError, setVersionDiffError] = useState<string | null>(null);
 
-    const fetchAdapterCaps = () => {
-        if (!caps.debugEndpointsEnabled) {
-             setAdapterCaps({});
-             return;
-        }
+    const fetchAdapterCaps = async () => {
         setAdapterCapsLoading(true);
         setAdapterCapsError(null);
-        fetch(apiUrl('/api/debug/runtime/integrations/adapter-capabilities'))
-            .then(res => {
-                if (!res.ok) {
-                    return null;
-                }
-                return res.json();
-            })
-            .then(data => {
-                if (!data) return;
-                // Shape: { adapters: [{ integrationType, capabilities: {...} }] }
-                const map: Record<string, any> = {};
-                if (Array.isArray(data.adapters)) {
-                    data.adapters.forEach((a: any) => {
-                        map[a.integrationType] = a.capabilities;
-                    });
-                }
-                setAdapterCaps(map);
-                setAdapterCapsLoading(false);
-            })
-            .catch(err => {
-                setAdapterCapsError(err.message);
-                setAdapterCapsLoading(false);
-            });
+        
+        const res = await debugFetch('/api/debug/runtime/integrations/adapter-capabilities');
+        if (!res) {
+             setAdapterCaps({});
+             setAdapterCapsLoading(false);
+             return;
+        }
+
+        if (!res.ok) {
+            setAdapterCapsLoading(false);
+            return;
+        }
+
+        try {
+            const data = await res.json();
+            if (!data) return;
+            // Shape: { adapters: [{ integrationType, capabilities: {...} }] }
+            const map: Record<string, any> = {};
+            if (Array.isArray(data.adapters)) {
+                data.adapters.forEach((a: any) => {
+                    map[a.integrationType] = a.capabilities;
+                });
+            }
+            setAdapterCaps(map);
+        } catch (e) {
+            setAdapterCapsError(String(e));
+        } finally {
+            setAdapterCapsLoading(false);
+        }
     };
 
     const fetchPreflight = async (vid: string) => {
@@ -2902,23 +2938,26 @@ function SysadminPanel({
 
 
 
-    const refreshVersions = () => {
-        if (!caps.debugEndpointsEnabled) {
+    const refreshVersions = async () => {
+        setShellVersionsError(null);
+        
+        const res = await debugFetch('/api/debug/config/shell/versions');
+        if (!res) {
              setShellVersions(null);
-             // Optionally surface a message in UI, or just empty
              return;
         }
-        setShellVersionsError(null);
-        fetch(apiUrl('/api/debug/config/shell/versions'))
-            .then(async (res) => {
-                if (!res.ok) return; // Silent fail
-                const j = await res.json();
-                setShellVersions(j);
-            })
-            .catch(err => setShellVersionsError(err.message));
+
+        if (!res.ok) return; // Silent fail
+
+        try {
+            const j = await res.json();
+            setShellVersions(j);
+        } catch (e) {
+            setShellVersionsError(String(e));
+        }
     };
 
-    const fetchVersionDetail = (vId: string) => {
+    const fetchVersionDetail = async (vId: string) => {
         setVersionDetailLoading(true);
         setVersionDetailError(null);
         setSelectedVersionDetail(null);
@@ -2929,79 +2968,86 @@ function SysadminPanel({
         setVersionDiffError(null);
 
         // This is debug-only deep inspection
-        if (!caps.debugEndpointsEnabled) {
+        const res = await debugFetch(`/api/debug/config/shell/version/${vId}?includeBlocks=1`);
+        
+        if (!res) {
             setVersionDetailError("Version details unavailable (Debug disabled)");
             setVersionDetailLoading(false);
             setVersionDiffLoading(false);
             return;
         }
 
-        fetch(apiUrl(`/api/debug/config/shell/version/${vId}?includeBlocks=1`))
-            .then(async (res) => {
-                if (!res.ok) {
-                    setVersionDetailError(`Fetch failed: ${res.status}`);
-                    return;
-                }
-                const j = await res.json();
-                
-                setSelectedVersionDetail(j);
-                setVersionDetailLoading(false);
+        if (!res.ok) {
+            setVersionDetailError(`Fetch failed: ${res.status}`);
+            setVersionDetailLoading(false);
+            setVersionDiffLoading(false);
+            return;
+        }
 
-                // Diff Logic vs Parent
-                const parentId = j.meta?.parentVersionId;
-                if (!parentId) {
-                    setVersionDiffLoading(false);
-                    return;
-                }
+        let j;
+        try {
+            j = await res.json();
+            setSelectedVersionDetail(j);
+        } catch (e: any) {
+            setVersionDetailError(e.message);
+            setVersionDetailLoading(false);
+            setVersionDiffLoading(false);
+            return;
+        } finally {
+            setVersionDetailLoading(false);
+        }
 
-                // Fetch Parent
-                return fetch(apiUrl(`/api/debug/config/shell/version/${parentId}?includeBlocks=1`))
-                    .then(async (pRes) => {
-                         if (!pRes.ok) return;
-                         
-                         const pData = await pRes.json();
-                         
-                         // Compute Diff
-                         const currentBlocks = j.blocks || {};
-                         const parentBlocks = pData.blocks || {};
-                         
-                         const cKeys = Object.keys(currentBlocks);
-                         const pKeys = Object.keys(parentBlocks);
-                         
-                         let added = 0;
-                         let removed = 0;
-                         let modified = 0;
-                         
-                         // Check Added/Modified
-                         cKeys.forEach(k => {
-                             if (!parentBlocks[k]) added++;
-                             else if (JSON.stringify(currentBlocks[k]) !== JSON.stringify(parentBlocks[k])) modified++;
-                         });
-                         
-                         // Check Removed
-                         pKeys.forEach(k => {
-                             if (!currentBlocks[k]) removed++;
-                         });
+        // Diff Logic vs Parent
+        const parentId = j.meta?.parentVersionId;
+        if (!parentId) {
+            setVersionDiffLoading(false);
+            return;
+        }
 
-                         const cManifest = JSON.stringify(j.manifest || {});
-                         const pManifest = JSON.stringify(pData.manifest || {});
-                         const manifestChanged = cManifest !== pManifest;
+        // Fetch Parent
+        const pRes = await debugFetch(`/api/debug/config/shell/version/${parentId}?includeBlocks=1`);
+        if (!pRes || !pRes.ok) {
+             setVersionDiffLoading(false);
+             return;
+        }
+        
+        try {
+             const pData = await pRes.json();
+             
+             // Compute Diff
+             const currentBlocks = j.blocks || {};
+             const parentBlocks = pData.blocks || {};
+             
+             const cKeys = Object.keys(currentBlocks);
+             const pKeys = Object.keys(parentBlocks);
+             
+             let added = 0;
+             let removed = 0;
+             let modified = 0;
+             
+             // Check Added/Modified
+             cKeys.forEach(k => {
+                 if (!parentBlocks[k]) added++;
+                 else if (JSON.stringify(currentBlocks[k]) !== JSON.stringify(parentBlocks[k])) modified++;
+             });
+             
+             // Check Removed
+             pKeys.forEach(k => {
+                 if (!currentBlocks[k]) removed++;
+             });
 
-                         setVersionDiff({
-                             added, removed, modified, manifestChanged, parentId
-                         });
-                         setVersionDiffLoading(false);
-                    })
-                    .catch(e => {
-                        setVersionDiffError(e.message);
-                        setVersionDiffLoading(false);
-                    });
-            })
-            .catch(err => {
-                setVersionDetailError(err.message);
-                setVersionDetailLoading(false);
-                setVersionDiffLoading(false);
-            });
+             const cManifest = JSON.stringify(j.manifest || {});
+             const pManifest = JSON.stringify(pData.manifest || {});
+             const manifestChanged = cManifest !== pManifest;
+
+             setVersionDiff({
+                 added, removed, modified, manifestChanged, parentId
+             });
+             setVersionDiffLoading(false);
+        } catch (e: any) {
+             setVersionDiffError(e.message);
+             setVersionDiffLoading(false);
+        }
     };
 
     // Auto-refresh invocations if tab is open, when actionRuns update
@@ -3884,28 +3930,28 @@ function SysadminPanel({
 
     // Fetch Runtime Data Helper
     const refreshRuntimeDataBlocks = async () => {
-        if (!caps.debugEndpointsEnabled) {
+        const res = await debugFetch('/api/debug/runtime/data-blocks?ids=SourceBlock,TargetBlock');
+        
+        if (!res) {
             setRuntimeDataBlocks(null);
-            // Optionally set error or just be silent. 
-            // setRuntimeDataError('Debug endpoints disabled');
             return;
         }
 
+        if (res.status === 403) {
+             setRuntimeDataError('Debug endpoints disabled (403)');
+             setRuntimeDataBlocks(null);
+             return;
+        } else if (!res.ok) {
+             const txt = await res.text().catch(() => '');
+             setRuntimeDataError(`Error ${res.status}: ${txt}`);
+             setRuntimeDataBlocks(null);
+             return;
+        }
+
         try {
-            const res = await fetch(apiUrl('/api/debug/runtime/data-blocks?ids=SourceBlock,TargetBlock'));
-            if (res.status === 403) {
-                 setRuntimeDataError('Debug endpoints disabled (403)');
-                 // Keep stale data or null? Spec says "fall back to bundleData" which happens in render
-                 setRuntimeDataBlocks(null);
-            } else if (!res.ok) {
-                 const txt = await res.text();
-                 setRuntimeDataError(`Error ${res.status}: ${txt}`);
-                 setRuntimeDataBlocks(null);
-            } else {
-                 const json = await res.json();
-                 setRuntimeDataBlocks(json.blocks || null);
-                 setRuntimeDataError(null);
-            }
+             const json = await res.json();
+             setRuntimeDataBlocks(json.blocks || null);
+             setRuntimeDataError(null);
         } catch (err: any) {
             setRuntimeDataError(String(err));
             setRuntimeDataBlocks(null);
@@ -3960,27 +4006,28 @@ function SysadminPanel({
     const handleLoadVersionToDraft = async () => {
          if (!selectedVersionId) return;
          
-         if (!caps.debugEndpointsEnabled) {
+         const res = await debugFetch(`/api/debug/config/shell/version/${selectedVersionId}?includeBlocks=1`);
+
+         if (!res) {
              setConfirmLoadVersion(false);
              alert("Cannot load version: Debug endpoints check failed.");
              return;
          }
 
+         if (res.status === 413) {
+             alert("Version too large to load into draft (limit exceeded).");
+             setConfirmLoadVersion(false);
+             return;
+         }
+         
+         if (!res.ok) {
+             const txt = await res.text().catch(() => '');
+             alert(`Fetch failed (${res.status}): ${txt}`);
+             setConfirmLoadVersion(false);
+             return;
+         }
+
          try {
-             // Fetch with explicit includeBlocks
-             const res = await fetch(apiUrl(`/api/debug/config/shell/version/${selectedVersionId}?includeBlocks=1`));
-             
-             if (res.status === 413) {
-                 alert("Version too large to load into draft (limit exceeded).");
-                 setConfirmLoadVersion(false);
-                 return;
-             }
-             
-             if (!res.ok) {
-                 const txt = await res.text();
-                 throw new Error(`Fetch failed (${res.status}): ${txt}`);
-             }
-             
              const fullVersion = await res.json();
 
              // Validation: Check for blocks presence
@@ -7811,6 +7858,27 @@ function App() {
         .catch(() => {}); 
   }, []);
 
+  const debugFetch = async (inputPath: string, init?: RequestInit): Promise<Response | null> => {
+      if (!caps.debugEndpointsEnabled) return null;
+
+      // temporary dev bridge; final system uses real auth permissions.
+      const devAuth = localStorage.getItem('FOLE_DEV_AUTH');
+      if (!devAuth) return null;
+
+      try {
+          const headers = new Headers(init?.headers || {});
+          headers.set('X-Dev-Auth', devAuth);
+
+          return await fetch(apiUrl(inputPath), {
+              ...init,
+              headers
+          });
+      } catch (e) {
+          console.warn("Debug fetch blocked/failed", e);
+          return null;
+      }
+  };
+
   const [showV2, setShowV2] = useState(false);
   // v2RefreshKey removed to clean up unused state
 
@@ -8007,11 +8075,20 @@ function App() {
            permissions: permsArray
       };
       
-      const res = await fetch(apiUrl('/api/debug/action/dispatch'), {
+      const res = await debugFetch('/api/debug/action/dispatch', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(reqBody)
       });
+      
+      if (!res) {
+          const err: ActionDispatchResult = {
+              applied: 0, skipped: 0, logs: [],
+              error: "Dispatch call failed (no response)."
+          };
+          setActionResult(err);
+          return err;
+      }
 
       if (res.status === 403) {
         const err: ActionDispatchResult = { 
