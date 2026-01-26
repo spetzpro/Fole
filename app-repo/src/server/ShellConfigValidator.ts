@@ -136,6 +136,8 @@ export class ShellConfigValidator {
       if (blockType.startsWith("shell.control.button")) return "shell.control.button.schema.json";
       if (blockType === "binding") return "binding-block.data.schema.json";
       if (blockType === "template") return "template-block.data.schema.json";
+      if (blockType === "feature.group") return "feature.group.schema.json";
+      if (blockType === "shell.slot.item") return "shell.slot.item.schema.json";
       if (blockType.startsWith("ui.node.")) return `${blockType}.schema.json`;
       
       return null;

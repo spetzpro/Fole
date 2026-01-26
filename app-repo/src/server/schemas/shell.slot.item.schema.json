@@ -1,0 +1,27 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "blockType": { "const": "shell.slot.item" },
+    "id": { 
+      "type": "string",
+      "pattern": "^[a-z0-9.]+$"
+    },
+    "slotId": { 
+      "type": "string",
+      "pattern": "^[a-z0-9.]+$"
+    },
+    "label": { "type": "string" },
+    "actionId": { 
+      "type": "string",
+      "pattern": "^[a-z0-9.:]+$"
+    },
+    "icon": { "type": "string" },
+    "requiredPermission": { "type": "string" },
+    "helpText": { "type": "string" },
+    "visibleWhen": { "type": "string" },
+    "enabledWhen": { "type": "string" }
+  },
+  "required": ["blockType", "id", "slotId", "label", "actionId"],
+  "additionalProperties": false
+}

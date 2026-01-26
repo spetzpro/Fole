@@ -153,6 +153,42 @@ const V2_BUNDLE = {
                 data: {
                     items: []
                 }
+            },
+            // --- Feature Group: Fish Information ---
+            "feature-fish-info": {
+                blockId: "feature-fish-info",
+                blockType: "feature.group",
+                schemaVersion: "1.0.0",
+                data: {
+                    id: "feature.fish.info",
+                    title: "Fish Information System",
+                    description: "Reference material for maritime species",
+                    tags: ["maritime", "reference"]
+                }
+            },
+            // --- Action: Open Fish Window ---
+            "action-open-fish": {
+                blockId: "action-open-fish",
+                blockType: "action.dispatch", 
+                schemaVersion: "1.0.0",
+                data: {
+                    id: "action.open.fish",
+                    actionType: "window/open",
+                    payload: { windowId: "root-window" } // Reusing root-window for demo
+                }
+            },
+            // --- Slot Item: Header Button ---
+            "slot-header-fish": {
+                blockId: "slot-header-fish",
+                blockType: "shell.slot.item",
+                schemaVersion: "1.0.0",
+                data: {
+                    id: "slot.header.fish",
+                    slotId: "app.header.right",
+                    label: "Fish Info",
+                    actionId: "action.open.fish",
+                    icon: "info"
+                }
             }
         }
     }
