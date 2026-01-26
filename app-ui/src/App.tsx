@@ -8339,6 +8339,27 @@ function App() {
      );
   }, [bundleData]);
 
+  const headerBlock = useMemo(() => {
+      if (!bundleData) return null;
+      const manifest = bundleData.manifest as any;
+      const blocks = bundleData.blocks as any;
+      
+      // 1. Try manifest
+      let blockId = manifest?.regions?.header;
+      if (typeof blockId !== 'string') blockId = manifest?.regions?.header?.blockId;
+      
+      // 2. Fallback: Find blockType 'shell.region.header'
+      if (!blockId && blocks) {
+          const found = Object.values(blocks).find((b: any) => b.blockType === 'shell.region.header') as any;
+          if (found) blockId = found.blockId || found.id;
+      }
+      
+      if (blockId && blocks && blocks[blockId]) {
+          return blocks[blockId];
+      }
+      return null;
+  }, [bundleData]);
+
   // UI Handlers wiring to Runtime
   const winOps = {
       focus: (id: string) => { runtimeRef.current.focusWindow(id); syncRuntime(); },
@@ -8385,7 +8406,7 @@ function App() {
               marginBottom: '10px',
               borderRadius: '4px'
           }}>
-              <div style={{fontWeight: 'bold', fontSize: '1.1em'}}>Fole App V2</div>
+              <div style={{fontWeight: 'bold', fontSize: '1.1em'}}>{headerBlock?.data?.title || "Fole App V2"}</div>
               <div style={{display:'flex', gap:'10px', alignItems:'center'}}>
                   {headerRightItems.map((item: any) => {
                       const actionId = item.data?.actionId;
