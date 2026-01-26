@@ -8268,12 +8268,15 @@ function App() {
     }
   };
 
-  const runAction = async (def: ActionDefinition) => {
+  const runAction = async (def: ActionDefinition | string) => {
+      // Resolve ID
+      const actionId = typeof def === 'string' ? def : def?.id;
+
       // 0. Manual Legacy Mapping (Removed generic type check, resolving by block)
       if (bundleData?.blocks) {
-          // Resolve block by sourceBlockId
+          // Resolve block by actionId directly
           const blocks = bundleData.blocks as Record<string, any>;
-          const block = blocks[def.sourceBlockId];
+          const block = blocks[actionId];
           if (block && block.blockType === 'action.openWindow' && block.data?.windowId) {
              runtimeRef.current.openWindow(block.data.windowId);
              
@@ -8283,14 +8286,27 @@ function App() {
               const record: ActionRunRecord = {
                   id: Date.now().toString(),
                   timestamp: Date.now(),
-                  actionId: `${def.sourceBlockId}::${def.actionName}`,
+                  actionId: typeof def === 'string' ? def : `${def.sourceBlockId}::${def.actionName}`,
                   result: localResult
               };
               setActionRuns(prev => [record, ...prev].slice(0, 50));
               syncRuntime();
               return;
           }
+           
+           if (!block && typeof def !== 'string') {
+               // Fallback: If passed as definition but not found as block, try sourceBlockId logic for legacy
+           } else if (!block) {
+                const errResult: ActionDispatchResult = {
+                  applied: 0, skipped: 1, logs: [],
+                  error: `Action Block Not Found: ${actionId}`
+              };
+              setActionResult(errResult);
+              return;
+           }
       }
+
+      if (typeof def === 'string') return; // Cannot dispatch string-only legacy actions yet
 
       // 1. Run Dispatch
       const result = await handleDispatch({
@@ -8380,9 +8396,8 @@ function App() {
                               key={item.blockId} 
                               onClick={() => {
                                   if (!actionId || !runtimePlan) return;
-                                  const knownAction = runtimePlan.actions.find(a => a.id === actionId);
-                                  if (knownAction) runAction(knownAction);
-                                  else console.warn("Action not found", actionId);
+                                  // Pass ID directly now
+                                  runAction(actionId);
                               }}
                               style={{ 
                                   fontWeight: 'bold', 

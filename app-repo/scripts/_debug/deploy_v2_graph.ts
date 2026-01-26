@@ -172,7 +172,6 @@ const V2_BUNDLE = {
                 blockType: "action.openWindow", 
                 schemaVersion: "1.0.0",
                 data: {
-                    id: "action.open.fish",
                     windowId: "root-window"
                 }
             },
@@ -185,7 +184,7 @@ const V2_BUNDLE = {
                     id: "slot.header.fish",
                     slotId: "app.header.right",
                     label: "Fish Info",
-                    actionId: "action.open.fish",
+                    actionId: "action-open-fish",
                     icon: "info"
                 }
             }
