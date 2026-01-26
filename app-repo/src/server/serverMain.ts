@@ -12,6 +12,7 @@ import { createBindingRuntimeManager } from "./BindingRuntimeManager";
 import { TriggerEvent, TriggerContext, TriggeredBindingResult } from "./TriggeredBindingEngine";
 import { dispatchActionEvent } from "./ActionDispatcher";
 import { IntegrationAdapterRegistry } from "./integrations/IntegrationAdapterRegistry";
+import { canAccessDebug } from "./DebugGuard";
 
 import { evaluateBoolean, ExpressionContext } from "./ExpressionEvaluator";
 
@@ -129,8 +130,8 @@ async function main() {
 
   // Debug activate version endpoint (Roadmap #4 Step 2)
   router.get("/api/debug/config/shell/preflight/:versionId", async (req, res, params, ctx) => {
-    if (!ModeGate.canUseDebugEndpoints(ctx)) {
-        return router.json(res, 403, { error: "Debug mode disabled" });
+    if (!canAccessDebug(ctx)) {
+        return router.json(res, 403, { error: "Access Denied: Debug mode disabled or insufficient permissions" });
     }
 
     const { versionId } = params;
@@ -164,8 +165,8 @@ async function main() {
 
   // Debug activate version endpoint (Roadmap #4 Step 2)
   router.post("/api/debug/config/shell/activate", async (req, res, _params, ctx) => {
-      if (!ModeGate.canUseDebugEndpoints(ctx)) {
-          return router.json(res, 403, { error: "Debug mode disabled" });
+      if (!canAccessDebug(ctx)) {
+          return router.json(res, 403, { error: "Access Denied: Debug mode disabled or insufficient permissions" });
       }
 
       try {
@@ -193,8 +194,8 @@ async function main() {
 
   // Roadmap 7.1 Sysadmin Patch Endpoint
   router.post("/api/debug/config/shell/clone-and-patch-sysadmin", async (req, res, _params, ctx) => {
-      if (!ModeGate.canUseDebugEndpoints(ctx)) {
-          return router.json(res, 403, { error: "Debug mode disabled" });
+      if (!canAccessDebug(ctx)) {
+          return router.json(res, 403, { error: "Access Denied: Debug mode disabled or insufficient permissions" });
       }
       
       try {
