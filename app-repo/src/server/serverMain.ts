@@ -13,6 +13,7 @@ import { TriggerEvent, TriggerContext, TriggeredBindingResult } from "./Triggere
 import { dispatchActionEvent } from "./ActionDispatcher";
 import { IntegrationAdapterRegistry } from "./integrations/IntegrationAdapterRegistry";
 import { canAccessDebug } from "./DebugGuard";
+import { requirePermission } from "./ProductionGuard";
 
 import { evaluateBoolean, ExpressionContext } from "./ExpressionEvaluator";
 
@@ -130,9 +131,11 @@ async function main() {
 
   // Preflight Endpoint (Governed)
   router.get("/api/config/shell/preflight/:versionId", async (req, res, params, ctx) => {
-    // Note: This endpoint is governed but NOT debug-gated (required for normal operations)
-    // In a real system, this would need permission checks (e.g. config.read/write)
-    // For now, it mirrors existing open config endpoints (like /api/config/shell/bundle)
+    // Production Auth Check
+    const auth = requirePermission(ctx, 'sysadmin.config.preflight');
+    if (!auth.success) {
+        return router.json(res, auth.status || 403, auth.error || { error: "Access Denied" });
+    }
 
     const { versionId } = params;
     if (!versionId) {
@@ -164,8 +167,11 @@ async function main() {
 
   // Activate Version Endpoint (Governed)
   router.post("/api/config/shell/activate", async (req, res, _params, ctx) => {
-      // Governed operation - required for Sysadmin
-      // Should eventually use similar auth to /api/config/shell/deploy
+      // Production Auth Check
+      const auth = requirePermission(ctx, 'sysadmin.config.activate');
+      if (!auth.success) {
+          return router.json(res, auth.status || 403, auth.error || { error: "Access Denied" });
+      }
 
       try {
           const body = await router.readJsonBody(req);

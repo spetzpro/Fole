@@ -101,6 +101,8 @@ export const CANONICAL_ROLE_PERMISSIONS: Record<CanonicalRole, readonly string[]
     "map.edit",
     "map.calibrate",
     "projects.export",
+    "sysadmin.config.preflight",
+    "sysadmin.config.activate",
   ],
 };
 
