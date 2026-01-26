@@ -1586,9 +1586,16 @@ function ConfigSysadminView({
                             
                             {!isExpertMode && (
                                 <div style={{marginTop:'5px', padding:'6px', background:'#fff3cd', color:'#856404', borderRadius:'4px', border:'1px solid #ffeeba', fontSize:'0.85em'}}>
-                                    <strong>Expert Mode Required</strong><br/>
-                                    Editing Sysadmin structure can break the tool. <br/>
-                                    <em>Enable dev overrides to edit.</em>
+                                    <strong>Expert Mode is OFF (server policy).</strong><br/>
+                                    Editing is disabled because devModeOverridesEnabled is false.<br/>
+                                    <div style={{marginTop:'4px', fontSize:'0.9em', opacity: 0.8}}>
+                                        Capabilities: devModeOverridesEnabled=false
+                                    </div>
+                                    {(window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') && (
+                                         <div style={{marginTop:'8px', borderTop:'1px dotted #856404', paddingTop:'4px', fontStyle:'italic'}}>
+                                            Dev hint: enable FOLE_DEV_ALLOW_MODE_OVERRIDES=1 to allow Expert Mode.
+                                         </div>
+                                    )}
                                 </div>
                             )}
 
