@@ -2,7 +2,7 @@
 
 FOLE is a **configurable, runtime-editable platform** for building precise, map-centric applications — from millimeter-accurate indoor floor plans and factory layouts to globe-scale terrain visualization — all within a single coordinate system and governed by strong AI-assisted development rules.
 
-The long-term vision: sysadmins and power users compose entire features (UI, workflows, data models) live inside the running application via a declarative configuration builder, without redeploying code.
+The long-term vision: sysadmins and power users compose **entire application features** (UI, workflows, data models, storage structures) live inside the running application via a declarative configuration builder, without redeploying code, while the backend enforces safety, governance, and correctness.
 
 [![License: LGPL-2.1](https://img.shields.io/badge/License-LGPL--2.1-blue.svg)](https://www.gnu.org/licenses/old-licenses/lgpl-2.1.html)  
 [![Status: Early Scaffolding](https://img.shields.io/badge/status-early--scaffolding-orange)](#status)
@@ -13,10 +13,11 @@ The long-term vision: sysadmins and power users compose entire features (UI, wor
 
 - Configuration is **authoritative** and stored as JSON blocks.
 - The application is **runtime-editable** with strong governance.
-- All changes are **versioned, validated, and rollbackable**.
+- All changes are **versioned, validated, and recoverable**.
 - The frontend is a **generic renderer/interpreter**, not a hardcoded feature set.
 - The backend is the **authority** for permissions, validation, and data integrity.
-- **Activated configurations are always recoverable** (via rollback).
+- Features, UI, workflows, and data models are **composed from governed primitives**, not handwritten code.
+- Activated configurations are always **recoverable via version rollback**.
 
 ---
 
@@ -53,52 +54,54 @@ These rules define:
 
 ---
 
-## Config-Driven Application Builder (Release Vision)
+## Config-Driven Application Builder (Final Vision)
 
-### 1 TL;DR
+### 1. TL;DR
 
 FOLE is a **governed, versioned, runtime-editable application builder**.
 
-Sysadmins compose applications from shipped primitives (nodes, actions, templates, themes).  
-Changes flow through **Draft → Preflight → Activate → Rollback**.  
+Sysadmins compose applications from **shipped primitives and built-in tools** (UI nodes, actions, templates, themes, data models).  
+All changes flow through **Draft → Preflight → Activate → Rollback**.  
 The system is declarative, auditable, and safe by design.
 
+FOLE is not a page editor — it is a **live application construction system**.
+
 ---
 
-### 2 How it looks and feels to use
+### 2. How it looks and feels to use
 
 - Create **Features** (feature groups).
-- Add navigation (header, menu, slots).
-- Define **Windows** and **UI Elements** (text, tables, forms, viewers).
-- Everything inherits defaults unless explicitly overridden.
-- Inherited values are visually marked.
-- Issues are detected before activation.
-- Rollback is always one click away.
+- Add navigation by placing elements into **slots** (header, menu, toolbars, panels).
+- Define **Windows** and compose **UI Nodes** (text, tables, forms, viewers, tools).
+- Everything **inherits defaults** unless explicitly overridden.
+- Inherited values are clearly marked in the UI.
+- Validation issues are detected before activation.
+- Rollback to a known-good version is always one click away.
 
-You are effectively **building (and evolving) an app inside the running app** — safely, version by version.
+You are effectively **building and evolving a running application from inside itself**, with guardrails.
 
 ---
 
-### 3 How it works (overview)
+### 3. How it works (overview)
 
-- **Frontend** interprets declarative UI graphs and renders nodes.
+- **Frontend** interprets resolved declarative UI graphs and renders nodes.
 - **Backend** validates, governs, and executes with authority.
 
 <details>
 <summary><strong>Deeper dive: Frontend vs Backend responsibilities</strong></summary>
 
 **Frontend**
-- Interprets resolved config graphs.
+- Interprets resolved configuration graphs.
 - Renders UI nodes generically.
-- Evaluates conditions for UX only.
-- Never grants permissions.
+- Evaluates conditions for UX purposes only.
+- Never grants permissions or bypasses authority.
 
 **Backend**
-- Owns versions, activation, rollback.
-- Validates configs (schemas, inheritance, references).
-- Enforces permissions.
-- Manages data models and migrations.
-- Executes actions safely.
+- Owns versions, activation, and rollback.
+- Validates configurations (schemas, inheritance, references, limits).
+- Enforces permissions and preconditions.
+- Manages data models, storage backends, and migrations.
+- Executes actions safely and audibly.
 </details>
 
 ---
@@ -107,19 +110,21 @@ You are effectively **building (and evolving) an app inside the running app** �
 
 | UI Term | Code Term | Notes |
 |---|---|---|
-| Version | Config Bundle Version | Activation unit |
+| Version | Config Bundle Version | Atomic activation unit |
 | Block | Block | `{blockId, blockType, data}` |
 | Feature | Feature Group | `feature.group` |
-| Shell | Shell Block | `*.shell` |
+| Shell | Shell Block | Layout + slot orchestration |
+| Slot | Slot Identifier | Placement target (e.g. `app.header.left`) |
 | Window | Window Node | `ui.node.window` |
 | UI Element | UI Node | `ui.node.*` |
 | Built-in Tool | Built-in Node | e.g. `ui.node.pdfViewer` |
 | Template | Template Block | via `inheritFrom` |
-| Theme | Theme Block | Token-based |
+| Theme | Theme Block | Token-based visuals |
 | Action | Action Block | Server-authoritative |
 | Binding | Binding Descriptor | Data linkage |
 | Condition | Condition Expression | `visibleWhen`, `enabledWhen` |
 | Data Model | Model Block | Schema + migrations |
+| Surface / Viewport | Surface Node | Shared interactive context |
 
 All interactive nodes support:
 - `helpText`
@@ -128,42 +133,79 @@ All interactive nodes support:
 
 ---
 
+## Built-in Nodes, Tools & Extensibility
+
+FOLE ships with a **well-defined set of built-in node types** (primitives and tools), such as buttons, text, containers, windows, tables, forms, viewers, and interactive surfaces.
+
+Sysadmins compose features from these nodes declaratively.
+
+Developers extend the system by **adding new node types in code** (with schemas, capabilities, and governance rules).  
+Once added, these nodes become immediately available for configuration and composition.
+
+---
+
+## Sysadmin Builder (Meta-Tool)
+
+The sysadmin configuration interface itself is a **built-in meta-tool**.
+
+- Its structure and behavior are hardcoded for safety and recoverability.
+- Its visuals are **theme-driven** via global tokens and an optional builder theme profile.
+
+A safe fallback theme is always available.
+
+---
+
 ## Permissions, Conditions & Safety
 
-- **Permissions** decide what is allowed (server-side).
-- **Conditions** decide what is shown/enabled (UI only).
+- **Permissions** decide what is allowed (server-side authority).
+- **Conditions** decide what is shown or enabled (UX only).
 - Conditions never grant access.
-- Actions are always permission-checked.
+- Actions are always permission-checked at execution time.
 
-<details>
-<summary><strong>Condition language (v1+)</strong></summary>
+Conditions may reference:
+- runtime state
+- bindings
+- named query results
 
-Conditions support:
-- boolean logic (`and`, `or`, `not`)
-- comparisons (`== != > >= < <=`)
-- existence checks and basic string operations
-- named query results  
+Advanced matching (including regex) is supported where enabled, subject to validation, limits, and backend enforcement.
 
-Regex and advanced queries are gated, bounded, and validated when enabled.
-</details>
+---
+
+## Data Models, Storage & Migrations
+
+Sysadmins can define and evolve:
+- data models (tables, fields, relations)
+- storage backends (databases, file stores, image stores)
+
+All data model changes are:
+- versioned
+- validated
+- governed by permissions
+- reviewed during preflight
+
+Configuration rollback is always supported.  
+Physical data schema changes may be forward-only; configuration, UI, and behavior remain versioned and recoverable.
 
 ---
 
 ## Performance & Guardrails
 
-The system prioritizes predictability and safety over unbounded flexibility.
+The system prioritizes predictability, safety, and scalability.
 
-<details>
-<summary><strong>Performance strategy</strong></summary>
+- Backend compiles and resolves configuration graphs per version.
+- Frontend renders resolved graphs with stable IDs and memoization.
+- Large lists and tables are virtualized.
+- Guardrails enforce bounded complexity (nesting depth, node counts, expression limits).
 
-- Prefer backend compilation per version (resolved graph).
-- Stable IDs + memoization to minimize re-renders.
-- Virtualization for large tables/lists.
-- Enforced guardrails:
-  - max nodes per window
-  - max nesting depth
-  - max bindings/expressions per view
-</details>
+---
+
+## Design Constraints (Intentional)
+
+- No arbitrary code execution inside configuration
+- No raw SQL embedded in configuration
+- All actions map to governed backend capabilities
+- Expressions are declarative and bounded
+- Authority is never delegated to the frontend
 
 ---
 
@@ -206,8 +248,8 @@ No production runtime dependency.
 
 Near-term focus:
 - Finalize block graph semantics & resolved-graph compiler
-- Bootstrap sysadmin builder UI (hardcoded seed)
-- Define & implement initial built-in node types
+- Bootstrap sysadmin builder UI (meta-tool)
+- Define and implement initial built-in node and tool types
 
 See roadmap:
 - `app-repo/specs/core/_AI_CORE_BUILD_ROADMAP.md`
