@@ -1,8 +1,16 @@
-import { useState, useEffect, useRef, useMemo, Fragment } from 'react';
+import { useState, useEffect, useRef, useMemo, Fragment, createContext, useContext } from 'react';
 import './App.css';
 import { apiUrl } from './lib/apiBase';
 import V2RendererPreview from './V2RendererPreview';
 import { findSysadminBlock, parseSysadminConfig } from './SysadminLoader';
+
+// --- Capabilities Context ---
+interface RuntimeCapabilities {
+  debugEndpointsEnabled: boolean;
+  devModeOverridesEnabled: boolean;
+}
+const CapabilitiesContext = createContext<RuntimeCapabilities>({ debugEndpointsEnabled: false, devModeOverridesEnabled: false });
+export const useCapabilities = () => useContext(CapabilitiesContext);
 
 interface PingResponse {
   allowed: boolean;
@@ -900,6 +908,7 @@ function ConfigSysadminView({
     setPendingCandidateVersionId: (id: string | null) => void;
     dismissTimerRef: React.MutableRefObject<number | null>;
 }) {
+    const caps = useCapabilities();
     const [selectedTabId, setSelectedTabId] = useState<string | null>(null);
 
     // Roadmap 7.1 Step 2.1: Local Sysadmin Draft State
@@ -1405,28 +1414,32 @@ function ConfigSysadminView({
             setPendingCandidateVersionId(newVersionId);
 
             // 2. Preflight on CANDIDATE version
-            const pfRes = await fetch(apiUrl(`/api/debug/config/shell/preflight/${newVersionId}`));
-            if (!pfRes.ok) throw new Error("Preflight request failed");
-            const pfData = await pfRes.json();
-            
-            setPendingPreflight(pfData);
+            if (caps.debugEndpointsEnabled) {
+                const pfRes = await fetch(apiUrl(`/api/debug/config/shell/preflight/${newVersionId}`));
+                if (!pfRes.ok) throw new Error("Preflight request failed");
+                const pfData = await pfRes.json();
+                
+                setPendingPreflight(pfData);
 
-            // Gating Logic
-            const hasBlockers = !pfData.canActivate || (pfData.summary?.A1 > 0) || (pfData.summary?.A2 > 0);
-            const hasWarnings = (pfData.summary?.B > 0);
+                // Gating Logic
+                const hasBlockers = !pfData.canActivate || (pfData.summary?.A1 > 0) || (pfData.summary?.A2 > 0);
+                const hasWarnings = (pfData.summary?.B > 0);
 
-            if (hasBlockers) {
-                setPendingStage('error');
-                setSaveMessage('Preflight BLOCKED — cannot save/activate.');
-                setIsSaving(false);
-                return; // Abort
-            }
+                if (hasBlockers) {
+                    setPendingStage('error');
+                    setSaveMessage('Preflight BLOCKED — cannot save/activate.');
+                    setIsSaving(false);
+                    return; // Abort
+                }
 
-            if (hasWarnings) {
-                setPendingStage('awaiting_ack');
-                setSaveMessage('Preflight Warning: Issues detected that requires acknowledgement.');
-                setIsSaving(false);
-                return; // Abort first pass, wait for user ack
+                if (hasWarnings) {
+                    setPendingStage('awaiting_ack');
+                    setSaveMessage('Preflight Warning: Issues detected that requires acknowledgement.');
+                    setIsSaving(false);
+                    return; // Abort first pass, wait for user ack
+                }
+            } else {
+                setPendingPreflight(null);
             }
 
             // 3. Activate (Direct path if safe)
@@ -7734,6 +7747,15 @@ function SysadminPanel({
 
 function App() {
   
+  const [caps, setCaps] = useState<RuntimeCapabilities>({ debugEndpointsEnabled: false, devModeOverridesEnabled: false });
+
+  useEffect(() => {
+     fetch(apiUrl('/api/runtime/capabilities'))
+        .then(res => res.ok ? res.json() : null)
+        .then(d => d && setCaps(d))
+        .catch(() => {}); 
+  }, []);
+
   const [showV2, setShowV2] = useState(false);
   // v2RefreshKey removed to clean up unused state
 
@@ -8002,6 +8024,7 @@ function App() {
   };
 
   return (
+    <CapabilitiesContext.Provider value={caps}>
     <div style={{ padding: '20px', fontFamily: 'sans-serif', display: 'flex', flexDirection: 'column', height: '100vh', width: '100%', overflow: 'hidden', boxSizing:'border-box' }}>
       <h1>ShellRuntime Bootstrap UI</h1>
       
@@ -8020,31 +8043,39 @@ function App() {
           
           {/* Left Panel: Logic & Debug */}
           <div style={{width: '300px', overflowY: 'auto', borderRight: '1px solid #ddd', paddingRight:'10px'}}>
-             <h4>Debug Controls</h4>
+             {caps.debugEndpointsEnabled ? <h4>Debug Controls</h4> : <h4>System</h4>}
              <div style={{marginBottom:'20px'}}>
-                <input type="text" placeholder="Block ID" value={sourceBlockId} onChange={e=>setSourceBlockId(e.target.value)} style={{width:'100%'}}/>
-                <input type="text" placeholder="Action (e.g. click)" value={actionName} onChange={e=>setActionName(e.target.value)} style={{width:'100%', marginTop:'5px'}}/>
-                <input type="text" placeholder="Permissions" value={actionPerms} onChange={e=>setActionPerms(e.target.value)} style={{width:'100%', marginTop:'5px'}}/>
-                <button onClick={() => { void handleDispatch(); }} style={{marginTop:'5px', width:'100%'}}>Dispatch Action</button>
+                {caps.debugEndpointsEnabled && (
+                    <>
+                        <input type="text" placeholder="Block ID" value={sourceBlockId} onChange={e=>setSourceBlockId(e.target.value)} style={{width:'100%'}}/>
+                        <input type="text" placeholder="Action (e.g. click)" value={actionName} onChange={e=>setActionName(e.target.value)} style={{width:'100%', marginTop:'5px'}}/>
+                        <input type="text" placeholder="Permissions" value={actionPerms} onChange={e=>setActionPerms(e.target.value)} style={{width:'100%', marginTop:'5px'}}/>
+                        <button onClick={() => { void handleDispatch(); }} style={{marginTop:'5px', width:'100%'}}>Dispatch Action</button>
+                    </>
+                )}
                 <button onClick={() => setSysadminOpen(!sysadminOpen)} style={{marginTop:'10px', width:'100%', background: sysadminOpen ? '#333' : '#eee', color: sysadminOpen ? 'white' : 'black'}}>
                     {sysadminOpen ? 'Close Sysadmin' : 'Open Sysadmin'}
                 </button>
-                <button onClick={() => setShowV2(true)} style={{marginTop:'5px', width:'100%', background:'#e3f2fd', color: '#0d47a1'}}>
-                    V2 Renderer Preview
-                </button>
-                <button 
-                  onClick={() => {
-                     if (runtimePlan && runtimePlan.overlays && runtimePlan.overlays['overlay_menu']) {
-                         overlayOps.open('overlay_menu');
-                     } else {
-                         console.warn("overlay_menu not available in current plan");
-                     }
-                  }}
-                  style={{marginTop:'5px', width:'100%', background:'#ffebee', color: '#b71c1c', border:'1px solid #ef5350', cursor:'pointer', fontSize:'0.9em', fontWeight: 'bold'}}
-                  title="Force open standard menu overlay if available"
-                >
-                  Force open overlay_menu
-                </button>
+                {caps.debugEndpointsEnabled && (
+                    <>
+                        <button onClick={() => setShowV2(true)} style={{marginTop:'5px', width:'100%', background:'#e3f2fd', color: '#0d47a1'}}>
+                            V2 Renderer Preview
+                        </button>
+                        <button 
+                        onClick={() => {
+                            if (runtimePlan && runtimePlan.overlays && runtimePlan.overlays['overlay_menu']) {
+                                overlayOps.open('overlay_menu');
+                            } else {
+                                console.warn("overlay_menu not available in current plan");
+                            }
+                        }}
+                        style={{marginTop:'5px', width:'100%', background:'#ffebee', color: '#b71c1c', border:'1px solid #ef5350', cursor:'pointer', fontSize:'0.9em', fontWeight: 'bold'}}
+                        title="Force open standard menu overlay if available"
+                        >
+                        Force open overlay_menu
+                        </button>
+                    </>
+                )}
                 {!!actionResult && <pre style={{
                     fontSize:'10px',
                     background:'#f7f7f7',
@@ -8183,8 +8214,9 @@ function App() {
              />
           </div>
       </div>
-      {showV2 && <V2RendererPreview onClose={() => setShowV2(false)} />}
+      {caps.debugEndpointsEnabled && showV2 && <V2RendererPreview onClose={() => setShowV2(false)} />}
     </div>
+    </CapabilitiesContext.Provider>
   );
 }
 
