@@ -8257,11 +8257,12 @@ function App() {
                     </label>
                 </div>
 
+                <button onClick={() => setShowV2(true)} style={{marginTop:'5px', width:'100%', background:'#e3f2fd', color: '#0d47a1'}}>
+                    V2 Renderer Preview
+                </button>
+
                 {canUseDebugUi && (
                     <>
-                        <button onClick={() => setShowV2(true)} style={{marginTop:'5px', width:'100%', background:'#e3f2fd', color: '#0d47a1'}}>
-                            V2 Renderer Preview
-                        </button>
                         <button 
                         onClick={() => {
                             if (runtimePlan && runtimePlan.overlays && runtimePlan.overlays['overlay_menu']) {
@@ -8416,7 +8417,7 @@ function App() {
              />
           </div>
       </div>
-      {canUseDebugUi && showV2 && <V2RendererPreview onClose={() => setShowV2(false)} />}
+      {showV2 && <V2RendererPreview onClose={() => setShowV2(false)} />}
     </div>
     </CapabilitiesContext.Provider>
   );

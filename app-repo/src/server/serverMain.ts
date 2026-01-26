@@ -13,7 +13,7 @@ import { TriggerEvent, TriggerContext, TriggeredBindingResult } from "./Triggere
 import { dispatchActionEvent } from "./ActionDispatcher";
 import { IntegrationAdapterRegistry } from "./integrations/IntegrationAdapterRegistry";
 import { canAccessDebug } from "./DebugGuard";
-import { requirePermission } from "./ProductionGuard";
+import { requirePermission } from "./DevPermissionGuard";
 
 import { evaluateBoolean, ExpressionContext } from "./ExpressionEvaluator";
 
