@@ -50,8 +50,8 @@ function runTests() {
       assert(canAccessDebug(ctx) === false, "Guard: Should Deny when Env Flags are OFF");
   });
 
-  // B. Env Flags Enabled
-  withEnv({ FOLE_DEV_ALLOW_MODE_OVERRIDES: "1", FOLE_DEV_ENABLE_DEBUG_ENDPOINTS: "1" }, () => {
+  // B. Env Flags Enabled (Note: Debug enabled ONLY, overrides NOT required for DebugGuard anymore)
+  withEnv({ FOLE_DEV_ENABLE_DEBUG_ENDPOINTS: "1" }, () => {
       
       // 1. Missing Header
       {
@@ -95,48 +95,55 @@ function runTests() {
   console.log("\nTesting /api/runtime/capabilities Logic...");
   
   // Logic from validation:
-  // const canDebug = ModeGate.canUseDebugEndpoints(ctx);
-  // const canDev = ModeGate.canUseDeveloperMode(ctx);
+  // const debugEnabled = ModeGate.debugEndpointsEnabled(ctx);
+  // const overridesEnabled = ModeGate.canUseDevAuthBypass(ctx);
 
   // A. Default State
   withEnv({}, () => {
       const ctx = mockCtx(LOCALHOST);
       const output = {
-          debugEndpointsEnabled: ModeGate.canUseDebugEndpoints(ctx),
-          devModeOverridesEnabled: ModeGate.canUseDeveloperMode(ctx)
+          debugEndpointsEnabled: ModeGate.debugEndpointsEnabled(ctx),
+          devModeOverridesEnabled: ModeGate.canUseDevAuthBypass(ctx)
       };
       
       assert(output.debugEndpointsEnabled === false, "Capabilities: Default debug OFF");
       assert(output.devModeOverridesEnabled === false, "Capabilities: Default dev mode OFF");
   });
 
-  // B. Debug Enabled
-  withEnv({ FOLE_DEV_ALLOW_MODE_OVERRIDES: "1", FOLE_DEV_ENABLE_DEBUG_ENDPOINTS: "1" }, () => {
+  // B. Debug Enabled ONLY (No Overrides Flag)
+  withEnv({ FOLE_DEV_ENABLE_DEBUG_ENDPOINTS: "1" }, () => {
       const ctx = mockCtx(LOCALHOST);
       const output = {
-          debugEndpointsEnabled: ModeGate.canUseDebugEndpoints(ctx),
-          devModeOverridesEnabled: ModeGate.canUseDeveloperMode(ctx)
+          debugEndpointsEnabled: ModeGate.debugEndpointsEnabled(ctx),
+          devModeOverridesEnabled: ModeGate.canUseDevAuthBypass(ctx)
       };
       
       assert(output.debugEndpointsEnabled === true, "Capabilities: Debug ON when configured");
-      assert(output.devModeOverridesEnabled === false, "Capabilities: Dev Mode still OFF (needs FORCE_INVALID)");
+      assert(output.devModeOverridesEnabled === false, "Capabilities: Dev/Expert Mode OFF (missing overrides flag)");
   });
 
-  // C. Dev Mode Enabled
-  withEnv({ FOLE_DEV_ALLOW_MODE_OVERRIDES: "1", FOLE_DEV_FORCE_INVALID_CONFIG: "1" }, () => {
+  // C. Dev/Expert Mode Enabled (Overrides Only)
+  withEnv({ FOLE_DEV_ALLOW_MODE_OVERRIDES: "1" }, () => {
       const ctx = mockCtx(LOCALHOST);
       const output = {
-          debugEndpointsEnabled: ModeGate.canUseDebugEndpoints(ctx),
-          devModeOverridesEnabled: ModeGate.canUseDeveloperMode(ctx)
+          debugEndpointsEnabled: ModeGate.debugEndpointsEnabled(ctx),
+          devModeOverridesEnabled: ModeGate.canUseDevAuthBypass(ctx)
       };
       
-      // Note: Debug endpoints defaults to off unless explicitly enabled, even if dev mode is on
-      // (Assuming ModeGate logic matches this, let's verify)
-      // verify ModeGate source if unsure, but usually they are separate flags.
-      // ModeGate.canUseDebugEndpoints checks FOLE_DEV_ENABLE_DEBUG_ENDPOINTS
+      assert(output.debugEndpointsEnabled === false, "Capabilities: Debug OFF (requires ENABLE_DEBUG_ENDPOINTS)");
+      assert(output.devModeOverridesEnabled === true, "Capabilities: Dev Overrides ON");
+  });
+
+  // D. Both Enabled
+  withEnv({ FOLE_DEV_ALLOW_MODE_OVERRIDES: "1", FOLE_DEV_ENABLE_DEBUG_ENDPOINTS: "1" }, () => {
+      const ctx = mockCtx(LOCALHOST);
+      const output = {
+          debugEndpointsEnabled: ModeGate.debugEndpointsEnabled(ctx),
+          devModeOverridesEnabled: ModeGate.canUseDevAuthBypass(ctx)
+      };
       
-      assert(output.debugEndpointsEnabled === false, "Capabilities: Debug OFF even if Dev Mode ON");
-      assert(output.devModeOverridesEnabled === true, "Capabilities: Dev Mode ON when configured");
+      assert(output.debugEndpointsEnabled === true, "Capabilities: Debug ON");
+      assert(output.devModeOverridesEnabled === true, "Capabilities: Dev Overrides ON");
   });
 
   console.log(`\nSummary: ${passed} Passed, ${failed} Failed`);

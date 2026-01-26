@@ -1141,13 +1141,14 @@ async function main() {
      // NOTE: This reflects environment availability, NOT user authorization.
      // It helps the UI decide whether to show debug tools or not.
      // Actual access is guarded by DebugGuard on specific routes.
-     const canDebug = ModeGate.canUseDebugEndpoints(ctx);
-     // canUseDeveloperMode might be different depending on config
-     const canDev = ModeGate.canUseDeveloperMode(ctx);
+     
+     // Decoupled capabilities:
+     const debugEnabled = ModeGate.debugEndpointsEnabled(ctx);
+     const overridesEnabled = ModeGate.canUseDevAuthBypass(ctx);
      
      router.json(res, 200, {
-         debugEndpointsEnabled: canDebug,
-         devModeOverridesEnabled: canDev
+         debugEndpointsEnabled: debugEnabled,
+         devModeOverridesEnabled: overridesEnabled
      });
   });
 

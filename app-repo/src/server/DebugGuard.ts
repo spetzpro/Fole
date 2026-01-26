@@ -8,12 +8,12 @@ export const DEBUG_ROLE = "SYSADMIN";
 /**
  * Checks if the current request is allowed to access debug endpoints.
  * Requires:
- * 1. ModeGate.canUseDebugEndpoints(ctx) to return true (Environment flag)
+ * 1. ModeGate.debugEndpointsEnabled(ctx) to return true (Environment flag)
  * 2. Valid X-Dev-Auth header with required permission/role (Permission check)
  */
 export function canAccessDebug(ctx: RequestContext): boolean {
     // 1. Server Flag Check
-    if (!ModeGate.canUseDebugEndpoints(ctx)) {
+    if (!ModeGate.debugEndpointsEnabled(ctx)) {
         return false;
     }
 

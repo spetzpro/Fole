@@ -39,7 +39,7 @@ export function requirePermission(ctx: RequestContext, requiredPermission: strin
     // strictly when the server is properly configured for it (ModeGate).
     // This allows the existing UI (which sends X-Dev-Auth) to work against these governed endpoints
     // in dev, without inventing a new auth channel.
-    if (ModeGate.canUseDebugEndpoints(ctx)) {
+    if (ModeGate.canUseDevAuthBypass(ctx)) {
          const devHeader = ctx.req.headers["x-dev-auth"] as string | undefined;
          if (devHeader) {
              try {
