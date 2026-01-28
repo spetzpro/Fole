@@ -72,6 +72,11 @@ export class ShellConfigDeployer {
          await fs.writeFile(path.join(bundlePath, `${blockId}.json`), JSON.stringify(blockData, null, 2));
     }
 
+    // GUARDRAIL: Legacy Normalization
+    // Ensure the drafted version uses correct host/rules architecture for viewport
+    // (This uses the same robust logic as clone-and-patch to ensure manually pushed bundles are safe)
+    await (this.repo as any).normalizeViewportRegion(bundlePath);
+
     // 5. Activate (Atomic Update)
     const activatedAt = meta.timestamp;
     await this.updateActivePointer(versionId, activatedAt, {

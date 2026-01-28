@@ -379,6 +379,97 @@ export class ShellConfigRepository {
           // Ignore
       }
 
+      // GUARDRAIL: Legacy Normalization
+      // Ensure the drafted version uses correct host/rules architecture for viewport
+      await this.normalizeViewportRegion(newBundlePath);
+
       return { newVersionId };
+  }
+
+  /**
+   * Internal helper to normalize legacy viewport definitions (shell.rules.viewport)
+   * into the modern Host/Rules split (shell.region.viewport -> rulesId).
+   */
+  public async normalizeViewportRegion(bundlePath: string): Promise<void> {
+      try {
+          const manifestPath = path.join(bundlePath, "shell.manifest.json");
+          const manifestContent = await fs.readFile(manifestPath, "utf-8");
+          const manifest = JSON.parse(manifestContent) as ShellManifest;
+
+          // Only proceed if viewport region exists
+          if (!manifest.regions || !manifest.regions.viewport) return;
+          
+          const viewportBlockId = manifest.regions.viewport.blockId;
+          const viewportBlockPath = path.join(bundlePath, `${viewportBlockId}.json`);
+
+          const blockContent = await fs.readFile(viewportBlockPath, "utf-8");
+          const block = JSON.parse(blockContent) as BlockEnvelope;
+
+          // If block is ALREADY the modern host type, nothing to do
+          if (block.blockType === "shell.region.viewport") return;
+
+          // If block is the legacy rules type (shell.rules.viewport used as host)
+          if (block.blockType === "shell.rules.viewport") {
+               // Normalization Step 1: Rename the legacy file/block to allow Host to take the ID
+               // Actually we keep legacy file ID but change its content to be Host? 
+               // Or rename legacy to rules?
+               // Safest: Rename legacy file to *-rules.json, make new file with original ID as Host.
+
+               const rulesBlockId = `${viewportBlockId}-rules`;
+               const rulesBlockPath = path.join(bundlePath, `${rulesBlockId}.json`);
+               
+               // Update legacy block content to define itself as rules
+               const rulesBlock = {
+                   ...block,
+                   blockId: rulesBlockId
+                   // Type is already shell.rules.viewport
+               };
+               
+               // Write rules file
+               await fs.writeFile(rulesBlockPath, JSON.stringify(rulesBlock, null, 2), "utf-8");
+
+               // Normalization Step 2: Create Host Block using original ID
+               // This preserves the Manifest reference (so we don't need to patch manifest blocks)
+               const hostBlock: BlockEnvelope = {
+                   blockId: viewportBlockId,
+                   blockType: "shell.region.viewport",
+                   schemaVersion: "1.0.0",
+                   data: {
+                       rulesId: rulesBlockId,
+                       // Critical: Wire content. We try to infer or fallback.
+                       contentRootId: "root-container" 
+                   }
+               };
+
+               // Write host file (overwriting the legacy file)
+               await fs.writeFile(viewportBlockPath, JSON.stringify(hostBlock, null, 2), "utf-8");
+               
+               // Normalization Step 3: Ensure contentRootId (root-container) exists
+               const rootPath = path.join(bundlePath, "root-container.json");
+               try {
+                  await fs.access(rootPath);
+               } catch {
+                   // Create default root container if missing
+                   const rootContainer: BlockEnvelope = {
+                        blockId: "root-container",
+                        blockType: "ui.node.container",
+                        schemaVersion: "1.0.0",
+                        data: {
+                             id: "root-container",
+                             type: "ui.node.container",
+                             direction: "column",
+                             children: []
+                        }
+                   };
+                   await fs.writeFile(rootPath, JSON.stringify(rootContainer, null, 2), "utf-8");
+               }
+          }
+
+      } catch (err: any) {
+          // Log but don't crash - normalization failure shouldn't stop save if possible,
+          // though it might leave inconsistencies.
+          // eslint-disable-next-line no-console
+          console.warn(`[ShellConfigRepository] Normalization failed: ${err.message}`);
+      }
   }
 }
