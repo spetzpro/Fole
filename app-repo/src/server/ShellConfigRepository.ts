@@ -436,33 +436,19 @@ export class ShellConfigRepository {
                    schemaVersion: "1.0.0",
                    data: {
                        rulesId: rulesBlockId,
-                       // Critical: Wire content. We try to infer or fallback.
-                       contentRootId: "root-container" 
+                       // No implicit contentRootId wiring - purely structural update
                    }
                };
+               
+               // Preserve existing contentRootId if present (though unlikely in legacy rules block)
+               if (block.data && (block.data as any).contentRootId) {
+                   (hostBlock.data as any).contentRootId = (block.data as any).contentRootId;
+               }
 
                // Write host file (overwriting the legacy file)
                await fs.writeFile(viewportBlockPath, JSON.stringify(hostBlock, null, 2), "utf-8");
                
-               // Normalization Step 3: Ensure contentRootId (root-container) exists
-               const rootPath = path.join(bundlePath, "root-container.json");
-               try {
-                  await fs.access(rootPath);
-               } catch {
-                   // Create default root container if missing
-                   const rootContainer: BlockEnvelope = {
-                        blockId: "root-container",
-                        blockType: "ui.node.container",
-                        schemaVersion: "1.0.0",
-                        data: {
-                             id: "root-container",
-                             type: "ui.node.container",
-                             direction: "column",
-                             children: []
-                        }
-                   };
-                   await fs.writeFile(rootPath, JSON.stringify(rootContainer, null, 2), "utf-8");
-               }
+               // No implicit creation of root-container
           }
 
       } catch (err: any) {
