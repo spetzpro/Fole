@@ -69,6 +69,12 @@ const V2_BUNDLE = {
             },
             "viewport-placeholder": {
                 blockId: "viewport-placeholder",
+                blockType: "shell.region.viewport",
+                schemaVersion: "1.0.0",
+                data: { rulesId: "viewport-placeholder-rules" }
+            },
+            "viewport-placeholder-rules": {
+                blockId: "viewport-placeholder-rules",
                 blockType: "shell.rules.viewport",
                 schemaVersion: "1.0.0",
                 data: { allowZoom: true, defaultZoom: 1, minZoom: 0.5, maxZoom: 2 }

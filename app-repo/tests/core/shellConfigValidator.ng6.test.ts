@@ -25,7 +25,8 @@ async function run() {
             // Minimal Shell Blocks
             "h": { blockId: "h", blockType: "shell.region.header", schemaVersion: "1.0.0", data: { title: "T" } },
             "f": { blockId: "f", blockType: "shell.region.footer", schemaVersion: "1.0.0", data: { copyrightText: "C" } },
-            "v": { blockId: "v", blockType: "shell.rules.viewport", schemaVersion: "1.0.0", data: { allowZoom: true } },
+            "v": { blockId: "v", blockType: "shell.region.viewport", schemaVersion: "1.0.0", data: { rulesId: "vr" } },
+            "vr": { blockId: "vr", blockType: "shell.rules.viewport", schemaVersion: "1.0.0", data: { allowZoom: true } },
             "r": { blockId: "r", blockType: "shell.infra.routing", schemaVersion: "1.0.0", data: { routes: {}, publishedLinks: {} } },
             "t": { blockId: "t", blockType: "shell.infra.theme_tokens", schemaVersion: "1.0.0", data: { tokens: {} } },
             "w": { blockId: "w", blockType: "shell.infra.window_registry", schemaVersion: "1.0.0", data: { windows: {} } },

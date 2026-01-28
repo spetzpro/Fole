@@ -62,7 +62,7 @@ async function testOverlayValidation() {
             // Mock regions to satisfy A1 missing_block check
             "header": { blockId: "header", blockType: "shell.region.header", schemaVersion: "1.0.0", data: {} },
             "footer": { blockId: "footer", blockType: "shell.region.footer", schemaVersion: "1.0.0", data: {} },
-            "viewport": { blockId: "viewport", blockType: "shell.rules.viewport", schemaVersion: "1.0.0", data: {} }
+            "viewport": { blockId: "viewport", blockType: "shell.region.viewport", schemaVersion: "1.0.0", data: {} }
         }
     };
 

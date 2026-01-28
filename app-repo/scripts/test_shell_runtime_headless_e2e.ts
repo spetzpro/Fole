@@ -63,7 +63,8 @@ const testBundle = {
     blocks: {
         "head": { schemaVersion: "1.0.0", blockId: "head", blockType: "shell.region.header", data: { title: "Test" } },
         "foot": { schemaVersion: "1.0.0", blockId: "foot", blockType: "shell.region.footer", data: { copyrightText: "Test" } },
-        "view": { schemaVersion: "1.0.0", blockId: "view", blockType: "shell.rules.viewport", data: { allowZoom: true } },
+        "view": { schemaVersion: "1.0.0", blockId: "view", blockType: "shell.region.viewport", data: { rulesId: "view_rules" } },
+        "view_rules": { schemaVersion: "1.0.0", blockId: "view_rules", blockType: "shell.rules.viewport", data: { allowZoom: true } },
         
         "infra_routing": { 
             schemaVersion: "1.0.0", 

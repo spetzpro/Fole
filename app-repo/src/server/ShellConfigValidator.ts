@@ -77,6 +77,7 @@ export class ShellConfigValidator {
         "shell-manifest.schema.json",
         "shell-bundle.schema.json",
         "shell.region.header.data.schema.json",
+        "shell.region.viewport.data.schema.json",
         "shell.region.footer.data.schema.json",
         "shell.rules.viewport.data.schema.json",
         "shell.infra.routing.data.schema.json",
@@ -225,11 +226,11 @@ export class ShellConfigValidator {
     });
 
     // Check normalization entries
-    // Also enforce roles: header->shell.region.header, footer->shell.region.footer, viewport->shell.rules.viewport
+    // Also enforce roles: header->shell.region.header, footer->shell.region.footer, viewport->shell.region.viewport
     const roleMap: Record<string, string> = {
         header: 'shell.region.header',
         footer: 'shell.region.footer',
-        viewport: 'shell.rules.viewport'
+        viewport: 'shell.region.viewport'
     };
 
     // Iterate normalized roles to validate existence and type

@@ -44,7 +44,13 @@ async function run() {
             },
             "blk_viewport": {
                 blockId: "blk_viewport",
-                blockType: "shell.rules.viewport", // Corrected
+                blockType: "shell.region.viewport",
+                schemaVersion: "1.0.0",
+                data: { rulesId: "blk_viewport_rules" }
+            },
+            "blk_viewport_rules": {
+                blockId: "blk_viewport_rules",
+                blockType: "shell.rules.viewport",
                 schemaVersion: "1.0.0",
                 data: { allowZoom: true }
             },

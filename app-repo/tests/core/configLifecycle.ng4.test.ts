@@ -34,7 +34,8 @@ async function run() {
             // Mandated Shell Blocks
             "blk_header": { blockId: "blk_header", blockType: "shell.region.header", schemaVersion: "1.0.0", data: { title: "NG4 App" } },
             "blk_footer": { blockId: "blk_footer", blockType: "shell.region.footer", schemaVersion: "1.0.0", data: { copyrightText: "© NG4" } },
-            "blk_viewport": { blockId: "blk_viewport", blockType: "shell.rules.viewport", schemaVersion: "1.0.0", data: { allowZoom: true } },
+            "blk_viewport": { blockId: "blk_viewport", blockType: "shell.region.viewport", schemaVersion: "1.0.0", data: { rulesId: "blk_viewport_rules" } },
+            "blk_viewport_rules": { blockId: "blk_viewport_rules", blockType: "shell.rules.viewport", schemaVersion: "1.0.0", data: { allowZoom: true } },
             "blk_routing": { blockId: "blk_routing", blockType: "shell.infra.routing", schemaVersion: "1.0.0", data: { routes: {}, publishedLinks: {} } },
             "blk_theme": { blockId: "blk_theme", blockType: "shell.infra.theme_tokens", schemaVersion: "1.0.0", data: { tokens: {} } },
             "blk_windows": { blockId: "blk_windows", blockType: "shell.infra.window_registry", schemaVersion: "1.0.0", data: { windows: {} } },
