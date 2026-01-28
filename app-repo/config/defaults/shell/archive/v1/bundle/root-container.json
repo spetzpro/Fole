@@ -1,0 +1,10 @@
+{
+  "blockId": "root-container",
+  "blockType": "ui.container",
+  "schemaVersion": "1.0.0",
+  "data": {
+    "direction": "vertical",
+    "children": []
+  },
+  "filename": "root-container.json"
+}

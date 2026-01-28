@@ -51,7 +51,7 @@ const V2_BUNDLE = {
             regions: {
                 header: { blockId: "header" },
                 footer: { blockId: "footer" },
-                main: { blockId: "viewport-placeholder" }
+                viewport: { blockId: "viewport" }
             }
         },
         blocks: {
@@ -67,14 +67,17 @@ const V2_BUNDLE = {
                 schemaVersion: "1.0.0",
                 data: { copyrightText: "2026" }
             },
-            "viewport-placeholder": {
-                blockId: "viewport-placeholder",
+            "viewport": {
+                blockId: "viewport",
                 blockType: "shell.region.viewport",
                 schemaVersion: "1.0.0",
-                data: { rulesId: "viewport-placeholder-rules" }
+                data: { 
+                    rulesId: "viewport-rules",
+                    contentRootId: "root-container"
+                }
             },
-            "viewport-placeholder-rules": {
-                blockId: "viewport-placeholder-rules",
+            "viewport-rules": {
+                blockId: "viewport-rules",
                 blockType: "shell.rules.viewport",
                 schemaVersion: "1.0.0",
                 data: { allowZoom: true, defaultZoom: 1, minZoom: 0.5, maxZoom: 2 }
