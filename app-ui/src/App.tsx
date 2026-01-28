@@ -8339,25 +8339,27 @@ function App() {
      );
   }, [bundleData]);
 
-  const headerBlock = useMemo(() => {
-      if (!bundleData) return null;
+  const regions = useMemo(() => {
+      if (!bundleData) return { header: null, viewport: null, footer: null };
       const manifest = bundleData.manifest as any;
       const blocks = bundleData.blocks as any;
       
-      // 1. Try manifest
-      let blockId = manifest?.regions?.header;
-      if (typeof blockId !== 'string') blockId = manifest?.regions?.header?.blockId;
+      const resolve = (key: string, _type: string) => {
+          let id = manifest?.regions?.[key];
+          // Handle object form { blockId: "..." }
+          if (typeof id === 'object' && id) id = id.blockId;
+          
+          if (id && blocks && blocks[id]) {
+              return blocks[id];
+          }
+          return null;
+      };
       
-      // 2. Fallback: Find blockType 'shell.region.header'
-      if (!blockId && blocks) {
-          const found = Object.values(blocks).find((b: any) => b.blockType === 'shell.region.header') as any;
-          if (found) blockId = found.blockId || found.id;
-      }
-      
-      if (blockId && blocks && blocks[blockId]) {
-          return blocks[blockId];
-      }
-      return null;
+      return {
+          header: resolve('header', 'shell.region.header'),
+          viewport: resolve('viewport', 'shell.region.viewport'),
+          footer: resolve('footer', 'shell.region.footer')
+      };
   }, [bundleData]);
 
   // UI Handlers wiring to Runtime
@@ -8392,51 +8394,7 @@ function App() {
         </div>
       </div>
 
-      {/* App Header Region */}
-      {runtimePlan && (
-          <div style={{
-              height: '48px',
-              backgroundColor: '#2b2b2b',
-              color: '#eee',
-              display: 'flex',
-              alignItems: 'center',
-              padding: '0 15px',
-              borderBottom: '1px solid #444',
-              justifyContent: 'space-between',
-              marginBottom: '10px',
-              borderRadius: '4px'
-          }}>
-              <div style={{fontWeight: 'bold', fontSize: '1.1em'}}>{headerBlock?.data?.title || "Fole App V2"}</div>
-              <div style={{display:'flex', gap:'10px', alignItems:'center'}}>
-                  {headerRightItems.map((item: any) => {
-                      const actionId = item.data?.actionId;
-                      const label = item.data?.label || item.blockId;
-                      
-                      return (
-                          <button 
-                              key={item.blockId} 
-                              onClick={() => {
-                                  if (!actionId || !runtimePlan) return;
-                                  // Pass ID directly now
-                                  runAction(actionId);
-                              }}
-                              style={{ 
-                                  fontWeight: 'bold', 
-                                  background: '#007acc', 
-                                  color: 'white', 
-                                  border: 'none', 
-                                  padding: '6px 12px',
-                                  borderRadius: '4px',
-                                  cursor: 'pointer' 
-                              }}
-                          >
-                              {label}
-                          </button>
-                      );
-                  })}
-              </div>
-          </div>
-      )}
+      {/* App Header Region Removed - Moved to Shell Container */}
 
 
       <div style={{display:'flex', gap:'20px', flex:1, width: '100%', height:'100%', overflow:'hidden'}}>
@@ -8569,60 +8527,78 @@ function App() {
              </ul>
           </div>
 
-          {/* Right Panel: The Viewport */}
-          <div ref={viewportRef} style={{flex:1, position:'relative', backgroundColor:'#f0f0f0', overflow:'auto', minWidth: 0, minHeight: 0, border:'2px solid #333', borderRadius:'4px', boxShadow:'inset 0 0 10px rgba(0,0,0,0.1)'}}>
-             {/* The "Desktop" */}
-             {runtimePlan ? (
-                 <>
-                    {/* Windows */}
-                    {Object.values(runtimePlan.windows).map(w => (
-                        <WindowFrame 
-                           key={w.id} 
-                           win={w}
-                           onFocus={() => winOps.focus(w.id)}
-                           onMove={(x,y) => winOps.move(w.id, x, y)}
-                           onResize={(width,height) => winOps.resize(w.id, width, height)}
-                           onClose={() => winOps.close(w.id)}
-                           onMinimize={(v) => winOps.minimize(w.id, v)}
-                           onDock={(m) => winOps.dock(w.id, m)}
-                        />
-                    ))}
-
-                    {/* Overlays */}
-                    <OverlayLayer 
-                        overlays={Object.values(runtimePlan.overlays)} 
-                        onClose={overlayOps.close}
-                        onDismissCtx={overlayOps.dismiss}
-                        actions={runtimePlan.actions}
-                        onRunAction={runAction}
-                        lastRun={actionRuns[0]}
-                        recentRuns={actionRuns}
-                        expandedRunIds={expandedRunIds}
-                        onToggleRunLogs={toggleRunLogs}
-                        actionSearch={actionSearch}
-                        onChangeActionSearch={setActionSearch}
-                    />
-                 </>
-             ) : (
-                <div style={{padding: '20px', color: '#999', textAlign:'center', marginTop:'100px'}}>
-                   Load Bundle & Resolve Ping to Start Runtime
-                </div>
+          {/* Right Panel: Shell Surface */}
+          <div style={{flex:1, display:'flex', flexDirection:'column', height:'100%', minWidth: 0, border:'2px solid #333', borderRadius:'4px', overflow:'hidden', backgroundColor: '#333'}}>
+             
+             {/* Shell Header */}
+             {regions.header && (
+                 <div style={{
+                     height: '48px',
+                     backgroundColor: '#2b2b2b',
+                     color: '#eee',
+                     display: 'flex',
+                     alignItems: 'center',
+                     padding: '0 15px',
+                     borderBottom: '1px solid #444',
+                     justifyContent: 'space-between',
+                     flexShrink: 0
+                 }}>
+                    <div style={{fontWeight: 'bold', fontSize: '1.1em'}}>{regions.header.data?.title || "Fole App"}</div>
+                    <div style={{display:'flex', gap:'10px', alignItems:'center'}}>
+                        {headerRightItems.map((item: any) => {
+                            const label = item.data?.label || item.blockId;
+                            return (
+                                <button key={item.blockId} 
+                                    onClick={() => { if(item.data?.actionId) runAction(item.data.actionId); }} 
+                                    style={{ fontWeight: 'bold', background: '#007acc', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '4px', cursor: 'pointer' }}>
+                                    {label}
+                                </button>
+                            );
+                        })}
+                    </div>
+                 </div>
              )}
-            
-             <SysadminPanel 
-                 isOpen={sysadminOpen} 
-                 onClose={() => setSysadminOpen(false)}
-                 bundleData={bundleData}
-                 runtimePlan={runtimePlan}
-                 actionRuns={actionRuns}
-                 runningSource={runningSource}
-                 lastConfigEvent={lastConfigEvent}
-                 onApplyDraft={applyDraft}
-                 onRollback={rollbackActive}
-                 canRollback={!!lastActiveBundle && runningSource === 'DRAFT'}
-                 onRefresh={fetchBundle}
-                 safeModeEnabled={safeModeEnabled}
-             />
+
+             {/* Shell Viewport */}
+             <div ref={viewportRef} style={{flex:1, position:'relative', backgroundColor:'#f0f0f0', overflow:'hidden'}}>
+                 { regions.viewport?.data?.contentRootId && (
+                     <div style={{width:'100%', height:'100%', overflow:'hidden', position:'relative'}}>
+                        <V2RendererPreview embedded rootId={regions.viewport.data.contentRootId} />
+                     </div>
+                 )}
+
+                 <SysadminPanel 
+                     isOpen={sysadminOpen} 
+                     onClose={() => setSysadminOpen(false)}
+                     bundleData={bundleData}
+                     runtimePlan={runtimePlan}
+                     actionRuns={actionRuns}
+                     runningSource={runningSource}
+                     lastConfigEvent={lastConfigEvent}
+                     onApplyDraft={applyDraft}
+                     onRollback={rollbackActive}
+                     canRollback={!!lastActiveBundle && runningSource === 'DRAFT'}
+                     onRefresh={fetchBundle}
+                     safeModeEnabled={safeModeEnabled}
+                 />
+             </div>
+
+             {/* Shell Footer */}
+             {regions.footer && (
+                 <div style={{
+                     height: '24px',
+                     backgroundColor: '#eee',
+                     borderTop: '1px solid #ccc',
+                     display: 'flex',
+                     alignItems: 'center',
+                     padding: '0 10px',
+                     fontSize: '0.8rem',
+                     color: '#555',
+                     flexShrink: 0
+                 }}>
+                     {regions.footer.data?.copyrightText || regions.footer.blockId }
+                 </div>
+             )}
           </div>
       </div>
       {showV2 && <V2RendererPreview onClose={() => setShowV2(false)} />}

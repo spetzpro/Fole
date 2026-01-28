@@ -16,10 +16,12 @@ interface ResolvedUiGraph {
 }
 
 interface V2RendererPreviewProps {
-    onClose: () => void;
+    onClose?: () => void;
+    embedded?: boolean;
+    rootId?: string;
 }
 
-export function V2RendererPreview({ onClose }: V2RendererPreviewProps) {
+export function V2RendererPreview({ onClose, embedded, rootId }: V2RendererPreviewProps) {
     const [graph, setGraph] = useState<ResolvedUiGraph | null>(null);
     const [error, setError] = useState<string | null>(null);
 
@@ -178,6 +180,20 @@ export function V2RendererPreview({ onClose }: V2RendererPreviewProps) {
                 );
         }
     };
+
+    if (embedded) {
+        if (error) return <div style={{color:'red', padding:'20px'}}>Error: {error}</div>;
+        if (!graph) return <div>Loading V2 graph...</div>;
+        
+        const targetId = rootId || (graph.rootNodeIds && graph.rootNodeIds[0]);
+        if (!targetId) return <div>No root node found</div>;
+        
+        return (
+            <div style={{height:'100%', overflow:'auto', backgroundColor: '#f0f0f0', color:'#333'}}>
+                {renderNode(targetId)}
+            </div>
+        );
+    }
 
     return (
         <div style={{
