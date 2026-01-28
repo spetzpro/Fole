@@ -311,14 +311,32 @@ export class ShellConfigRepository {
       
       // Patch Sysadmin Blocks
       for (const [key, block] of Object.entries(sysadminBlocks)) {
+          const targetPath = path.join(newBundlePath, `${key}.json`);
+          let mergedData = block.data;
+
+          // SAFEGUARD: If block already exists, merge data to preserve hidden fields (like contentRootId)
+          try {
+             // We copy files first, so if it existed in base, it exists here.
+             const existingContent = await fs.readFile(targetPath, "utf-8");
+             const existingBlock = JSON.parse(existingContent);
+             
+             // If key fields usually preserved by UI are present, we can do a shallow merge
+             // We prioritize the NEW data (block.data) but fallback to EXISTING for missing keys
+             if (existingBlock && existingBlock.data) {
+                 mergedData = { ...existingBlock.data, ...block.data };
+             }
+          } catch {
+             // File doesn't exist (new block), so no merge needed
+          }
+
           // Force blockId match key and filename match structure
           const blockToSave = { 
               ...block, 
               blockId: key,
-              filename: `${key}.json`
+              filename: `${key}.json`,
+              data: mergedData
           };
           
-          const targetPath = path.join(newBundlePath, `${key}.json`);
           const tempPath = targetPath + ".tmp";
 
           await fs.writeFile(
