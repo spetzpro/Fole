@@ -8339,18 +8339,26 @@ function App() {
       setActionRuns(prev => [record, ...prev].slice(0, 50)); 
   };
 
-  const headerRightItems = useMemo(() => {
-     if (!bundleData?.blocks) return [];
+  const { headerRightItems, headerLeftItems } = useMemo(() => {
+     if (!bundleData?.blocks) return { headerRightItems: [], headerLeftItems: [] };
      const blocks = Array.isArray(bundleData.blocks) 
         ? bundleData.blocks 
         : typeof bundleData.blocks === 'object' && bundleData.blocks 
            ? Object.values(bundleData.blocks) 
            : [];
            
-     return blocks.filter((b: any) => 
-         b.blockType === 'shell.slot.item' && 
-         b.data?.slotId === 'app.header.right'
-     );
+     const right: any[] = [];
+     const left: any[] = [];
+
+     blocks.forEach((b: any) => {
+         if (b.blockType === 'shell.slot.item') {
+             if (b.data?.slotId === 'app.header.right') right.push(b);
+             else if (b.data?.slotId === 'app.header.left') left.push(b);
+         }
+     });
+
+     // Sort optional by order/priority if available, or just keeping stable
+     return { headerRightItems: right, headerLeftItems: left };
   }, [bundleData]);
 
   const regions = useMemo(() => {
@@ -8557,7 +8565,27 @@ function App() {
                      justifyContent: 'space-between',
                      flexShrink: 0
                  }}>
-                    <div style={{fontWeight: 'bold', fontSize: '1.1em'}}>{regions.header.data?.title || "Fole App"}</div>
+                    {/* Left Group: Title + Left Slots */}
+                    <div style={{display:'flex', alignItems:'center', gap:'15px'}}>
+                        <div style={{fontWeight: 'bold', fontSize: '1.1em'}}>{regions.header.data?.title || "Fole App"}</div>
+                        
+                        {headerLeftItems.length > 0 && (
+                            <div style={{display:'flex', gap:'8px', alignItems:'center'}}>
+                                {headerLeftItems.map((item: any) => {
+                                    const label = item.data?.label || item.blockId;
+                                    return (
+                                        <button key={item.blockId} 
+                                            onClick={() => { if(item.data?.actionId) runAction(item.data.actionId); }} 
+                                            style={{ fontWeight: 'bold', background: '#444', color: '#eee', border: '1px solid #666', padding: '4px 10px', borderRadius: '4px', cursor: 'pointer', fontSize:'0.85em' }}>
+                                            {label}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Right Group: Right Slots */}
                     <div style={{display:'flex', gap:'10px', alignItems:'center'}}>
                         {headerRightItems.map((item: any) => {
                             const label = item.data?.label || item.blockId;
