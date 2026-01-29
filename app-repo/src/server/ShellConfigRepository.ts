@@ -133,8 +133,6 @@ export class ShellConfigRepository {
       // GUARDRAIL: Format consistency on Read (In-Memory Only)
       // This ensures that even if disk state is hybrid/legacy, the API served to UI is always canonical.
       const normalizedBundle = ShellConfigRepository.normalizeBundleInMemory({ manifest, blocks });
-      // eslint-disable-next-line no-console
-      console.log(`[ShellConfigRepository] Served normalized bundle for version ${versionId} (viewport type: ${normalizedBundle.manifest.regions?.viewport?.blockId})`);
 
       return {
         versionId,
