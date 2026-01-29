@@ -1,6 +1,18 @@
+/**
+ * TEST: Deploy Patch Invariants
+ * 
+ * Protects critical invariants of the shell configuration deployment process:
+ * 1. Partial Config Updates (Patch Semantics): Ensuring that deploying a bundle with only changed blocks
+ *    does NOT delete unrelated blocks (like window_registry or root-window) from the active configuration.
+ * 2. Canonical Viewport: Ensuring that the deployment pipeline maintains a clean 'viewport' and 'viewport-rules'
+ *    structure and doesn't introduce legacy 'viewport-placeholder' artifacts.
+ * 
+ * This test is HERMETIC: It uses a temporary directory for all file operations and mocks the validator.
+ */
 
 import * as fs from 'fs';
 import * as path from 'path';
+import * as os from 'os';
 import { ShellConfigDeployer } from '../src/server/ShellConfigDeployer';
 import { ShellConfigRepository } from '../src/server/ShellConfigRepository';
 import { ShellBundle, ValidationReport } from '../src/server/ShellConfigTypes';
@@ -28,12 +40,12 @@ async function runTest() {
     console.log("=== STARTING TEST: Deploy Patch Invariants ===");
 
     // 1. Setup Temp Directory
-    const tempRoot = path.join(__dirname, '..', 'temp_deploy_test_' + Date.now());
+    const tempRoot = path.join(os.tmpdir(), 'fole_deploy_test_' + Date.now());
+    // The Deployer expects {workspaceFolder}/app-repo/config/shell
+    // So we must construct the folder structure inside tempRoot/app-repo...
     const appRepoPath = path.join(tempRoot, 'app-repo');
     const configPath = path.join(appRepoPath, 'config', 'shell');
     
-    // Create structure mimic: temp/app-repo/config/shell
-    // The Deployer expects {workspaceFolder}/app-repo/config/shell
     await fs.promises.mkdir(path.join(configPath, 'archive'), { recursive: true });
     
     try {
@@ -98,7 +110,7 @@ async function runTest() {
         const validator = new MockValidator();
         const deployer = new ShellConfigDeployer(repo, validator as any, tempRoot);
 
-        console.log("System Initialized with V1.");
+        console.log(`System Initialized in ${tempRoot}`);
 
 
         // 4. Perform Partial Deploy (The Patch)

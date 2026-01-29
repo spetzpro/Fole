@@ -60,29 +60,35 @@ const VALID_BUNDLE = {
   manifest: {
     schemaVersion: "1.0.0",
     regions: {
-      top: { blockId: "header" },
-      bottom: { blockId: "footer" },
-      main: { blockId: "viewport" }
+      header: { blockId: "header" },
+      footer: { blockId: "footer" },
+      viewport: { blockId: "viewport" }
     }
   },
   blocks: {
     header: {
       blockId: "header",
-      blockType: "header",
+      blockType: "shell.region.header",
       schemaVersion: "1.0.0",
       data: { title: "New Deployed App" }
     },
     footer: {
       blockId: "footer",
-      blockType: "footer",
+      blockType: "shell.region.footer",
       schemaVersion: "1.0.0",
-      data: { copyright: "2027" }
+      data: { copyrightText: "2027" }
     },
     viewport: {
       blockId: "viewport",
-      blockType: "viewport",
+      blockType: "shell.region.viewport",
       schemaVersion: "1.0.0",
-      data: { defaultZoom: 2 }
+      data: { allowZoom: true }
+    },
+    window_registry: {
+        blockId: "window_registry",
+        blockType: "shell.infra.window_registry",
+        schemaVersion: "1.0.0",
+        data: {}
     }
   }
 };
