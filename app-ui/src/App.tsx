@@ -141,11 +141,6 @@ class WindowSystemRuntime {
         blocksArray = Object.values(blocks);
     }
     
-    // TEMP DEBUG LOG
-    const hasRoot = blocksArray.some((b: any) => b.id === 'root-window' || b.blockId === 'root-window');
-    const hasRegistry = blocksArray.some((b: any) => b.blockType === 'shell.infra.window_registry');
-    console.log(`[Runtime] Init blocks: ${blocksArray.length}. Has root-window: ${hasRoot}. Has registry: ${hasRegistry}.`);
-
     const minVisibleW = 100;
     const minVisibleH = 50;
 
@@ -291,11 +286,9 @@ class WindowSystemRuntime {
   // Lazy Registration Helper
   private ensureDefinition(windowId: string) {
       if (this.windowDefs.has(windowId)) return true;
-      console.log(`[Runtime] ensureDefinition(${windowId}) - cache miss. Checking rawBlocks...`);
       
       const b = this.rawBlocks.get(windowId) as Record<string, any>;
       if (!b) {
-          console.warn(`[Runtime] Block not found in rawBlocks: ${windowId}`);
           return false;
       }
       
@@ -306,7 +299,6 @@ class WindowSystemRuntime {
            const title = (typeof b.title === 'string' ? b.title : '') || 
                       (typeof b.name === 'string' ? b.name : '') || windowId;
            this.windowDefs.set(windowId, { title });
-           console.log(`[Runtime] Lazily registered window: ${windowId}`);
            return true;
       }
       return false;
@@ -8180,12 +8172,6 @@ function App() {
   // Initialize Runtime when bundle loads
   useEffect(() => {
     if (bundleData) {
-        const blocksMap = (bundleData.blocks as any) || {};
-        console.log('[RuntimeInitEffect] bundleData updated. Count:', Object.keys(blocksMap).length, 
-            'hasRootWindow=', !!blocksMap["root-window"], 
-            'hasRegistry=', !!blocksMap["window_registry"]
-        );
-
         let width = 800; // Default fallback
         let height = 600;
         if (viewportRef.current) {
