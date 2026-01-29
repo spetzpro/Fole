@@ -8179,7 +8179,7 @@ function App() {
 
   // Initialize Runtime when bundle loads
   useEffect(() => {
-    if (bundleData && pingData) {
+    if (bundleData) {
         const blocksMap = (bundleData.blocks as any) || {};
         console.log('[RuntimeInitEffect] bundleData updated. Count:', Object.keys(blocksMap).length, 
             'hasRootWindow=', !!blocksMap["root-window"], 
@@ -8192,7 +8192,9 @@ function App() {
             width = viewportRef.current.clientWidth;
             height = viewportRef.current.clientHeight;
         }
-        runtimeRef.current.init(bundleData, pingData, width, height);
+
+        const effectivePing = pingData ?? { allowed: false, status: 0, targetBlockId: undefined };
+        runtimeRef.current.init(bundleData, effectivePing as PingResponse, width, height);
         syncRuntime();
     }
   }, [bundleData, pingData]);
