@@ -186,6 +186,33 @@ export class ShellConfigRepository {
   }
 
   /**
+   * Scans the archive for the lexicographically latest version.
+   * Useful for last-ditch fallback when active pointer is missing or corrupt.
+   */
+  async getLatestAvailableVersionId(): Promise<string | null> {
+      try {
+          const archivePath = path.join(this.configRoot, "archive");
+          let versions: string[] = [];
+          try {
+             versions = await fs.readdir(archivePath);
+          } catch {
+             return null;
+          }
+          
+          if (versions.length === 0) return null;
+
+          // Lexicographically sort (assuming timestamp-based IDs or v-prefixed timestamps)
+          versions.sort().reverse();
+
+          // Return the first one. 
+          // Note: We don't deeply validate here for performance, but we assume folder existence implies partial validity.
+          return versions[0];
+      } catch (err) {
+          return null;
+      }
+  }
+
+  /**
    * Pure function to normalize bundle structure in memory.
    * Ensures Viewport is canonical (host=viewport, rules=viewport-rules) and data is clean.
    * Does NOT touch disk.

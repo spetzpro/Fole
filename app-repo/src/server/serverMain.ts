@@ -97,6 +97,8 @@ async function main() {
   };
 
   await configRepo.ensureInitialized();
+  // Ensure active pointer is valid/healed before runtime loads to prevent startup errors
+  await configRepo.getActivePointer();
   await runtimeManager.reload();
 
   // Health check endpoint
@@ -491,19 +493,43 @@ async function main() {
        const isNotFound = err.message.includes("not found") || err.code === "ENOENT";
        if (isNotFound) {
            // eslint-disable-next-line no-console
-           console.warn(`[Bundle] Requested version ${versionId} not found. Attempting fallback to active...`);
+           console.warn(`[Bundle] Requested version ${versionId} not found. Attempting fallback...`);
            
+           let fallbackVersionId: string | null = null;
+           let fallbackReason = "Requested version not found";
+
+           // Strategy 1: Try Active Pointer
+           // Note: getActivePointer() already attempts self-healing if active is missing
            const active = await configRepo.getActivePointer();
            if (active && active.activeVersionId !== versionId) {
-                // Determine if we can fetch the active one
-                bundle = await configRepo.getBundle(active.activeVersionId);
-                // Inject fallback metadata for client awareness
-                (bundle as any).meta = {
-                    ...(bundle.meta || {}),
-                    fallbackFromVersionId: versionId,
-                    fallbackReason: "Requested version not found"
-                };
-                versionId = active.activeVersionId;
+                fallbackVersionId = active.activeVersionId;
+                fallbackReason = "Requested version not found; falling back to active version";
+           }
+           
+           // Strategy 2: If Active failed or is same as bad version, try Latest Available in Archive
+           if (!fallbackVersionId) {
+                const latest = await configRepo.getLatestAvailableVersionId();
+                if (latest && latest !== versionId) {
+                    fallbackVersionId = latest;
+                    fallbackReason = "Requested version not found and active invalid; falling back to latest available";
+                }
+           }
+
+           if (fallbackVersionId) {
+                try {
+                     bundle = await configRepo.getBundle(fallbackVersionId);
+                     // Inject fallback metadata for client awareness
+                     (bundle as any).meta = {
+                        ...(bundle.meta || {}),
+                        fallbackFromVersionId: versionId,
+                        fallbackReason
+                     };
+                     versionId = fallbackVersionId;
+                     // eslint-disable-next-line no-console
+                     console.warn(`[Bundle] Fallback successful -> ${versionId}`);
+                } catch (inner: any) {
+                     return router.json(res, 404, { error: `Version ${versionId} not found, and fallback to ${fallbackVersionId} failed: ${inner.message}` });
+                }
            } else {
                return router.json(res, 404, { error: err.message });
            }
