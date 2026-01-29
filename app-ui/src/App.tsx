@@ -8357,7 +8357,20 @@ function App() {
          }
      });
 
-     // Sort optional by order/priority if available, or just keeping stable
+     // Deterministic Sort: Order first (asc), then Block ID (asc)
+     const sorter = (a: any, b: any) => {
+         // Default to 0 if order is missing
+         const oa = typeof a.data?.order === 'number' ? a.data.order : 0;
+         const ob = typeof b.data?.order === 'number' ? b.data.order : 0;
+         
+         if (oa !== ob) return oa - ob;
+         // Fallback to stable ID sort
+         return (a.blockId || '').localeCompare(b.blockId || '');
+     };
+
+     right.sort(sorter);
+     left.sort(sorter);
+
      return { headerRightItems: right, headerLeftItems: left };
   }, [bundleData]);
 
