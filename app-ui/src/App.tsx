@@ -121,11 +121,16 @@ class WindowSystemRuntime {
     this.entrySlug = 'ping';
     this.targetBlockId = ping.targetBlockId || 'unknown';
     // viewWidth/Height unused in class state, only used here for clamping
-    this.windows.clear();
+    
+    // Non-destructive update: Preserve running windows
+    // this.windows.clear(); // REMOVED
+    
+    // Reset Definitions & Raw Config
     this.windowDefs.clear();
-    this.overlays.clear();
+    this.overlays.clear(); // Overlays are currently reset on config reload (acceptable for now)
     this.actions = [];
-    this.zCounter = 100;
+    this.rawBlocks.clear();
+    // this.zCounter = 100; // Keep z-order continuity
 
     const blocks = bundle.blocks || {};
     let blocksArray: unknown[] = [];
@@ -135,6 +140,11 @@ class WindowSystemRuntime {
     } else if (typeof blocks === 'object' && blocks !== null) {
         blocksArray = Object.values(blocks);
     }
+    
+    // TEMP DEBUG LOG
+    const hasRoot = blocksArray.some((b: any) => b.id === 'root-window' || b.blockId === 'root-window');
+    const hasRegistry = blocksArray.some((b: any) => b.blockType === 'shell.infra.window_registry');
+    console.log(`[Runtime] Init blocks: ${blocksArray.length}. Has root-window: ${hasRoot}. Has registry: ${hasRegistry}.`);
 
     const minVisibleW = 100;
     const minVisibleH = 50;
@@ -8170,6 +8180,12 @@ function App() {
   // Initialize Runtime when bundle loads
   useEffect(() => {
     if (bundleData && pingData) {
+        const blocksMap = (bundleData.blocks as any) || {};
+        console.log('[RuntimeInitEffect] bundleData updated. Count:', Object.keys(blocksMap).length, 
+            'hasRootWindow=', !!blocksMap["root-window"], 
+            'hasRegistry=', !!blocksMap["window_registry"]
+        );
+
         let width = 800; // Default fallback
         let height = 600;
         if (viewportRef.current) {
