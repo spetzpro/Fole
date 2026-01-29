@@ -699,17 +699,24 @@ async function main() {
   });
 
   router.get("/api/config/shell/resolved-graph/active", async (req, res) => {
+    // eslint-disable-next-line no-console
+    console.log("[ResolvedGraph] active requested");
+
     try {
         const activePointer = await configRepo.getActivePointer();
         if (!activePointer || !activePointer.activeVersionId) {
              return router.json(res, 404, { code: "resolved_graph_not_found", error: "No active configuration set" });
         }
         
+        // eslint-disable-next-line no-console
+        console.log(`[ResolvedGraph] Active version: ${activePointer.activeVersionId}`);
+        
         // Strategy: 
         // 1. Try reading pre-computed artifact (fastest)
         // 2. Fallback to computing on-the-fly (robustness)
         
         let graph = await configRepo.getResolvedUiGraph(activePointer.activeVersionId);
+        let errorDetails: any = null;
         
         if (!graph) {
              try {
@@ -726,17 +733,34 @@ async function main() {
                     graph = report.resolvedUiGraph;
                     // eslint-disable-next-line no-console
                     console.warn(`[ResolvedGraph] Artifact missing for ${activePointer.activeVersionId}. Computed on-the-fly.`);
+                } else {
+                     errorDetails = {
+                        reasonCode: "validation_failed_no_graph",
+                        severityCounts: report.severityCounts,
+                        errors: report.errors ? report.errors.slice(0, 3) : []
+                    };
                 }
              } catch (e: any) {
                  // eslint-disable-next-line no-console
                  console.warn(`[ResolvedGraph] On-the-fly computation failed: ${e.message}`);
+                 errorDetails = {
+                     reasonCode: "computation_exception",
+                     message: e.message
+                 };
              }
         }
         
         if (!graph) {
              // If graph is still missing after computing, it means the bundle has no UI nodes or is fundamentally broken.
              // We return 400 as requested to distinguish from "endpoint not found" or "version not found".
-             return router.json(res, 400, { code: "resolved_graph_generation_failed", error: "Graph could not be generated from the active bundle" });
+             return router.json(res, 400, { 
+                 code: "resolved_graph_generation_failed", 
+                 error: "Graph could not be generated from the active bundle",
+                 details: {
+                    activeVersionId: activePointer.activeVersionId,
+                    ...errorDetails
+                 }
+             });
         }
         
         router.json(res, 200, graph);
