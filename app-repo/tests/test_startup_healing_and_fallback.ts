@@ -59,29 +59,58 @@ async function run() {
         await fs.promises.rm(tmpDir, { recursive: true, force: true });
     }
 
-    // Test 2: Helper getLatestAvailableVersionId
+    // Test 2: Helper getLatestAvailableVersionId (Filters invalid & test junk)
     {
         console.log("\n[Test 2] getLatestAvailableVersionId");
          const { tmpDir, configRoot, repo } = await setupTempRepo();
         
+         // Scenario:
+         // v100: Valid
+         // v200: Valid
+         // v_test_999: Valid (but likely junk)
+         // v300: Invalid (no manifest)
+         
          await createMockBundle(configRoot, "v100");
          await createMockBundle(configRoot, "v200");
-         await createMockBundle(configRoot, "v050");
+         await createMockBundle(configRoot, "v_test_999");
+         
+         // Create broken v300 (folder exists, no manifest)
+         const v300 = path.join(configRoot, "archive", "v300");
+         await fs.promises.mkdir(path.join(v300, "bundle"), { recursive: true });
 
          const latest = await repo.getLatestAvailableVersionId();
+         // Should return v200. 
+         // v300 skipped (no manifest).
+         // v_test_999 skipped (contains "test" and others exist).
+         
          if (latest !== "v200") throw new Error(`Expected v200, got ${latest}`);
-         console.log("PASS: Found v200");
+         console.log("PASS: Found v200 (Skipped broken v300 and test version)");
          
          await fs.promises.rm(tmpDir, { recursive: true, force: true });
     }
-
-    // Since we cannot easily unit test serverMain.ts express router without the harness, 
-    // and the harness is heavy/complex for specific internal logic injection,
-    // we rely on the manual code inspection for the router logic and the fact 
-    // that we tested the helper methods it depends on.
-    // However, I will add a mock-like test for the Fallback Logic logic flow if possible?
-    // No, better to trust the integration of getLatestAvailableVersionId into serverMain.ts 
-    // given I manually verified the code logic.
+    
+    // Test 3: getBundle tolerates missing validation.json
+    {
+         console.log("\n[Test 3] getBundle tolerates missing validation.json");
+         const { tmpDir, configRoot, repo } = await setupTempRepo();
+         
+         // Create v1 without validation.json
+         const vPath = path.join(configRoot, "archive", "v1");
+         await fs.promises.mkdir(path.join(vPath, "bundle"), { recursive: true });
+         await fs.promises.writeFile(path.join(vPath, "meta.json"), JSON.stringify({ versionId: "v1" }));
+         await fs.promises.writeFile(path.join(vPath, "bundle", "shell.manifest.json"), JSON.stringify({ schemaVersion: "1.0.0", regions: { viewport: {} } }));
+         await fs.promises.writeFile(path.join(vPath, "bundle", "global.json"), JSON.stringify({ blockId: "global", blockType: "container", data: {} }));
+         
+         // Do NOT create validation.json
+         
+         const bundle = await repo.getBundle("v1");
+         if (!bundle || bundle.versionId !== "v1") throw new Error("Failed to load bundle");
+         if (bundle.validation.status !== "warn") throw new Error(`Expected warn status, got ${bundle.validation.status}`);
+         
+         console.log("PASS: Loaded bundle without validation.json");
+         
+         await fs.promises.rm(tmpDir, { recursive: true, force: true });
+    }
 
     console.log("\nAll Unit Tests Passed.");
 }

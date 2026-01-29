@@ -29,37 +29,41 @@ export class ShellConfigRepository {
       const content = await fs.readFile(activePath, "utf-8");
       const pointer = JSON.parse(content) as ActivePointer;
 
-      // Self-Healing Logic: Check if Active Version Exists
+      // Self-Healing Logic: Check if Active Version Exists AND is Loadable
+      let needsHeal = false;
       try {
+          // Weak check
           await fs.access(path.join(this.configRoot, "archive", pointer.activeVersionId));
+          // Stronger check: Can we read the bundle manifest?
+          // We rely on getBundle robustness, but here just do file check to avoid perf hit of full load
+          await fs.access(path.join(this.configRoot, "archive", pointer.activeVersionId, "bundle", "shell.manifest.json"));
       } catch {
-          // pointer.activeVersionId NOT FOUND
+          needsHeal = true;
+      }
+
+      if (needsHeal) {
+          // pointer.activeVersionId NOT FOUND or INVALID
           // eslint-disable-next-line no-console
-          console.warn(`[ShellConfigRepository] Active version ${pointer.activeVersionId} missing. Preventing 404...`);
+          console.warn(`[ShellConfigRepository] Active version ${pointer.activeVersionId} missing/corrupt. Self-healing...`);
           
-          const archivePath = path.join(this.configRoot, "archive");
-          let versions: string[] = [];
-          try {
-             versions = await fs.readdir(archivePath);
-          } catch {
-             // Archive folder missing?
-          }
+          const fallbackVersion = await this.getLatestAvailableVersionId();
           
-          if (versions.length > 0) {
-              // Heuristic: pick the lexicographically largest (newest timestamp)
-              const fallbackVersion = versions.sort().reverse()[0];
+          if (fallbackVersion) {
               // eslint-disable-next-line no-console
               console.warn(`[ShellConfigRepository] Self-healing active pointer -> ${fallbackVersion}`);
               
               // Patch and Persist
               pointer.activeVersionId = fallbackVersion;
-              pointer.activationReason = "Self-Healed: Previous active version missing";
+              pointer.activationReason = "Self-Healed: Previous active version missing/corrupt";
+              pointer.safeMode = true; // Flag as safe mode if healed
+              pointer.safeModeReason = "Restored from archive due to active pointer corruption.";
               
               const tempPath = activePath + ".tmp." + Date.now();
               await fs.writeFile(tempPath, JSON.stringify(pointer, null, 2), "utf-8");
               await fs.rename(tempPath, activePath);
           } else {
               // No versions to fallback to
+              console.error("[ShellConfigRepository] Critical: No valid versions found in archive to heal active pointer.");
               return null; 
           }
       }
@@ -111,15 +115,22 @@ export class ShellConfigRepository {
       const validationPath = path.join(archivePath, "validation.json");
       const manifestPath = path.join(archivePath, "bundle", "shell.manifest.json");
 
-      const [metaContent, validationContent, manifestContent] = await Promise.all([
+      const [metaContent, manifestContent] = await Promise.all([
         fs.readFile(metaPath, "utf-8"),
-        fs.readFile(validationPath, "utf-8"),
         fs.readFile(manifestPath, "utf-8")
       ]);
 
       const meta = JSON.parse(metaContent) as ConfigMeta;
-      const validation = JSON.parse(validationContent) as ConfigValidation;
       const manifest = JSON.parse(manifestContent) as ShellManifest;
+
+      let validation: ConfigValidation;
+      try {
+         const validationContent = await fs.readFile(validationPath, "utf-8");
+         validation = JSON.parse(validationContent) as ConfigValidation;
+      } catch {
+         // Graceful fallback for missing validation artifact
+         validation = { status: "warn", checkedAt: new Date().toISOString(), warnings: [] };
+      }
 
       const bundleDir = path.join(archivePath, "bundle");
       const files = await fs.readdir(bundleDir);
@@ -201,12 +212,26 @@ export class ShellConfigRepository {
           
           if (versions.length === 0) return null;
 
-          // Lexicographically sort (assuming timestamp-based IDs or v-prefixed timestamps)
+          // Lexicographically sort descend
           versions.sort().reverse();
 
-          // Return the first one. 
-          // Note: We don't deeply validate here for performance, but we assume folder existence implies partial validity.
-          return versions[0];
+          // Scan for first VALID version (has bundle and manifest)
+          for (const vid of versions) {
+              // Ignore obvious test junk if production-like IDs exist
+              if (vid.includes("test") && versions.some(v => !v.includes("test"))) continue;
+              
+              try {
+                  const checkPath = path.join(archivePath, vid, "bundle", "shell.manifest.json");
+                  await fs.access(checkPath);
+                  return vid;
+              } catch {
+                  // Skip invalid/incomplete directory
+                  console.warn(`[ShellConfigRepository] Skipping incomplete version candidate: ${vid}`);
+                  continue;
+              }
+          }
+          
+          return null;
       } catch (err) {
           return null;
       }
