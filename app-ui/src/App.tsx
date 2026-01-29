@@ -129,7 +129,7 @@ class WindowSystemRuntime {
     this.windowDefs.clear();
     this.overlays.clear(); // Overlays are currently reset on config reload (acceptable for now)
     this.actions = [];
-    this.rawBlocks.clear();
+    // this.rawBlocks.clear(); // Redundant, doing before loop
     // this.zCounter = 100; // Keep z-order continuity
 
     const blocks = bundle.blocks || {};
@@ -172,7 +172,8 @@ class WindowSystemRuntime {
         }
 
         // Capture Potential Windows (Strict Type preferred)
-        if (bType === 'ui.node.window' || bType.includes('window') || bType.includes('panel')) {
+        // EXCLUDE registry block itself from potential windows
+        if (bType !== 'shell.infra.window_registry' && (bType === 'ui.node.window' || bType.includes('window') || bType.includes('panel'))) {
              windowBlocks.set(bId, { title: bTitle, blockType: bType });
         }
     });
@@ -448,7 +449,8 @@ function WindowFrame({
     onResize, 
     onClose, 
     onMinimize, 
-    onDock 
+    onDock,
+    children
 }: { 
     win: WindowState,
     onFocus: () => void,
@@ -456,7 +458,8 @@ function WindowFrame({
     onResize: (w: number, h: number) => void,
     onClose: () => void,
     onMinimize: (val: boolean) => void,
-    onDock: (mode: WindowState['dockMode']) => void
+    onDock: (mode: WindowState['dockMode']) => void,
+    children?: React.ReactNode
 }) {
     // Drag
     const startDrag = (e: React.MouseEvent) => {
@@ -556,12 +559,10 @@ function WindowFrame({
 
             {/* Content Area */}
             {!win.isMinimized && (
-                <div style={{flex: 1, padding: '10px', overflow:'auto', position:'relative'}}>
-                    <p>Window ID: {win.id}</p>
-                    <div style={{fontSize:'0.8em', color:'#666'}}>
-                        Dock: {win.dockMode} | ({Math.round(win.x)},{Math.round(win.y)})
+                <div style={{flex: 1, overflow:'hidden', position:'relative', display:'flex', flexDirection:'column'}}>
+                    <div style={{flex:1, overflow:'auto', position:'relative'}}>
+                        {children}
                     </div>
-                    {/* Render Content Here Later */}
                     
                     {/* Resize Handle */}
                     {!isDocked && (
@@ -8393,7 +8394,7 @@ function App() {
                   result: localResult
               };
               setActionRuns(prev => [record, ...prev].slice(0, 50));
-              syncRuntime();
+              syncRuntime(); // Important: updates UI
               return;
           }
            
@@ -8581,6 +8582,7 @@ function App() {
              </div>
 
              <h4>Available Windows</h4>
+
              <ul>
                  {runtimePlan && Object.values(runtimePlan.windows).map(w => (
                      <li key={w.id} style={{fontSize:'0.9em'}}>
@@ -8710,6 +8712,33 @@ function App() {
                         <V2RendererPreview embedded rootId={regions.viewport.data.contentRootId} />
                      </div>
                  )}
+                 
+                 {/* Runtime Windows Layer */}
+                 {runtimePlan && Object.values(runtimePlan.windows).map(win => {
+                    const block = bundleData?.blocks[win.id] || ((bundleData?.blocks as any[])?.find?.(b=>b.id===win.id));
+                    const contentRoot = block?.data?.children?.[0]?.blockId;
+                    
+                    return (
+                     <WindowFrame
+                        key={win.id}
+                        win={win}
+                        onFocus={() => { runtimeRef.current.focusWindow(win.id); syncRuntime(); }}
+                        onMove={(x,y) => { runtimeRef.current.moveWindow(win.id, x, y); syncRuntime(); }}
+                        onResize={(w,h) => { runtimeRef.current.resizeWindow(win.id, w, h); syncRuntime(); }}
+                        onClose={() => { runtimeRef.current.closeWindow(win.id); syncRuntime(); }}
+                        onMinimize={(m) => { runtimeRef.current.setMinimized(win.id, m); syncRuntime(); }}
+                        onDock={(m) => { runtimeRef.current.dockWindow(win.id, m); syncRuntime(); }}
+                     >
+                        {contentRoot ? (
+                            <V2RendererPreview embedded rootId={contentRoot} />
+                        ) : (
+                           <div style={{padding:'20px', color:'#666', fontStyle:'italic'}}>
+                              No content configured.
+                           </div>
+                        )}
+                     </WindowFrame>
+                    );
+                 })}
 
                  <SysadminPanel 
                      isOpen={sysadminOpen} 
