@@ -565,7 +565,9 @@ export class ShellConfigValidator {
       validatorVersion: "1.0.0",
       severityCounts,
       errors,
-      resolvedUiGraph: errorCount === 0 ? resolvedUiGraph : undefined
+      // NG5 Fix: Return graph even if bundle has other validation errors (e.g. missing infra blocks)
+      // This allows debug tools (like Button Node Editor) to function on imperfect bundles.
+      resolvedUiGraph: resolvedUiGraph
     };
   }
 

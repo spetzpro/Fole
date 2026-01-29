@@ -705,9 +705,38 @@ async function main() {
              return router.json(res, 404, { code: "resolved_graph_not_found", error: "No active configuration set" });
         }
         
-        const graph = await configRepo.getResolvedUiGraph(activePointer.activeVersionId);
+        // Strategy: 
+        // 1. Try reading pre-computed artifact (fastest)
+        // 2. Fallback to computing on-the-fly (robustness)
+        
+        let graph = await configRepo.getResolvedUiGraph(activePointer.activeVersionId);
+        
         if (!graph) {
-             return router.json(res, 404, { code: "resolved_graph_not_found", error: "Graph not found for active version" });
+             try {
+                // Determine if version exists and is accessible
+                // We assume activePointer.activeVersionId is valid because getActivePointer heals it.
+                // However, the artifact (validation.json) might be missing.
+                const bundle = await configRepo.getBundle(activePointer.activeVersionId);
+                
+                // Validate to generate graph on-the-fly
+                const report = await validator.validateBundle(bundle.bundle);
+                
+                if (report.resolvedUiGraph) {
+                    // Success: Compiled on the fly
+                    graph = report.resolvedUiGraph;
+                    // eslint-disable-next-line no-console
+                    console.warn(`[ResolvedGraph] Artifact missing for ${activePointer.activeVersionId}. Computed on-the-fly.`);
+                }
+             } catch (e: any) {
+                 // eslint-disable-next-line no-console
+                 console.warn(`[ResolvedGraph] On-the-fly computation failed: ${e.message}`);
+             }
+        }
+        
+        if (!graph) {
+             // If graph is still missing after computing, it means the bundle has no UI nodes or is fundamentally broken.
+             // We return 400 as requested to distinguish from "endpoint not found" or "version not found".
+             return router.json(res, 400, { code: "resolved_graph_generation_failed", error: "Graph could not be generated from the active bundle" });
         }
         
         router.json(res, 200, graph);
