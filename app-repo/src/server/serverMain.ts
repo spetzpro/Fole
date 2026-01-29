@@ -497,9 +497,15 @@ async function main() {
            if (active && active.activeVersionId !== versionId) {
                 // Determine if we can fetch the active one
                 bundle = await configRepo.getBundle(active.activeVersionId);
+                // Inject fallback metadata for client awareness
+                (bundle as any).meta = {
+                    ...(bundle.meta || {}),
+                    fallbackFromVersionId: versionId,
+                    fallbackReason: "Requested version not found"
+                };
                 versionId = active.activeVersionId;
            } else {
-               throw err;
+               return router.json(res, 404, { error: err.message });
            }
        } else {
            throw err;

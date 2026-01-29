@@ -115,6 +115,8 @@ async function run() {
         }
 
     });
+    console.log("Test execution completed.");
+    process.exit(0);
 }
 
 run().catch(e => {
