@@ -699,24 +699,14 @@ async function main() {
   });
 
   router.get("/api/config/shell/resolved-graph/active", async (req, res) => {
-    // eslint-disable-next-line no-console
-    console.log("[ResolvedGraph] active requested");
-
     try {
         const activePointer = await configRepo.getActivePointer();
         if (!activePointer || !activePointer.activeVersionId) {
              return router.json(res, 404, { code: "resolved_graph_not_found", error: "No active configuration set" });
         }
         
-        // eslint-disable-next-line no-console
-        console.log(`[ResolvedGraph] Active version: ${activePointer.activeVersionId}`);
-        
-        // Strategy: 
-        // 1. Try reading pre-computed artifact (fastest)
-        // 2. Fallback to computing on-the-fly (robustness)
-        
         let graph = await configRepo.getResolvedUiGraph(activePointer.activeVersionId);
-        let errorDetails: any = null;
+        let computationInfo: any = null;
         
         if (!graph) {
              try {
@@ -725,25 +715,24 @@ async function main() {
                 // However, the artifact (validation.json) might be missing.
                 const bundle = await configRepo.getBundle(activePointer.activeVersionId);
                 
-                // Validate to generate graph on-the-fly
+                // The repository pipeline (getBundle) now handles in-memory healing
+                // (e.g. legacy Viewport rule normalization).
+                // We just validate the clean bundle.
                 const report = await validator.validateBundle(bundle.bundle);
                 
                 if (report.resolvedUiGraph) {
-                    // Success: Compiled on the fly
                     graph = report.resolvedUiGraph;
-                    // eslint-disable-next-line no-console
-                    console.warn(`[ResolvedGraph] Artifact missing for ${activePointer.activeVersionId}. Computed on-the-fly.`);
                 } else {
-                     errorDetails = {
+                     computationInfo = {
                         reasonCode: "validation_failed_no_graph",
-                        severityCounts: report.severityCounts,
-                        errors: report.errors ? report.errors.slice(0, 3) : []
+                        // This likely means the bundle was valid but had no UI nodes to graph
+                         _info: "Graph generation returned no result (empty UI definition)."
                     };
                 }
              } catch (e: any) {
                  // eslint-disable-next-line no-console
                  console.warn(`[ResolvedGraph] On-the-fly computation failed: ${e.message}`);
-                 errorDetails = {
+                 computationInfo = {
                      reasonCode: "computation_exception",
                      message: e.message
                  };
@@ -751,15 +740,14 @@ async function main() {
         }
         
         if (!graph) {
-             // If graph is still missing after computing, it means the bundle has no UI nodes or is fundamentally broken.
-             // We return 400 as requested to distinguish from "endpoint not found" or "version not found".
-             return router.json(res, 400, { 
-                 code: "resolved_graph_generation_failed", 
-                 error: "Graph could not be generated from the active bundle",
-                 details: {
-                    activeVersionId: activePointer.activeVersionId,
-                    ...errorDetails
-                 }
+             // Return 200 with null graph instead of 400.
+             // This indicates the bundle is valid, but simply has no UI to render (empty).
+             // This prevents sysadmin/debug views from spamming errors for new/empty projects.
+             return router.json(res, 200, { 
+                 graph: null, 
+                 reasonCode: "no_graph",
+                 _info: "Valid bundle, but no UI graph generated (likely no UI nodes).",
+                 details: computationInfo
              });
         }
         

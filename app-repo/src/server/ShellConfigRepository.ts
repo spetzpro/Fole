@@ -215,7 +215,38 @@ export class ShellConfigRepository {
           // Lexicographically sort descend
           versions.sort().reverse();
 
-          // Scan for first VALID version (has bundle and manifest)
+          // Pass 1: "High Quality" Bundle Scan
+          // Prefer newer bundles that contain actual UI definitions (ui.node.* or root definitions)
+          // This prevents falling back to empty "test" bundles that have no UI.
+          for (const vid of versions) {
+              // Ignore obvious test junk if production-like IDs exist
+              if (vid.includes("test") && versions.some(v => !v.includes("test"))) continue;
+              
+              try {
+                  const bundlePath = path.join(archivePath, vid, "bundle");
+                  const manifestCheck = path.join(bundlePath, "shell.manifest.json");
+                  
+                  // Must have manifest
+                  await fs.access(manifestCheck);
+
+                  // Must have evidence of UI nodes
+                  const files = await fs.readdir(bundlePath);
+                  const hasUiNodes = files.some(f => 
+                      f.startsWith("ui.node.") || 
+                      f === "root-container.json" || 
+                      f === "root-window.json"
+                  );
+
+                  if (hasUiNodes) {
+                      return vid;
+                  }
+              } catch {
+                  continue;
+              }
+          }
+
+          // Pass 2: "Any Valid" Bundle Fallback
+          // If no high-quality bundles found, return the newest one that at least has a manifest
           for (const vid of versions) {
               // Ignore obvious test junk if production-like IDs exist
               if (vid.includes("test") && versions.some(v => !v.includes("test"))) continue;
