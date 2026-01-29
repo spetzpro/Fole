@@ -484,11 +484,77 @@ async function main() {
       versionId = active.activeVersionId;
     }
 
+    let bundle;
     try {
-      const bundle = await configRepo.getBundle(versionId);
+      bundle = await configRepo.getBundle(versionId);
+    } catch (err: any) {
+       const isNotFound = err.message.includes("not found") || err.code === "ENOENT";
+       if (isNotFound) {
+           // eslint-disable-next-line no-console
+           console.warn(`[Bundle] Requested version ${versionId} not found. Attempting fallback to active...`);
+           
+           const active = await configRepo.getActivePointer();
+           if (active && active.activeVersionId !== versionId) {
+                // Determine if we can fetch the active one
+                bundle = await configRepo.getBundle(active.activeVersionId);
+                versionId = active.activeVersionId;
+           } else {
+               throw err;
+           }
+       } else {
+           throw err;
+       }
+    }
 
+    try {
       // Validate on read
-      const report = await validator.validateBundle(bundle.bundle);
+      let report = await validator.validateBundle(bundle.bundle);
+      
+      // Auto-Healing Strategy
+      if (report.status !== "valid") {
+           // eslint-disable-next-line no-console
+          console.warn(`[Bundle] Validation failed for ${versionId}. Attempting auto-healing...`);
+          
+          // 1. Heal In-Memory
+          const healedBundleData = ShellConfigRepository.healBundleInMemory(bundle.bundle, report);
+          
+          // 2. Re-validate
+          const healedReport = await validator.validateBundle(healedBundleData);
+          if (healedReport.status === "valid") {
+             // eslint-disable-next-line no-console
+             console.log(`[Bundle] Healing successful. Serving healed bundle.`);
+             
+             // 3. Optional Persistence (Self-Stabilization)
+             const activePointer = await configRepo.getActivePointer();
+             if (activePointer && activePointer.activeVersionId === versionId) {
+                 try {
+                     // eslint-disable-next-line no-console
+                     console.log(`[Bundle] Persisting healed bundle as new version to stabilize system...`);
+                     const { newVersionId } = await configRepo.saveHealedBundleAsVersion(
+                         healedBundleData, 
+                         versionId, 
+                         "Auto-healed from read-time validation failure"
+                     );
+                     await configRepo.activateVersion(newVersionId, "System Auto-Stabilization", "normal");
+                     // eslint-disable-next-line no-console
+                     console.log(`[Bundle] System stabilized at version ${newVersionId}`);
+                     
+                     bundle.versionId = newVersionId;
+                 } catch (err: any) {
+                     // eslint-disable-next-line no-console
+                     console.error(`[Bundle] Failed to persist healed version: ${err.message}`);
+                 }
+             }
+
+             // Update bundle object to return healed data
+             bundle.bundle = healedBundleData;
+             report = healedReport; // Update report for consumer
+          } else {
+             // eslint-disable-next-line no-console
+             console.warn(`[Bundle] Healing failed. Still invalid.`);
+          }
+      }
+
       if (report.status !== "valid") {
         return router.json(res, 400, {
           error: "Bundle validation failed",

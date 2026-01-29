@@ -27,7 +27,44 @@ export class ShellConfigRepository {
     const activePath = path.join(this.configRoot, "active.json");
     try {
       const content = await fs.readFile(activePath, "utf-8");
-      return JSON.parse(content) as ActivePointer;
+      const pointer = JSON.parse(content) as ActivePointer;
+
+      // Self-Healing Logic: Check if Active Version Exists
+      try {
+          await fs.access(path.join(this.configRoot, "archive", pointer.activeVersionId));
+      } catch {
+          // pointer.activeVersionId NOT FOUND
+          // eslint-disable-next-line no-console
+          console.warn(`[ShellConfigRepository] Active version ${pointer.activeVersionId} missing. Preventing 404...`);
+          
+          const archivePath = path.join(this.configRoot, "archive");
+          let versions: string[] = [];
+          try {
+             versions = await fs.readdir(archivePath);
+          } catch {
+             // Archive folder missing?
+          }
+          
+          if (versions.length > 0) {
+              // Heuristic: pick the lexicographically largest (newest timestamp)
+              const fallbackVersion = versions.sort().reverse()[0];
+              // eslint-disable-next-line no-console
+              console.warn(`[ShellConfigRepository] Self-healing active pointer -> ${fallbackVersion}`);
+              
+              // Patch and Persist
+              pointer.activeVersionId = fallbackVersion;
+              pointer.activationReason = "Self-Healed: Previous active version missing";
+              
+              const tempPath = activePath + ".tmp." + Date.now();
+              await fs.writeFile(tempPath, JSON.stringify(pointer, null, 2), "utf-8");
+              await fs.rename(tempPath, activePath);
+          } else {
+              // No versions to fallback to
+              return null; 
+          }
+      }
+
+      return pointer;
     } catch (err: any) {
       if (err.code === "ENOENT") {
         return null;
@@ -241,6 +278,121 @@ export class ShellConfigRepository {
       if (hasPlaceholderRules) delete blocks[placeholderRulesId];
       
       return { manifest, blocks };
+  }
+
+  /**
+   * Heals common validation errors in-memory to ensure the bundle is serve-able.
+   * Addressed issues:
+   * 1. Additional properties in Routing block (sanitizes keys)
+   * 2. Canonical Viewport (via normalizeBundleInMemory)
+   * 3. Unknown Overlay References (removes interactions pointing to missing overlays)
+   */
+  public static healBundleInMemory(bundle: ShellBundle["bundle"], report?: ValidationReport): ShellBundle["bundle"] {
+      // 1. Run Base Normalization (Viewport Canonicalization)
+      const { manifest, blocks } = ShellConfigRepository.normalizeBundleInMemory(bundle);
+      
+      // 2. Heal Routing Block (Schema Compliance)
+      const routingBlock = blocks['routing'];
+      if (routingBlock && routingBlock.data && routingBlock.data.routes) {
+          const routes = routingBlock.data.routes as Record<string, any>;
+          const validRoutes: Record<string, any> = {};
+          const keyPattern = /^[a-z0-9-]+$/;
+          let dirty = false;
+          
+          Object.keys(routes).forEach(slug => {
+              if (keyPattern.test(slug)) {
+                  validRoutes[slug] = routes[slug];
+              } else {
+                  dirty = true; 
+              }
+          });
+          
+          if (dirty) {
+              routingBlock.data.routes = validRoutes;
+          }
+      }
+
+      // 3. Heal Unknown Overlay References
+      const knownOverlays = new Set<string>();
+      Object.keys(blocks).forEach(id => {
+          if (blocks[id].blockType.startsWith('shell.overlay.')) {
+              knownOverlays.add(id);
+          }
+      });
+      
+      for (const block of Object.values(blocks)) {
+           if (!block.data) continue;
+           
+           if ((block.blockType.startsWith('shell.control.button') || block.blockType === 'ui.atom.button') && block.data.interactions) {
+                const interactions = block.data.interactions as Record<string, any>;
+                const healedInteractions = { ...interactions };
+                let modified = false;
+
+                for (const [trigger, action] of Object.entries(interactions)) {
+                     const act = (typeof action === 'object' && action.dragStart) ? action.dragStart : action;
+                     if (!act || !act.params) continue;
+                     
+                     if (act.kind === 'toggleOverlay' && act.params.overlayId) {
+                         if (!knownOverlays.has(act.params.overlayId)) {
+                             // Disable this interaction by removing it
+                             delete healedInteractions[trigger];
+                             modified = true;
+                         }
+                     }
+                }
+                
+                if (modified) {
+                    block.data.interactions = healedInteractions;
+                }
+           }
+      }
+
+      return { manifest, blocks };
+  }
+
+  async saveHealedBundleAsVersion(
+      bundle: ShellBundle["bundle"], 
+      baseVersionId: string, 
+      reason: string
+  ): Promise<{ newVersionId: string }> {
+      const timestamp = new Date();
+      const newVersionId = `v${timestamp.getTime()}`;
+      const archivePath = path.join(this.configRoot, "archive", newVersionId);
+      
+      // Atomic Write Strategy: Write to .tmp dir, then rename
+      const tempArchiveName = `${newVersionId}.tmp.${timestamp.getTime()}`;
+      const tempArchivePath = path.join(this.configRoot, "archive", tempArchiveName);
+      const tempBundlePath = path.join(tempArchivePath, "bundle");
+
+      // 1. Create structure in temp
+      await fs.mkdir(tempBundlePath, { recursive: true });
+
+      const meta: ConfigMeta = {
+          versionId: newVersionId,
+          timestamp: timestamp.toISOString(),
+          author: "system-healer",
+          description: reason,
+          mode: "normal",
+          parentVersionId: baseVersionId
+      };
+      
+      await fs.writeFile(path.join(tempArchivePath, "meta.json"), JSON.stringify(meta, null, 2), "utf-8");
+      
+      // Write Manifest
+      await fs.writeFile(path.join(tempBundlePath, "shell.manifest.json"), JSON.stringify(bundle.manifest, null, 2), "utf-8");
+
+      // Write Blocks
+      for (const [id, block] of Object.entries(bundle.blocks)) {
+          const filename = (block as any).filename || `${id}.json`;
+          await fs.writeFile(path.join(tempBundlePath, filename), JSON.stringify(block, null, 2), "utf-8");
+      }
+
+      // 2. Atomic Rename to final location
+      // Note: On Windows renaming directories might require them to be on same drive (they are)
+      // and target must not exist. Unique ID guarantees target doesn't exist.
+      await fs.rename(tempArchivePath, archivePath);
+
+      return { newVersionId };
   }
 
   async listVersions(limit: number = 25): Promise<Array<{
