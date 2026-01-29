@@ -130,14 +130,17 @@ export class ShellConfigRepository {
           blocks[loaded.id] = loaded.data;
       }
 
+      // GUARDRAIL: Format consistency on Read (In-Memory Only)
+      // This ensures that even if disk state is hybrid/legacy, the API served to UI is always canonical.
+      const normalizedBundle = ShellConfigRepository.normalizeBundleInMemory({ manifest, blocks });
+      // eslint-disable-next-line no-console
+      console.log(`[ShellConfigRepository] Served normalized bundle for version ${versionId} (viewport type: ${normalizedBundle.manifest.regions?.viewport?.blockId})`);
+
       return {
         versionId,
         meta,
         validation,
-        bundle: {
-          manifest,
-          blocks
-        }
+        bundle: normalizedBundle
       };
     } catch (err: any) {
        if (err.code === "ENOENT") {
@@ -145,6 +148,101 @@ export class ShellConfigRepository {
        }
        throw err;
     }
+  }
+
+  /**
+   * Pure function to normalize bundle structure in memory.
+   * Ensures Viewport is canonical (host=viewport, rules=viewport-rules) and data is clean.
+   * Does NOT touch disk.
+   */
+  public static normalizeBundleInMemory(bundle: ShellBundle["bundle"]): ShellBundle["bundle"] {
+      const manifest = { ...bundle.manifest }; // Shallow copy
+      if (manifest.regions && manifest.regions.viewport) {
+           manifest.regions = { ...manifest.regions, viewport: { ...manifest.regions.viewport } };
+      }
+      const blocks = { ...bundle.blocks }; // Shallow copy
+
+      if (!manifest.regions || !manifest.regions.viewport) return { manifest, blocks };
+
+      const canonicalHostId = "viewport";
+      const canonicalRulesId = "viewport-rules";
+      const placeholderHostId = "viewport-placeholder";
+      const placeholderRulesId = "viewport-placeholder-rules";
+
+      // Check existence in Blocks map
+      const hasCanonicalHost = !!blocks[canonicalHostId];
+      const hasPlaceholderHost = !!blocks[placeholderHostId];
+      const hasCanonicalRules = !!blocks[canonicalRulesId];
+      const hasPlaceholderRules = !!blocks[placeholderRulesId];
+
+      // Only proceed if there's work to do (placeholder exists OR canonical is missing/dirty)
+      // Actually we should run always to ensure data cleanliness
+      
+      // 1. Consolidate HOST Data
+      let finalHostData: any = {};
+      
+      if (hasCanonicalHost) {
+          finalHostData = { ...(blocks[canonicalHostId].data || {}) };
+      }
+      
+      if (hasPlaceholderHost) {
+          const pData = blocks[placeholderHostId].data || {};
+          if (!finalHostData.contentRootId && pData.contentRootId) {
+              finalHostData.contentRootId = pData.contentRootId;
+          }
+           if (!hasCanonicalHost) {
+              finalHostData = { ...pData };
+          }
+      }
+
+      // Enforce Rules Pointer
+      finalHostData.rulesId = canonicalRulesId;
+
+      // 2. Consolidate RULES Data
+      let finalRulesData: any = {};
+
+      if (hasCanonicalRules) {
+          finalRulesData = { ...(blocks[canonicalRulesId].data || {}) };
+      }
+
+      if (hasPlaceholderRules) {
+          const pData = blocks[placeholderRulesId].data || {};
+          if (!hasCanonicalRules) {
+              finalRulesData = { ...pData };
+          }
+      }
+
+      // Clean Rules Data
+      delete finalRulesData.contentRootId;
+      delete finalRulesData.rulesId;
+
+      // 3. Update Blocks Map
+      // Create/Update Canonical Host
+      blocks[canonicalHostId] = {
+          blockId: canonicalHostId,
+          blockType: "shell.region.viewport",
+          schemaVersion: "1.0.0",
+          data: finalHostData,
+          filename: `${canonicalHostId}.json`
+      } as BlockEnvelope;
+
+      // Create/Update Canonical Rules
+      blocks[canonicalRulesId] = {
+          blockId: canonicalRulesId,
+          blockType: "shell.rules.viewport",
+          schemaVersion: "1.0.0",
+          data: finalRulesData,
+          filename: `${canonicalRulesId}.json`
+      } as BlockEnvelope;
+
+      // 4. Update Manifest
+      manifest.regions.viewport.blockId = canonicalHostId;
+
+      // 5. Prune Placeholder Blocks from Memory
+      if (hasPlaceholderHost) delete blocks[placeholderHostId];
+      if (hasPlaceholderRules) delete blocks[placeholderRulesId];
+      
+      return { manifest, blocks };
   }
 
   async listVersions(limit: number = 25): Promise<Array<{

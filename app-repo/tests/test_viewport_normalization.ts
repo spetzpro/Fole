@@ -252,6 +252,49 @@ async function runTest() {
     try { await fs.access(path.join(bundlePath3, "viewport-placeholder-rules.json")); throw new Error("Placeholder Rules not deleted"); } catch {}
     console.log("PASS: Placeholders pruned");
 
+    console.log("\n--- TEST SCENARIO 4: In-Memory Normalization (Read Path) ---");
+    // Verify that the static method works correctly on object structure without touching disk.
+    
+    const hybridBundle = {
+        manifest: {
+            schemaVersion: "1.0.0",
+            regions: {
+                viewport: { blockId: "viewport-placeholder" }
+            }
+        },
+        blocks: {
+            "viewport-placeholder": {
+                 blockId: "viewport-placeholder",
+                 blockType: "shell.region.viewport",
+                 data: { contentRootId: "memory-root", rulesId: "garbage" }
+            },
+             "viewport-placeholder-rules": {
+                 blockId: "viewport-placeholder-rules",
+                 blockType: "shell.rules.viewport",
+                 data: { rulesId: "garbage", allowZoom: false } 
+            }
+            // No canonical blocks
+        }
+    };
+    
+    // @ts-ignore
+    const result = ShellConfigRepository.normalizeBundleInMemory(hybridBundle);
+    
+    if (result.manifest.regions.viewport.blockId !== "viewport") throw new Error("Memory: Manifest not updated");
+    if (result.blocks["viewport-placeholder"]) throw new Error("Memory: Placeholder host not removed");
+    if (result.blocks["viewport-placeholder-rules"]) throw new Error("Memory: Placeholder rules not removed");
+    if (!result.blocks["viewport"]) throw new Error("Memory: Canonical host not created");
+    
+    const h = result.blocks["viewport"];
+    if (h.data.contentRootId !== "memory-root") throw new Error("Memory: contentRootId lost");
+    if (h.data.rulesId !== "viewport-rules") throw new Error("Memory: rulesId incorrect");
+    
+    const r = result.blocks["viewport-rules"];
+    if (r.data.rulesId) throw new Error("Memory: rulesId not cleaned from rules data");
+    if (r.data.allowZoom !== false) throw new Error("Memory: rules data lost");
+    
+    console.log("PASS: In-Memory normalization correct");
+
     console.log("ALL TESTS PASSED");
 }
 
