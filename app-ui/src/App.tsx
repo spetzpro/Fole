@@ -106,6 +106,9 @@ interface RuntimePlan {
 class WindowSystemRuntime {
   private windows: Map<string, WindowState> = new Map();
   private windowDefs: Map<string, { title: string }> = new Map();
+  // Lazy Registration State
+  private rawBlocks: Map<string, unknown> = new Map();
+
   private overlays: Map<string, OverlayState> = new Map();
   private actions: ActionDefinition[] = [];
   private entrySlug: string = '';
@@ -136,6 +139,55 @@ class WindowSystemRuntime {
     const minVisibleW = 100;
     const minVisibleH = 50;
 
+    // Reset Lazy Registration State
+    this.rawBlocks.clear();
+
+    // A. Pre-scan for Registry and Typed Blocks
+    let registryWindows: Set<string> | null = null;
+    const windowBlocks = new Map<string, { title: string, blockType: string }>();
+
+    blocksArray.forEach((block: unknown) => {
+        if (!block || typeof block !== 'object') return;
+        const b = block as Record<string, unknown>;
+        const bId = (typeof b.id === 'string' ? b.id : '') || (typeof b.blockId === 'string' ? b.blockId : '');
+        
+        if (bId) this.rawBlocks.set(bId, b);
+
+        const bType = typeof b.blockType === 'string' ? b.blockType : '';
+        const bTitle = (typeof b.title === 'string' ? b.title : '') || (typeof b.name === 'string' ? b.name : '') || bId;
+
+        if (!bId) return;
+
+        // Capture Registry
+        if (bType === 'shell.infra.window_registry' && b.data && typeof b.data === 'object') {
+            const data = b.data as Record<string, any>;
+            if (data.windows && typeof data.windows === 'object') {
+                registryWindows = new Set(Object.keys(data.windows));
+            }
+        }
+
+        // Capture Potential Windows (Strict Type preferred)
+        if (bType === 'ui.node.window' || bType.includes('window') || bType.includes('panel')) {
+             windowBlocks.set(bId, { title: bTitle, blockType: bType });
+        }
+    });
+
+    // B. Register Windows (Registry preferred, fallback to all 'ui.node.window' + legacy)
+    const windowsToRegister = new Set<string>();
+    
+    // If Registry exists, favor it
+    if (registryWindows) {
+        registryWindows.forEach(wid => {
+            if (windowBlocks.has(wid)) windowsToRegister.add(wid);
+        });
+        // Also ensure any explicit ui.node.window is registered if it was missed? 
+        // Strict governance says registry is authoritative. But for now let's be additive to avoid regression.
+        windowBlocks.forEach((_, wid) => windowsToRegister.add(wid));
+    } else {
+        // Fallback: Register all found candidates
+        windowBlocks.forEach((_, wid) => windowsToRegister.add(wid));
+    }
+
     // 1. Scan for Windows & Overlays
     blocksArray.forEach((block: unknown) => {
         if (!block || typeof block !== 'object') return;
@@ -158,10 +210,10 @@ class WindowSystemRuntime {
           blockType,
           title
         });
-      } else if (blockType.includes('window') || blockId.includes('win') || blockType.includes('panel')) {
+      } else if (windowsToRegister.has(blockId)) {
          // Store Definition
          this.windowDefs.set(blockId, { title });
-
+         
          // Default Window Layout
          const startX = 50 + (this.windows.size * 30);
          const startY = 50 + (this.windows.size * 30);
@@ -177,6 +229,7 @@ class WindowSystemRuntime {
             dockMode: 'none',
             zOrder: this.zCounter++
          });
+
       }
       
       // 2. Scan for Actions (Legacy & Standard Button actions)
@@ -224,6 +277,31 @@ class WindowSystemRuntime {
   }
 
   // --- Window Operations ---
+  
+  // Lazy Registration Helper
+  private ensureDefinition(windowId: string) {
+      if (this.windowDefs.has(windowId)) return true;
+      console.log(`[Runtime] ensureDefinition(${windowId}) - cache miss. Checking rawBlocks...`);
+      
+      const b = this.rawBlocks.get(windowId) as Record<string, any>;
+      if (!b) {
+          console.warn(`[Runtime] Block not found in rawBlocks: ${windowId}`);
+          return false;
+      }
+      
+      const bType = typeof b.blockType === 'string' ? b.blockType : '';
+      // Minimal validation: must be a window-like type or explicitly in registry (implicit if we are here via rawBlocks and it was not picked up by strict scan?)
+      // Actually, just apply the lenient check here:
+      if (bType === 'ui.node.window' || bType.includes('window') || bType.includes('panel')) {
+           const title = (typeof b.title === 'string' ? b.title : '') || 
+                      (typeof b.name === 'string' ? b.name : '') || windowId;
+           this.windowDefs.set(windowId, { title });
+           console.log(`[Runtime] Lazily registered window: ${windowId}`);
+           return true;
+      }
+      return false;
+  }
+
   public openWindow(windowId: string) {
       // 1. If already open, focus it
       if (this.windows.has(windowId)) {
@@ -234,7 +312,14 @@ class WindowSystemRuntime {
       }
       
       // 2. If not open, look up def and create
-      const def = this.windowDefs.get(windowId);
+      let def = this.windowDefs.get(windowId);
+      
+      // Lazy Ensure
+      if (!def) {
+          this.ensureDefinition(windowId);
+          def = this.windowDefs.get(windowId);
+      }
+
       if (def) {
          const startX = 100;
          const startY = 100;
