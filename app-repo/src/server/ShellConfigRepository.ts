@@ -407,6 +407,8 @@ export class ShellConfigRepository {
   /**
    * Internal helper to normalize legacy viewport definitions (shell.rules.viewport)
    * into the modern Host/Rules split (shell.region.viewport -> rulesId).
+   * ALSO canonicalizes 'viewport-placeholder' IDs to 'viewport'.
+   * ENSURES rules data is clean (no contentRootId/rulesId).
    */
   public async normalizeViewportRegion(bundlePath: string): Promise<void> {
       try {
@@ -417,61 +419,100 @@ export class ShellConfigRepository {
           // Only proceed if viewport region exists
           if (!manifest.regions || !manifest.regions.viewport) return;
           
-          const viewportBlockId = manifest.regions.viewport.blockId;
-          const viewportBlockPath = path.join(bundlePath, `${viewportBlockId}.json`);
+          const canonicalHostId = "viewport";
+          const canonicalRulesId = "viewport-rules";
+          const placeholderHostId = "viewport-placeholder";
+          const placeholderRulesId = "viewport-placeholder-rules";
 
-          const blockContent = await fs.readFile(viewportBlockPath, "utf-8");
-          const block = JSON.parse(blockContent) as BlockEnvelope;
+          const files = await fs.readdir(bundlePath);
+          const hasCanonicalHost = files.includes(`${canonicalHostId}.json`);
+          const hasPlaceholderHost = files.includes(`${placeholderHostId}.json`);
+          const hasCanonicalRules = files.includes(`${canonicalRulesId}.json`);
+          const hasPlaceholderRules = files.includes(`${placeholderRulesId}.json`);
+          
+          // 1. Consolidate HOST Data
+          let finalHostData: any = {};
+          
+          // Prefer canonical host data if available
+          if (hasCanonicalHost) {
+              const content = await fs.readFile(path.join(bundlePath, `${canonicalHostId}.json`), "utf-8");
+              finalHostData = JSON.parse(content).data || {};
+          }
+          
+          // Merge/Fallback to placeholder host data if needed
+          if (hasPlaceholderHost) {
+              const content = await fs.readFile(path.join(bundlePath, `${placeholderHostId}.json`), "utf-8");
+              const pData = JSON.parse(content).data || {};
+              
+              // If canonical is missing contentRootId, try to rescue it from placeholder
+              if (!finalHostData.contentRootId && pData.contentRootId) {
+                  finalHostData.contentRootId = pData.contentRootId;
+              }
+              
+              // If we didn't have canonical host at all, start with placeholder data
+              if (!hasCanonicalHost) {
+                  finalHostData = { ...pData };
+              }
+          }
 
-          // If block is ALREADY the modern host type, nothing to do
-          if (block.blockType === "shell.region.viewport") return;
+          // Enforce pointer to canonical rules
+          finalHostData.rulesId = canonicalRulesId;
 
-          // If block is the legacy rules type (shell.rules.viewport used as host)
-          if (block.blockType === "shell.rules.viewport") {
-               // Normalization Step 1: Rename the legacy file/block to allow Host to take the ID
-               // Actually we keep legacy file ID but change its content to be Host? 
-               // Or rename legacy to rules?
-               // Safest: Rename legacy file to *-rules.json, make new file with original ID as Host.
+          // 2. Consolidate RULES Data
+          let finalRulesData: any = {};
+          
+          if (hasCanonicalRules) {
+              const content = await fs.readFile(path.join(bundlePath, `${canonicalRulesId}.json`), "utf-8");
+              finalRulesData = JSON.parse(content).data || {};
+          }
+          
+          if (hasPlaceholderRules) {
+              const content = await fs.readFile(path.join(bundlePath, `${placeholderRulesId}.json`), "utf-8");
+              const pData = JSON.parse(content).data || {};
+              
+              // If no canonical rules, use placeholder data
+              if (!hasCanonicalRules) {
+                  finalRulesData = { ...pData };
+              }
+          }
+          
+          // Clean Rules Data: Remove keys that don't belong in rules
+          delete finalRulesData.contentRootId;
+          delete finalRulesData.rulesId;
 
-               const rulesBlockId = `${viewportBlockId}-rules`;
-               const rulesBlockPath = path.join(bundlePath, `${rulesBlockId}.json`);
-               
-               // Update legacy block content to define itself as rules
-               const rulesBlock = {
-                   ...block,
-                   blockId: rulesBlockId
-                   // Type is already shell.rules.viewport
-               };
-               
-               // Write rules file
-               await fs.writeFile(rulesBlockPath, JSON.stringify(rulesBlock, null, 2), "utf-8");
+          // 3. Write Canonical Files
+          const finalHostBlock: BlockEnvelope = {
+              blockId: canonicalHostId,
+              blockType: "shell.region.viewport",
+              schemaVersion: "1.0.0",
+              data: finalHostData
+          };
 
-               // Normalization Step 2: Create Host Block using original ID
-               // This preserves the Manifest reference (so we don't need to patch manifest blocks)
-               const hostBlock: BlockEnvelope = {
-                   blockId: viewportBlockId,
-                   blockType: "shell.region.viewport",
-                   schemaVersion: "1.0.0",
-                   data: {
-                       rulesId: rulesBlockId,
-                       // No implicit contentRootId wiring - purely structural update
-                   }
-               };
-               
-               // Preserve existing contentRootId if present (though unlikely in legacy rules block)
-               if (block.data && (block.data as any).contentRootId) {
-                   (hostBlock.data as any).contentRootId = (block.data as any).contentRootId;
-               }
+          const finalRulesBlock: BlockEnvelope = {
+              blockId: canonicalRulesId,
+              blockType: "shell.rules.viewport",
+              schemaVersion: "1.0.0",
+              data: finalRulesData
+          };
 
-               // Write host file (overwriting the legacy file)
-               await fs.writeFile(viewportBlockPath, JSON.stringify(hostBlock, null, 2), "utf-8");
-               
-               // No implicit creation of root-container
+          await fs.writeFile(path.join(bundlePath, `${canonicalHostId}.json`), JSON.stringify(finalHostBlock, null, 2), "utf-8");
+          await fs.writeFile(path.join(bundlePath, `${canonicalRulesId}.json`), JSON.stringify(finalRulesBlock, null, 2), "utf-8");
+
+          // 4. Update Manifest
+          if (manifest.regions.viewport.blockId !== canonicalHostId) {
+              manifest.regions.viewport.blockId = canonicalHostId;
+              await fs.writeFile(manifestPath, JSON.stringify(manifest, null, 2), "utf-8");
+          }
+
+          // 5. Prune Placeholder Files
+          if (hasPlaceholderHost) {
+             await fs.unlink(path.join(bundlePath, `${placeholderHostId}.json`)).catch(() => {});
+          }
+          if (hasPlaceholderRules) {
+             await fs.unlink(path.join(bundlePath, `${placeholderRulesId}.json`)).catch(() => {});
           }
 
       } catch (err: any) {
-          // Log but don't crash - normalization failure shouldn't stop save if possible,
-          // though it might leave inconsistencies.
           // eslint-disable-next-line no-console
           console.warn(`[ShellConfigRepository] Normalization failed: ${err.message}`);
       }

@@ -1,0 +1,8 @@
+{
+  "blockId": "viewport-rules",
+  "blockType": "shell.rules.viewport",
+  "schemaVersion": "1.0.0",
+  "data": {
+    "allowZoom": true
+  }
+}

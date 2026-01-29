@@ -1,0 +1,9 @@
+{
+  "blockId": "viewport",
+  "blockType": "shell.region.viewport",
+  "schemaVersion": "1.0.0",
+  "data": {
+    "rulesId": "viewport-rules",
+    "contentRootId": "root-container"
+  }
+}
