@@ -8120,9 +8120,23 @@ function App() {
       }
       const rawJson = await bundleRes.json();
       
-      const bundleObj = rawJson.bundle?.bundle ?? rawJson.bundle ?? rawJson;
-      if (!bundleObj.blocks) bundleObj.blocks = {};
-      if (!bundleObj.manifest) bundleObj.manifest = { title: "Unknown Manifest" };
+      // FIX: Robustly find the bundle payload
+      // 1. { bundle: { manifest: {}, blocks: {} } } (Standard wrapped)
+      // 2. { manifest: {}, blocks: {} } (Direct)
+      // 3. { data: { bundle: ... } } (Some API wrappers)
+      const bundleObj = rawJson?.bundle?.bundle ?? rawJson?.bundle ?? rawJson?.data?.bundle ?? rawJson;
+
+      if (!bundleObj || typeof bundleObj !== 'object') {
+           throw new Error("Invalid bundle format received from server (not an object)");
+      }
+
+      // Check required roots
+      if (!bundleObj.manifest || !bundleObj.blocks) {
+           console.warn("[FetchBundle] Received invalid bundle shape:", Object.keys(bundleObj));
+           // Allow partials but warn
+           if (!bundleObj.blocks) bundleObj.blocks = {};
+           if (!bundleObj.manifest) bundleObj.manifest = { title: "Invalid Manifest" };
+      }
 
       setBundleData(bundleObj);
     } catch (err: unknown) {
@@ -8560,9 +8574,9 @@ function App() {
              )}
 
              {/* Shell Viewport */}
-             <div ref={viewportRef} style={{flex:1, position:'relative', backgroundColor:'#f0f0f0', overflow:'hidden'}}>
+             <div ref={viewportRef} style={{flex:1, display: 'flex', flexDirection: 'column', position:'relative', backgroundColor:'#f0f0f0', overflow:'hidden'}}>
                  { regions.viewport?.data?.contentRootId && (
-                     <div style={{width:'100%', height:'100%', overflow:'hidden', position:'relative'}}>
+                     <div style={{flex: 1, width:'100%', overflow:'hidden', position:'relative'}}>
                         <V2RendererPreview embedded rootId={regions.viewport.data.contentRootId} />
                      </div>
                  )}

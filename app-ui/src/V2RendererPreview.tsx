@@ -19,15 +19,19 @@ interface V2RendererPreviewProps {
     onClose?: () => void;
     embedded?: boolean;
     rootId?: string;
+    activeVersionId?: string;
 }
 
-export function V2RendererPreview({ onClose, embedded, rootId }: V2RendererPreviewProps) {
+export function V2RendererPreview({ onClose, embedded, rootId, activeVersionId }: V2RendererPreviewProps) {
     const [graph, setGraph] = useState<ResolvedUiGraph | null>(null);
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
         const fetchGraph = async () => {
             try {
+                // DEBUG LOGGING (Temporary)
+                // console.log(`[V2Renderer] Fetching graph... activeVersion=${activeVersionId}`);
+
                 // Single step: Get active resolved graph
                 const graphRes = await fetch(apiUrl('/api/config/shell/resolved-graph/active'));
                 
@@ -42,13 +46,20 @@ export function V2RendererPreview({ onClose, embedded, rootId }: V2RendererPrevi
                 if (!graphRes.ok) throw new Error('Failed to fetch resolved graph');
                 
                 const graphData = await graphRes.json();
+                
+                // DEBUG LOGGING
+                // if (graphData && graphData.nodesById) {
+                //    const hasV2Text = !!graphData.nodesById['v2-text-1'];
+                //    console.log(`[V2Renderer] Graph loaded. 'v2-text-1' exists? ${hasV2Text}`);
+                // }
+
                 setGraph(graphData);
             } catch (err: any) {
                 setError(err.message);
             }
         };
         fetchGraph();
-    }, []);
+    }, [activeVersionId]); // Refresh when version changes
 
     const renderNode = (nodeId: string) => {
         if (!graph || !graph.nodesById[nodeId]) return <div key={nodeId} style={{color:'red'}}>Missing Node: {nodeId}</div>;

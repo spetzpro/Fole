@@ -674,6 +674,7 @@ async function main() {
       const forceQuery = urlParts.query.forceInvalid === "1";
 
       const body = await router.readJsonBody(req);
+
       if (!body.bundle) {
         return router.json(res, 400, { error: "Missing bundle in request body" });
       }

@@ -15,14 +15,73 @@ export class ShellConfigDeployer {
     this.configRoot = path.join(workspaceFolder, "app-repo", "config", "shell");
   }
 
-  async deploy(bundle: ShellBundle["bundle"], message?: string, forceInvalid?: boolean): Promise<{ activeVersionId: string; activatedAt: string; report: ValidationReport; safeMode: boolean }> {
-    // 1. Validate
-    const report = await this.validator.validateBundle(bundle);
+  async deploy(bundleInput: ShellBundle["bundle"], message?: string, forceInvalid?: boolean): Promise<{ activeVersionId: string; activatedAt: string; report: ValidationReport; safeMode: boolean }> {
+    // 1. Resolve Parent & Construct Candidate Bundle (PATCH Semantics)
+    // We do this BEFORE validation so that partial bundles can be patched onto the valid parent.
+    const parentVersionId = (await this.repo.getActivePointer())?.activeVersionId || null;
+    let parentBundle: ShellBundle["bundle"] | null = null;
+
+    if (parentVersionId) {
+        try {
+             const parent = await this.repo.getBundle(parentVersionId);
+             parentBundle = parent.bundle;
+        } catch (err: any) {
+             console.warn(`[Deployer] Failed to resolve parent ${parentVersionId} for merge: ${err.message}`);
+        }
+    }
+
+    // Start with parent as base, or empty if no parent
+    const candidateBundle: ShellBundle["bundle"] = recursiveCopy(parentBundle) || {
+        manifest: { ...bundleInput.manifest },
+        blocks: { ...bundleInput.blocks }
+    };
+
+    if (parentBundle) {
+        // Overlay Manifest (Shallow merge of top-level, deep merge of regions)
+        candidateBundle.manifest = { ...parentBundle.manifest, ...bundleInput.manifest };
+        
+        // Defensive merge of regions to prevent data loss if UI sends partial/empty regions
+        if (parentBundle.manifest.regions || bundleInput.manifest.regions) {
+            candidateBundle.manifest.regions = {
+                ...(parentBundle.manifest.regions || {}),
+                ...(bundleInput.manifest.regions || {})
+            };
+        }
+
+        // Overlay Blocks
+        for (const [blockId, inputBlock] of Object.entries(bundleInput.blocks)) {
+            // Skip explicit nulls/undefined to prevent overwriting existing parent blocks with nothing
+            if (!inputBlock) continue;
+
+            let finalBlock = inputBlock;
+
+            // Safe Data Merge (Preserve hidden fields from parent)
+            if (candidateBundle.blocks[blockId]) {
+                const parentBlock = candidateBundle.blocks[blockId];
+                // If both have data objects, shallow merge them (Input wins, but Parent keys preserved)
+                if (parentBlock.data && (inputBlock as any).data) {
+                    finalBlock = {
+                        ...inputBlock,
+                        data: { ...parentBlock.data, ...(inputBlock as any).data }
+                    };
+                }
+            }
+            
+            candidateBundle.blocks[blockId] = finalBlock;
+        }
+    } else {
+        // No parent: Use input as is (Full replacement / First deploy)
+        candidateBundle.manifest = bundleInput.manifest;
+        candidateBundle.blocks = bundleInput.blocks;
+    }
+
+    // 2. Validate the Merged Candidate
+    const report = await this.validator.validateBundle(candidateBundle);
     
     let isSafeMode = false;
     let safeModeReason: string | undefined;
 
-    // 2. Reject if any error (A1 severity)
+    // 3. Reject if any error (A1 severity)
     if (report.severityCounts.A1 > 0) {
       if (forceInvalid) {
          // Check flag
@@ -40,12 +99,12 @@ export class ShellConfigDeployer {
       }
     }
 
-    // 3. Generate Version ID
+    // 4. Generate Version ID
     const versionId = `v${Date.now()}`;
     const archivePath = path.join(this.configRoot, "archive", versionId);
     const bundlePath = path.join(archivePath, "bundle");
 
-    // 4. Write Archive
+    // 5. Write Archive
     await fs.mkdir(bundlePath, { recursive: true });
 
     // Write meta.json
@@ -55,29 +114,29 @@ export class ShellConfigDeployer {
       timestamp: new Date().toISOString(),
       description: message || "Deployed via API",
       mode: isSafeMode ? "developer" : "normal",
-      parentVersionId: (await this.repo.getActivePointer())?.activeVersionId || null
+      parentVersionId: parentVersionId
     };
+
     await fs.writeFile(path.join(archivePath, "meta.json"), JSON.stringify(meta, null, 2));
 
     // Write validation.json
     await fs.writeFile(path.join(archivePath, "validation.json"), JSON.stringify(report, null, 2));
 
     // Write manifest
-    // Ensure manifest has schemaVersion if missing (though validation should catch it)
-    if (!bundle.manifest.schemaVersion) bundle.manifest.schemaVersion = "1.0.0";
-    await fs.writeFile(path.join(bundlePath, "shell.manifest.json"), JSON.stringify(bundle.manifest, null, 2));
+    if (!candidateBundle.manifest.schemaVersion) candidateBundle.manifest.schemaVersion = "1.0.0";
+    await fs.writeFile(path.join(bundlePath, "shell.manifest.json"), JSON.stringify(candidateBundle.manifest, null, 2));
 
     // Write blocks
-    for (const [blockId, blockData] of Object.entries(bundle.blocks)) {
+    for (const [blockId, blockData] of Object.entries(candidateBundle.blocks)) {
          await fs.writeFile(path.join(bundlePath, `${blockId}.json`), JSON.stringify(blockData, null, 2));
     }
 
     // GUARDRAIL: Legacy Normalization
     // Ensure the drafted version uses correct host/rules architecture for viewport
-    // (This uses the same robust logic as clone-and-patch to ensure manually pushed bundles are safe)
+    // (This uses the same robust logic as clone-and-patch, now acting on the fully merged bundle)
     await (this.repo as any).normalizeViewportRegion(bundlePath);
 
-    // 5. Activate (Atomic Update)
+    // 6. Activate (Atomic Update)
     const activatedAt = meta.timestamp;
     await this.updateActivePointer(versionId, activatedAt, {
         safeMode: isSafeMode,
@@ -105,7 +164,7 @@ export class ShellConfigDeployer {
      
      return { activeVersionId: targetVersionId, activatedAt };
   }
-
+  
   private async updateActivePointer(versionId: string, timestamp: string, options: { safeMode: boolean; mode: "normal" | "advanced" | "developer"; reason?: string; report?: ValidationReport }): Promise<void> {
     const pointer: ActivePointer = {
       activeVersionId: versionId,
@@ -124,4 +183,10 @@ export class ShellConfigDeployer {
     await fs.writeFile(tempPath, JSON.stringify(pointer, null, 2));
     await fs.rename(tempPath, activePath);
   }
+}
+
+// Helper to deep clone simple objects (JSON safe) to avoid mutation side effects
+function recursiveCopy<T>(obj: T): T {
+    if (obj === undefined || obj === null) return obj;
+    return JSON.parse(JSON.stringify(obj));
 }
