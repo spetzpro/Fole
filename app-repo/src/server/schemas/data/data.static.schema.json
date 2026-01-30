@@ -1,0 +1,17 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "object",
+    "properties": {
+        "value": {
+            "type": "string"
+        },
+        "blockId": {
+            "type": "string"
+        },
+        "blockType": {
+            "const": "data.static"
+        }
+    },
+    "required": ["value"],
+    "additionalProperties": false
+}

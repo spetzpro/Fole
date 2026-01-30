@@ -57,11 +57,13 @@ export class ShellConfigValidator {
   private schemasLoaded = false;
   private readonly schemaRoot: string;
   private readonly uiNodeSchemaRoot: string;
+  private readonly dataSchemaRoot: string;
   private readonly actionSchemaRoot: string;
 
   constructor(repoRoot: string) {
     this.schemaRoot = path.join(repoRoot, "app-repo", "src", "server", "schemas", "shell");
     this.uiNodeSchemaRoot = path.join(repoRoot, "app-repo", "src", "server", "schemas", "ui-node");
+    this.dataSchemaRoot = path.join(repoRoot, "app-repo", "src", "server", "schemas", "data");
     this.actionSchemaRoot = path.join(repoRoot, "app-repo", "src", "server", "schemas", "action");
     this.ajv = new Ajv({ allErrors: true });
     this.ajv.addKeyword("x-ui-editorHint");
@@ -120,6 +122,21 @@ export class ShellConfigValidator {
         for (const file of actionFiles) {
             if (file.endsWith(".schema.json")) {
                 const content = await this.readSchema(this.actionSchemaRoot, file);
+                if (!this.ajv.getSchema(file)) {
+                    this.ajv.addSchema(content, file);
+                }
+            }
+        }
+      } catch (e: any) {
+         if (e.code !== 'ENOENT') throw e;
+      }
+
+      // 4. Load Data Schemas (Dynamic scan)
+      try {
+        const dataFiles = await fs.readdir(this.dataSchemaRoot);
+        for (const file of dataFiles) {
+            if (file.endsWith(".schema.json")) {
+                const content = await this.readSchema(this.dataSchemaRoot, file);
                 if (!this.ajv.getSchema(file)) {
                     this.ajv.addSchema(content, file);
                 }
