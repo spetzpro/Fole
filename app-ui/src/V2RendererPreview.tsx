@@ -82,8 +82,11 @@ export function V2RendererPreview({ onClose, embedded, rootId, activeVersionId }
         const node = graph.nodesById[nodeId];
 
         // Apply derived state overlay (shallow merge of props)
-        // Try lookup by graph nodeId, then fall back to props.id or props.blockId
-        let runtimeProps = derivedState[node.id];
+        // Try lookup by renderNode nodeId first, then graph node.id, then props keys
+        let runtimeProps = derivedState[nodeId];
+        if (!runtimeProps) {
+            runtimeProps = derivedState[node.id];
+        }
         
         if (!runtimeProps && node.props) {
             // @ts-ignore
