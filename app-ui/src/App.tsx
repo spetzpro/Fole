@@ -32,6 +32,8 @@ interface BundleBlock {
     id?: string;
 }
 
+type DerivedPatches = Record<string, Record<string, unknown>>;
+
 // --- Minimal In-Browser Runtime Models ---
 
 interface OverlayState {
@@ -3780,46 +3782,63 @@ function SysadminPanel({
         plan: false 
     });
 
-    // Runtime Data Inspector State
-    const [runtimeDataBlocks, setRuntimeDataBlocks] = useState<Record<string, unknown> | null>(null);
-    const [runtimeDataError, setRuntimeDataError] = useState<string | null>(null);
+    // Derived State (Data tab)
+    const [derivedPatches, setDerivedPatches] = useState<DerivedPatches | null>(null);
+    const [derivedPatchesError, setDerivedPatchesError] = useState<string | null>(null);
+    const [selectedDataBlockId, setSelectedDataBlockId] = useState<string | null>(null);
+    const lastDerivedFetchKeyRef = useRef<string | null>(null);
 
-    // Fetch Runtime Data Helper
-    const refreshRuntimeDataBlocks = async () => {
-        const res = await debugFetch('/api/debug/runtime/data-blocks?ids=SourceBlock,TargetBlock');
-        
-        if (!res) {
-            setRuntimeDataBlocks(null);
-            return;
-        }
+    const dataBlocks = useMemo(() => {
+        const blocksMap = (bundleData as any)?.blocks || {};
+        return Object.values(blocksMap)
+            .filter((b: any) => typeof b?.blockType === 'string' && b.blockType.startsWith('data.'))
+            .map((b: any) => ({
+                blockId: (b.blockId || b.id) as string,
+                blockType: b.blockType as string,
+                data: b.data
+            }))
+            .filter((b: any) => !!b.blockId);
+    }, [bundleData]);
 
-        if (res.status === 403) {
-             setRuntimeDataError('Debug endpoints disabled (403)');
-             setRuntimeDataBlocks(null);
-             return;
-        } else if (!res.ok) {
-             const txt = await res.text().catch(() => '');
-             setRuntimeDataError(`Error ${res.status}: ${txt}`);
-             setRuntimeDataBlocks(null);
-             return;
-        }
+    const fetchDerivedPatches = async () => {
+        const versionKey = snapshotData?.activeVersionId || 'active';
+        if (lastDerivedFetchKeyRef.current === versionKey && derivedPatches) return;
+        lastDerivedFetchKeyRef.current = versionKey;
 
         try {
-             const json = await res.json();
-             setRuntimeDataBlocks(json.blocks || null);
-             setRuntimeDataError(null);
+            const res = await fetch(apiUrl('/api/runtime/bindings/derived-state'));
+            if (!res.ok) {
+                const txt = await res.text().catch(() => '');
+                setDerivedPatchesError(`Error ${res.status}: ${txt || 'Failed to load derived state'}`);
+                setDerivedPatches(null);
+                return;
+            }
+            const json = await res.json();
+            setDerivedPatches(json.patchesByBlockId || {});
+            setDerivedPatchesError(null);
         } catch (err: any) {
-            setRuntimeDataError(String(err));
-            setRuntimeDataBlocks(null);
+            setDerivedPatchesError(String(err));
+            setDerivedPatches(null);
         }
     };
-    
-    // Auto-refresh when Data tab is active and actions run
+
     useEffect(() => {
         if (activeTab === 'Data') {
-            refreshRuntimeDataBlocks();
+            fetchDerivedPatches();
         }
-    }, [activeTab, actionRuns.length]);
+    }, [activeTab, snapshotData?.activeVersionId]);
+
+    useEffect(() => {
+        if (activeTab !== 'Data') return;
+        if (dataBlocks.length === 0) {
+            if (selectedDataBlockId !== null) setSelectedDataBlockId(null);
+            return;
+        }
+        const exists = selectedDataBlockId && dataBlocks.some(b => b.blockId === selectedDataBlockId);
+        if (!exists) {
+            setSelectedDataBlockId(dataBlocks[0].blockId);
+        }
+    }, [activeTab, dataBlocks, selectedDataBlockId]);
 
     // --- ActionIndex Memoization ---
     const allActions = runtimePlan?.actions || [];
@@ -5767,112 +5786,98 @@ function SysadminPanel({
             }
             case 'Data': {
                 if (!bundleData) return <div style={{padding:'20px', color:'#666'}}>No bundle/config loaded yet.</div>;
-                const blocksMap = (bundleData as any).blocks || {};
-                
-                // Fallback config data
-                const cfgSource = blocksMap['SourceBlock'];
-                const cfgTarget = blocksMap['TargetBlock'];
 
-                // Decide what to show
-                const useLive = !!runtimeDataBlocks;
-                const sourceData = useLive ? runtimeDataBlocks['SourceBlock'] : cfgSource?.data;
-                const targetData = useLive ? runtimeDataBlocks['TargetBlock'] : cfgTarget?.data;
+                if (dataBlocks.length === 0) {
+                    return (
+                        <div style={{padding:'20px', color:'#666'}}>
+                            No data.* blocks found in the current bundle.
+                        </div>
+                    );
+                }
+
+                const selectedBlock = dataBlocks.find(b => b.blockId === selectedDataBlockId) || dataBlocks[0];
+                const baseData = selectedBlock?.data ?? {};
+                const baseObj = (baseData && typeof baseData === 'object') ? baseData as Record<string, unknown> : {};
+                const derivedPatch = selectedBlock ? derivedPatches?.[selectedBlock.blockId] : undefined;
+                const effectiveData = derivedPatch ? { ...baseObj, ...derivedPatch } : baseObj;
 
                 return (
-                    <div style={{display:'flex', flexDirection:'column', height:'100%', overflow:'hidden'}}>
-                         {/* Header / Toolbar */}
-                         <div style={{padding:'10px', borderBottom:'1px solid #ddd', display:'flex', alignItems:'center', justifyContent:'space-between', background:'#fafafa'}}>
-                             <div style={{display:'flex', alignItems:'center', gap:'10px'}}>
-                                 <strong style={{fontSize:'1.1em'}}>Data Inspector</strong>
-                                 <span style={{
-                                     fontSize:'0.85em', 
-                                     padding:'2px 8px', 
-                                     borderRadius:'10px', 
-                                     background: useLive ? '#e8f5e9' : '#eceff1', 
-                                     color: useLive ? '#2e7d32' : '#546e7a',
-                                     border: '1px solid',
-                                     borderColor: useLive ? '#a5d6a7' : '#cfd8dc'
-                                 }}>
-                                     {useLive ? 'LIVE RUNTIME' : 'STATIC CONFIG'}
-                                 </span>
-                             </div>
-                             <button
-                                onClick={refreshRuntimeDataBlocks}
-                                style={{
-                                    padding:'5px 12px', fontSize:'0.9em', cursor:'pointer',
-                                    background:'white', border:'1px solid #ccc', borderRadius:'3px',
-                                    display:'flex', alignItems:'center', gap:'5px'
-                                }}
-                             >
-                                ↻ Refresh
-                             </button>
-                         </div>
+                    <div style={{display:'flex', height:'100%', overflow:'hidden'}}>
+                        {/* Left Column: data.* blocks list */}
+                        <div style={{width:'260px', borderRight:'1px solid #ddd', background:'#f9f9f9', overflowY:'auto'}}>
+                            <div style={{padding:'10px', borderBottom:'1px solid #eee', fontWeight:'bold', fontSize:'0.9em'}}>Data Blocks</div>
+                            {dataBlocks.map(b => {
+                                const isSel = b.blockId === selectedBlock.blockId;
+                                return (
+                                    <div
+                                        key={b.blockId}
+                                        onClick={() => setSelectedDataBlockId(b.blockId)}
+                                        style={{
+                                            padding:'8px 10px',
+                                            cursor:'pointer',
+                                            background: isSel ? '#e3f2fd' : 'transparent',
+                                            color: isSel ? '#1565c0' : '#333',
+                                            borderBottom:'1px solid #eee',
+                                            fontSize:'0.9em'
+                                        }}
+                                    >
+                                        <div style={{fontWeight:'bold'}}>{b.blockId}</div>
+                                        <div style={{fontSize:'0.8em', color:'#666'}}>{b.blockType}</div>
+                                    </div>
+                                );
+                            })}
+                        </div>
 
-                         <div style={{flex:1, overflowY:'auto', padding:'10px'}}>
-                             {/* Error/Notes */}
-                             {runtimeDataError && (
-                                 <div style={{padding:'8px', marginBottom:'10px', background:'#ffebee', color:'#c62828', fontSize:'0.9em', borderRadius:'4px', border:'1px solid #ffcdd2'}}>
-                                     Warning: {runtimeDataError}. Showing static config data.
-                                 </div>
-                             )}
+                        {/* Right Column: Details */}
+                        <div style={{flex:1, overflowY:'auto', padding:'10px'}}>
+                            {derivedPatchesError && (
+                                <div style={{padding:'8px', marginBottom:'10px', background:'#ffebee', color:'#c62828', fontSize:'0.9em', borderRadius:'4px', border:'1px solid #ffcdd2'}}>
+                                    Warning: {derivedPatchesError}. Showing base config data only.
+                                </div>
+                            )}
 
-                             <div style={{
-                                 padding:'8px', 
-                                 marginBottom:'15px', 
-                                 background:'#e3f2fd', 
-                                 border:'1px solid #90caf9', 
-                                 borderRadius:'4px',
-                                 fontSize:'0.9em',
-                                 color:'#0d47a1'
-                             }}>
-                                 <strong>Info:</strong> Click <code>btn1::click</code> in runtime to see changes propagate (Trigger1 writes TargetBlock.state.count).
-                             </div>
+                            <div style={{marginBottom:'15px', border:'1px solid #ddd', borderRadius:'4px'}}>
+                                <div style={{padding:'8px', background:'#f5f5f5', borderBottom:'1px solid #ddd', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+                                    <span>
+                                        <strong>Base Data</strong>
+                                        <span style={{marginLeft:'8px', fontSize:'0.85em', color:'#666'}}>({selectedBlock.blockType})</span>
+                                    </span>
+                                    <CopyBtn k="data_base" text={baseData} label="Copy Base" />
+                                </div>
+                                <div style={{padding:'10px'}}>
+                                    <pre style={{...preStyle, margin:0, maxHeight:'200px', overflow:'auto'}}>
+                                        {JSON.stringify(baseData, null, 2)}
+                                    </pre>
+                                </div>
+                            </div>
 
-                             {/* Source Block */}
-                             <div style={{marginBottom:'20px', border:'1px solid #ddd', borderRadius:'4px'}}>
-                                 <div style={{padding:'8px', background:'#f5f5f5', borderBottom:'1px solid #ddd', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
-                                     <span>
-                                         <strong>SourceBlock</strong>
-                                         {cfgSource && <span style={{marginLeft:'8px', fontSize:'0.85em', color:'#666'}}>({cfgSource.blockType})</span>}
-                                         {useLive && <span style={{marginLeft:'8px', fontSize:'0.8em', color:'green'}}>(Runtime Value)</span>}
-                                     </span>
-                                     <CopyBtn k="sourceblock" text={sourceData} label="Copy Data" />
-                                 </div>
-                                 <div style={{padding:'10px'}}>
-                                     {sourceData !== undefined ? (
-                                         <pre style={{...preStyle, margin:0, maxHeight:'200px', overflow:'auto'}}>
-                                             {JSON.stringify(sourceData, null, 2)}
-                                         </pre>
-                                     ) : (
-                                         <div style={{fontStyle:'italic', color:'#888'}}>
-                                             Data not available {useLive ? 'in runtime' : 'in config'}.
-                                         </div>
-                                     )}
-                                 </div>
-                             </div>
+                            <div style={{marginBottom:'15px', border:'1px solid #ddd', borderRadius:'4px'}}>
+                                <div style={{padding:'8px', background:'#f5f5f5', borderBottom:'1px solid #ddd', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+                                    <span>
+                                        <strong>Derived Patch</strong>
+                                    </span>
+                                    <CopyBtn k="data_patch" text={derivedPatch || {}} label="Copy Patch" />
+                                </div>
+                                <div style={{padding:'10px'}}>
+                                    <pre style={{...preStyle, margin:0, maxHeight:'200px', overflow:'auto'}}>
+                                        {JSON.stringify(derivedPatch || {}, null, 2)}
+                                    </pre>
+                                </div>
+                            </div>
 
-                             {/* Target Block */}
-                             <div style={{marginBottom:'20px', border:'1px solid #ddd', borderRadius:'4px'}}>
-                                 <div style={{padding:'8px', background:'#f5f5f5', borderBottom:'1px solid #ddd', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
-                                     <span>
-                                         <strong>TargetBlock</strong>
-                                         {cfgTarget && <span style={{marginLeft:'8px', fontSize:'0.85em', color:'#666'}}>({cfgTarget.blockType})</span>}
-                                         {useLive && <span style={{marginLeft:'8px', fontSize:'0.8em', color:'green'}}>(Runtime Value)</span>}
-                                     </span>
-                                     <CopyBtn k="targetblock" text={targetData} label="Copy Data" />
-                                 </div>
-                                 <div style={{padding:'10px'}}>
-                                     {targetData !== undefined ? (
-                                         <pre style={{...preStyle, margin:0, maxHeight:'200px', overflow:'auto'}}>
-                                             {JSON.stringify(targetData, null, 2)}
-                                         </pre>
-                                     ) : (
-                                         <div style={{fontStyle:'italic', color:'#888'}}>
-                                              Data not available {useLive ? 'in runtime' : 'in config'}.
-                                         </div>
-                                     )}
-                                 </div>
-                             </div>
+                            <div style={{marginBottom:'15px', border:'1px solid #ddd', borderRadius:'4px'}}>
+                                <div style={{padding:'8px', background:'#f5f5f5', borderBottom:'1px solid #ddd', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+                                    <span>
+                                        <strong>Effective Data</strong>
+                                    </span>
+                                    <CopyBtn k="data_effective" text={effectiveData} label="Copy Effective" />
+                                </div>
+                                <div style={{padding:'10px'}}>
+                                    <pre style={{...preStyle, margin:0, maxHeight:'200px', overflow:'auto'}}>
+                                        {JSON.stringify(effectiveData, null, 2)}
+                                    </pre>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 );
