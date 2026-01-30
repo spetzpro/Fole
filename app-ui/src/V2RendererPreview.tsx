@@ -22,10 +22,12 @@ interface V2RendererPreviewProps {
     activeVersionId?: string;
 }
 
+type DerivedPatches = Record<string, Record<string, unknown>>;
+
 export function V2RendererPreview({ onClose, embedded, rootId, activeVersionId }: V2RendererPreviewProps) {
     const [graph, setGraph] = useState<ResolvedUiGraph | null>(null);
     const [error, setError] = useState<string | null>(null);
-    const [derivedState, setDerivedState] = useState<Record<string, any>>({});
+    const [derivedState, setDerivedState] = useState<DerivedPatches>({});
 
     useEffect(() => {
         const fetchGraph = async () => {
@@ -82,26 +84,13 @@ export function V2RendererPreview({ onClose, embedded, rootId, activeVersionId }
         const node = graph.nodesById[nodeId];
 
         // Apply derived state overlay (shallow merge of props)
-        // Try lookup by renderNode nodeId first, then graph node.id, then props keys
-        let runtimeProps = derivedState[nodeId];
-        if (!runtimeProps) {
-            runtimeProps = derivedState[node.id];
-        }
-        
-        if (!runtimeProps && node.props) {
-            // @ts-ignore
-            const bid = node.props.blockId;
-            // @ts-ignore
-            const pid = node.props.id;
-            
-            if (bid && derivedState[bid]) {
-                runtimeProps = derivedState[bid];
-            } else if (pid && derivedState[pid]) {
-                runtimeProps = derivedState[pid];
-            }
-        }
-        
-        const effectiveProps = { ...node.props, ...(runtimeProps || {}) };
+        const patch =
+            derivedState[nodeId] ??
+            derivedState[node.id] ??
+            (node.props?.blockId ? derivedState[node.props.blockId as string] : undefined) ??
+            (node.props?.id ? derivedState[node.props.id as string] : undefined);
+
+        const effectiveProps = patch ? { ...node.props, ...patch } : node.props;
 
         const style: React.CSSProperties = {
             padding: '10px',
