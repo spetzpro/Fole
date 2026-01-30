@@ -25,6 +25,7 @@ interface V2RendererPreviewProps {
 export function V2RendererPreview({ onClose, embedded, rootId, activeVersionId }: V2RendererPreviewProps) {
     const [graph, setGraph] = useState<ResolvedUiGraph | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const [derivedState, setDerivedState] = useState<Record<string, any>>({});
 
     useEffect(() => {
         const fetchGraph = async () => {
@@ -47,6 +48,21 @@ export function V2RendererPreview({ onClose, embedded, rootId, activeVersionId }
                 
                 const graphData = await graphRes.json();
                 
+                // Fetch derived state overlay
+                try {
+                     // Standard runtime endpoint for derived values
+                     const stateRes = await fetch(apiUrl('/api/runtime/bindings/derived-state'));
+                     if (stateRes.ok) {
+                         const stateData = await stateRes.json();
+                         // Expecting { versionId, patchesByBlockId }
+                         if (stateData.patchesByBlockId) {
+                             setDerivedState(stateData.patchesByBlockId);
+                         }
+                     }
+                } catch(e) {
+                     console.warn("Failed to fetch runtime derived state", e);
+                }
+
                 // DEBUG LOGGING
                 // if (graphData && graphData.nodesById) {
                 //    const hasV2Text = !!graphData.nodesById['v2-text-1'];
@@ -65,6 +81,10 @@ export function V2RendererPreview({ onClose, embedded, rootId, activeVersionId }
         if (!graph || !graph.nodesById[nodeId]) return <div key={nodeId} style={{color:'red'}}>Missing Node: {nodeId}</div>;
         const node = graph.nodesById[nodeId];
 
+        // Apply derived state overlay (shallow merge of props)
+        const runtimeProps = derivedState[nodeId] || {};
+        const effectiveProps = { ...node.props, ...runtimeProps };
+
         const style: React.CSSProperties = {
             padding: '10px',
             margin: '5px'
@@ -75,7 +95,7 @@ export function V2RendererPreview({ onClose, embedded, rootId, activeVersionId }
         switch (node.type) {
             case 'ui.node.container':
                 // Layout logic
-                const directionProp = node.props?.direction || node.props?.layout || 'column';
+                const directionProp = effectiveProps.direction || effectiveProps.layout || 'column';
                 const flexDirection = String(directionProp).toLowerCase() === 'row' ? 'row' : 'column';
 
                 return (
@@ -87,7 +107,7 @@ export function V2RendererPreview({ onClose, embedded, rootId, activeVersionId }
                     </div>
                 );
             case 'ui.node.text':
-                const displayText = node.props?.content || node.props?.text || node.props?.value || node.props?.label || "(missing text)";
+                const displayText = effectiveProps.content || effectiveProps.text || effectiveProps.value || effectiveProps.label || "(missing text)";
                 return (
                     <div key={commonKey} style={{...style, backgroundColor: 'white', whiteSpace: 'pre-wrap'}}>
                         {String(displayText)}
@@ -96,7 +116,7 @@ export function V2RendererPreview({ onClose, embedded, rootId, activeVersionId }
             case 'ui.node.button':
                 const handleButtonClick = async () => {
                      // @ts-ignore
-                     const actionId = node.props?.behaviors?.onClick?.actionId;
+                     const actionId = effectiveProps.behaviors?.onClick?.actionId;
                      if (actionId) {
                          try {
                             const res = await fetch(apiUrl('/api/actions/dispatch'), {
@@ -115,10 +135,10 @@ export function V2RendererPreview({ onClose, embedded, rootId, activeVersionId }
                      }
                 };
                 
-                const displayLabel = node.props?.label || node.props?.text || "Button";
-                const helpText = (node.props?.helpText as string) || undefined;
-                const isDisabled = node.props?.enabled === false;
-                const variant = (node.props?.variant as string) || 'secondary';
+                const displayLabel = effectiveProps.label || effectiveProps.text || "Button";
+                const helpText = (effectiveProps.helpText as string) || undefined;
+                const isDisabled = effectiveProps.enabled === false;
+                const variant = (effectiveProps.variant as string) || 'secondary';
 
                 let variantStyle: React.CSSProperties = {
                     backgroundColor: '#e0e0e0',
@@ -172,7 +192,7 @@ export function V2RendererPreview({ onClose, embedded, rootId, activeVersionId }
                     </button>
                 );
             case 'ui.node.window':
-                 const windowTitle = node.props?.title || node.props?.label || 'Window';
+                 const windowTitle = effectiveProps.title || effectiveProps.label || 'Window';
                  return (
                     <div key={commonKey} style={{...style, border: '2px solid #333', boxShadow: '0 2px 10px rgba(0,0,0,0.2)', backgroundColor: '#fff', minWidth: '300px', minHeight: '200px', display:'flex', flexDirection:'column'}}>
                         <div style={{background:'#eee', padding:'5px', borderBottom:'1px solid #ccc', fontWeight:'bold'}}>

@@ -44,7 +44,13 @@ export function createBindingRuntimeManager(configRepo: ShellConfigRepository): 
             if (entry && entry.bundle) {
                 // Initialize runtime state for blocks from bundle defaults
                 for (const [id, block] of Object.entries(entry.bundle.blocks)) {
-                    if (block.blockType !== "binding" && runtimeState[id] === undefined) {
+                    if (block.blockType === "binding") continue;
+
+                    // Special initialization for Source blocks
+                    if (block.blockType === 'data.static') {
+                         // Always refresh static data from config
+                         runtimeState[id] = { ...block.data };
+                    } else if (runtimeState[id] === undefined) {
                         runtimeState[id] = {};
                     }
                 }

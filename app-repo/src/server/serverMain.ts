@@ -197,6 +197,26 @@ async function main() {
       }
   });
 
+  // Standard Runtime Derived Binding State (Bridge between derived engine and UI)
+  router.get("/api/runtime/bindings/derived-state", async (_req, res, _params, _ctx) => {
+      // Standard endpoint - available to renderer without debug auth
+      const metadata = runtimeManager.getSnapshotMetadata();
+      const runtime = runtimeManager.getRuntime();
+      
+      const patchesByBlockId: Record<string, any> = {};
+      
+      if (runtime) {
+          // Get the full internal state (filtered to safe props naturally by engine)
+          const state = runtime.getInternalStateDebug(); 
+          Object.assign(patchesByBlockId, state);
+      }
+      
+      return router.json(res, 200, {
+          versionId: metadata.activeVersionId,
+          patchesByBlockId: patchesByBlockId
+      });
+  });
+
   // Clone & Patch Sysadmin (Sysadmin Tooling - Standard)
   router.post("/api/config/shell/clone-and-patch-sysadmin", async (req, res, _params, ctx) => {
     // Used by UI Sysadmin flow - needs to vary independent of debug mode
@@ -981,6 +1001,18 @@ async function main() {
         console.error("Debug data-blocks error", err);
         router.json(res, 500, { error: "Internal Server Error" });
     }
+  });
+
+  // Debug: Full Runtime State (For V2 Bridge Overlay)
+  router.get("/api/debug/runtime/state", async (_req, res, _params, ctx) => {
+    if (!canAccessDebug(ctx)) {
+        return router.json(res, 403, { error: "Access Denied: Debug mode disabled or insufficient permissions" });
+    }
+    const runtime = runtimeManager.getRuntime();
+    if (!runtime) {
+        return router.json(res, 200, {});
+    }
+    return router.json(res, 200, runtime.getInternalStateDebug());
   });
 
   // Helper for Debug Endpoints (EPIC 1 Step 1)
