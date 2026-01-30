@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { apiUrl } from './lib/apiBase';
 
 // Minimal types matching backend ResolvedUiGraph
@@ -28,15 +28,17 @@ export function V2RendererPreview({ onClose, embedded, rootId, activeVersionId }
     const [graph, setGraph] = useState<ResolvedUiGraph | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [derivedState, setDerivedState] = useState<DerivedPatches>({});
+    const lastDerivedFetchKey = useRef<string | null>(null);
 
     useEffect(() => {
+        const controller = new AbortController();
         const fetchGraph = async () => {
             try {
                 // DEBUG LOGGING (Temporary)
                 // console.log(`[V2Renderer] Fetching graph... activeVersion=${activeVersionId}`);
 
                 // Single step: Get active resolved graph
-                const graphRes = await fetch(apiUrl('/api/config/shell/resolved-graph/active'));
+                const graphRes = await fetch(apiUrl('/api/config/shell/resolved-graph/active'), { signal: controller.signal });
                 
                 if (graphRes.status === 404) {
                      const errData = await graphRes.json().catch(() => ({}));
@@ -50,17 +52,21 @@ export function V2RendererPreview({ onClose, embedded, rootId, activeVersionId }
                 
                 const graphData = await graphRes.json();
                 
-                // Fetch derived state overlay
+                // Fetch derived state overlay (once per version/root/embedded change)
                 try {
-                     // Standard runtime endpoint for derived values
-                     const stateRes = await fetch(apiUrl('/api/runtime/bindings/derived-state'));
-                     if (stateRes.ok) {
-                         const stateData = await stateRes.json();
-                         // Expecting { versionId, patchesByBlockId }
-                         if (stateData.patchesByBlockId) {
-                             setDerivedState(stateData.patchesByBlockId);
-                         }
-                     }
+                    const key = `${activeVersionId || 'active'}|${rootId || ''}|${embedded ? '1' : '0'}`;
+                    if (lastDerivedFetchKey.current !== key) {
+                        lastDerivedFetchKey.current = key;
+                        // Standard runtime endpoint for derived values
+                        const stateRes = await fetch(apiUrl('/api/runtime/bindings/derived-state'), { signal: controller.signal });
+                        if (stateRes.ok) {
+                            const stateData = await stateRes.json();
+                            // Expecting { versionId, patchesByBlockId }
+                            if (stateData.patchesByBlockId) {
+                                setDerivedState(stateData.patchesByBlockId);
+                            }
+                        }
+                    }
                 } catch(e) {
                      console.warn("Failed to fetch runtime derived state", e);
                 }
@@ -73,24 +79,29 @@ export function V2RendererPreview({ onClose, embedded, rootId, activeVersionId }
 
                 setGraph(graphData);
             } catch (err: any) {
+                if (err?.name === 'AbortError') return;
                 setError(err.message);
             }
         };
         fetchGraph();
-    }, [activeVersionId]); // Refresh when version changes
+        return () => {
+            controller.abort();
+        };
+    }, [activeVersionId, rootId, embedded]); // Refresh when version or root changes
 
     const renderNode = (nodeId: string) => {
         if (!graph || !graph.nodesById[nodeId]) return <div key={nodeId} style={{color:'red'}}>Missing Node: {nodeId}</div>;
         const node = graph.nodesById[nodeId];
 
         // Apply derived state overlay (shallow merge of props)
+        const baseProps = node.props ?? {};
         const patch =
             derivedState[nodeId] ??
             derivedState[node.id] ??
             (node.props?.blockId ? derivedState[node.props.blockId as string] : undefined) ??
             (node.props?.id ? derivedState[node.props.id as string] : undefined);
 
-        const effectiveProps = patch ? { ...node.props, ...patch } : node.props;
+        const effectiveProps = patch ? { ...baseProps, ...patch } : baseProps;
 
         const style: React.CSSProperties = {
             padding: '10px',
