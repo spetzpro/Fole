@@ -173,24 +173,28 @@ class WindowSystemRuntime {
 
         // Capture Potential Windows (Strict Type preferred)
         // EXCLUDE registry block itself from potential windows
-        if (bType !== 'shell.infra.window_registry' && (bType === 'ui.node.window' || bType.includes('window') || bType.includes('panel'))) {
+        if (bType !== 'shell.infra.window_registry' && bType === 'ui.node.window') {
              windowBlocks.set(bId, { title: bTitle, blockType: bType });
         }
     });
 
-    // B. Register Windows (Registry preferred, fallback to all 'ui.node.window' + legacy)
+    // B. Register Windows (Registry preferred, fallback to all 'ui.node.window')
     const windowsToRegister = new Set<string>();
     
-    // If Registry exists, favor it
+    // If Registry exists, register its windows IF they are valid ui.node.window blocks
     if (registryWindows) {
         (registryWindows as Set<string>).forEach((wid: string) => {
-            if (windowBlocks.has(wid)) windowsToRegister.add(wid);
+            // Strict Filter: Only register if we confirmed it is a ui.node.window
+            if (windowBlocks.has(wid)) {
+                windowsToRegister.add(wid);
+            }
         });
-        // Also ensure any explicit ui.node.window is registered if it was missed? 
-        // Strict governance says registry is authoritative. But for now let's be additive to avoid regression.
+        
+        // Also ensure any explicit ui.node.window is registered even if not in registry
+        // This supports standard window behavior without strict registry requirement
         windowBlocks.forEach((_, wid) => windowsToRegister.add(wid));
     } else {
-        // Fallback: Register all found candidates
+        // Fallback: Register all found candidates (strictly ui.node.window now)
         windowBlocks.forEach((_, wid) => windowsToRegister.add(wid));
     }
 
