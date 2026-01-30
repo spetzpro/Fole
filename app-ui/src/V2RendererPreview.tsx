@@ -82,8 +82,23 @@ export function V2RendererPreview({ onClose, embedded, rootId, activeVersionId }
         const node = graph.nodesById[nodeId];
 
         // Apply derived state overlay (shallow merge of props)
-        const runtimeProps = derivedState[nodeId] || {};
-        const effectiveProps = { ...node.props, ...runtimeProps };
+        // Try lookup by graph nodeId, then fall back to props.id or props.blockId
+        let runtimeProps = derivedState[node.id];
+        
+        if (!runtimeProps && node.props) {
+            // @ts-ignore
+            const bid = node.props.blockId;
+            // @ts-ignore
+            const pid = node.props.id;
+            
+            if (bid && derivedState[bid]) {
+                runtimeProps = derivedState[bid];
+            } else if (pid && derivedState[pid]) {
+                runtimeProps = derivedState[pid];
+            }
+        }
+        
+        const effectiveProps = { ...node.props, ...(runtimeProps || {}) };
 
         const style: React.CSSProperties = {
             padding: '10px',
