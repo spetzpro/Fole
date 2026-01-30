@@ -8469,10 +8469,23 @@ function App() {
       const manifest = bundleData.manifest as any;
       const blocks = bundleData.blocks as any;
       
-      const resolve = (key: string, _type: string) => {
-          let id = manifest?.regions?.[key];
-          // Handle object form { blockId: "..." }
-          if (typeof id === 'object' && id) id = id.blockId;
+      const resolve = (keys: string[]) => {
+          let id = null;
+          // Alias Support: Check keys in order (e.g. header -> top)
+          for (const k of keys) {
+              const regionDef = manifest?.regions?.[k];
+              if (regionDef) {
+                  // Direct ID or object wrapper
+                  const candidate = (typeof regionDef === 'object' && regionDef.blockId) 
+                      ? regionDef.blockId 
+                      : (typeof regionDef === 'string' ? regionDef : null);
+                  
+                  if (candidate) {
+                      id = candidate;
+                      break; 
+                  }
+              }
+          }
           
           if (id && blocks && blocks[id]) {
               return blocks[id];
@@ -8481,9 +8494,9 @@ function App() {
       };
       
       return {
-          header: resolve('header', 'shell.region.header'),
-          viewport: resolve('viewport', 'shell.region.viewport'),
-          footer: resolve('footer', 'shell.region.footer')
+          header: resolve(['header', 'top']),
+          viewport: resolve(['viewport', 'main']),
+          footer: resolve(['footer', 'bottom'])
       };
   }, [bundleData]);
 
