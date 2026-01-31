@@ -31,6 +31,7 @@ export class BindingRuntime {
     private bundle: ShellBundle["bundle"];
     private runtimeState: Record<string, any>;
     private lock: boolean = false;
+    private lastDerivedTickTs: string | null = null;
     private integrationInvocations: IntegrationInvocation[] = [];
     private dispatchTraces: DispatchTrace[] = [];
     private executeIntegrationsEnabled: boolean = false;
@@ -42,6 +43,10 @@ export class BindingRuntime {
 
     public getBundle(): ShellBundle["bundle"] {
         return this.bundle;
+    }
+
+    public getLastDerivedTickTs(): string | null {
+        return this.lastDerivedTickTs;
     }
 
     public getExecuteIntegrationsEnabled(): boolean {
@@ -86,6 +91,7 @@ export class BindingRuntime {
 
         try {
             result.logs.push("[BindingRuntime] Starting derived tick.");
+            this.lastDerivedTickTs = new Date().toISOString();
             const engineResult = applyDerivedBindings(this.bundle, this.runtimeState);
             
             result.applied = engineResult.applied;

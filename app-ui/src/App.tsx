@@ -47,104 +47,63 @@ interface OverlayState {
 interface WindowState {
   id: string;
   title: string;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  isMinimized: boolean;
-  dockMode: 'none' | 'left' | 'right' | 'top' | 'bottom';
-  zOrder: number;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    isMinimized: boolean;
+    dockMode: 'none' | 'left' | 'right' | 'top' | 'bottom';
+    zOrder: number;
 }
 
 interface ActionDefinition {
-  id: string;
-  actionName: string;
-  sourceBlockId: string;
+    id: string;
+    actionName: string;
+    sourceBlockId: string;
 }
 
 type ActionDispatchResult = {
-  applied: number;
-  skipped: number;
-  logs: string[];
-  error?: string;
+    applied: number;
+    skipped: number;
+    logs: string[];
+    error?: string;
 };
 
-interface ActionRunRecord {
-  id: string;
-  timestamp: number;
-  actionId: string;
-  result: ActionDispatchResult;
-}
+type RuntimePlan = {
+    entrySlug: string;
+    targetBlockId?: string;
+    windows: Record<string, WindowState>;
+    overlays: Record<string, OverlayState>;
+    actions: ActionDefinition[];
+};
 
-interface MatchedBindingSummary {
-  bindingId: string;
-  mode: string;
-  kind: string;
-  summary: string;
-}
-
-type Effect =
-  | { kind: "write"; targetBlockId: string; path: string; value: unknown }
-  | { kind: "integration"; integrationId: string; method: string; path: string; url?: string; status?: string };
-
-interface DispatchTrace {
-  timestamp: string;
-  action: { sourceBlockId: string; name: string };
-  emittedTrigger: { sourceBlockId: string; name: string };
-  result: { applied: number; skipped: number };
-  matchedBindings: MatchedBindingSummary[];
-  effects?: Effect[];
-}
-
-interface RuntimePlan {
-  entrySlug: string;
-  targetBlockId: string;
-  windows: Record<string, WindowState>;
-  overlays: Record<string, OverlayState>;
-  actions: ActionDefinition[];
-}
-
-// --- Simulated Runtime Class (Stateful, held in Ref) ---
 class WindowSystemRuntime {
-  private windows: Map<string, WindowState> = new Map();
-  private windowDefs: Map<string, { title: string }> = new Map();
-  // Lazy Registration State
-  private rawBlocks: Map<string, unknown> = new Map();
+    private entrySlug = '';
+    private targetBlockId?: string;
+    private windows = new Map<string, WindowState>();
+    private overlays = new Map<string, OverlayState>();
+    private actions: ActionDefinition[] = [];
+    private rawBlocks = new Map<string, Record<string, unknown>>();
+    private windowDefs = new Map<string, { title: string }>();
+    private zCounter = 1;
 
-  private overlays: Map<string, OverlayState> = new Map();
-  private actions: ActionDefinition[] = [];
-  private entrySlug: string = '';
-  private targetBlockId: string = '';
-  private zCounter: number = 100;
+    public init(bundleData: BundleResponse, ping: PingResponse, viewWidth = 900, viewHeight = 600) {
+        this.entrySlug = (bundleData?.manifest as any)?.entrySlug ?? '';
+        this.targetBlockId = ping?.targetBlockId;
 
-  constructor() {}
+        const blocksObj = bundleData?.blocks ?? {};
+        const blocksArray = Array.isArray(blocksObj)
+            ? (blocksObj as unknown[])
+            : Object.values(blocksObj as Record<string, unknown>);
+        const minVisibleW = 120;
+        const minVisibleH = 80;
 
-  public init(bundle: BundleResponse, ping: PingResponse, viewWidth: number = 900, viewHeight: number = 600) {
-    this.entrySlug = 'ping';
-    this.targetBlockId = ping.targetBlockId || 'unknown';
-    // viewWidth/Height unused in class state, only used here for clamping
-    
-    // Non-destructive update: Preserve running windows
-    // this.windows.clear(); // REMOVED
-    
-    // Reset Definitions & Raw Config
-    this.windowDefs.clear();
-    this.overlays.clear(); // Overlays are currently reset on config reload (acceptable for now)
-    this.actions = [];
-    // this.rawBlocks.clear(); // Redundant, doing before loop
-    // this.zCounter = 100; // Keep z-order continuity
-
-    const blocks = bundle.blocks || {};
-    let blocksArray: unknown[] = [];
-    
-    if (Array.isArray(blocks)) {
-        blocksArray = blocks;
-    } else if (typeof blocks === 'object' && blocks !== null) {
-        blocksArray = Object.values(blocks);
-    }
-    
-    const minVisibleW = 100;
-    const minVisibleH = 50;
+        this.windows.clear();
+        this.overlays.clear();
+        this.actions = [];
+        this.windowDefs.clear();
+        this.rawBlocks.clear();
+        this.zCounter = 1;
 
     // Reset Lazy Registration State
     this.rawBlocks.clear();
@@ -650,28 +609,34 @@ const deepClone = (obj: unknown) => {
 };
 
 interface SnapshotResponse {
-  runtimeStatus: string;
-  activeVersionId: string | null;
-  activatedAt: string | null;
-  activationReason?: string | null;
-  source: string;
-  flags: {
-      executeIntegrationsEnabled: boolean;
-      debugMode: boolean;
-  };
-  blocks: {
-      total: number;
-      byType: Record<string, number>;
-  };
-  bindings: {
-      total: number;
-      enabled: number;
-      disabled: number;
-  };
-  integrations: {
-      total: number;
-      byType: Record<string, number>;
-  };
+    ts?: string;
+    activeVersionId?: string | null;
+    openWindows?: string[];
+    derivedPatchesCount?: number;
+    lastDerivedTickTs?: string | null;
+    blocks?: {
+        byType?: Record<string, number>;
+    };
+    integrations?: {
+        total?: number;
+        byType?: Record<string, number>;
+    };
+}
+
+interface RuntimeInvocation {
+    ts: string;
+    actionId: string;
+    sourceBlockId?: string;
+    status: string;
+    details?: any;
+}
+
+interface RuntimeTrace {
+    ts: string;
+    actionId: string;
+    status: string;
+    durationMs?: number;
+    reasonCode?: string;
 }
 
 function ConfigSysadminView({ 
@@ -1277,8 +1242,7 @@ function ConfigSysadminView({
              
              // Check rawBlock for "default: true" on tabs (ConfigSysadminView logic)
              if (!targetId && config.rawBlock && config.rawBlock.data && Array.isArray(config.rawBlock.data.tabs)) {
-                 const defTab = config.rawBlock.data.tabs.find((t:any) => t.default === true);
-                 if (defTab) targetId = defTab.id;
+                  const defTab = config.rawBlock.data.tabs.find((t:any) => t.default === true);
              }
              
              // Fallback to first tab
@@ -1297,53 +1261,69 @@ function ConfigSysadminView({
 
     const activeTab = config.tabs.find(t => t.id === selectedTabId) || config.tabs[0];
 
+    const renderDraftHeader = () => {
+        if (!sysadminDraft) {
+            return (
+                <button onClick={handleCreateDraft} style={{fontSize:'0.75em', width:'100%', marginBottom:'8px', cursor:'pointer'}}>
+                    Create Local Draft
+                </button>
+            );
+        }
+
+        return (
+            <div style={{marginBottom:'8px', borderBottom:'1px solid #ffe0b2', paddingBottom:'8px'}}>
+                <div style={{color:'#e65100', fontSize:'0.85em', fontWeight:'bold', display:'flex', alignItems:'center', gap:'4px'}}>
+                    <span>✎ DRAFT MODE</span>
+                </div>
+                <div style={{fontSize:'0.75em', color:'#e65100', marginBottom:'5px'}}>
+                    Local changes only {activeVersionId ? '(Base: ' + activeVersionId + ')' : ''}
+                </div>
+                <div style={{marginBottom:'5px'}}>
+                    <input 
+                        type="text" 
+                        placeholder="Change reason..."
+                        value={saveReason}
+                        onChange={e => setSaveReason(e.target.value)}
+                        style={{width:'100%', padding:'4px', fontSize:'0.8em', border:'1px solid #ffe0b2', boxSizing:'border-box'}}
+                    />
+                    <button 
+                        onClick={handleSaveToServer}
+                        disabled={isSaving || (pendingStage === 'awaiting_ack' && !pendingAck)}
+                        style={{
+                            width:'100%', 
+                            marginTop:'4px', 
+                            padding:'4px', 
+                            cursor: (isSaving || (pendingStage === 'awaiting_ack' && !pendingAck)) ? 'default' : 'pointer',
+                            background: pendingStage === 'awaiting_ack' ? '#f57c00' : '#e65100',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '3px',
+                            fontSize: '0.8em',
+                            fontWeight: 'bold'
+                        }}
+                    >
+                        {isSaving ? 'Saving...' : (pendingStage === 'awaiting_ack' ? 'Confirm Save & Activate' : 'Save & Activate')}
+                    </button>
+                </div>
+                <button onClick={handleDiscardDraft} disabled={isSaving} style={{fontSize:'0.75em', width:'100%', cursor:'pointer', marginTop:'4px'}}>Discard Draft</button>
+            </div>
+        );
+    };
+
     return (
         <div style={{display:'flex', height:'100%', border:'1px solid #ddd'}}>
             {/* Left Column: Tab List */}
             <div style={{width:'200px', borderRight:'1px solid #ddd', background:'#f9f9f9', overflowY:'auto'}}>
-                <div style={{padding:'10px', borderBottom:'1px solid #eee', fontWeight:'bold', fontSize:'0.9em', background: sysadminDraft ? '#fff3e0' : '#eee'}}>
-                    {sysadminDraft ? (
-                        <div style={{marginBottom:'8px', borderBottom:'1px solid #ffe0b2', paddingBottom:'8px'}}>
-                            <div style={{color:'#e65100', fontSize:'0.85em', fontWeight:'bold', display:'flex', alignItems:'center', gap:'4px'}}>
-                                <span>✎ DRAFT MODE</span>
-                            </div>
-                            <div style={{fontSize:'0.75em', color:'#e65100', marginBottom:'5px'}}>
-                                Local changes only {activeVersionId ? `(Base: ${activeVersionId})` : ''}
-                            </div>
-                            
-                            <div style={{marginBottom:'5px'}}>
-                                <input 
-                                    type="text" 
-                                    placeholder="Change reason..."
-                                    value={saveReason}
-                                    onChange={e => setSaveReason(e.target.value)}
-                                    style={{width:'100%', padding:'4px', fontSize:'0.8em', border:'1px solid #ffe0b2', boxSizing:'border-box'}}
-                                />
-                                <button 
-                                    onClick={handleSaveToServer}
-                                    disabled={isSaving || (pendingStage === 'awaiting_ack' && !pendingAck)}
-                                    style={{
-                                        width:'100%', 
-                                        marginTop:'4px', 
-                                        padding:'4px', 
-                                        cursor: (isSaving || (pendingStage === 'awaiting_ack' && !pendingAck)) ? 'default' : 'pointer',
-                                        background: pendingStage === 'awaiting_ack' ? '#f57c00' : '#e65100',
-                                        color: 'white',
-                                        border: 'none',
-                                        borderRadius: '3px',
-                                        fontSize: '0.8em',
-                                        fontWeight: 'bold'
-                                    }}
-                                >
-                                    {isSaving ? 'Saving...' : (pendingStage === 'awaiting_ack' ? 'Confirm Save & Activate' : 'Save & Activate')}
-                                </button>
-                            </div>
-
-                            <button onClick={handleDiscardDraft} disabled={isSaving} style={{fontSize:'0.75em', width:'100%', cursor:'pointer', marginTop:'4px'}}>Discard Draft</button>
-                        </div>
-                    ) : (
-                        <button onClick={handleCreateDraft} style={{fontSize:'0.75em', width:'100%', marginBottom:'8px', cursor:'pointer'}}>Create Local Draft</button>
-                    )}
+                <div
+                    style={{
+                        padding:'10px',
+                        borderBottom:'1px solid #eee',
+                        fontWeight:'bold',
+                        fontSize:'0.9em',
+                        background: sysadminDraft ? '#fff3e0' : '#eee'
+                    }}
+                >
+                    {renderDraftHeader()}
                     {config.title}
                 </div>
                 {config.tabs.map(t => {
@@ -2160,7 +2140,7 @@ function SysadminPanel({
     tabs.push('Node Editor (Window)');
 
     // const [activeTab, setActiveTab] = useState('ShellConfig'); // Defined at top of component
-    const [invocations, setInvocations] = useState<any[] | null>(null);
+    const [invocations, setInvocations] = useState<RuntimeInvocation[] | null>(null);
     const [invocationsError, setInvocationsError] = useState<string | null>(null);
     const [expandedInvocationKey, setExpandedInvocationKey] = useState<string | null>(null);
 
@@ -2528,7 +2508,7 @@ function SysadminPanel({
     };
 
     // Traces (Phase 4.3)
-    const [dispatchTraces, setDispatchTraces] = useState<DispatchTrace[] | null>(null);
+    const [dispatchTraces, setDispatchTraces] = useState<RuntimeTrace[] | null>(null);
     const [dispatchTracesError, setDispatchTracesError] = useState<string | null>(null);
     const [expandedTraceKey, setExpandedTraceKey] = useState<string | null>(null);
 
@@ -2542,55 +2522,61 @@ function SysadminPanel({
         setSnapshotLoading(true);
         setSnapshotError(null);
         
-        const res = await debugFetch('/api/debug/runtime/snapshot');
-        if (!res) {
+        const res = await fetch(apiUrl('/api/v1/runtime/snapshot'));
+        if (!res.ok) {
+            setSnapshotError(`Fetch failed (${res.status})`);
             setSnapshotLoading(false);
             return null;
         }
 
-        if (!res.ok) {
-             if (res.status !== 403 && res.status !== 404) {
-                 console.warn(`Snapshot fetch failed: ${res.status}`);
-             }
-             setSnapshotLoading(false);
-             return null;
-        }
-
         try {
-             const json = await res.json();
-             if (json) {
-                 setSnapshotData(json);
-             }
-             setSnapshotLoading(false);
-             return json;
-        } catch (e) {
-             console.warn("Snapshot error:", e);
-             setSnapshotLoading(false);
-             return null;
+            const json = await res.json();
+            if (json && json.ok === false) {
+                setSnapshotError(json?.error?.message || 'Snapshot unavailable');
+                setSnapshotLoading(false);
+                return null;
+            }
+
+            const payload = json?.data ?? json?.result ?? json?.body ?? null;
+            if (json && json.ok && payload) {
+                setSnapshotData(payload || null);
+                setSnapshotLoading(false);
+                return payload;
+            }
+
+            if (payload) {
+                setSnapshotData(payload || null);
+                setSnapshotLoading(false);
+                return payload;
+            }
+
+            setSnapshotError(json?.error?.message || 'Snapshot unavailable');
+            setSnapshotLoading(false);
+            return null;
+        } catch (e: any) {
+            setSnapshotError(e.message || String(e));
+            setSnapshotLoading(false);
+            return null;
         }
     };
 
     const refreshTraces = async () => {
         setDispatchTracesError(null);
         
-        const res = await debugFetch('/api/debug/runtime/dispatch-traces');
-        if (!res) {
-             setDispatchTraces([]);
-             return;
-        }
-
+        const res = await fetch(apiUrl('/api/v1/runtime/traces/recent?limit=20'));
         if (!res.ok) {
-             return;
+            setDispatchTracesError(`Fetch failed (${res.status})`);
+            setDispatchTraces([]);
+            return;
         }
 
         try {
-             const j = await res.json();
-             const list = Array.isArray(j.traces) ? (j.traces as DispatchTrace[]) : [];
-             list.sort((a,b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-             setDispatchTraces(list);
-        } catch (e) {
-             setDispatchTracesError(String(e));
-             setDispatchTraces([]);
+            const j = await res.json();
+            const list = Array.isArray(j?.data?.items) ? (j.data.items as DispatchTrace[]) : [];
+            setDispatchTraces(list);
+        } catch (e: any) {
+            setDispatchTracesError(e.message || String(e));
+            setDispatchTraces([]);
         }
     };
 
@@ -2645,19 +2631,19 @@ function SysadminPanel({
     const refreshInvocations = async () => {
         setInvocationsError(null);
         
-        const res = await debugFetch('/api/debug/runtime/integrations/invocations');
-        if (!res) {
+        const res = await fetch(apiUrl('/api/v1/runtime/invocations/recent?limit=20'));
+        if (!res.ok) {
+            setInvocationsError(`Fetch failed (${res.status})`);
             setInvocations([]);
             return;
         }
 
-        if (!res.ok) return;
-
         try {
             const j = await res.json();
-            setInvocations(Array.isArray(j.invocations) ? j.invocations : []);
-        } catch (e) {
-            setInvocationsError(String(e));
+            setInvocations(Array.isArray(j?.data?.items) ? j.data.items : []);
+        } catch (e: any) {
+            setInvocationsError(e.message || String(e));
+            setInvocations([]);
         }
     };
 
@@ -2896,29 +2882,21 @@ function SysadminPanel({
         }
     };
 
-    // Auto-refresh invocations if tab is open, when actionRuns update
+    // Auto-refresh on tab open (no polling)
     useEffect(() => {
-        if (!caps.debugEndpointsEnabled) return;
-        
         if (activeTab === 'Invocations') {
             refreshInvocations();
-            refreshExecuteMode();
         }
         if (activeTab === 'Snapshot') {
-             refreshSnapshot();
-        }
-        if (activeTab === 'Resolved Graph') {
-             // Not strictly debug, but part of this panel
-             // refreshResolvedGraph(); 
-             // ... wait, resolved-graph/active is governed, not debug.
+            refreshSnapshot();
         }
         if (activeTab === 'Traces') {
-             refreshTraces();
+            refreshTraces();
         }
-        if (activeTab === 'Versions' && !selectedVersionId) {
-             refreshVersions(); // This IS debug-gated
+        if (activeTab === 'Versions' && !selectedVersionId && caps.debugEndpointsEnabled) {
+            refreshVersions(); // Debug-gated
         }
-    }, [activeTab, actionRuns.length, selectedVersionId, caps.debugEndpointsEnabled]);
+    }, [activeTab, selectedVersionId, caps.debugEndpointsEnabled]);
 
     // Persistence Key
     const DRAFT_KEY = 'fole.bootstrap.draftShellConfig';
@@ -4375,7 +4353,7 @@ function SysadminPanel({
                  <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', borderBottom:'1px solid #eee', paddingBottom:'10px'}}>
                      <div style={{display:'flex', alignItems:'center', gap:'10px'}}>
                          <strong style={{fontSize:'1.1em'}}>Runtime Snapshot</strong>
-                         <button onClick={() => { refreshSnapshot(); fetchAdapterCaps(); }} style={{cursor:'pointer', padding:'2px 8px', fontSize:'0.9em'}}>Refresh</button>
+                         <button onClick={refreshSnapshot} style={{cursor:'pointer', padding:'2px 8px', fontSize:'0.9em'}}>Refresh</button>
                          {snapshotLoading && <span style={{color:'#666', fontSize:'0.9em'}}>Loading...</span>}
                      </div>
                      {snapshotData && <CopyBtn k="snapshot" text={snapshotData} />}
@@ -4386,111 +4364,80 @@ function SysadminPanel({
                          Error fetching snapshot: {snapshotError}
                      </div>
                  ) : !snapshotData ? (
-                     <div style={{padding:'20px', color:'#666', fontStyle:'italic'}}>Loading snapshot data...</div>
+                    <div style={{padding:'20px', color:'#666', fontStyle:'italic'}}>
+                        {snapshotLoading ? 'Loading snapshot…' : 'No snapshot yet.'}
+                    </div>
                  ) : (
                      <div style={{display:'flex', flexDirection:'column', gap:'15px'}}>
-                         
-                         {/* Overview Card */}
                          <div style={{padding:'10px', background:'#f8f9fa', borderRadius:'4px', border:'1px solid #ddd'}}>
                              <div style={{display:'grid', gridTemplateColumns:'auto 1fr', gap:'8px 20px', fontSize:'0.9em'}}>
-                                 <strong style={{color:'#555'}}>Status:</strong>
-                                 <span style={{fontWeight:'bold', color: snapshotData.runtimeStatus === 'ACTIVE' ? '#2e7d32' : '#d32f2f'}}>
-                                     {snapshotData.runtimeStatus}
-                                 </span>
-                                 
-                                 <strong style={{color:'#555'}}>Source:</strong>
-                                 <span>{snapshotData.source}</span>
-                                 
                                  <strong style={{color:'#555'}}>Active Version:</strong>
                                  <span style={{fontFamily:'monospace'}}>{snapshotData.activeVersionId || 'N/A'}</span>
-                                 
-                                 <strong style={{color:'#555'}}>Activated At:</strong>
-                                 <span>{snapshotData.activatedAt ? new Date(snapshotData.activatedAt).toLocaleString() : 'N/A'}</span>
 
-                                 <strong style={{color:'#555'}}>Activation Reason:</strong>
-                                 <span>
-                                     {snapshotData.activationReason ? (
-                                          <span style={{color:'#2e7d32', fontWeight:'bold'}}>{snapshotData.activationReason}</span>
-                                     ) : (
-                                          <span style={{color:'#999', fontStyle:'italic'}}>(not available)</span>
-                                     )}
-                                 </span>
-                             </div>
-                         </div>
-                         
-                         {/* Flags */}
-                         <div>
-                             <strong style={{display:'block', marginBottom:'5px', color:'#333'}}>Runtime Flags</strong>
-                             <div style={{display:'flex', gap:'10px'}}>
-                                 <div style={{
-                                     padding:'6px 10px', borderRadius:'4px', border:'1px solid',
-                                     background: snapshotData.flags.executeIntegrationsEnabled ? '#ffebee' : '#f5f5f5',
-                                     borderColor: snapshotData.flags.executeIntegrationsEnabled ? '#ef9a9a' : '#ddd',
-                                     color: snapshotData.flags.executeIntegrationsEnabled ? '#c62828' : '#777'
-                                 }}>
-                                     Execute Integrations: <strong>{snapshotData.flags.executeIntegrationsEnabled ? 'ENABLED' : 'DISABLED'}</strong>
-                                 </div>
-                                 <div style={{
-                                     padding:'6px 10px', borderRadius:'4px', border:'1px solid',
-                                     background: snapshotData.flags.debugMode ? '#e3f2fd' : '#f5f5f5',
-                                     borderColor: snapshotData.flags.debugMode ? '#90caf9' : '#ddd',
-                                     color: snapshotData.flags.debugMode ? '#1565c0' : '#777'
-                                 }}>
-                                     Debug Mode: <strong>{snapshotData.flags.debugMode ? 'YES' : 'NO'}</strong>
-                                 </div>
+                                 <strong style={{color:'#555'}}>Snapshot Time:</strong>
+                                 <span>{snapshotData.ts ? new Date(snapshotData.ts).toLocaleString() : 'N/A'}</span>
+
+                                 <strong style={{color:'#555'}}>Open Windows:</strong>
+                                 <span>{Array.isArray(snapshotData.openWindows) ? snapshotData.openWindows.length : 0}</span>
+
+                                 <strong style={{color:'#555'}}>Derived Patches:</strong>
+                                <span>{snapshotData.derivedPatchesCount ?? 0}</span>
+
+                                 <strong style={{color:'#555'}}>Last Derived Tick:</strong>
+                                 <span>{snapshotData.lastDerivedTickTs ? new Date(snapshotData.lastDerivedTickTs).toLocaleString() : 'N/A'}</span>
                              </div>
                          </div>
 
-                         {/* Counts */}
-                         <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'10px'}}>
-                             <div style={{padding:'10px', border:'1px solid #ddd', borderRadius:'4px', textAlign:'center'}}>
-                                 <div style={{fontSize:'2em', fontWeight:'bold', color:'#007acc'}}>{snapshotData.blocks.total}</div>
-                                 <div style={{fontSize:'0.85em', color:'#666'}}>Total Blocks</div>
-                             </div>
-                             <div style={{padding:'10px', border:'1px solid #ddd', borderRadius:'4px', textAlign:'center'}}>
-                                 <div style={{fontSize:'2em', fontWeight:'bold', color:'#2e7d32'}}>{snapshotData.bindings.total}</div>
-                                 <div style={{fontSize:'0.85em', color:'#666'}}>Bindings ({snapshotData.bindings.enabled} active)</div>
-                             </div>
-                             <div style={{padding:'10px', border:'1px solid #ddd', borderRadius:'4px', textAlign:'center'}}>
-                                 <div style={{fontSize:'2em', fontWeight:'bold', color:'#ef6c00'}}>{snapshotData.integrations.total}</div>
-                                 <div style={{fontSize:'0.85em', color:'#666'}}>Integrations</div>
-                             </div>
-                         </div>
-                         
-                         {/* Breakdown Table */}
                          <div>
-                             <strong style={{display:'block', marginBottom:'5px', color:'#333'}}>Blocks by Type</strong>
-                             <table style={{width:'100%', borderCollapse:'collapse', fontSize:'0.9em', border:'1px solid #eee'}}>
-                                 <thead>
-                                     <tr style={{background:'#f5f5f5', textAlign:'left'}}>
-                                         <th style={{padding:'6px', borderBottom:'1px solid #ddd'}}>Type</th>
-                                         <th style={{padding:'6px', borderBottom:'1px solid #ddd', width:'80px'}}>Count</th>
-                                     </tr>
-                                 </thead>
-                                 <tbody>
-                                     {Object.entries(snapshotData.blocks.byType)
-                                         .sort(([,a], [,b]) => b - a)
-                                         .map(([type, count]) => (
-                                             <tr key={type} style={{borderBottom:'1px solid #eee'}}>
-                                                 <td style={{padding:'6px', fontFamily:'monospace', color:'#333'}}>{type}</td>
-                                                 <td style={{padding:'6px', fontWeight:'bold'}}>{count}</td>
-                                             </tr>
-                                         ))
-                                     }
-                                     {Object.keys(snapshotData.blocks.byType).length === 0 && (
-                                         <tr><td colSpan={2} style={{padding:'10px', color:'#999', fontStyle:'italic'}}>No blocks found.</td></tr>
-                                     )}
-                                 </tbody>
-                             </table>
+                             <strong style={{display:'block', marginBottom:'5px', color:'#333'}}>Open Windows</strong>
+                             {snapshotData.openWindows && snapshotData.openWindows.length > 0 ? (
+                                 <ul style={{margin:0, paddingLeft:'20px'}}>
+                                     {snapshotData.openWindows.map((w, i) => (
+                                         <li key={`${w}-${i}`} style={{fontFamily:'monospace'}}>{w}</li>
+                                     ))}
+                                 </ul>
+                             ) : (
+                                 <div style={{fontStyle:'italic', color:'#666'}}>No open windows reported.</div>
+                             )}
                          </div>
+                        {snapshotData.blocks?.byType && (
+                            <div style={{marginTop:'15px'}}>
+                                <strong style={{display:'block', marginBottom:'5px', color:'#333'}}>Blocks by Type</strong>
+                                <div style={{maxHeight:'200px', overflowY:'auto', border:'1px solid #eee'}}>
+                                    <table style={{width:'100%', borderCollapse:'collapse', fontSize:'0.9em'}}>
+                                        <thead style={{background:'#f5f5f5', position:'sticky', top:0}}>
+                                            <tr>
+                                                <th style={{padding:'6px', textAlign:'left', borderBottom:'1px solid #ddd'}}>Type</th>
+                                                <th style={{padding:'6px', textAlign:'left', borderBottom:'1px solid #ddd'}}>Count</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                        {Object.entries(snapshotData.blocks.byType)
+                                            .sort(([,a], [,b]) => b - a)
+                                            .map(([type, count]) => (
+                                                <tr key={type} style={{borderBottom:'1px solid #eee'}}>
+                                                    <td style={{padding:'6px', fontFamily:'monospace', color:'#333'}}>{type}</td>
+                                                    <td style={{padding:'6px', fontWeight:'bold'}}>{count}</td>
+                                                </tr>
+                                            ))
+                                        }
+                                        {Object.keys(snapshotData.blocks.byType).length === 0 && (
+                                            <tr><td colSpan={2} style={{padding:'10px', color:'#999', fontStyle:'italic'}}>No blocks found.</td></tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                            </div>
+                        )}
 
                          {/* Integrations Breakdown (Roadmap #5.1) */}
-                         <div style={{marginTop:'15px'}}>
+                        {snapshotData.integrations && (
+                        <div style={{marginTop:'15px'}}>
                              <strong style={{display:'block', marginBottom:'5px', color:'#333'}}>Integrations</strong>
                              <div style={{marginBottom:'5px', fontSize:'0.9em'}}>
-                                 Total: <strong>{snapshotData.integrations.total}</strong>
+                                 Total: <strong>{snapshotData.integrations.total ?? 0}</strong>
                              </div>
-                             {snapshotData.integrations.total > 0 && (
+                             {(snapshotData.integrations.total ?? 0) > 0 && (
                                  <table style={{width:'100%', borderCollapse:'collapse', fontSize:'0.9em', border:'1px solid #eee'}}>
                                      <thead>
                                          <tr style={{background:'#f5f5f5', textAlign:'left'}}>
@@ -4535,12 +4482,13 @@ function SysadminPanel({
                              )}
                              
                              {/* Warning for HTTP */}
-                             {snapshotData.integrations.byType && Object.keys(snapshotData.integrations.byType).some(k => k.includes('shell.infra.api.http')) && (
+                                {snapshotData.integrations.byType && Object.keys(snapshotData.integrations.byType).some(k => k.includes('shell.infra.api.http')) && (
                                  <div style={{marginTop:'5px', padding:'5px', background:'#fff3e0', border:'1px solid #ffe0b2', borderRadius:'3px', fontSize:'0.85em', color:'#e65100'}}>
                                       <strong>Note:</strong> HTTP integrations are not production-safe yet.
                                  </div>
                              )}
-                         </div>
+                            </div>
+                            )}
 
                          {/* Integration Adapters (Available) - Roadmap #5.3.2 */}
                          <div style={{marginTop:'20px', borderTop:'1px solid #eee', paddingTop:'15px'}}>
@@ -4716,7 +4664,7 @@ function SysadminPanel({
                                              if (f.required && (val === undefined || val === null || val === '')) {
                                                  errorMsg = "Required";
                                              } else if (f.enumOptions && f.enumOptions.length > 0 && val && !f.enumOptions.includes(val)) {
-                                                 errorMsg = `Must be one of: ${f.enumOptions.join(', ')}`;
+                                                 errorMsg = 'Must be one of: ' + f.enumOptions.join(', ');
                                              }
 
                                              const isMulti = isMultilineField('ui.node.button', f.path);
@@ -4780,7 +4728,7 @@ function SysadminPanel({
                                                                         border: errorMsg ? '1px solid #d32f2f' : '1px solid #ccc',
                                                                         borderRadius:'4px', boxSizing:'border-box'
                                                                     }}
-                                                                    placeholder={`Enter ${f.title}...`}
+                                                                    placeholder={'Enter ' + f.title + '...'}
                                                                 />
                                                             ) : (
                                                                 <input 
@@ -4795,7 +4743,7 @@ function SysadminPanel({
                                                                         border: errorMsg ? '1px solid #d32f2f' : '1px solid #ccc',
                                                                         borderRadius:'4px', boxSizing:'border-box'
                                                                     }}
-                                                                    placeholder={`Enter ${f.title}...`}
+                                                                    placeholder={'Enter ' + f.title + '...'}
                                                                 />
                                                             )
                                                         )}
@@ -4807,13 +4755,13 @@ function SysadminPanel({
                                                      </div>
                                                  )}
                                                  <div style={{fontSize:'0.8em', color:'#888', marginTop:'4px'}}>
-                                                    {f.description || `Mapped to ${f.path}`}
+                                                    {f.description || ('Mapped to ' + f.path)}
                                                  </div>
                                              </div>
                                              );
                                          })}
                                          
-                                         <div style={{display:'flex', gap:'15px', alignItems:'center', marginTop:'30px', paddingTop:'20px', borderTop:'1px solid #eee'}}>
+                                        <div style={{display:'flex', gap:'15px', alignItems:'center', marginTop:'30px', paddingTop:'20px', borderTop:'1px solid #eee'}}>
                                              <button 
                                                  onClick={handleSaveNode}
                                                  disabled={!nodeEditorDirty && !!draftBundle}
@@ -4939,11 +4887,11 @@ function SysadminPanel({
                                              const val = nodeEditorForm[f.path];
                                              const isMulti = isMultilineField('ui.node.text', f.path);
                                              
-                                             if (f.required && (val === undefined || val === null || val === '')) {
-                                                 errorMsg = "Required";
-                                             } else if (f.enumOptions && f.enumOptions.length > 0 && val && !f.enumOptions.includes(val)) {
-                                                 errorMsg = `Must be one of: ${f.enumOptions.join(', ')}`;
-                                             }
+                                            if (f.required && (val === undefined || val === null || val === '')) {
+                                                errorMsg = "Required";
+                                            } else if (f.enumOptions && f.enumOptions.length > 0 && val && !f.enumOptions.includes(val)) {
+                                                errorMsg = 'Must be one of: ' + f.enumOptions.join(', ');
+                                            }
                                              
                                              return (
                                              <div key={f.path}>
@@ -4956,9 +4904,9 @@ function SysadminPanel({
                                                                  setNodeEditorForm({...nodeEditorForm, [f.path]: e.target.checked});
                                                                  setNodeEditorDirty(true);
                                                              }}
-                                                             id={`field-${f.path}`}
+                                                             id={'field-' + f.path}
                                                          />
-                                                         <label htmlFor={`field-${f.path}`} style={{cursor:'pointer', fontWeight:'bold', color:'#333'}}>
+                                                         <label htmlFor={'field-' + f.path} style={{cursor:'pointer', fontWeight:'bold', color:'#333'}}>
                                                             {f.title} {f.required && <span style={{color:'#d32f2f'}}>*</span>}
                                                          </label>
                                                      </div>
@@ -4998,7 +4946,7 @@ function SysadminPanel({
                                                                         border: errorMsg ? '1px solid #d32f2f' : '1px solid #ccc',
                                                                         borderRadius:'4px', boxSizing:'border-box'
                                                                     }}
-                                                                    placeholder={`Enter ${f.title}...`}
+                                                                    placeholder={'Enter ' + f.title + '...'}
                                                                 />
                                                             ) : (
                                                                 <input 
@@ -5013,7 +4961,7 @@ function SysadminPanel({
                                                                         border: errorMsg ? '1px solid #d32f2f' : '1px solid #ccc',
                                                                         borderRadius:'4px', boxSizing:'border-box'
                                                                     }}
-                                                                    placeholder={`Enter ${f.title}...`}
+                                                                    placeholder={'Enter ' + f.title + '...'}
                                                                 />
                                                             )
                                                         )}
@@ -5025,7 +4973,7 @@ function SysadminPanel({
                                                      </div>
                                                  )}
                                                  <div style={{fontSize:'0.8em', color:'#888', marginTop:'4px'}}>
-                                                    {f.description || `Mapped to ${f.path}`}
+                                                    {f.description || ('Mapped to ' + f.path)}
                                                  </div>
                                              </div>
                                              );
@@ -5159,7 +5107,7 @@ function SysadminPanel({
                                              if (f.required && (val === undefined || val === null || val === '')) {
                                                  errorMsg = "Required";
                                              } else if (f.enumOptions && f.enumOptions.length > 0 && val && !f.enumOptions.includes(val)) {
-                                                 errorMsg = `Must be one of: ${f.enumOptions.join(', ')}`;
+                                                 errorMsg = 'Must be one of: ' + f.enumOptions.join(', ');
                                              }
 
                                              return (
@@ -5173,9 +5121,9 @@ function SysadminPanel({
                                                                  setNodeEditorForm({...nodeEditorForm, [f.path]: e.target.checked});
                                                                  setNodeEditorDirty(true);
                                                              }}
-                                                             id={`field-${f.path}`}
+                                                                                id={'field-' + f.path}
                                                          />
-                                                         <label htmlFor={`field-${f.path}`} style={{cursor:'pointer', fontWeight:'bold', color:'#333'}}>
+                                                                            <label htmlFor={'field-' + f.path} style={{cursor:'pointer', fontWeight:'bold', color:'#333'}}>
                                                              {f.title} {f.required && <span style={{color:'#d32f2f'}}>*</span>}
                                                          </label>
                                                      </div>
@@ -5215,7 +5163,7 @@ function SysadminPanel({
                                                                     border: errorMsg ? '1px solid #d32f2f' : '1px solid #ccc',
                                                                     borderRadius:'4px', boxSizing:'border-box'
                                                                 }}
-                                                                placeholder={`Enter ${f.title}...`}
+                                                                    placeholder={'Enter ' + f.title + '...'}
                                                             />
                                                         )}
                                                      </>
@@ -5226,7 +5174,7 @@ function SysadminPanel({
                                                      </div>
                                                  )}
                                                  <div style={{fontSize:'0.8em', color:'#888', marginTop:'4px'}}>
-                                                    {f.description || `Mapped to ${f.path}`}
+                                                    {f.description || ('Mapped to ' + f.path)}
                                                  </div>
                                              </div>
                                              );
@@ -5359,7 +5307,7 @@ function SysadminPanel({
                                              if (f.required && (val === undefined || val === null || val === '')) {
                                                  errorMsg = "Required";
                                              } else if (f.enumOptions && f.enumOptions.length > 0 && val && !f.enumOptions.includes(val)) {
-                                                 errorMsg = `Must be one of: ${f.enumOptions.join(', ')}`;
+                                                 errorMsg = 'Must be one of: ' + f.enumOptions.join(', ');
                                              }
 
                                              return (
@@ -5373,9 +5321,9 @@ function SysadminPanel({
                                                                  setNodeEditorForm({...nodeEditorForm, [f.path]: e.target.checked});
                                                                  setNodeEditorDirty(true);
                                                              }}
-                                                             id={`field-${f.path}`}
+                                                             id={'field-' + f.path}
                                                          />
-                                                         <label htmlFor={`field-${f.path}`} style={{cursor:'pointer', fontWeight:'bold', color:'#333'}}>
+                                                         <label htmlFor={'field-' + f.path} style={{cursor:'pointer', fontWeight:'bold', color:'#333'}}>
                                                              {f.title} {f.required && <span style={{color:'#d32f2f'}}>*</span>}
                                                          </label>
                                                      </div>
@@ -5415,7 +5363,7 @@ function SysadminPanel({
                                                                     border: errorMsg ? '1px solid #d32f2f' : '1px solid #ccc',
                                                                     borderRadius:'4px', boxSizing:'border-box'
                                                                 }}
-                                                                placeholder={`Enter ${f.title}...`}
+                                                                    placeholder={'Enter ' + f.title + '...'}
                                                             />
                                                         )}
                                                      </>
@@ -5426,7 +5374,7 @@ function SysadminPanel({
                                                      </div>
                                                  )}
                                                  <div style={{fontSize:'0.8em', color:'#888', marginTop:'4px'}}>
-                                                    {f.description || `Mapped to ${f.path}`}
+                                                    {f.description || ('Mapped to ' + f.path)}
                                                  </div>
                                              </div>
                                              );
@@ -6802,10 +6750,10 @@ function SysadminPanel({
                                                     })}
                                                 </div>
                                                 <div style={{display:'flex', gap:'5px', alignItems:'center'}}>
-                                                    <input 
-                                                        type="text" 
-                                                        placeholder="New ID..." 
-                                                        value={newWinId} 
+                                                    <input
+                                                        type="text"
+                                                        placeholder="New ID..."
+                                                        value={newWinId}
                                                         onChange={(e) => setNewWinId(e.target.value)}
                                                         style={{width:'60px', fontSize:'0.8em', padding:'2px', border:'1px solid #ccc'}}
                                                     />
@@ -7209,79 +7157,6 @@ function SysadminPanel({
 
                  return (
                      <div style={{display:'flex', flexDirection:'column', height:'100%'}}>
-                         
-                         {/* Execution Mode Header */}
-                         <div style={{padding:'15px', borderBottom:'1px solid #ddd', background:'#eef', display:'flex', flexDirection:'column', gap:'8px'}}>
-                             <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
-                                 <div style={{display:'flex', alignItems:'center', gap:'10px'}}>
-                                     <strong style={{fontSize:'1.1em', color:'#333'}}>Integration Execution Mode</strong>
-                                     {import.meta.env.DEV && (
-                                        <span style={{
-                                            fontSize: '0.75em', 
-                                            background: '#ede7f6', 
-                                            color: '#4527a0', 
-                                            padding: '2px 6px', 
-                                            borderRadius: '4px', 
-                                            border: '1px solid #d1c4e9',
-                                            fontWeight: 'bold',
-                                            display: 'inline-flex',
-                                            alignItems: 'center',
-                                            gap: '4px'
-                                        }}>
-                                            DEV AUTH <span style={{fontWeight:'normal', opacity:0.8, fontSize:'0.9em'}}>temporary</span>
-                                        </span>
-                                     )}
-                                 </div>
-                                 
-                                <div style={{display:'flex', alignItems:'center', gap:'15px'}}>
-                                    {executeMode === null ? (
-                                        <span style={{color:'#c62828', fontStyle:'italic'}}>Status Unavailable: {executeModeError}</span>
-                                    ) : (
-                                        (() => {
-                                            const isExec = !!executeMode;
-                                            return (
-                                                <>
-                                                    <span style={{
-                                                        fontSize:'0.9em', fontWeight:'bold', 
-                                                        padding:'4px 10px', borderRadius:'12px',
-                                                        background: isExec ? '#ffebee' : '#e0f7fa',
-                                                        color: isExec ? '#c62828' : '#006064',
-                                                        border: '1px solid',
-                                                        borderColor: isExec ? '#ffcdd2' : '#b2ebf2'
-                                                    }}>
-                                                        {isExec ? 'EXECUTE' : 'DRY-RUN'}
-                                                    </span>
-                                                    
-                                                    <button 
-                                                        onClick={toggleExecuteMode}
-                                                        style={{
-                                                            cursor:'pointer', padding:'4px 12px', fontSize:'0.9em',
-                                                            background: isExec ? 'white' : '#007acc',
-                                                            color: isExec ? '#c62828' : 'white',
-                                                            border: isExec ? '1px solid #c62828' : 'none',
-                                                            borderRadius:'4px',
-                                                            fontWeight:'bold'
-                                                        }}
-                                                    >
-                                                        {isExec ? 'Disable Execution' : 'Enable Execution'}
-                                                    </button>
-                                                </>
-                                            );
-                                        })()
-                                    )}
-                                </div>
-                             </div>
-                             
-                             {/* Description / Hint */}
-                             {executeMode !== null && (
-                                 <div style={{fontSize:'0.85em', color: executeMode ? '#b71c1c' : '#555'}}>
-                                     {executeMode 
-                                        ? "⚠️ REAL HTTP REQUESTS ENABLED. Only allowlisted hosts will be contacted." 
-                                        : "ℹ️ No external network calls are made. Requests are logged as 'dry_run'."}
-                                 </div>
-                             )}
-                         </div>
-
                          {/* List Header */}
                          <div style={{padding:'10px', display:'flex', flexDirection:'column', gap:'5px', background:'#f5f5f5', borderBottom:'1px solid #ddd'}}>
                             <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
@@ -7289,7 +7164,7 @@ function SysadminPanel({
                                 <button onClick={refreshInvocations} style={{cursor:'pointer', padding:'4px 8px'}}>Refresh</button>
                             </div>
                             <div style={{fontSize:'0.8em', color:'#666', fontStyle:'italic'}}>
-                                Note: Older records may not include URL; trigger a new invocation to populate it.
+                                Records are appended when actions are dispatched.
                             </div>
                          </div>
 
@@ -7302,130 +7177,60 @@ function SysadminPanel({
                                      <thead style={{background:'#eee', position:'sticky', top:0}}>
                                          <tr>
                                              <th style={{padding:'6px', textAlign:'left', borderBottom:'1px solid #ccc'}}>Time</th>
-                                             <th style={{padding:'6px', textAlign:'left', borderBottom:'1px solid #ccc'}}>Integration</th>
-                                             <th style={{padding:'6px', textAlign:'left', borderBottom:'1px solid #ccc'}}>Method</th>
+                                             <th style={{padding:'6px', textAlign:'left', borderBottom:'1px solid #ccc'}}>Action</th>
+                                             <th style={{padding:'6px', textAlign:'left', borderBottom:'1px solid #ccc'}}>Source</th>
                                              <th style={{padding:'6px', textAlign:'left', borderBottom:'1px solid #ccc'}}>Status</th>
-                                             <th style={{padding:'6px', textAlign:'left', borderBottom:'1px solid #ccc'}}>Duration (ms)</th>
-                                             <th style={{padding:'6px', textAlign:'left', borderBottom:'1px solid #ccc'}}>HTTP</th>
-                                             <th style={{padding:'6px', textAlign:'left', borderBottom:'1px solid #ccc'}}>Error</th>
+                                             <th style={{padding:'6px', textAlign:'left', borderBottom:'1px solid #ccc'}}>Details</th>
                                          </tr>
                                      </thead>
                                      <tbody>
                                          {invs.slice().reverse().map((inv: any) => {
-                                             const rowKey = inv.id || `${inv.timestamp}-${inv.integrationId}-${inv.method}`;
+                                             const rowKey = `${inv.ts}-${inv.actionId}-${inv.sourceBlockId || 'unknown'}`;
                                              const isExpanded = expandedInvocationKey === rowKey;
-                                             
+
                                              return (
                                                  <Fragment key={rowKey}>
-                                                     <tr 
+                                                     <tr
                                                          onClick={() => setExpandedInvocationKey(isExpanded ? null : rowKey)}
                                                          style={{
-                                                             borderBottom: isExpanded ? 'none' : '1px solid #eee', 
+                                                             borderBottom: isExpanded ? 'none' : '1px solid #eee',
                                                              cursor: 'pointer',
-                                                             background: isExpanded ? '#f8f9fa' : 'white',
-                                                             transition: 'background 0.2s'
+                                                             background: isExpanded ? '#f8f9fa' : 'white'
                                                          }}
-                                                         title="Click row to expand details"
                                                      >
-                                                         <td style={{padding:'6px', color:'#555'}}>{new Date(inv.timestamp).toLocaleTimeString()}</td>
-                                                         <td style={{padding:'6px'}}>
-                                                            <div>{inv.integrationId}</div>
-                                                            <div style={{fontSize:'0.8em', color:'#888'}}>{inv.blockId}</div>
-                                                         </td>
-                                                         <td style={{padding:'6px'}}>{inv.method}</td>
+                                                         <td style={{padding:'6px', color:'#555'}}>{inv.ts ? new Date(inv.ts).toLocaleTimeString() : '-'}</td>
+                                                         <td style={{padding:'6px'}}>{inv.actionId || '-'}</td>
+                                                         <td style={{padding:'6px', color:'#555'}}>{inv.sourceBlockId || '-'}</td>
                                                          <td style={{padding:'6px'}}>
                                                              <span style={{
-                                                                 background: inv.status === 'success' ? '#e8f5e9' : (inv.status === 'dry_run' ? '#e0f7fa' : '#ffebee'),
-                                                                 color: inv.status === 'success' ? '#2e7d32' : (inv.status === 'dry_run' ? '#006064' : '#c62828'),
+                                                                 background: inv.status === 'received' ? '#e8f5e9' : '#e0f7fa',
+                                                                 color: inv.status === 'received' ? '#2e7d32' : '#006064',
                                                                  padding:'2px 6px', borderRadius:'4px', fontSize:'0.85em', fontWeight:'bold'
                                                              }}>
                                                                  {inv.status || '-'}
                                                              </span>
                                                          </td>
-                                                         <td style={{padding:'6px', color:'#555'}}>{inv.durationMs !== undefined ? inv.durationMs : '-'}</td>
-                                                         <td style={{padding:'6px', color:'#555'}}>{(inv.status === 'success' && inv.httpStatus) ? inv.httpStatus : '-'}</td>
-                                                         <td style={{padding:'6px', color:'#b71c1c', maxWidth:'150px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>
-                                                             {inv.status === 'error' && inv.errorMessage 
-                                                                ? <span title={inv.errorMessage}>{inv.errorMessage}</span> 
-                                                                : '-'}
-                                                         </td>
+                                                         <td style={{padding:'6px', color:'#555'}}>{inv.details ? 'view' : '-'}</td>
                                                      </tr>
                                                      {isExpanded && (
                                                          <tr style={{borderBottom:'1px solid #ddd', background:'#f8f9fa'}}>
-                                                             <td colSpan={7} style={{padding:'0 15px 15px 15px'}}>
+                                                             <td colSpan={5} style={{padding:'0 15px 15px 15px'}}>
                                                                  <div style={{
-                                                                     padding:'10px', 
-                                                                     border:'1px solid #ddd', 
-                                                                     borderRadius:'4px', 
+                                                                     padding:'10px',
+                                                                     border:'1px solid #ddd',
+                                                                     borderRadius:'4px',
                                                                      background:'white',
-                                                                     boxShadow:'0 1px 3px rgba(0,0,0,0.05)',
                                                                      display:'flex',
                                                                      flexDirection:'column',
-                                                                     gap:'8px',
-                                                                     fontSize:'0.9em'
+                                                                     gap:'8px'
                                                                  }}>
-                                                                     <div style={{display:'flex', justifyContent:'space-between', alignItems:'flex-start', borderBottom:'1px solid #eee', paddingBottom:'6px', marginBottom:'4px'}}>
+                                                                     <div style={{display:'flex', justifyContent:'space-between', alignItems:'flex-start'}}>
                                                                          <div style={{fontWeight:'bold', color:'#333'}}>Invocation Details</div>
-                                                                         <CopyBtn k={`inv-${rowKey}`} text={JSON.stringify(inv, null, 2)} />
+                                                                         <CopyBtn k={`inv-${rowKey}`} text={inv} />
                                                                      </div>
-                                                                     
-                                                                     <div style={{display:'grid', gridTemplateColumns:'120px 1fr', gap:'4px 10px', alignItems:'baseline'}}>
-                                                                         <div style={{color:'#666', fontSize:'0.85em'}}>Status:</div>
-                                                                         <div style={{fontWeight:'bold', color: inv.status === 'success' ? '#2e7d32' : (inv.status === 'dry_run' ? '#006064' : '#c62828')}}>{inv.status}</div>
-
-                                                                         <div style={{color:'#666', fontSize:'0.85em'}}>URL:</div>
-                                                                         <div style={{fontFamily:'monospace', wordBreak:'break-all'}}>{inv.url || '-'}</div>
-
-                                                                         <div style={{color:'#666', fontSize:'0.85em'}}>Integration:</div>
-                                                                         <div>{inv.integrationId} <span style={{color:'#999'}}>({inv.blockId})</span></div>
-
-                                                                         <div style={{color:'#666', fontSize:'0.85em'}}>Request:</div>
-                                                                         <div><span style={{fontWeight:'bold'}}>{inv.method}</span> {inv.path || '-'}</div>
-
-                                                                         <div style={{color:'#666', fontSize:'0.85em'}}>Duration:</div>
-                                                                         <div>{inv.durationMs} ms</div>
-
-                                                                         <div style={{color:'#666', fontSize:'0.85em'}}>HTTP Status:</div>
-                                                                         <div>{inv.httpStatus || '-'}</div>
-
-                                                                         {inv.errorMessage && (
-                                                                             <>
-                                                                                 <div style={{color:'#b71c1c', fontSize:'0.85em', fontWeight:'bold'}}>Error:</div>
-                                                                                 <div style={{color:'#b71c1c', fontFamily:'monospace', whiteSpace:'pre-wrap', wordBreak:'break-word'}}>{inv.errorMessage}</div>
-                                                                             </>
-                                                                         )}
-
-                                                                         <div style={{color:'#666', fontSize:'0.85em'}}>Response:</div>
-                                                                         <div>
-                                                                             {inv.responseSnippet ? (
-                                                                                 <pre style={{
-                                                                                     margin:0, 
-                                                                                     background:'#f5f5f5', 
-                                                                                     padding:'6px', 
-                                                                                     borderRadius:'4px', 
-                                                                                     maxHeight:'150px', 
-                                                                                     overflow:'auto', 
-                                                                                     fontSize:'0.85em',
-                                                                                     whiteSpace:'pre-wrap',
-                                                                                     wordBreak:'break-word'
-                                                                                 }}>{typeof inv.responseSnippet === 'string' ? inv.responseSnippet : JSON.stringify(inv.responseSnippet, null, 2)}</pre>
-                                                                             ) : (
-                                                                                 <span style={{color:'#999', fontStyle:'italic'}}>(no response)</span>
-                                                                             )}
-                                                                         </div>
-                                                                         
-                                                                         {inv.integrationConfig && (
-                                                                             <>
-                                                                                 <div style={{color:'#666', fontSize:'0.85em'}}>Config:</div>
-                                                                                 <details>
-                                                                                     <summary style={{cursor:'pointer', color:'#007acc', fontSize:'0.85em'}}>Show Config JSON</summary>
-                                                                                     <pre style={{margin:'5px 0 0 0', background:'#f5f5f5', padding:'6px', borderRadius:'4px', fontSize:'0.8em', overflow:'auto', maxHeight:'200px'}}>
-                                                                                         {JSON.stringify(inv.integrationConfig, null, 2)}
-                                                                                     </pre>
-                                                                                 </details>
-                                                                             </>
-                                                                         )}
-                                                                     </div>
+                                                                     <pre style={{margin:0, background:'#f5f5f5', padding:'6px', borderRadius:'4px', fontSize:'0.85em'}}>
+                                                                         {JSON.stringify(inv, null, 2)}
+                                                                     </pre>
                                                                  </div>
                                                              </td>
                                                          </tr>

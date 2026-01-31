@@ -6,11 +6,34 @@ export interface BindingRuntimeManager {
     getRuntimeState(): Record<string, any>;
     reload(): Promise<void>;
     getSnapshotMetadata(): { activeVersionId: string | null; activatedAt: string | null; activationReason: string | null };
+    recordInvocation(invocation: RuntimeInvocation): void;
+    recordTrace(trace: RuntimeTrace): void;
+    getInvocations(limit?: number): RuntimeInvocation[];
+    getTraces(limit?: number): RuntimeTrace[];
+}
+
+export interface RuntimeInvocation {
+    ts: string;
+    actionId: string;
+    sourceBlockId?: string;
+    status: string;
+    details?: any;
+}
+
+export interface RuntimeTrace {
+    ts: string;
+    actionId: string;
+    status: string;
+    durationMs?: number;
+    reasonCode?: string;
 }
 
 export function createBindingRuntimeManager(configRepo: ShellConfigRepository): BindingRuntimeManager {
     const runtimeState: Record<string, any> = {};
     let bindingRuntime: BindingRuntime | undefined;
+    const invocations: RuntimeInvocation[] = [];
+    const traces: RuntimeTrace[] = [];
+    const maxItems = 50;
     
     // Metadata for debug snapshot
     let currentActiveVersionId: string | null = null;
@@ -19,6 +42,16 @@ export function createBindingRuntimeManager(configRepo: ShellConfigRepository): 
 
     const getRuntime = () => bindingRuntime;
     const getRuntimeState = () => runtimeState;
+    const recordInvocation = (invocation: RuntimeInvocation) => {
+        invocations.push(invocation);
+        if (invocations.length > maxItems) invocations.shift();
+    };
+    const recordTrace = (trace: RuntimeTrace) => {
+        traces.push(trace);
+        if (traces.length > maxItems) traces.shift();
+    };
+    const getInvocations = (limit = 20) => invocations.slice(-limit);
+    const getTraces = (limit = 20) => traces.slice(-limit);
     const getSnapshotMetadata = () => ({
         activeVersionId: currentActiveVersionId,
         activatedAt: currentActivatedAt,
@@ -86,6 +119,10 @@ export function createBindingRuntimeManager(configRepo: ShellConfigRepository): 
         getRuntime,
         getRuntimeState,
         reload,
-        getSnapshotMetadata
+        getSnapshotMetadata,
+        recordInvocation,
+        recordTrace,
+        getInvocations,
+        getTraces
     };
 }

@@ -39,19 +39,6 @@ async function main() {
        });
   };
 
-  router.post("/api/actions/dispatch", async (req, res) => {
-      const body = await parseJsonBody(req);
-      if (!body.actionId || !body.nodeId) {
-          return router.json(res, 400, { error: "Missing actionId or nodeId" });
-      }
-      
-      // NG9: Audit/Log dispatch but NOOP execution as requested
-      // eslint-disable-next-line no-console
-      console.log(`[Action Dispatch] Node: ${body.nodeId}, Action: ${body.actionId}`);
-      
-      router.json(res, 200, { status: "ok", message: "Action dispatched (simulated)" });
-  });
-
   const configRepo = new ShellConfigRepository(cwd);
 
   const validator = new ShellConfigValidator(cwd);
@@ -59,6 +46,42 @@ async function main() {
   
   // Singleton runtime manager
   const runtimeManager = createBindingRuntimeManager(configRepo);
+
+    const sendEnvelope = (res: http.ServerResponse, ctx: any, data: any, status = 200) => {
+        router.json(res, status, {
+                ok: true,
+                data,
+                error: null,
+                requestId: ctx.requestId,
+                timestamp: new Date().toISOString()
+        });
+    };
+
+      router.post("/api/actions/dispatch", async (req, res) => {
+          const body = await parseJsonBody(req);
+          if (!body.actionId || !body.nodeId) {
+              return router.json(res, 400, { error: "Missing actionId or nodeId" });
+          }
+      
+          // NG9: Audit/Log dispatch but NOOP execution as requested
+          // eslint-disable-next-line no-console
+          console.log(`[Action Dispatch] Node: ${body.nodeId}, Action: ${body.actionId}`);
+
+          // Record invocation + trace (non-debug runtime buffer)
+          runtimeManager.recordInvocation({
+              ts: new Date().toISOString(),
+              actionId: body.actionId,
+              sourceBlockId: body.nodeId,
+              status: "received"
+          });
+          runtimeManager.recordTrace({
+              ts: new Date().toISOString(),
+              actionId: body.actionId,
+              status: "dispatched"
+          });
+      
+          router.json(res, 200, { status: "ok", message: "Action dispatched (simulated)" });
+      });
 
   /**
    * Internal helper to dispatch user actions to the binding runtime.
@@ -256,6 +279,41 @@ async function main() {
         console.error("Clone patch error", err);
         return router.json(res, 500, { error: "Internal Server Error" });
     }
+  });
+
+  // Runtime: Invocations (non-debug, versioned)
+  router.get("/api/v1/runtime/invocations/recent", async (req, res, _params, ctx) => {
+      const urlParts = parse(req.url || "", true);
+      const limitParam = urlParts.query.limit;
+      const limit = typeof limitParam === "string" ? Math.max(1, Math.min(50, parseInt(limitParam, 10) || 20)) : 20;
+      const items = runtimeManager.getInvocations(limit);
+      return sendEnvelope(res, ctx, { items });
+  });
+
+  // Runtime: Traces (non-debug, versioned)
+  router.get("/api/v1/runtime/traces/recent", async (req, res, _params, ctx) => {
+      const urlParts = parse(req.url || "", true);
+      const limitParam = urlParts.query.limit;
+      const limit = typeof limitParam === "string" ? Math.max(1, Math.min(50, parseInt(limitParam, 10) || 20)) : 20;
+      const items = runtimeManager.getTraces(limit);
+      return sendEnvelope(res, ctx, { items });
+  });
+
+  // Runtime: Snapshot (non-debug, versioned)
+  router.get("/api/v1/runtime/snapshot", async (_req, res, _params, ctx) => {
+      const metadata = runtimeManager.getSnapshotMetadata();
+      const runtime = runtimeManager.getRuntime();
+      const state = runtime ? runtime.getInternalStateDebug() : {};
+      const derivedPatchesCount = Object.keys(state || {}).length;
+      const lastDerivedTickTs = runtime ? runtime.getLastDerivedTickTs() : null;
+
+      return sendEnvelope(res, ctx, {
+          ts: new Date().toISOString(),
+          activeVersionId: metadata.activeVersionId,
+          openWindows: [],
+          derivedPatchesCount,
+          lastDerivedTickTs
+      });
   });
 
   // Debug activate version endpoint (Roadmap #4 Step 2)
