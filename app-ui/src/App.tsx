@@ -7965,12 +7965,54 @@ function App() {
       setActionRuns(prev => [record, ...prev].slice(0, 50)); 
   };
 
-  const handleV2Action = (actionId: string, sourceBlockId?: string) => {
+  const handleV2Action = async (actionId: string, sourceBlockId?: string) => {
       const blocks = bundleData?.blocks as Record<string, any> | undefined;
       const block = blocks?.[actionId];
+      let localResult: ActionDispatchResult | null = null;
+
       if (block && block.blockType === 'action.openWindow' && typeof block.data?.windowId === 'string') {
           runtimeRef.current.openWindow(block.data.windowId);
           syncRuntime();
+          localResult = {
+              applied: 1,
+              skipped: 0,
+              logs: [`Open Window Action: ${block.data.windowId}`]
+          };
+      }
+
+      try {
+          const nodeId = sourceBlockId || actionId;
+          const res = await fetch(apiUrl('/api/actions/dispatch'), {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ actionId, nodeId })
+          });
+          if (!res.ok) {
+              localResult = localResult ?? {
+                  applied: 0,
+                  skipped: 1,
+                  logs: [],
+                  error: `Action dispatch failed: ${res.status}`
+              };
+          }
+      } catch (e: unknown) {
+          const msg = e instanceof Error ? e.message : String(e);
+          localResult = localResult ?? {
+              applied: 0,
+              skipped: 1,
+              logs: [],
+              error: `Action dispatch error: ${msg}`
+          };
+      }
+
+      if (localResult) {
+          const record: ActionRunRecord = {
+              id: Date.now().toString(),
+              timestamp: Date.now(),
+              actionId: sourceBlockId ? `${sourceBlockId}::${actionId}` : actionId,
+              result: localResult
+          };
+          setActionRuns(prev => [record, ...prev].slice(0, 50));
       }
   };
 

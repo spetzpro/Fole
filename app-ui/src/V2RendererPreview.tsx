@@ -143,18 +143,6 @@ export function V2RendererPreview({ onClose, embedded, rootId, activeVersionId, 
                      if (actionId) {
                          const sourceBlockId = (node.props?.blockId as string | undefined) ?? node.id;
                          onAction?.(actionId, sourceBlockId);
-                         try {
-                            const res = await fetch(apiUrl('/api/actions/dispatch'), {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ actionId, nodeId: node.id })
-                            });
-                            if (!res.ok) {
-                                console.error("Action Dispatch Failed:", res.status);
-                            }
-                         } catch (e) {
-                             console.error("Action Dispatch Network Error:", e);
-                         }
                      } else {
                          // Local Fallback
                      }
