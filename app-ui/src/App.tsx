@@ -2105,7 +2105,10 @@ function SysadminPanel({
     windowEvents,
     onClearWindowEvents,
     onResetWindowLayout,
-    onCloseAllWindows
+    onCloseAllWindows,
+    onOpenWindow,
+    onFocusWindow,
+    onCloseWindow
 }: { 
     isOpen: boolean; 
     onClose: () => void; 
@@ -2123,6 +2126,9 @@ function SysadminPanel({
     onClearWindowEvents: () => void;
     onResetWindowLayout: () => void;
     onCloseAllWindows: () => void;
+    onOpenWindow: (windowId: string) => void;
+    onFocusWindow: (windowId: string) => void;
+    onCloseWindow: (windowId: string) => void;
 }) {
     const caps = useCapabilities();
 
@@ -6092,167 +6098,88 @@ function SysadminPanel({
             }
             case 'Runtime': {
                 if (!runtimePlan) return <div style={{padding:'20px', color:'#666'}}>Runtime not initialized.</div>;
-                
-                const winCount = Object.keys(runtimePlan.windows || {}).length;
-                const ovCount = Object.keys(runtimePlan.overlays || {}).length;
-                const actCount = (runtimePlan.actions || []).length;
-                const runCount = actionRuns.length;
-                
-                const lastRun = actionRuns[0];
-                const lastStatus = lastRun 
-                    ? getActionStatus(lastRun.result)
-                    : 'NONE';
 
-                const toggleSection = (key: keyof typeof runtimeSections) => {
-                    setRuntimeSections(prev => ({ ...prev, [key]: !prev[key] }));
-                };
-
-                const sectionHeaderStyle = {
-                    background:'#eaeaea', 
-                    padding:'8px', 
-                    cursor:'pointer', 
-                    fontWeight:'bold' as const, 
-                    borderBottom:'1px solid #ccc',
-                    display:'flex',
-                    alignItems:'center',
-                    justifyContent:'space-between',
-                    marginTop:'10px'
-                };
-
-                const pillStyle = {
-                    background:'#f0f0f0', 
-                    border:'1px solid #ccc', 
-                    borderRadius:'4px', 
-                    padding:'5px 10px', 
-                    fontSize:'0.85em', 
-                    textAlign:'center' as const,
-                    flex:1
-                };
+                const openWindows = runtimePlan.windows ? Object.values(runtimePlan.windows) : [];
+                const focusedId = runtimePlan.focusedWindowId ?? null;
+                const availableWindows = runtimePlan.availableWindows || {};
+                const savedLayoutExists = (() => {
+                    try {
+                        return !!localStorage.getItem('fole.windowLayout.v1');
+                    } catch {
+                        return false;
+                    }
+                })();
 
                 return (
-                    <div>
-                        {/* Status Strip */}
-                        <div style={{display:'flex', gap:'8px', marginBottom:'15px'}}>
-                            <div style={pillStyle}>
-                                <div style={{fontWeight:'bold'}}>{winCount}</div>
-                                <div style={{color:'#666', fontSize:'0.9em'}}>Windows</div>
-                            </div>
-                            <div style={pillStyle}>
-                                <div style={{fontWeight:'bold'}}>{ovCount}</div>
-                                <div style={{color:'#666', fontSize:'0.9em'}}>Overlays</div>
-                            </div>
-                            <div style={pillStyle}>
-                                <div style={{fontWeight:'bold'}}>{actCount}</div>
-                                <div style={{color:'#666', fontSize:'0.9em'}}>Actions</div>
-                            </div>
-                            <div style={pillStyle}>
-                                <div style={{fontWeight:'bold'}}>{runCount}</div>
-                                <div style={{color:'#666', fontSize:'0.9em'}}>Runs</div>
-                            </div>
-                            {lastStatus !== 'NONE' && (
-                                <div style={{...pillStyle, background: '#fafafa', borderColor: '#ccc'}}>
-                                    <div style={{fontWeight:'bold', color: getStatusColor(lastStatus)}}>{lastStatus}</div>
-                                    <div style={{color:'#666', fontSize:'0.9em'}}>Last Result</div>
+                    <div style={{display:'flex', flexDirection:'column', gap:'15px'}}>
+                        <div style={{padding:'10px', background:'#fafafa', border:'1px solid #ddd', borderRadius:'4px'}}>
+                            <div style={{fontWeight:'bold', marginBottom:'6px'}}>Window Definitions</div>
+                            {Object.keys(availableWindows).length === 0 ? (
+                                <div style={{fontStyle:'italic', color:'#777'}}>No window definitions registered.</div>
+                            ) : (
+                                <div style={{display:'flex', flexDirection:'column', gap:'6px'}}>
+                                    {Object.entries(availableWindows).map(([id, def]) => {
+                                        const isOpen = !!runtimePlan.windows?.[id];
+                                        return (
+                                            <div key={id} style={{display:'flex', alignItems:'center', justifyContent:'space-between', padding:'6px', border:'1px solid #eee', background:'#fff'}}>
+                                                <div>
+                                                    <strong>{id}</strong>
+                                                    {def?.title && def.title !== id && <span style={{marginLeft:'6px', color:'#666'}}>({def.title})</span>}
+                                                </div>
+                                                <button
+                                                    onClick={() => { isOpen ? onFocusWindow(id) : onOpenWindow(id); }}
+                                                    style={{cursor:'pointer', padding:'2px 8px', fontSize:'0.85em'}}
+                                                >
+                                                    {isOpen ? 'Focus' : 'Open'}
+                                                </button>
+                                            </div>
+                                        );
+                                    })}
                                 </div>
                             )}
                         </div>
 
-                        {/* Windows Section */}
-                        <div style={sectionHeaderStyle} onClick={() => toggleSection('windows')}>
-                            <span>Windows</span>
-                            <span>{runtimeSections.windows ? '▾' : '▸'}</span>
-                        </div>
-                        {runtimeSections.windows && (
-                            <div style={{padding:'10px', border:'1px solid #eee', borderTop:'none'}}>
-                                {winCount === 0 ? <div style={{fontStyle:'italic', color:'#888'}}>No open windows.</div> : (
-                                    <div style={{display:'flex', flexDirection:'column', gap:'5px', marginBottom:'10px'}}>
-                                        {Object.values(runtimePlan.windows).map(w => (
-                                            <div key={w.id} style={{padding:'5px', border:'1px solid #eee', background:'#fafafa', fontSize:'0.9em'}}>
-                                                <strong>{w.id}</strong> <span style={{color:'#666'}}>({w.title})</span>
-                                                <div style={{fontSize:'0.8em', color:'#888'}}>
-                                                    Bounds: {Math.round(w.x)},{Math.round(w.y)} {w.width}x{w.height} | Z:{w.zOrder} | {w.dockMode !== 'none' ? `Docked: ${w.dockMode}` : 'Floating'}
-                                                </div>
+                        <div style={{padding:'10px', background:'#fafafa', border:'1px solid #ddd', borderRadius:'4px'}}>
+                            <div style={{fontWeight:'bold', marginBottom:'6px'}}>Open Windows</div>
+                            {openWindows.length === 0 ? (
+                                <div style={{fontStyle:'italic', color:'#777'}}>No windows are open.</div>
+                            ) : (
+                                <div style={{display:'flex', flexDirection:'column', gap:'6px'}}>
+                                    {openWindows.map(w => (
+                                        <div key={w.id} style={{display:'flex', alignItems:'center', justifyContent:'space-between', padding:'6px', border:'1px solid #eee', background:'#fff'}}>
+                                            <div>
+                                                <strong>{w.id}</strong>
+                                                {focusedId === w.id && <span style={{marginLeft:'6px', color:'#007acc'}}>(focused)</span>}
                                             </div>
-                                        ))}
-                                    </div>
-                                )}
-                                <div style={{marginTop:'5px', fontSize:'0.8em', color:'#aaa', cursor:'pointer'}} onClick={() => {
-                                    // simple toggle for raw details could go here, but for now just show if filtered list is empty or for advanced debug
-                                }}>
-                                    <span style={{textDecoration:'underline'}}>Raw JSON</span>:
-                                    <pre style={{...preStyle, marginTop:'2px'}}>{JSON.stringify(runtimePlan.windows, null, 2)}</pre>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Overlays Section */}
-                        <div style={sectionHeaderStyle} onClick={() => toggleSection('overlays')}>
-                            <span>Overlays</span>
-                            <span>{runtimeSections.overlays ? '▾' : '▸'}</span>
-                        </div>
-                        {runtimeSections.overlays && (
-                            <div style={{padding:'10px', border:'1px solid #eee', borderTop:'none'}}>
-                                {ovCount === 0 ? <div style={{fontStyle:'italic', color:'#888'}}>No open overlays.</div> : (
-                                     <div style={{display:'flex', flexDirection:'column', gap:'5px', marginBottom:'10px'}}>
-                                        {Object.values(runtimePlan.overlays).map(o => (
-                                            <div key={o.id} style={{padding:'5px', border:'1px solid #eee', background: o.isOpen ? '#fff' : '#f9f9f9', fontSize:'0.9em', color: o.isOpen ? '#000' : '#888'}}>
-                                                <strong>{o.id}</strong> {o.isOpen ? <span style={{color:'green', fontWeight:'bold'}}>OPEN</span> : <span>(closed)</span>}
-                                                <div style={{fontSize:'0.8em', color:'#888'}}>Z:{o.zOrder} Type:{o.blockType || 'n/a'}</div>
+                                            <div style={{display:'flex', gap:'6px'}}>
+                                                <button onClick={() => onFocusWindow(w.id)} style={{cursor:'pointer', padding:'2px 8px', fontSize:'0.85em'}}>Focus</button>
+                                                <button onClick={() => onCloseWindow(w.id)} style={{cursor:'pointer', padding:'2px 8px', fontSize:'0.85em'}}>Close</button>
                                             </div>
-                                        ))}
-                                    </div>
-                                )}
-                                <pre style={preStyle}>{JSON.stringify(runtimePlan.overlays, null, 2)}</pre>
-                            </div>
-                        )}
-
-                        {/* Last Result Section */}
-                        <div style={sectionHeaderStyle} onClick={() => toggleSection('lastResult')}>
-                            <span>Last Action Result</span>
-                            <span>{runtimeSections.lastResult ? '▾' : '▸'}</span>
-                        </div>
-                        {runtimeSections.lastResult && (
-                            <div style={{padding:'10px', border:'1px solid #eee', borderTop:'none'}}>
-                                {lastRun ? (
-                                    <>
-                                        <div style={{fontSize:'0.9em', marginBottom:'5px', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
-                                            <span>
-                                                <strong>{lastRun.actionId}</strong> at {new Date(lastRun.timestamp).toLocaleTimeString()}
-                                                <span style={{ margin: '0 8px', color: '#ccc' }}>|</span>
-                                                <span style={{ 
-                                                    fontWeight:'bold', 
-                                                    padding:'1px 5px', 
-                                                    borderRadius:'4px', 
-                                                    color:'white', 
-                                                    background: getStatusColor(lastStatus),
-                                                    fontSize: '0.85em'
-                                                }}>
-                                                    {lastStatus}
-                                                </span>
-                                            </span>
-                                            <CopyBtn k="lastresult" text={lastRun.result} />
                                         </div>
-                                        <pre style={preStyle}>{JSON.stringify(lastRun.result, null, 2)}</pre>
-                                    </>
-                                ) : (
-                                    <div style={{fontStyle:'italic', color:'#888'}}>No actions run yet.</div>
-                                )}
-                            </div>
-                        )}
-
-                        {/* Runtime Plan Section */}
-                        <div style={sectionHeaderStyle} onClick={() => toggleSection('plan')}>
-                            <span>Full Runtime Plan</span>
-                            <span>{runtimeSections.plan ? '▾' : '▸'}</span>
-                        </div>
-                        {runtimeSections.plan && (
-                            <div style={{padding:'10px', border:'1px solid #eee', borderTop:'none'}}>
-                                <div style={{display:'flex', justifyContent:'flex-end', marginBottom:'5px'}}>
-                                    <CopyBtn k="runtimeplan" text={runtimePlan} />
+                                    ))}
                                 </div>
-                                <pre style={preStyle}>{JSON.stringify(runtimePlan, null, 2)}</pre>
+                            )}
+                        </div>
+
+                        <div style={{padding:'10px', background:'#fafafa', border:'1px solid #ddd', borderRadius:'4px'}}>
+                            <div style={{fontWeight:'bold', marginBottom:'6px'}}>Persistence</div>
+                            <div style={{color:'#555', marginBottom:'6px'}}>
+                                Saved layout: <strong>{savedLayoutExists ? 'present' : 'none'}</strong>
                             </div>
-                        )}
+                            <div style={{display:'flex', gap:'8px'}}>
+                                <button onClick={onResetWindowLayout} style={{cursor:'pointer', padding:'2px 8px', fontSize:'0.85em'}}>Reset Window Layout</button>
+                                <button onClick={onCloseAllWindows} style={{cursor:'pointer', padding:'2px 8px', fontSize:'0.85em'}}>Close All Windows</button>
+                            </div>
+                            <div style={{marginTop:'6px', fontSize:'0.85em', color:'#666'}}>
+                                Persisted across reloads; Reset clears it.
+                            </div>
+                        </div>
+
+                        <div style={{padding:'10px', background:'#fff', border:'1px solid #eee', borderRadius:'4px', color:'#555'}}>
+                            <div style={{fontWeight:'bold', marginBottom:'6px'}}>Runtime Behavior</div>
+                            <div>Fetch Bundle registers config and definitions; does not open windows.</div>
+                            <div>Windows open via explicit actions or runtime controls.</div>
+                        </div>
                     </div>
                 );
             }
@@ -8555,6 +8482,9 @@ function App() {
                      onClearWindowEvents={clearWindowEvents}
                      onResetWindowLayout={resetWindowLayout}
                      onCloseAllWindows={closeAllWindows}
+                     onOpenWindow={openWindowWithTelemetry}
+                     onFocusWindow={focusWindowWithTelemetry}
+                     onCloseWindow={closeWindowWithTelemetry}
                  />
              </div>
 
