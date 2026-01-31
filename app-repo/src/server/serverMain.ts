@@ -57,6 +57,25 @@ async function main() {
         });
     };
 
+    const sendErrorEnvelope = (res: http.ServerResponse, ctx: any, status: number, code: string, message: string) => {
+        router.json(res, status, {
+            ok: false,
+            data: null,
+            error: {
+                code,
+                message
+            },
+            requestId: ctx.requestId,
+            timestamp: new Date().toISOString()
+        });
+    };
+
+    const isAdminRuntime = (ctx: any) => {
+        const roles = ctx?.auth?.roles;
+        if (!Array.isArray(roles)) return false;
+        return roles.includes("ADMIN") || roles.includes("SYSADMIN");
+    };
+
       router.post("/api/actions/dispatch", async (req, res) => {
           const body = await parseJsonBody(req);
           if (!body.actionId || !body.nodeId) {
@@ -283,6 +302,9 @@ async function main() {
 
   // Runtime: Invocations (non-debug, versioned)
   router.get("/api/v1/runtime/invocations/recent", async (req, res, _params, ctx) => {
+      if (!isAdminRuntime(ctx)) {
+          return sendErrorEnvelope(res, ctx, 403, "forbidden", "Access Denied");
+      }
       const urlParts = parse(req.url || "", true);
       const limitParam = urlParts.query.limit;
       const limit = typeof limitParam === "string" ? Math.max(1, Math.min(50, parseInt(limitParam, 10) || 20)) : 20;
@@ -292,6 +314,9 @@ async function main() {
 
   // Runtime: Traces (non-debug, versioned)
   router.get("/api/v1/runtime/traces/recent", async (req, res, _params, ctx) => {
+      if (!isAdminRuntime(ctx)) {
+          return sendErrorEnvelope(res, ctx, 403, "forbidden", "Access Denied");
+      }
       const urlParts = parse(req.url || "", true);
       const limitParam = urlParts.query.limit;
       const limit = typeof limitParam === "string" ? Math.max(1, Math.min(50, parseInt(limitParam, 10) || 20)) : 20;
@@ -301,6 +326,9 @@ async function main() {
 
   // Runtime: Snapshot (non-debug, versioned)
   router.get("/api/v1/runtime/snapshot", async (_req, res, _params, ctx) => {
+      if (!isAdminRuntime(ctx)) {
+          return sendErrorEnvelope(res, ctx, 403, "forbidden", "Access Denied");
+      }
       const metadata = runtimeManager.getSnapshotMetadata();
       const runtime = runtimeManager.getRuntime();
       const state = runtime ? runtime.getInternalStateDebug() : {};

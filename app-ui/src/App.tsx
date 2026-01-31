@@ -75,10 +75,17 @@ type WindowEvent = {
     windowId: string;
 };
 
+type PersistedWindowLayout = {
+    openWindows: string[];
+    focusedWindowId: string | null;
+    windows: Record<string, { x: number; y: number; width: number; height: number; zOrder: number }>;
+};
+
 type RuntimePlan = {
     entrySlug: string;
     targetBlockId?: string;
     windows: Record<string, WindowState>;
+    focusedWindowId?: string | null;
     availableWindows?: Record<string, { title: string }>;
     overlays: Record<string, OverlayState>;
     actions: ActionDefinition[];
@@ -95,6 +102,7 @@ class WindowSystemRuntime {
     private zCounter = 1;
     private viewWidth = 900;
     private viewHeight = 600;
+    private focusedWindowId: string | null = null;
 
     public init(bundleData: BundleResponse, ping: PingResponse, viewWidth = 900, viewHeight = 600) {
         this.entrySlug = (bundleData?.manifest as any)?.entrySlug ?? '';
@@ -113,6 +121,7 @@ class WindowSystemRuntime {
         this.windowDefs.clear();
         this.rawBlocks.clear();
         this.zCounter = 1;
+        this.focusedWindowId = null;
 
     // Reset Lazy Registration State
     this.rawBlocks.clear();
@@ -299,6 +308,7 @@ class WindowSystemRuntime {
              dockMode: 'none',
              zOrder: ++this.zCounter
          });
+         this.focusedWindowId = windowId;
       } else {
           console.warn(`Window definition not found for: ${windowId}`);
       }
@@ -307,8 +317,11 @@ class WindowSystemRuntime {
   public focusWindow(id: string) {
     const w = this.windows.get(id);
     if (!w) return;
-    w.zOrder = ++this.zCounter;
-    this.windows.set(id, { ...w });
+        if (this.focusedWindowId !== id) {
+                this.focusedWindowId = id;
+                w.zOrder = ++this.zCounter;
+                this.windows.set(id, { ...w });
+        }
   }
 
   public moveWindow(id: string, x: number, y: number) {
@@ -339,6 +352,63 @@ class WindowSystemRuntime {
   public closeWindow(id: string) {
       // For this demo, we just remove it to simulate closing
       this.windows.delete(id);
+      if (this.focusedWindowId === id) {
+          const remaining = Array.from(this.windows.values());
+          if (remaining.length > 0) {
+              const next = remaining.reduce((top, w) => (w.zOrder > top.zOrder ? w : top), remaining[0]);
+              this.focusedWindowId = next.id;
+          } else {
+              this.focusedWindowId = null;
+          }
+      }
+  }
+
+  public closeAllWindows() {
+      this.windows.clear();
+      this.focusedWindowId = null;
+  }
+
+  public restoreLayout(layout: PersistedWindowLayout) {
+      this.windows.clear();
+      let maxZ = this.zCounter;
+
+      const openIds = Array.isArray(layout.openWindows) ? layout.openWindows : [];
+      for (const windowId of openIds) {
+          if (!this.windowDefs.has(windowId)) continue;
+          const def = this.windowDefs.get(windowId);
+          const saved = layout.windows?.[windowId];
+          const width = typeof saved?.width === 'number' ? saved.width : 400;
+          const height = typeof saved?.height === 'number' ? saved.height : 300;
+          const x = typeof saved?.x === 'number' ? saved.x : 100;
+          const y = typeof saved?.y === 'number' ? saved.y : 100;
+          const zOrder = typeof saved?.zOrder === 'number' ? saved.zOrder : ++maxZ;
+
+          this.windows.set(windowId, {
+              id: windowId,
+              title: def?.title || windowId,
+              x,
+              y,
+              width,
+              height,
+              isMinimized: false,
+              dockMode: 'none',
+              zOrder
+          });
+
+          if (zOrder > maxZ) maxZ = zOrder;
+      }
+
+      this.zCounter = Math.max(this.zCounter, maxZ);
+
+      if (layout.focusedWindowId && this.windows.has(layout.focusedWindowId)) {
+          this.focusedWindowId = layout.focusedWindowId;
+      } else if (this.windows.size > 0) {
+          const remaining = Array.from(this.windows.values());
+          const next = remaining.reduce((top, w) => (w.zOrder > top.zOrder ? w : top), remaining[0]);
+          this.focusedWindowId = next.id;
+      } else {
+          this.focusedWindowId = null;
+      }
   }
 
   public setMinimized(id: string, min: boolean) {
@@ -396,6 +466,7 @@ class WindowSystemRuntime {
        entrySlug: this.entrySlug,
        targetBlockId: this.targetBlockId,
        windows: Object.fromEntries(this.windows),
+             focusedWindowId: this.focusedWindowId,
              availableWindows: Object.fromEntries(this.windowDefs),
        overlays: Object.fromEntries(this.overlays),
        actions: this.actions
@@ -474,10 +545,6 @@ function WindowFrame({
     };
 
     const isDocked = win.dockMode !== 'none';
-    const baseShadow = win.zOrder > 100 ? '0 4px 12px rgba(0,0,0,0.2)' : '0 2px 5px rgba(0,0,0,0.1)';
-    const focusRing = isFocused ? 'inset 0 0 0 2px rgba(0,123,255,0.9)' : '';
-    const boxShadow = focusRing ? `${baseShadow}, ${focusRing}` : baseShadow;
-
     return (
         <div 
             onMouseDown={onFocus}
@@ -490,19 +557,30 @@ function WindowFrame({
                 zIndex: win.zOrder,
                 backgroundColor: 'white',
                 border: '1px solid #999',
-                boxShadow,
                 display: 'flex',
                 flexDirection: 'column',
                 overflow: 'hidden'
             }}
         >
+            <div
+                style={{
+                    position: 'absolute',
+                    inset: 0,
+                    borderRadius: 0,
+                    boxShadow: isFocused
+                        ? 'inset 0 0 0 2px rgba(0,0,0,0.35)'
+                        : 'inset 0 0 0 1px rgba(0,0,0,0.12)',
+                    pointerEvents: 'none',
+                    zIndex: 9999
+                }}
+            />
             {/* Title Bar */}
             <div 
                 onMouseDown={startDrag}
                 style={{
                     height: '30px',
-                    backgroundColor: win.zOrder > 100 ? '#007acc' : '#ccc',
-                    color: win.zOrder > 100 ? 'white' : '#333',
+                    backgroundColor: isFocused ? 'rgba(0,0,0,0.08)' : 'rgba(0,0,0,0.03)',
+                    color: '#333',
                     display: 'flex',
                     alignItems: 'center',
                     padding: '0 8px',
@@ -2025,7 +2103,9 @@ function SysadminPanel({
     onRefresh,
     safeModeEnabled,
     windowEvents,
-    onClearWindowEvents
+    onClearWindowEvents,
+    onResetWindowLayout,
+    onCloseAllWindows
 }: { 
     isOpen: boolean; 
     onClose: () => void; 
@@ -2041,6 +2121,8 @@ function SysadminPanel({
     safeModeEnabled: boolean;
     windowEvents: WindowEvent[];
     onClearWindowEvents: () => void;
+    onResetWindowLayout: () => void;
+    onCloseAllWindows: () => void;
 }) {
     const caps = useCapabilities();
 
@@ -7257,12 +7339,17 @@ function SysadminPanel({
             }
             case 'UI Runtime': {
                 const openWindows = runtimePlan ? Object.values(runtimePlan.windows || {}) : [];
+                const focusedId = runtimePlan?.focusedWindowId ?? null;
 
                 return (
                     <div style={{display:'flex', flexDirection:'column', height:'100%'}}>
                         <div style={{padding:'10px', borderBottom:'1px solid #ddd', display:'flex', alignItems:'center', justifyContent:'space-between', background:'#fafafa'}}>
                             <strong style={{fontSize:'1.1em'}}>Frontend UI Runtime</strong>
-                            <button onClick={onClearWindowEvents} style={{cursor:'pointer', padding:'2px 8px', fontSize:'0.9em'}}>Clear Events</button>
+                            <div style={{display:'flex', gap:'8px'}}>
+                                <button onClick={onCloseAllWindows} style={{cursor:'pointer', padding:'2px 8px', fontSize:'0.9em'}}>Close All Windows</button>
+                                <button onClick={onResetWindowLayout} style={{cursor:'pointer', padding:'2px 8px', fontSize:'0.9em'}}>Reset Window Layout</button>
+                                <button onClick={onClearWindowEvents} style={{cursor:'pointer', padding:'2px 8px', fontSize:'0.9em'}}>Clear Events</button>
+                            </div>
                         </div>
 
                         <div style={{display:'flex', flexDirection:'column', gap:'15px', padding:'10px', overflowY:'auto'}}>
@@ -7275,6 +7362,7 @@ function SysadminPanel({
                                         {openWindows.map(w => (
                                             <li key={w.id} style={{marginBottom:'6px'}}>
                                                 {w.id}
+                                                {focusedId === w.id && <span style={{marginLeft:'6px', color:'#007acc'}}>(focused)</span>}
                                             </li>
                                         ))}
                                     </ul>
@@ -7670,6 +7758,8 @@ function App() {
   const [actionRuns, setActionRuns] = useState<ActionRunRecord[]>([]);
   const [expandedRunIds, setExpandedRunIds] = useState<Record<string, boolean>>({});
     const [windowEvents, setWindowEvents] = useState<WindowEvent[]>([]);
+    const layoutRestoringRef = useRef(false);
+    const WINDOW_LAYOUT_KEY = 'fole.windowLayout.v1';
 
   const applyDraft = (draft: BundleResponse) => {
        if (!lastActiveBundle) {
@@ -7701,31 +7791,85 @@ function App() {
 
   // Sync state helper
   const syncRuntime = () => {
-    setRuntimePlan(runtimeRef.current.getSnapshot());
+    const snapshot = runtimeRef.current.getSnapshot();
+    setRuntimePlan(snapshot);
+    if (!layoutRestoringRef.current) {
+        try {
+            const windows = snapshot.windows || {};
+            const openWindows = Object.keys(windows);
+            const layout: PersistedWindowLayout = {
+                openWindows,
+                focusedWindowId: snapshot.focusedWindowId ?? null,
+                windows: Object.fromEntries(openWindows.map(id => [
+                    id,
+                    {
+                        x: windows[id].x,
+                        y: windows[id].y,
+                        width: windows[id].width,
+                        height: windows[id].height,
+                        zOrder: windows[id].zOrder
+                    }
+                ]))
+            };
+            localStorage.setItem(WINDOW_LAYOUT_KEY, JSON.stringify(layout));
+        } catch (e) {
+            // ignore persistence errors
+        }
+    }
+  };
+
+  const restoreWindowLayout = () => {
+      try {
+          const raw = localStorage.getItem(WINDOW_LAYOUT_KEY);
+          if (!raw) return false;
+          const parsed = JSON.parse(raw) as PersistedWindowLayout;
+          if (!parsed || !Array.isArray(parsed.openWindows) || typeof parsed.windows !== 'object') return false;
+          runtimeRef.current.restoreLayout(parsed);
+          return true;
+      } catch {
+          return false;
+      }
   };
 
   const openWindowWithTelemetry = (windowId: string) => {
-      const wasOpen = !!runtimeRef.current.getSnapshot().windows[windowId];
+      const prevSnapshot = runtimeRef.current.getSnapshot();
+      const wasOpen = !!prevSnapshot.windows[windowId];
+      const prevFocusedId = prevSnapshot.focusedWindowId ?? null;
       runtimeRef.current.openWindow(windowId);
       syncRuntime();
-      const nowOpen = !!runtimeRef.current.getSnapshot().windows[windowId];
+      const nextSnapshot = runtimeRef.current.getSnapshot();
+      const nowOpen = !!nextSnapshot.windows[windowId];
+      const nextFocusedId = nextSnapshot.focusedWindowId ?? null;
       if (!wasOpen && nowOpen) {
           recordWindowEvent('window.opened', windowId);
+      }
+      if (prevFocusedId !== nextFocusedId && nextFocusedId) {
+          recordWindowEvent('window.focused', nextFocusedId);
       }
   };
 
   const focusWindowWithTelemetry = (windowId: string) => {
+      const prevFocusedId = runtimeRef.current.getSnapshot().focusedWindowId ?? null;
       runtimeRef.current.focusWindow(windowId);
       syncRuntime();
-      recordWindowEvent('window.focused', windowId);
+      const nextFocusedId = runtimeRef.current.getSnapshot().focusedWindowId ?? null;
+      if (prevFocusedId !== nextFocusedId && nextFocusedId) {
+          recordWindowEvent('window.focused', nextFocusedId);
+      }
   };
 
   const closeWindowWithTelemetry = (windowId: string) => {
-      const wasOpen = !!runtimeRef.current.getSnapshot().windows[windowId];
+      const prevSnapshot = runtimeRef.current.getSnapshot();
+      const wasOpen = !!prevSnapshot.windows[windowId];
+      const prevFocusedId = prevSnapshot.focusedWindowId ?? null;
       runtimeRef.current.closeWindow(windowId);
       syncRuntime();
+      const nextFocusedId = runtimeRef.current.getSnapshot().focusedWindowId ?? null;
       if (wasOpen) {
           recordWindowEvent('window.closed', windowId);
+      }
+      if (prevFocusedId !== nextFocusedId && nextFocusedId) {
+          recordWindowEvent('window.focused', nextFocusedId);
       }
   };
 
@@ -7743,9 +7887,27 @@ function App() {
 
         const effectivePing = pingData ?? { allowed: false, status: 0, targetBlockId: undefined };
         runtimeRef.current.init(bundleData, effectivePing as PingResponse, width, height);
+        layoutRestoringRef.current = true;
+        restoreWindowLayout();
         syncRuntime();
+        layoutRestoringRef.current = false;
     }
   }, [bundleData, pingData]);
+
+  const resetWindowLayout = () => {
+      try {
+          localStorage.removeItem(WINDOW_LAYOUT_KEY);
+      } catch {
+          // ignore
+      }
+      runtimeRef.current.closeAllWindows();
+      syncRuntime();
+  };
+
+  const closeAllWindows = () => {
+      runtimeRef.current.closeAllWindows();
+      syncRuntime();
+  };
 
   // Handle Esc for overlays
   useEffect(() => {
@@ -8345,9 +8507,7 @@ function App() {
                       {/* Runtime Windows Layer */}
                       {runtimePlan && (() => {
                           const windowsList = Object.values(runtimePlan.windows || {});
-                          const focusedWindowId = windowsList.length > 0
-                                ? windowsList.reduce((top, w) => (w.zOrder > top.zOrder ? w : top), windowsList[0]).id
-                                : null;
+                          const focusedWindowId = runtimePlan.focusedWindowId ?? null;
 
                           return windowsList.map(win => {
                     const blocks = bundleData?.blocks || {};
@@ -8358,7 +8518,7 @@ function App() {
                      <WindowFrame
                         key={win.id}
                         win={win}
-                                isFocused={focusedWindowId === win.id}
+                        isFocused={focusedWindowId === win.id}
                                 onFocus={() => { focusWindowWithTelemetry(win.id); }}
                         onMove={(x,y) => { runtimeRef.current.moveWindow(win.id, x, y); syncRuntime(); }}
                         onResize={(w,h) => { runtimeRef.current.resizeWindow(win.id, w, h); syncRuntime(); }}
@@ -8393,6 +8553,8 @@ function App() {
                      safeModeEnabled={safeModeEnabled}
                      windowEvents={windowEvents}
                      onClearWindowEvents={clearWindowEvents}
+                     onResetWindowLayout={resetWindowLayout}
+                     onCloseAllWindows={closeAllWindows}
                  />
              </div>
 
