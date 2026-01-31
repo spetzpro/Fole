@@ -69,6 +69,12 @@ type ActionDispatchResult = {
     error?: string;
 };
 
+type WindowEvent = {
+    ts: string;
+    kind: 'window.opened' | 'window.focused' | 'window.closed';
+    windowId: string;
+};
+
 type RuntimePlan = {
     entrySlug: string;
     targetBlockId?: string;
@@ -401,6 +407,7 @@ class WindowSystemRuntime {
 
 function WindowFrame({ 
     win, 
+    isFocused,
     onFocus, 
     onMove, 
     onResize, 
@@ -410,6 +417,7 @@ function WindowFrame({
     children
 }: { 
     win: WindowState,
+    isFocused: boolean,
     onFocus: () => void,
     onMove: (x: number, y: number) => void,
     onResize: (w: number, h: number) => void,
@@ -466,6 +474,9 @@ function WindowFrame({
     };
 
     const isDocked = win.dockMode !== 'none';
+    const baseShadow = win.zOrder > 100 ? '0 4px 12px rgba(0,0,0,0.2)' : '0 2px 5px rgba(0,0,0,0.1)';
+    const focusRing = isFocused ? 'inset 0 0 0 2px rgba(0,123,255,0.9)' : '';
+    const boxShadow = focusRing ? `${baseShadow}, ${focusRing}` : baseShadow;
 
     return (
         <div 
@@ -479,7 +490,7 @@ function WindowFrame({
                 zIndex: win.zOrder,
                 backgroundColor: 'white',
                 border: '1px solid #999',
-                boxShadow: win.zOrder > 100 ? '0 4px 12px rgba(0,0,0,0.2)' : '0 2px 5px rgba(0,0,0,0.1)',
+                boxShadow,
                 display: 'flex',
                 flexDirection: 'column',
                 overflow: 'hidden'
@@ -2012,7 +2023,9 @@ function SysadminPanel({
     onRollback,
     canRollback,
     onRefresh,
-    safeModeEnabled
+    safeModeEnabled,
+    windowEvents,
+    onClearWindowEvents
 }: { 
     isOpen: boolean; 
     onClose: () => void; 
@@ -2026,6 +2039,8 @@ function SysadminPanel({
     canRollback: boolean;
     onRefresh: () => void;
     safeModeEnabled: boolean;
+    windowEvents: WindowEvent[];
+    onClearWindowEvents: () => void;
 }) {
     const caps = useCapabilities();
 
@@ -2119,7 +2134,7 @@ function SysadminPanel({
     const ENABLE_LEGACY_SYSADMIN_TABS = true;
 
     // Dynamic Tabs Definition
-    const tabs = ['ShellConfig', 'Blocks', 'Bindings', 'Data', 'ActionIndex', 'Runtime', 'Draft', 'Invocations', 'Traces'];
+    const tabs = ['ShellConfig', 'Blocks', 'Bindings', 'Data', 'ActionIndex', 'Runtime', 'UI Runtime', 'Draft', 'Invocations', 'Traces'];
     if (ENABLE_LEGACY_SYSADMIN_TABS) {
         tabs.push('Snapshot');
         tabs.push('Versions');
@@ -7240,6 +7255,52 @@ function SysadminPanel({
             case 'Snapshot': {
                  return renderSnapshotContent();
             }
+            case 'UI Runtime': {
+                const openWindows = runtimePlan ? Object.values(runtimePlan.windows || {}) : [];
+
+                return (
+                    <div style={{display:'flex', flexDirection:'column', height:'100%'}}>
+                        <div style={{padding:'10px', borderBottom:'1px solid #ddd', display:'flex', alignItems:'center', justifyContent:'space-between', background:'#fafafa'}}>
+                            <strong style={{fontSize:'1.1em'}}>Frontend UI Runtime</strong>
+                            <button onClick={onClearWindowEvents} style={{cursor:'pointer', padding:'2px 8px', fontSize:'0.9em'}}>Clear Events</button>
+                        </div>
+
+                        <div style={{display:'flex', flexDirection:'column', gap:'15px', padding:'10px', overflowY:'auto'}}>
+                            <div style={{border:'1px solid #ddd', borderRadius:'4px', background:'#fff'}}>
+                                <div style={{padding:'8px 10px', borderBottom:'1px solid #eee', fontWeight:'bold'}}>Open Windows ({openWindows.length})</div>
+                                {openWindows.length === 0 ? (
+                                    <div style={{padding:'10px', color:'#777', fontStyle:'italic'}}>No windows are currently open.</div>
+                                ) : (
+                                    <ul style={{margin:0, padding:'10px 20px'}}>
+                                        {openWindows.map(w => (
+                                            <li key={w.id} style={{marginBottom:'6px'}}>
+                                                {w.id}
+                                            </li>
+                                        ))}
+                                    </ul>
+                                )}
+                            </div>
+
+                            <div style={{border:'1px solid #ddd', borderRadius:'4px', background:'#fff'}}>
+                                <div style={{padding:'8px 10px', borderBottom:'1px solid #eee', fontWeight:'bold'}}>Recent Window Events ({windowEvents.length})</div>
+                                {windowEvents.length === 0 ? (
+                                    <div style={{padding:'10px', color:'#777', fontStyle:'italic'}}>No window events recorded yet.</div>
+                                ) : (
+                                    <ul style={{margin:0, padding:'10px 20px'}}>
+                                        {windowEvents.map((evt, idx) => (
+                                            <li key={`${evt.ts}-${evt.windowId}-${idx}`} style={{marginBottom:'6px'}}>
+                                                <span style={{fontFamily:'monospace', color:'#555'}}>{new Date(evt.ts).toLocaleTimeString()}</span>
+                                                <span style={{marginLeft:'8px', fontWeight:'bold'}}>{evt.kind}</span>
+                                                <span style={{marginLeft:'8px'}}>{evt.windowId}</span>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
             case 'Traces': {
                  return (
                      <div style={{display:'flex', flexDirection:'column', height:'100%'}}>
@@ -7608,6 +7669,7 @@ function App() {
   // Action Menu State
   const [actionRuns, setActionRuns] = useState<ActionRunRecord[]>([]);
   const [expandedRunIds, setExpandedRunIds] = useState<Record<string, boolean>>({});
+    const [windowEvents, setWindowEvents] = useState<WindowEvent[]>([]);
 
   const applyDraft = (draft: BundleResponse) => {
        if (!lastActiveBundle) {
@@ -7628,10 +7690,46 @@ function App() {
 
   const toggleRunLogs = (id: string) => setExpandedRunIds(prev => ({...prev, [id]: !prev[id]}));
 
+  const recordWindowEvent = (kind: WindowEvent['kind'], windowId: string) => {
+      const evt: WindowEvent = {
+          ts: new Date().toISOString(),
+          kind,
+          windowId
+      };
+      setWindowEvents(prev => [evt, ...prev].slice(0, 50));
+  };
+
   // Sync state helper
   const syncRuntime = () => {
     setRuntimePlan(runtimeRef.current.getSnapshot());
   };
+
+  const openWindowWithTelemetry = (windowId: string) => {
+      const wasOpen = !!runtimeRef.current.getSnapshot().windows[windowId];
+      runtimeRef.current.openWindow(windowId);
+      syncRuntime();
+      const nowOpen = !!runtimeRef.current.getSnapshot().windows[windowId];
+      if (!wasOpen && nowOpen) {
+          recordWindowEvent('window.opened', windowId);
+      }
+  };
+
+  const focusWindowWithTelemetry = (windowId: string) => {
+      runtimeRef.current.focusWindow(windowId);
+      syncRuntime();
+      recordWindowEvent('window.focused', windowId);
+  };
+
+  const closeWindowWithTelemetry = (windowId: string) => {
+      const wasOpen = !!runtimeRef.current.getSnapshot().windows[windowId];
+      runtimeRef.current.closeWindow(windowId);
+      syncRuntime();
+      if (wasOpen) {
+          recordWindowEvent('window.closed', windowId);
+      }
+  };
+
+  const clearWindowEvents = () => setWindowEvents([]);
 
   // Initialize Runtime when bundle loads
   useEffect(() => {
@@ -7835,7 +7933,7 @@ function App() {
     }
   };
 
-  const runAction = async (def: ActionDefinition | string) => {
+    const runAction = async (def: ActionDefinition | string) => {
       // Resolve ID
       const actionId = typeof def === 'string' ? def : def?.id;
 
@@ -7844,8 +7942,8 @@ function App() {
           // Resolve block by actionId directly
           const blocks = bundleData.blocks as Record<string, any>;
           const block = blocks[actionId];
-          if (block && block.blockType === 'action.openWindow' && block.data?.windowId) {
-             runtimeRef.current.openWindow(block.data.windowId);
+             if (block && block.blockType === 'action.openWindow' && block.data?.windowId) {
+                 openWindowWithTelemetry(block.data.windowId);
              
               const localResult: ActionDispatchResult = {
                   applied: 1, skipped: 0, logs: [`Open Window Action: ${block.data.windowId}`]
@@ -7857,7 +7955,6 @@ function App() {
                   result: localResult
               };
               setActionRuns(prev => [record, ...prev].slice(0, 50));
-              syncRuntime(); // Important: updates UI
               return;
           }
            
@@ -7898,8 +7995,7 @@ function App() {
       let localResult: ActionDispatchResult | null = null;
 
       if (block && block.blockType === 'action.openWindow' && typeof block.data?.windowId === 'string') {
-          runtimeRef.current.openWindow(block.data.windowId);
-          syncRuntime();
+          openWindowWithTelemetry(block.data.windowId);
           localResult = {
               applied: 1,
               skipped: 0,
@@ -8016,10 +8112,10 @@ function App() {
 
   // UI Handlers wiring to Runtime
   const winOps = {
-      focus: (id: string) => { runtimeRef.current.focusWindow(id); syncRuntime(); },
+      focus: (id: string) => { focusWindowWithTelemetry(id); },
       move: (id: string, x: number, y: number) => { runtimeRef.current.moveWindow(id, x, y); syncRuntime(); },
       resize: (id: string, w: number, h: number) => { runtimeRef.current.resizeWindow(id, w, h); syncRuntime(); },
-      close: (id: string) => { runtimeRef.current.closeWindow(id); syncRuntime(); },
+      close: (id: string) => { closeWindowWithTelemetry(id); },
       minimize: (id: string, v: boolean) => { runtimeRef.current.setMinimized(id, v); syncRuntime(); },
       dock: (id: string, m: WindowState['dockMode']) => { runtimeRef.current.dockWindow(id, m); syncRuntime(); }
   };
@@ -8116,7 +8212,7 @@ function App() {
                          <span>{id}</span>
                          {def?.title && def.title !== id && <span style={{marginLeft:'6px', color:'#666'}}>({def.title})</span>}
                          <button
-                             onClick={() => { runtimeRef.current.openWindow(id); syncRuntime(); }}
+                             onClick={() => { openWindowWithTelemetry(id); }}
                              style={{marginLeft:'6px', fontSize:'0.7em'}}
                          >
                              Open
@@ -8246,8 +8342,14 @@ function App() {
                      </div>
                  )}
                  
-                 {/* Runtime Windows Layer */}
-                 {runtimePlan && Object.values(runtimePlan.windows).map(win => {
+                      {/* Runtime Windows Layer */}
+                      {runtimePlan && (() => {
+                          const windowsList = Object.values(runtimePlan.windows || {});
+                          const focusedWindowId = windowsList.length > 0
+                                ? windowsList.reduce((top, w) => (w.zOrder > top.zOrder ? w : top), windowsList[0]).id
+                                : null;
+
+                          return windowsList.map(win => {
                     const blocks = bundleData?.blocks || {};
                     const block = (blocks[win.id] || Object.values(blocks).find((b: any) => b.id === win.id)) as any;
                     const contentRoot = block?.data?.children?.[0]?.blockId;
@@ -8256,10 +8358,11 @@ function App() {
                      <WindowFrame
                         key={win.id}
                         win={win}
-                        onFocus={() => { runtimeRef.current.focusWindow(win.id); syncRuntime(); }}
+                                isFocused={focusedWindowId === win.id}
+                                onFocus={() => { focusWindowWithTelemetry(win.id); }}
                         onMove={(x,y) => { runtimeRef.current.moveWindow(win.id, x, y); syncRuntime(); }}
                         onResize={(w,h) => { runtimeRef.current.resizeWindow(win.id, w, h); syncRuntime(); }}
-                        onClose={() => { runtimeRef.current.closeWindow(win.id); syncRuntime(); }}
+                                onClose={() => { closeWindowWithTelemetry(win.id); }}
                         onMinimize={(m) => { runtimeRef.current.setMinimized(win.id, m); syncRuntime(); }}
                         onDock={(m) => { runtimeRef.current.dockWindow(win.id, m); syncRuntime(); }}
                      >
@@ -8272,7 +8375,8 @@ function App() {
                         )}
                      </WindowFrame>
                     );
-                 })}
+                          });
+                      })()}
 
                  <SysadminPanel 
                      isOpen={sysadminOpen} 
@@ -8287,6 +8391,8 @@ function App() {
                      canRollback={!!lastActiveBundle && runningSource === 'DRAFT'}
                      onRefresh={fetchBundle}
                      safeModeEnabled={safeModeEnabled}
+                     windowEvents={windowEvents}
+                     onClearWindowEvents={clearWindowEvents}
                  />
              </div>
 
