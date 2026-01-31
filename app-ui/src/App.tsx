@@ -3823,7 +3823,7 @@ function SysadminPanel({
     };
 
     useEffect(() => {
-        if (activeTab === 'Data') {
+        if (activeTab === 'Data' || activeTab === 'Bindings') {
             fetchDerivedPatches();
         }
     }, [activeTab, snapshotData?.activeVersionId]);
@@ -5728,6 +5728,40 @@ function SysadminPanel({
                  });
                  
                  const selectedBinding = selectedBindingId ? bindingsArr.find((b:any) => (b.blockId === selectedBindingId || b.id === selectedBindingId)) : null;
+                 const selectedBindingData = selectedBinding?.data || {};
+                 const endpoints = Array.isArray(selectedBindingData.endpoints) ? selectedBindingData.endpoints : [];
+                 const sourceEp = endpoints.find((e:any) => e.direction === 'out') || endpoints.find((e:any) => e.endpointId === 'source');
+                 const destEp = endpoints.find((e:any) => e.direction === 'in') || endpoints.find((e:any) => e.endpointId === 'dest');
+                 const mapping = selectedBindingData.mapping || {};
+                 const mode = selectedBindingData.mode || 'unknown';
+                 const enabled = selectedBindingData.enabled !== false;
+
+                 const sourceBlockId = sourceEp?.target?.blockId;
+                 const destBlockId = destEp?.target?.blockId;
+                 const sourcePath = sourceEp?.target?.path;
+                 const destPath = destEp?.target?.path;
+
+                 const sourceBlock = sourceBlockId ? (blocksMap as any)[sourceBlockId] : null;
+                 const destBlock = destBlockId ? (blocksMap as any)[destBlockId] : null;
+                 const sourceBlockType = sourceBlock?.blockType;
+                 const destBlockType = destBlock?.blockType;
+
+                 const canJumpToData = typeof sourceBlockType === 'string' && sourceBlockType.startsWith('data.') && !!sourceBlockId;
+
+                 let nodeEditorTab: string | null = null;
+                 if (destBlockType === 'ui.node.button') nodeEditorTab = 'Node Editor (Button)';
+                 else if (destBlockType === 'ui.node.text') nodeEditorTab = 'Node Editor (Text)';
+                 else if (destBlockType === 'ui.node.container') nodeEditorTab = 'Node Editor (Container)';
+                 else if (destBlockType === 'ui.node.window') nodeEditorTab = 'Node Editor (Window)';
+
+                 let derivedPreview: unknown = undefined;
+                 if (destBlockId && derivedPatches?.[destBlockId]) {
+                     const patch = derivedPatches[destBlockId];
+                     if (typeof destPath === 'string' && destPath.length > 0) {
+                         const normalized = destPath.startsWith('/') ? destPath.slice(1).replace(/\//g, '.') : destPath;
+                         derivedPreview = getValueByPath(patch, normalized);
+                     }
+                 }
 
                  return (
                      <div style={{display:'flex', flexDirection:'column', height:'100%'}}>
@@ -5770,6 +5804,54 @@ function SysadminPanel({
                              <div style={{flex:1, overflowY:'auto', paddingLeft:'5px'}}>
                                  {selectedBinding ? (
                                     <>
+                                        <div style={{marginBottom:'10px', padding:'8px', border:'1px solid #ddd', borderRadius:'4px', background:'#fafafa'}}>
+                                            <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'6px'}}>
+                                                <strong style={{fontSize:'0.9em'}}>Summary</strong>
+                                                <span style={{fontSize:'0.85em', color: enabled ? '#2e7d32' : '#c62828'}}>
+                                                    {enabled ? 'Enabled' : 'Disabled'} | {String(mode).toUpperCase()}
+                                                </span>
+                                            </div>
+                                            <div style={{fontSize:'0.85em', color:'#333', marginBottom:'6px'}}>
+                                                <strong>Source:</strong> {sourceBlockId || '(unknown)'} {sourcePath ? <span style={{color:'#666'}}>({sourcePath})</span> : <span style={{color:'#999'}}>(no path)</span>}
+                                            </div>
+                                            <div style={{fontSize:'0.85em', color:'#333', marginBottom:'6px'}}>
+                                                <strong>Dest:</strong> {destBlockId || '(unknown)'} {destPath ? <span style={{color:'#666'}}>({destPath})</span> : <span style={{color:'#999'}}>(no path)</span>}
+                                            </div>
+                                            <div style={{fontSize:'0.85em', color:'#333', marginBottom:'6px'}}>
+                                                <strong>Mapping:</strong> {mapping?.kind || 'unknown'} {mapping?.from ? <span style={{color:'#666'}}>from {mapping.from}</span> : null} {mapping?.to ? <span style={{color:'#666'}}>to {mapping.to}</span> : null}
+                                            </div>
+                                            <div style={{fontSize:'0.85em', color:'#333'}}>
+                                                <strong>Derived Preview:</strong> {derivedPreview !== undefined && derivedPreview !== '' ? (
+                                                    <span style={{marginLeft:'6px', color:'#1565c0'}}>{String(derivedPreview)}</span>
+                                                ) : (
+                                                    <span style={{marginLeft:'6px', color:'#999'}}>(no derived patch)</span>
+                                                )}
+                                            </div>
+                                            <div style={{display:'flex', gap:'8px', marginTop:'8px'}}>
+                                                <button
+                                                    onClick={() => {
+                                                        if (!canJumpToData) return;
+                                                        setActiveTab('Data');
+                                                        if (sourceBlockId) setSelectedDataBlockId(sourceBlockId);
+                                                    }}
+                                                    disabled={!canJumpToData}
+                                                    style={{fontSize:'0.85em', padding:'4px 8px', cursor: canJumpToData ? 'pointer' : 'default'}}
+                                                >
+                                                    Jump to Data
+                                                </button>
+                                                <button
+                                                    onClick={() => {
+                                                        if (!nodeEditorTab || !destBlockId) return;
+                                                        setActiveTab(nodeEditorTab);
+                                                        setNodeEditorSelectedId(destBlockId);
+                                                    }}
+                                                    disabled={!nodeEditorTab || !destBlockId}
+                                                    style={{fontSize:'0.85em', padding:'4px 8px', cursor: nodeEditorTab && destBlockId ? 'pointer' : 'default'}}
+                                                >
+                                                    Jump to Node
+                                                </button>
+                                            </div>
+                                        </div>
                                         <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'5px'}}>
                                             <strong style={{fontSize:'0.9em'}}>Binding Details</strong>
                                             <CopyBtn k="binding" text={selectedBinding} />
