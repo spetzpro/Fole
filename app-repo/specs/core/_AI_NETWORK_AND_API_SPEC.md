@@ -53,6 +53,11 @@ Authorization is performed AFTER authentication and follows:
 - Project scoping rules
 - No role escalation via API
 
+Localhost Dev Exception (Runtime Observability):
+- The versioned runtime observability endpoints under `/api/v1/runtime/*` remain **admin-only** for non-local traffic.
+- Requests originating from loopback (127.0.0.1 / ::1 / ::ffff:127.0.0.1) MAY be allowed in development even when no roles are present.
+- Remote requests without admin-equivalent roles MUST receive `403 Forbidden` using the standard envelope.
+
 Headers:
 - `X-Project-Id` required when calling project-scoped APIs
 

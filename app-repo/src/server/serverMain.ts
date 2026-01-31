@@ -70,6 +70,23 @@ async function main() {
         });
     };
 
+    const isLocalhostRequest = (ctx: any): boolean => {
+        const remote = ctx.remoteAddress || "";
+        return remote === "127.0.0.1" || remote === "::1" || remote === "::ffff:127.0.0.1";
+    };
+
+    const hasRuntimeAdminRole = (ctx: any): boolean => {
+        const roles = ctx.auth?.roles || [];
+        return roles.some((role: string) => {
+            const normalized = role.toUpperCase();
+            return normalized === "ADMIN" || normalized === "SYSADMIN";
+        });
+    };
+
+    const canAccessRuntimeObservability = (ctx: any): boolean => {
+        return isLocalhostRequest(ctx) || hasRuntimeAdminRole(ctx);
+    };
+
 
       router.post("/api/actions/dispatch", async (req, res) => {
           const body = await parseJsonBody(req);
@@ -297,8 +314,7 @@ async function main() {
 
   // Runtime: Invocations (non-debug, versioned)
   router.get("/api/v1/runtime/invocations/recent", async (req, res, _params, ctx) => {
-      const auth = requirePermission(ctx, 'sysadmin.config.preflight');
-      if (!auth.success) {
+      if (!canAccessRuntimeObservability(ctx)) {
           return sendErrorEnvelope(res, ctx, 403, "forbidden", "Access Denied");
       }
       const urlParts = parse(req.url || "", true);
@@ -310,8 +326,7 @@ async function main() {
 
   // Runtime: Traces (non-debug, versioned)
   router.get("/api/v1/runtime/traces/recent", async (req, res, _params, ctx) => {
-      const auth = requirePermission(ctx, 'sysadmin.config.preflight');
-      if (!auth.success) {
+      if (!canAccessRuntimeObservability(ctx)) {
           return sendErrorEnvelope(res, ctx, 403, "forbidden", "Access Denied");
       }
       const urlParts = parse(req.url || "", true);
@@ -323,8 +338,7 @@ async function main() {
 
   // Runtime: Snapshot (non-debug, versioned)
   router.get("/api/v1/runtime/snapshot", async (_req, res, _params, ctx) => {
-      const auth = requirePermission(ctx, 'sysadmin.config.preflight');
-      if (!auth.success) {
+      if (!canAccessRuntimeObservability(ctx)) {
           return sendErrorEnvelope(res, ctx, 403, "forbidden", "Access Denied");
       }
       const metadata = runtimeManager.getSnapshotMetadata();
