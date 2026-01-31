@@ -73,6 +73,7 @@ type RuntimePlan = {
     entrySlug: string;
     targetBlockId?: string;
     windows: Record<string, WindowState>;
+    availableWindows?: Record<string, { title: string }>;
     overlays: Record<string, OverlayState>;
     actions: ActionDefinition[];
 };
@@ -86,17 +87,19 @@ class WindowSystemRuntime {
     private rawBlocks = new Map<string, Record<string, unknown>>();
     private windowDefs = new Map<string, { title: string }>();
     private zCounter = 1;
+    private viewWidth = 900;
+    private viewHeight = 600;
 
     public init(bundleData: BundleResponse, ping: PingResponse, viewWidth = 900, viewHeight = 600) {
         this.entrySlug = (bundleData?.manifest as any)?.entrySlug ?? '';
         this.targetBlockId = ping?.targetBlockId;
+        this.viewWidth = viewWidth;
+        this.viewHeight = viewHeight;
 
         const blocksObj = bundleData?.blocks ?? {};
         const blocksArray = Array.isArray(blocksObj)
             ? (blocksObj as unknown[])
             : Object.values(blocksObj as Record<string, unknown>);
-        const minVisibleW = 120;
-        const minVisibleH = 80;
 
         this.windows.clear();
         this.overlays.clear();
@@ -184,22 +187,6 @@ class WindowSystemRuntime {
       } else if (windowsToRegister.has(blockId)) {
          // Store Definition
          this.windowDefs.set(blockId, { title });
-         
-         // Default Window Layout
-         const startX = 50 + (this.windows.size * 30);
-         const startY = 50 + (this.windows.size * 30);
-
-         this.windows.set(blockId, {
-            id: blockId,
-            title,
-            x: Math.max(0, Math.min(startX, viewWidth - minVisibleW)),
-            y: Math.max(0, Math.min(startY, viewHeight - minVisibleH)),
-            width: 400,
-            height: 300,
-            isMinimized: false,
-            dockMode: 'none',
-            zOrder: this.zCounter++
-         });
 
       }
       
@@ -289,13 +276,17 @@ class WindowSystemRuntime {
       }
 
       if (def) {
+         const minVisibleW = 120;
+         const minVisibleH = 80;
          const startX = 100;
          const startY = 100;
+         const x = Math.max(0, Math.min(startX, this.viewWidth - minVisibleW));
+         const y = Math.max(0, Math.min(startY, this.viewHeight - minVisibleH));
          this.windows.set(windowId, {
              id: windowId,
              title: def.title,
-             x: startX,
-             y: startY,
+             x,
+             y,
              width: 400,
              height: 300,
              isMinimized: false,
@@ -399,6 +390,7 @@ class WindowSystemRuntime {
        entrySlug: this.entrySlug,
        targetBlockId: this.targetBlockId,
        windows: Object.fromEntries(this.windows),
+             availableWindows: Object.fromEntries(this.windowDefs),
        overlays: Object.fromEntries(this.overlays),
        actions: this.actions
     };
@@ -8141,10 +8133,16 @@ function App() {
              <h4>Available Windows</h4>
 
              <ul>
-                 {runtimePlan && Object.values(runtimePlan.windows).map(w => (
-                     <li key={w.id} style={{fontSize:'0.9em'}}>
-                         <span style={{fontWeight: w.zOrder > 100 ? 'bold' : 'normal'}}>{w.id}</span>
-                         <button onClick={() => winOps.focus(w.id)} style={{marginLeft:'5px', fontSize:'0.7em'}}>Focus</button>
+                 {runtimePlan && runtimePlan.availableWindows && Object.entries(runtimePlan.availableWindows).map(([id, def]) => (
+                     <li key={id} style={{fontSize:'0.9em'}}>
+                         <span>{id}</span>
+                         {def?.title && def.title !== id && <span style={{marginLeft:'6px', color:'#666'}}>({def.title})</span>}
+                         <button
+                             onClick={() => { runtimeRef.current.openWindow(id); syncRuntime(); }}
+                             style={{marginLeft:'6px', fontSize:'0.7em'}}
+                         >
+                             Open
+                         </button>
                      </li>
                  ))}
              </ul>
