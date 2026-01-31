@@ -7965,6 +7965,15 @@ function App() {
       setActionRuns(prev => [record, ...prev].slice(0, 50)); 
   };
 
+  const handleV2Action = (actionId: string, sourceBlockId?: string) => {
+      const blocks = bundleData?.blocks as Record<string, any> | undefined;
+      const block = blocks?.[actionId];
+      if (block && block.blockType === 'action.openWindow' && typeof block.data?.windowId === 'string') {
+          runtimeRef.current.openWindow(block.data.windowId);
+          syncRuntime();
+      }
+  };
+
   const { headerRightItems, headerLeftItems } = useMemo(() => {
      if (!bundleData?.blocks) return { headerRightItems: [], headerLeftItems: [] };
      const blocks = Array.isArray(bundleData.blocks) 
@@ -8264,7 +8273,7 @@ function App() {
              <div ref={viewportRef} style={{flex:1, display: 'flex', flexDirection: 'column', position:'relative', backgroundColor:'#f0f0f0', overflow:'hidden'}}>
                  { regions.viewport?.data?.contentRootId && (
                      <div style={{flex: 1, width:'100%', overflow:'hidden', position:'relative'}}>
-                        <V2RendererPreview embedded rootId={regions.viewport.data.contentRootId} />
+                        <V2RendererPreview embedded rootId={regions.viewport.data.contentRootId} onAction={handleV2Action} />
                      </div>
                  )}
                  
@@ -8286,7 +8295,7 @@ function App() {
                         onDock={(m) => { runtimeRef.current.dockWindow(win.id, m); syncRuntime(); }}
                      >
                         {contentRoot ? (
-                            <V2RendererPreview embedded rootId={contentRoot} />
+                            <V2RendererPreview embedded rootId={contentRoot} onAction={handleV2Action} />
                         ) : (
                            <div style={{padding:'20px', color:'#666', fontStyle:'italic'}}>
                               No content configured.
@@ -8330,7 +8339,7 @@ function App() {
              )}
           </div>
       </div>
-      {showV2 && <V2RendererPreview onClose={() => setShowV2(false)} />}
+    {showV2 && <V2RendererPreview onClose={() => setShowV2(false)} onAction={handleV2Action} />}
     </div>
     </CapabilitiesContext.Provider>
   );

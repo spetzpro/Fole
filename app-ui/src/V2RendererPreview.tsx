@@ -20,11 +20,12 @@ interface V2RendererPreviewProps {
     embedded?: boolean;
     rootId?: string;
     activeVersionId?: string;
+    onAction?: (actionId: string, sourceBlockId?: string) => void;
 }
 
 type DerivedPatches = Record<string, Record<string, unknown>>;
 
-export function V2RendererPreview({ onClose, embedded, rootId, activeVersionId }: V2RendererPreviewProps) {
+export function V2RendererPreview({ onClose, embedded, rootId, activeVersionId, onAction }: V2RendererPreviewProps) {
     const [graph, setGraph] = useState<ResolvedUiGraph | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [derivedState, setDerivedState] = useState<DerivedPatches>({});
@@ -140,6 +141,8 @@ export function V2RendererPreview({ onClose, embedded, rootId, activeVersionId }
                          effectiveProps.behaviors?.onClick?.action?.actionId ??
                          null;
                      if (actionId) {
+                         const sourceBlockId = (node.props?.blockId as string | undefined) ?? node.id;
+                         onAction?.(actionId, sourceBlockId);
                          try {
                             const res = await fetch(apiUrl('/api/actions/dispatch'), {
                                 method: 'POST',
