@@ -255,6 +255,32 @@ Operations for defining tables and fields at runtime.
 - **DoS Protection:** See `_AI_SECURITY_AND_COMPLIANCE_SPEC.md` for strict limits on query complexity and graph size.
 - **Logic Bounds:** See `_AI_UI_BINDING_AND_LOGIC_SPEC.md` for constraints on expressions sent during validation.
 
+### 17.5 v1 Config Block Patch (Admin-Only)
+Versioned write-back for admin-edited `data.static` blocks.
+
+| Method | Endpoint | Description | Permission Required |
+| :--- | :--- | :--- | :--- |
+| `PATCH` | `/api/v1/config/blocks/:blockId` | Patch `block.data` (shallow merge) and persist as a new version; activates the new version. | Admin-equivalent (localhost dev exception allowed) |
+
+**Request Body:**
+```json
+{
+  "patch": { "data": { "value": "..." } },
+  "message": "optional audit message"
+}
+```
+
+**Response (Envelope):**
+```json
+{
+  "ok": true,
+  "data": { "newVersionId": "v...", "blockId": "..." },
+  "error": null,
+  "requestId": "...",
+  "timestamp": "..."
+}
+```
+
 ## 18. RELATION TO OTHER SPECS
 - Storage rules: _AI_STORAGE_ARCHITECTURE.md
 - Auth/roles: _AI_ROLES_AND_PERMISSIONS.md

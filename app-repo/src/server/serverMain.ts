@@ -312,6 +312,104 @@ async function main() {
     }
   });
 
+  // Versioned Data Block Patch (Sysadmin, v1)
+    router.post("/api/v1/config/blocks/:blockId/patch", async (req, res, params, ctx) => {
+      if (!canAccessRuntimeObservability(ctx)) {
+          return sendErrorEnvelope(res, ctx, 403, "forbidden", "Access Denied");
+      }
+
+      const { blockId } = params;
+      if (!blockId) {
+          return sendErrorEnvelope(res, ctx, 400, "invalid_request", "Missing blockId");
+      }
+
+      const body = await router.readJsonBody(req);
+      const patch = body?.patch;
+      const message = typeof body?.message === "string" ? body.message : "Sysadmin data patch";
+
+      if (!patch || typeof patch !== "object") {
+          return sendErrorEnvelope(res, ctx, 400, "invalid_request", "Missing or invalid patch");
+      }
+
+      if (
+          Object.prototype.hasOwnProperty.call(patch, "blockType") ||
+          Object.prototype.hasOwnProperty.call(patch, "schemaVersion") ||
+          Object.prototype.hasOwnProperty.call(patch, "filename")
+      ) {
+          return sendErrorEnvelope(res, ctx, 400, "invalid_patch", "Patch may not modify blockType/schemaVersion/filename");
+      }
+
+      const patchKeys = Object.keys(patch);
+      if (patchKeys.some((k) => k !== "data")) {
+          return sendErrorEnvelope(res, ctx, 400, "invalid_patch", "Only data patches are supported");
+      }
+
+      if (!patch.data || typeof patch.data !== "object") {
+          return sendErrorEnvelope(res, ctx, 400, "invalid_patch", "Patch.data must be an object");
+      }
+
+      const active = await configRepo.getActivePointer();
+      if (!active) {
+          return sendErrorEnvelope(res, ctx, 404, "not_found", "No active configuration found");
+      }
+
+      let bundleContainer;
+      try {
+          bundleContainer = await configRepo.getBundle(active.activeVersionId);
+      } catch (err: any) {
+          return sendErrorEnvelope(res, ctx, 404, "not_found", err.message || "Active bundle not found");
+      }
+
+      const baseBundle = bundleContainer.bundle;
+      const blocks = baseBundle?.blocks;
+      if (!blocks || typeof blocks !== "object") {
+          return sendErrorEnvelope(res, ctx, 500, "invalid_bundle", "Active bundle missing blocks");
+      }
+
+      const block = (blocks as Record<string, any>)[blockId];
+      if (!block) {
+          return sendErrorEnvelope(res, ctx, 404, "not_found", `Block ${blockId} not found`);
+      }
+
+      if (block.blockType !== "data.static") {
+          return sendErrorEnvelope(res, ctx, 400, "invalid_block_type", "Only data.static blocks are editable");
+      }
+
+      const baseData = block.data && typeof block.data === "object" ? block.data : {};
+      const nextData = { ...baseData, ...(patch.data as Record<string, unknown>) };
+
+      const nextBlock = {
+          ...block,
+          data: nextData
+      };
+
+      const nextBlocks = {
+          ...(blocks as Record<string, any>),
+          [blockId]: nextBlock
+      };
+
+      const nextBundle = {
+          ...baseBundle,
+          blocks: nextBlocks
+      };
+
+      const report = await validator.validateBundle(nextBundle);
+      const errors = report.errors?.filter((e: any) => e.severity === "A1" || e.severity === "A2") || [];
+      if (report.status !== "valid" || errors.length > 0) {
+          return sendErrorEnvelope(res, ctx, 400, "validation_failed", "Bundle validation failed");
+      }
+
+      const { newVersionId } = await configRepo.saveHealedBundleAsVersion(
+          nextBundle,
+          active.activeVersionId,
+          message
+      );
+      await configRepo.activateVersion(newVersionId, message, "normal");
+      await runtimeManager.reload();
+
+      return sendEnvelope(res, ctx, { newVersionId, blockId });
+  });
+
   // Runtime: Invocations (non-debug, versioned)
   router.get("/api/v1/runtime/invocations/recent", async (req, res, _params, ctx) => {
       if (!canAccessRuntimeObservability(ctx)) {

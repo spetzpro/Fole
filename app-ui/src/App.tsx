@@ -723,6 +723,9 @@ function ConfigSysadminView({
     pendingPreflight, setPendingPreflight, pendingAck, setPendingAck, 
     pendingCandidateVersionId, setPendingCandidateVersionId,
     dismissTimerRef,
+    onRefreshBundle,
+    onRefreshResolvedGraph,
+    onRefreshSnapshot,
     setConfirmModal
 }: { 
     bundleData: BundleResponse | null; 
@@ -730,6 +733,9 @@ function ConfigSysadminView({
     activeVersionId?: string|null;
     onCloneSysadminDraft?: (sysadminBlocks: Record<string, unknown>, reason: string) => Promise<string>;
     onActivateVersion?: (versionId: string, reason: string) => Promise<void>;
+    onRefreshBundle?: () => Promise<void> | void;
+    onRefreshResolvedGraph?: () => void;
+    onRefreshSnapshot?: () => Promise<any> | void;
     // Stable State Props
     pendingStage: 'idle' | 'saving' | 'awaiting_ack' | 'activating' | 'error' | 'success' | 'preflight_error';
     setPendingStage: (s: 'idle' | 'saving' | 'awaiting_ack' | 'activating' | 'error' | 'success' | 'preflight_error') => void;
@@ -3888,6 +3894,10 @@ function SysadminPanel({
     const [derivedPatchesError, setDerivedPatchesError] = useState<string | null>(null);
     const [selectedDataBlockId, setSelectedDataBlockId] = useState<string | null>(null);
     const lastDerivedFetchKeyRef = useRef<string | null>(null);
+    const [dataStaticDraft, setDataStaticDraft] = useState("");
+    const [dataStaticStatus, setDataStaticStatus] = useState<string | null>(null);
+    const [dataStaticError, setDataStaticError] = useState<string | null>(null);
+    const [dataStaticSaving, setDataStaticSaving] = useState(false);
 
     const dataBlocks = useMemo(() => {
         const blocksMap = (bundleData as any)?.blocks || {};
@@ -3939,6 +3949,81 @@ function SysadminPanel({
         if (!exists) {
             setSelectedDataBlockId(dataBlocks[0].blockId);
         }
+    }, [activeTab, dataBlocks, selectedDataBlockId]);
+
+    const handleSaveDataStatic = async () => {
+        const selectedBlock = dataBlocks.find(b => b.blockId === selectedDataBlockId) || dataBlocks[0];
+        if (!selectedBlock || selectedBlock.blockType !== 'data.static') return;
+
+        setDataStaticSaving(true);
+        setDataStaticStatus(null);
+        setDataStaticError(null);
+
+        const res = await governedFetch(`/api/v1/config/blocks/${encodeURIComponent(selectedBlock.blockId)}/patch`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                patch: { data: { value: dataStaticDraft } },
+                message: 'Sysadmin data edit'
+            })
+        });
+
+        if (!res) {
+            setDataStaticError('Save failed (no response)');
+            setDataStaticSaving(false);
+            return;
+        }
+
+        if (!res.ok) {
+            const txt = await res.text().catch(() => '');
+            setDataStaticError(`Save failed (${res.status})${txt ? `: ${txt}` : ''}`);
+            setDataStaticSaving(false);
+            return;
+        }
+
+        try {
+            const json = await res.json();
+            if (json?.ok === false) {
+                setDataStaticError(json?.error?.message || 'Save failed');
+                setDataStaticSaving(false);
+                return;
+            }
+            const payload = json?.data ?? json?.result ?? null;
+            const newVersionId = payload?.newVersionId;
+            if (newVersionId) {
+                setDataStaticStatus(`Saved to version ${newVersionId}`);
+            } else {
+                setDataStaticStatus('Saved');
+            }
+
+            await onRefreshBundle?.();
+            await onRefreshSnapshot?.();
+            onRefreshResolvedGraph?.();
+            await fetchDerivedPatches();
+        } catch (e: any) {
+            setDataStaticError(e?.message || String(e));
+        } finally {
+            setDataStaticSaving(false);
+        }
+    };
+
+    useEffect(() => {
+        if (activeTab !== 'Data') return;
+        const selectedBlock = dataBlocks.find(b => b.blockId === selectedDataBlockId) || dataBlocks[0];
+        if (selectedBlock?.blockType === 'data.static') {
+            const nextValue = (selectedBlock.data as any)?.value;
+            if (typeof nextValue === 'string') {
+                setDataStaticDraft(nextValue);
+            } else if (nextValue !== undefined) {
+                setDataStaticDraft(JSON.stringify(nextValue, null, 2));
+            } else {
+                setDataStaticDraft('');
+            }
+        } else {
+            setDataStaticDraft('');
+        }
+        setDataStaticStatus(null);
+        setDataStaticError(null);
     }, [activeTab, dataBlocks, selectedDataBlockId]);
 
     // --- ActionIndex Memoization ---
@@ -5565,6 +5650,9 @@ function SysadminPanel({
                         bundleData={bundleData} 
                         renderKnownPanel={renderKnownPanel} 
                         activeVersionId={snapshotData?.activeVersionId}
+                        onRefreshBundle={fetchBundle}
+                        onRefreshResolvedGraph={refreshResolvedGraph}
+                        onRefreshSnapshot={refreshSnapshot}
                         pendingStage={pendingStage}
                         setPendingStage={setPendingStage}
                         saveMessage={saveMessage}
@@ -5953,6 +6041,7 @@ function SysadminPanel({
                 const baseObj = (baseData && typeof baseData === 'object') ? baseData as Record<string, unknown> : {};
                 const derivedPatch = selectedBlock ? derivedPatches?.[selectedBlock.blockId] : undefined;
                 const effectiveData = derivedPatch ? { ...baseObj, ...derivedPatch } : baseObj;
+                const isDataStatic = selectedBlock?.blockType === 'data.static';
 
                 return (
                     <div style={{display:'flex', height:'100%', overflow:'hidden'}}>
@@ -5988,6 +6077,43 @@ function SysadminPanel({
                                     Warning: {derivedPatchesError}. Showing base config data only.
                                 </div>
                             )}
+
+                            <div style={{marginBottom:'15px', border:'1px solid #ddd', borderRadius:'4px'}}>
+                                <div style={{padding:'8px', background:'#f5f5f5', borderBottom:'1px solid #ddd', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+                                    <span>
+                                        <strong>Editable Value</strong>
+                                        <span style={{marginLeft:'8px', fontSize:'0.85em', color:'#666'}}>(data.static only)</span>
+                                    </span>
+                                </div>
+                                <div style={{padding:'10px', display:'flex', flexDirection:'column', gap:'8px'}}>
+                                    {isDataStatic ? (
+                                        <>
+                                            <textarea
+                                                value={dataStaticDraft}
+                                                onChange={e => setDataStaticDraft(e.target.value)}
+                                                rows={4}
+                                                style={{width:'100%', resize:'vertical', padding:'8px', border:'1px solid #ccc', borderRadius:'4px', fontFamily:'inherit'}}
+                                            />
+                                            <div style={{display:'flex', alignItems:'center', gap:'10px'}}>
+                                                <button
+                                                    onClick={handleSaveDataStatic}
+                                                    disabled={dataStaticSaving}
+                                                    style={{padding:'6px 12px', cursor: dataStaticSaving ? 'default' : 'pointer'}}
+                                                >
+                                                    {dataStaticSaving ? 'Saving…' : 'Save'}
+                                                </button>
+                                                <div style={{fontSize:'0.85em', color: dataStaticError ? '#c62828' : '#2e7d32'}}>
+                                                    {dataStaticError || dataStaticStatus || ''}
+                                                </div>
+                                            </div>
+                                        </>
+                                    ) : (
+                                        <div style={{fontSize:'0.9em', color:'#666'}}>
+                                            Read-only. Only data.static blocks are editable.
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
 
                             <div style={{marginBottom:'15px', border:'1px solid #ddd', borderRadius:'4px'}}>
                                 <div style={{padding:'8px', background:'#f5f5f5', borderBottom:'1px solid #ddd', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
