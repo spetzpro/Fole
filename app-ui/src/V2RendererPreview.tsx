@@ -134,7 +134,11 @@ export function V2RendererPreview({ onClose, embedded, rootId, activeVersionId }
             case 'ui.node.button':
                 const handleButtonClick = async () => {
                      // @ts-ignore
-                     const actionId = effectiveProps.behaviors?.onClick?.actionId;
+                     const actionId =
+                         effectiveProps.behaviors?.onClick?.actionId ??
+                         effectiveProps.onClick?.actionId ??
+                         effectiveProps.behaviors?.onClick?.action?.actionId ??
+                         null;
                      if (actionId) {
                          try {
                             const res = await fetch(apiUrl('/api/actions/dispatch'), {
