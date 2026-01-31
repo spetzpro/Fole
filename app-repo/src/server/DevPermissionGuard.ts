@@ -8,13 +8,22 @@ export interface AuthResult {
     error?: any;
 }
 
+const normalizeRole = (role: string): CanonicalRole | string => {
+    const upper = role.toUpperCase();
+    if (upper === "SYSADMIN" || upper === "ADMIN") {
+        return "ADMIN";
+    }
+    return upper;
+};
+
 export function requirePermission(ctx: RequestContext, requiredPermission: string): AuthResult {
     // 1. Try Real Production Auth
     if (ctx.auth && ctx.auth.roles) {
         // Resolve Permissions from roles
         const heldPermissions = new Set<string>();
         for (const role of ctx.auth.roles) {
-             const perms = CANONICAL_ROLE_PERMISSIONS[role as CanonicalRole] || [];
+             const normalizedRole = normalizeRole(role);
+             const perms = CANONICAL_ROLE_PERMISSIONS[normalizedRole as CanonicalRole] || [];
              perms.forEach(p => heldPermissions.add(p));
         }
 
@@ -48,7 +57,8 @@ export function requirePermission(ctx: RequestContext, requiredPermission: strin
                  if (Array.isArray(json.roles)) {
                      const heldPermissions = new Set<string>();
                      json.roles.forEach((r: string) => {
-                         const perms = CANONICAL_ROLE_PERMISSIONS[r as CanonicalRole] || [];
+                         const normalizedRole = normalizeRole(r);
+                         const perms = CANONICAL_ROLE_PERMISSIONS[normalizedRole as CanonicalRole] || [];
                          perms.forEach(p => heldPermissions.add(p));
                      });
                      

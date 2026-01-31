@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, useMemo, Fragment, createContext, useContext } from 'react';
 import './App.css';
 import { apiUrl } from './lib/apiBase';
-import { deserializeWindowLayout, filterLayoutByAvailableWindows, serializeWindowLayout, PersistedWindowLayout } from './lib/windowLayout';
+import { deserializeWindowLayout, filterLayoutByAvailableWindows, serializeWindowLayout } from './lib/windowLayout';
+import type { PersistedWindowLayout } from './lib/windowLayout';
 import V2RendererPreview from './V2RendererPreview';
 import { findSysadminBlock, parseSysadminConfig } from './SysadminLoader';
 
@@ -2149,6 +2150,22 @@ function SysadminPanel({
         }
     };
 
+    const governedFetch = async (inputPath: string, init?: RequestInit): Promise<Response | null> => {
+        const devAuth = localStorage.getItem('FOLE_DEV_AUTH');
+        try {
+            const headers = new Headers(init?.headers || {});
+            if (devAuth) headers.set('X-Dev-Auth', devAuth);
+
+            return await fetch(apiUrl(inputPath), {
+                ...init,
+                headers
+            });
+        } catch (e) {
+            console.warn("Governed fetch failed", e);
+            return null;
+        }
+    };
+
     // Roadmap #6.1: Config-Driven Sysadmin Loader Hook (Placeholder)
     // In future steps, this will drive the UI instead of the hardcoded tabs below.
     // const sysadminBlock = bundleData?.blocks ? findSysadminBlock(bundleData.blocks) : null;
@@ -2612,8 +2629,13 @@ function SysadminPanel({
     const refreshSnapshot = async () => {
         setSnapshotLoading(true);
         setSnapshotError(null);
-        
-        const res = await fetch(apiUrl('/api/v1/runtime/snapshot'));
+
+        const res = await governedFetch('/api/v1/runtime/snapshot');
+        if (!res) {
+            setSnapshotError('Fetch failed (no response)');
+            setSnapshotLoading(false);
+            return null;
+        }
         if (!res.ok) {
             setSnapshotError(`Fetch failed (${res.status})`);
             setSnapshotLoading(false);
@@ -2653,8 +2675,13 @@ function SysadminPanel({
 
     const refreshTraces = async () => {
         setDispatchTracesError(null);
-        
-        const res = await fetch(apiUrl('/api/v1/runtime/traces/recent?limit=20'));
+
+        const res = await governedFetch('/api/v1/runtime/traces/recent?limit=20');
+        if (!res) {
+            setDispatchTracesError('Fetch failed (no response)');
+            setDispatchTraces([]);
+            return;
+        }
         if (!res.ok) {
             setDispatchTracesError(`Fetch failed (${res.status})`);
             setDispatchTraces([]);
@@ -2721,8 +2748,13 @@ function SysadminPanel({
 
     const refreshInvocations = async () => {
         setInvocationsError(null);
-        
-        const res = await fetch(apiUrl('/api/v1/runtime/invocations/recent?limit=20'));
+
+        const res = await governedFetch('/api/v1/runtime/invocations/recent?limit=20');
+        if (!res) {
+            setInvocationsError('Fetch failed (no response)');
+            setInvocations([]);
+            return;
+        }
         if (!res.ok) {
             setInvocationsError(`Fetch failed (${res.status})`);
             setInvocations([]);

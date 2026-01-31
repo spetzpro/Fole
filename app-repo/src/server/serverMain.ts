@@ -70,11 +70,6 @@ async function main() {
         });
     };
 
-    const isAdminRuntime = (ctx: any) => {
-        const roles = ctx?.auth?.roles;
-        if (!Array.isArray(roles)) return false;
-        return roles.includes("ADMIN") || roles.includes("SYSADMIN");
-    };
 
       router.post("/api/actions/dispatch", async (req, res) => {
           const body = await parseJsonBody(req);
@@ -302,7 +297,8 @@ async function main() {
 
   // Runtime: Invocations (non-debug, versioned)
   router.get("/api/v1/runtime/invocations/recent", async (req, res, _params, ctx) => {
-      if (!isAdminRuntime(ctx)) {
+      const auth = requirePermission(ctx, 'sysadmin.config.preflight');
+      if (!auth.success) {
           return sendErrorEnvelope(res, ctx, 403, "forbidden", "Access Denied");
       }
       const urlParts = parse(req.url || "", true);
@@ -314,7 +310,8 @@ async function main() {
 
   // Runtime: Traces (non-debug, versioned)
   router.get("/api/v1/runtime/traces/recent", async (req, res, _params, ctx) => {
-      if (!isAdminRuntime(ctx)) {
+      const auth = requirePermission(ctx, 'sysadmin.config.preflight');
+      if (!auth.success) {
           return sendErrorEnvelope(res, ctx, 403, "forbidden", "Access Denied");
       }
       const urlParts = parse(req.url || "", true);
@@ -326,7 +323,8 @@ async function main() {
 
   // Runtime: Snapshot (non-debug, versioned)
   router.get("/api/v1/runtime/snapshot", async (_req, res, _params, ctx) => {
-      if (!isAdminRuntime(ctx)) {
+      const auth = requirePermission(ctx, 'sysadmin.config.preflight');
+      if (!auth.success) {
           return sendErrorEnvelope(res, ctx, 403, "forbidden", "Access Denied");
       }
       const metadata = runtimeManager.getSnapshotMetadata();
