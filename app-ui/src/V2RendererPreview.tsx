@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { apiUrl } from './lib/apiBase';
+import { mergeDerivedProps } from './lib/derivedState';
 
 // Minimal types matching backend ResolvedUiGraph
 interface ResolvedUiNode {
@@ -96,13 +97,7 @@ export function V2RendererPreview({ onClose, embedded, rootId, activeVersionId, 
 
         // Apply derived state overlay (shallow merge of props)
         const baseProps = node.props ?? {};
-        const patch =
-            derivedState[nodeId] ??
-            derivedState[node.id] ??
-            (node.props?.blockId ? derivedState[node.props.blockId as string] : undefined) ??
-            (node.props?.id ? derivedState[node.props.id as string] : undefined);
-
-        const effectiveProps = patch ? { ...baseProps, ...patch } : baseProps;
+        const effectiveProps = mergeDerivedProps(baseProps, derivedState, node.id, node.props);
 
         const style: React.CSSProperties = {
             padding: '10px',

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo, Fragment, createContext, useContext } from 'react';
 import './App.css';
 import { apiUrl } from './lib/apiBase';
+import { deserializeWindowLayout, filterLayoutByAvailableWindows, serializeWindowLayout, PersistedWindowLayout } from './lib/windowLayout';
 import V2RendererPreview from './V2RendererPreview';
 import { findSysadminBlock, parseSysadminConfig } from './SysadminLoader';
 
@@ -75,11 +76,6 @@ type WindowEvent = {
     windowId: string;
 };
 
-type PersistedWindowLayout = {
-    openWindows: string[];
-    focusedWindowId: string | null;
-    windows: Record<string, { x: number; y: number; width: number; height: number; zOrder: number }>;
-};
 
 type RuntimePlan = {
     entrySlug: string;
@@ -7722,22 +7718,10 @@ function App() {
     setRuntimePlan(snapshot);
     if (!layoutRestoringRef.current) {
         try {
-            const windows = snapshot.windows || {};
-            const openWindows = Object.keys(windows);
-            const layout: PersistedWindowLayout = {
-                openWindows,
-                focusedWindowId: snapshot.focusedWindowId ?? null,
-                windows: Object.fromEntries(openWindows.map(id => [
-                    id,
-                    {
-                        x: windows[id].x,
-                        y: windows[id].y,
-                        width: windows[id].width,
-                        height: windows[id].height,
-                        zOrder: windows[id].zOrder
-                    }
-                ]))
-            };
+            const layout = serializeWindowLayout({
+                windows: snapshot.windows || {},
+                focusedWindowId: snapshot.focusedWindowId ?? null
+            });
             localStorage.setItem(WINDOW_LAYOUT_KEY, JSON.stringify(layout));
         } catch (e) {
             // ignore persistence errors
@@ -7748,10 +7732,11 @@ function App() {
   const restoreWindowLayout = () => {
       try {
           const raw = localStorage.getItem(WINDOW_LAYOUT_KEY);
-          if (!raw) return false;
-          const parsed = JSON.parse(raw) as PersistedWindowLayout;
-          if (!parsed || !Array.isArray(parsed.openWindows) || typeof parsed.windows !== 'object') return false;
-          runtimeRef.current.restoreLayout(parsed);
+          const parsed = deserializeWindowLayout(raw);
+          if (!parsed) return false;
+          const available = runtimeRef.current.getSnapshot().availableWindows || {};
+          const filtered = filterLayoutByAvailableWindows(parsed, new Set(Object.keys(available)));
+          runtimeRef.current.restoreLayout(filtered);
           return true;
       } catch {
           return false;

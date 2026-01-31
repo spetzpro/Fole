@@ -17,6 +17,10 @@ export interface RuntimeInvocation {
     actionId: string;
     sourceBlockId?: string;
     status: string;
+    durationMs?: number;
+    resultSummary?: string;
+    result?: object;
+    error?: string;
     details?: any;
 }
 
@@ -26,6 +30,9 @@ export interface RuntimeTrace {
     status: string;
     durationMs?: number;
     reasonCode?: string;
+    resultSummary?: string;
+    result?: object;
+    error?: string;
 }
 
 export function createBindingRuntimeManager(configRepo: ShellConfigRepository): BindingRuntimeManager {
