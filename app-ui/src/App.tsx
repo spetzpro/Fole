@@ -7260,10 +7260,15 @@ function SysadminPanel({
                          ) : (
                              <div style={{flex:1, overflowY:'auto'}}>
                                  {dispatchTraces.map((trace, idx) => {
-                                      const key = `${trace.timestamp}-${idx}`;
+                                      const ts = (trace as any).ts ?? (trace as any).timestamp;
+                                      const key = `${ts ?? 'trace'}-${idx}`;
                                       const isExpanded = expandedTraceKey === key;
-                                      const statusColor = trace.result.applied > 0 ? '#2e7d32' : (trace.result.skipped > 0 ? '#ef6c00' : '#666');
-                                      
+                                      const status = (trace as any).status ?? '-';
+                                      const statusColor = status === 'error' ? '#c62828' : (status === 'dispatched' || status === 'ok' ? '#2e7d32' : '#666');
+                                      const actionId = (trace as any).actionId ?? '-';
+                                      const durationMs = (trace as any).durationMs ?? '-';
+                                      const reasonCode = (trace as any).reasonCode ?? '-';
+
                                       return (
                                           <div key={key} style={{borderBottom:'1px solid #eee'}}>
                                               <div 
@@ -7279,16 +7284,16 @@ function SysadminPanel({
                                               >
                                                   <div style={{display:'flex', gap:'10px', alignItems:'center'}}>
                                                       <span style={{fontFamily:'monospace', fontSize:'0.85em', color:'#555'}}>
-                                                          {new Date(trace.timestamp).toLocaleTimeString()}
+                                                          {ts ? new Date(ts).toLocaleTimeString() : '-'}
                                                       </span>
-                                                      <span style={{fontWeight:'bold', width:'180px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>
-                                                          {trace.action.sourceBlockId}::<span style={{color:'#666'}}>{trace.action.name}</span>
+                                                      <span style={{fontWeight:'bold', width:'220px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>
+                                                          {actionId}
                                                       </span>
                                                       <span style={{
                                                           fontSize:'0.8em', fontWeight:'bold', color:'white', 
                                                           padding:'1px 6px', borderRadius:'3px', background: statusColor
                                                       }}>
-                                                          {trace.result.applied > 0 ? 'APPLIED' : (trace.result.skipped > 0 ? 'SKIPPED' : 'NO-OP')}
+                                                          {status}
                                                       </span>
                                                   </div>
                                                   <div style={{fontSize:'1.2em', color:'#aaa'}}>{isExpanded ? '−' : '+'}</div>
@@ -7300,103 +7305,25 @@ function SysadminPanel({
                                                           <CopyBtn k={`tr-${key}`} text={trace} />
                                                       </div>
                                                       <div style={{fontSize:'0.9em', display:'grid', gridTemplateColumns:'auto 1fr', gap:'5px 15px', marginBottom:'10px'}}>
+                                                          <div style={{color:'#666'}}>Timestamp:</div>
+                                                          <div>{ts ?? '-'}</div>
+
                                                           <div style={{color:'#666'}}>Action:</div>
-                                                          <div>{trace.action.sourceBlockId}::{trace.action.name}</div>
-                                                          
-                                                          <div style={{color:'#666'}}>Emitted Trigger:</div>
-                                                          <div>{trace.emittedTrigger.sourceBlockId}::{trace.emittedTrigger.name}</div>
-                                                          
-                                                          <div style={{color:'#666'}}>Result:</div>
-                                                          <div>Applied: {trace.result.applied}, Skipped: {trace.result.skipped}</div>
+                                                          <div>{actionId}</div>
+
+                                                          <div style={{color:'#666'}}>Status:</div>
+                                                          <div>{status}</div>
+
+                                                          <div style={{color:'#666'}}>Duration:</div>
+                                                          <div>{durationMs}</div>
+
+                                                          <div style={{color:'#666'}}>Reason:</div>
+                                                          <div>{reasonCode}</div>
                                                       </div>
 
-                                                      {/* Matched Bindings List */}
-                                                      <div style={{marginTop:'10px'}}>
-                                                          <div style={{fontWeight:'bold', borderBottom:'1px solid #ccc', paddingBottom:'2px', marginBottom:'5px', color:'#555'}}>Matched Bindings ({trace.matchedBindings?.length || 0})</div>
-                                                          {(!trace.matchedBindings || trace.matchedBindings.length === 0) ? (
-                                                              <div style={{fontStyle:'italic', color:'#999'}}>No bindings matched this trigger.</div>
-                                                          ) : (
-                                                              <div style={{display:'flex', flexDirection:'column', gap:'5px'}}>
-                                                                  {trace.matchedBindings.map((mb, mBi) => (
-                                                                      <div key={mBi} style={{background:'white', border:'1px solid #ddd', padding:'6px', borderRadius:'4px', fontSize:'0.9em'}}>
-                                                                          <div style={{display:'flex', justifyContent:'space-between', fontWeight:'bold', color:'#333'}}>
-                                                                              <span>{mb.bindingId}</span>
-                                                                              <span style={{fontSize:'0.85em', color:'#007acc'}}>{mb.mode}</span>
-                                                                          </div>
-                                                                          <div style={{color:'#666', fontSize:'0.9em', marginTop:'2px'}}>
-                                                                              Kind: {mb.kind}
-                                                                          </div>
-                                                                          <div style={{marginTop:'4px', fontFamily:'monospace', background:'#eee', padding:'4px', borderRadius:'2px', whiteSpace:'pre-wrap', wordBreak:'break-all'}}>
-                                                                              {mb.summary}
-                                                                          </div>
-                                                                      </div>
-                                                                  ))}
-                                                              </div>
-                                                          )}
-                                                      </div>
-
-                                                      {/* Effects List */}
-                                                      <div style={{marginTop:'10px'}}>
-                                                          <div style={{fontWeight:'bold', borderBottom:'1px solid #ccc', paddingBottom:'2px', marginBottom:'5px', color:'#555'}}>Effects ({trace.effects?.length || 0})</div>
-                                                          {(!trace.effects || trace.effects.length === 0) ? (
-                                                              <div style={{fontStyle:'italic', color:'#999'}}>No effects recorded.</div>
-                                                          ) : (
-                                                              <div style={{display:'flex', flexDirection:'column', gap:'5px'}}>
-                                                                  {trace.effects.map((eff, eBi) => (
-                                                                      <div key={eBi} style={{background:'white', border:'1px solid #ddd', padding:'8px', borderRadius:'4px', fontSize:'0.9em'}}>
-                                                                          <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'4px'}}>
-                                                                              <span style={{textTransform:'uppercase', fontSize:'0.75em', fontWeight:'bold', background:'#eee', padding:'2px 5px', borderRadius:'3px', color:'#555'}}>{eff.kind}</span>
-                                                                              {eff.kind === 'integration' && (
-                                                                                 <span style={{
-                                                                                     fontSize:'0.75em', fontWeight:'bold', textTransform:'uppercase',
-                                                                                     padding:'2px 8px', borderRadius:'10px',
-                                                                                     color: 'white',
-                                                                                     background: eff.status === 'success' ? '#2e7d32' 
-                                                                                         : (eff.status === 'error' ? '#c62828' 
-                                                                                         : (eff.status === 'dry_run' ? '#00796b' : '#f57c00'))
-                                                                                 }}>
-                                                                                     {eff.status}
-                                                                                 </span>
-                                                                              )}
-                                                                          </div>
-                                                                          
-                                                                          {eff.kind === 'integration' && (
-                                                                              <div style={{marginTop:'4px'}}>
-                                                                                  <div style={{fontWeight:'bold', color:'#333', marginBottom:'2px'}}>{eff.integrationId}</div>
-                                                                                  <div style={{fontFamily:'monospace', color:'#444'}}>
-                                                                                      {eff.method} {eff.path}
-                                                                                  </div>
-                                                                                  <div 
-                                                                                      title={eff.url || ''}
-                                                                                      style={{
-                                                                                          fontSize:'0.85em', 
-                                                                                          color: eff.url ? '#0277bd' : '#999', 
-                                                                                          fontFamily:'monospace',
-                                                                                          marginTop:'2px',
-                                                                                          whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis',
-                                                                                          fontStyle: eff.url ? 'normal' : 'italic'
-                                                                                      }}>
-                                                                                      {eff.url || '(no url)'}
-                                                                                  </div>
-                                                                              </div>
-                                                                          )}
-
-                                                                          {eff.kind === 'write' && (
-                                                                              <div style={{marginTop:'4px', fontSize:'0.9em'}}>
-                                                                                  <div style={{fontWeight:'bold'}}>{eff.targetBlockId}</div>
-                                                                                  <div style={{fontFamily:'monospace', color:'#555'}}>
-                                                                                       Path: {eff.path}
-                                                                                  </div>
-                                                                                  <div style={{marginTop:'2px', background:'#f5f5f5', padding:'2px 4px', borderRadius:'3px', fontFamily:'monospace', wordBreak:'break-all'}}>
-                                                                                      = {JSON.stringify(eff.value)}
-                                                                                  </div>
-                                                                              </div>
-                                                                          )}
-                                                                      </div>
-                                                                  ))}
-                                                              </div>
-                                                          )}
-                                                      </div>
+                                                      <pre style={{margin:0, background:'#f5f5f5', padding:'6px', borderRadius:'4px', fontSize:'0.85em'}}>
+                                                          {JSON.stringify(trace, null, 2)}
+                                                      </pre>
                                                   </div>
                                               )}
                                           </div>
