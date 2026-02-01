@@ -6240,7 +6240,7 @@ function SysadminPanel({
                                     <div style={{display:'flex', justifyContent:'flex-end', gap:'8px', marginTop:'12px'}}>
                                         <button
                                             onClick={() => { setShowActivateDraftModal(false); setActivateDraftReason(''); }}
-                                            style={{padding:'6px 12px', background:'#fff', border:'1px solid #ccc', borderRadius:'4px', cursor:'pointer'}}
+                                            style={{padding:'6px 12px', background:'#fff', color:'#111', border:'1px solid #ccc', borderRadius:'4px', cursor:'pointer'}}
                                             disabled={activateDraftSaving}
                                         >
                                             Cancel
@@ -6328,7 +6328,9 @@ function SysadminPanel({
                                                     Activate Draft
                                                 </button>
                                                 <div style={{fontSize:'0.85em', color: dataStaticError ? '#c62828' : '#2e7d32'}}>
-                                                    {dataStaticError || dataStaticStatus || ''}
+                                                    {(!showActivateDraftModal || dataStaticError !== 'Activation reason is required')
+                                                        ? (dataStaticError || dataStaticStatus || '')
+                                                        : (dataStaticStatus || '')}
                                                 </div>
                                             </div>
                                         </>
