@@ -63,9 +63,15 @@ An ActivationEvent contains:
   - Shown to the active user during the current session.
   - Intended for immediate feedback after activation.
 
+- **Admin Activation Log (MVP)**
+  - A minimal, durable ActivationEvent log is persisted server-side.
+  - Read-only access is provided via admin-gated endpoints.
+  - This log is intended for recent history and troubleshooting, not full compliance auditing.
+  - Endpoint (MVP): `GET /api/v1/admin/activations?limit=50`
+
 - **Audit Log (Future)**
-  - A persistent log is out of scope for this spec.
-  - A future audit system may consume ActivationEvents or derive its own entries.
+  - A full audit system remains out of scope for this spec.
+  - Future audit infrastructure may consume ActivationEvents or derive its own entries.
 
 - **Notifications (Future)**
   - A user notification system is explicitly out of scope.
@@ -91,7 +97,7 @@ An ActivationEvent contains:
 
 ## 6. Non-Goals
 
-- Defining a durable audit trail or event storage.
+- Defining a full audit trail or compliance-grade event storage.
 - Building a global notification system or inbox.
 - Specifying backend persistence or database schema for activation events.
 - Designing a full UI framework for banners beyond minimal session feedback.

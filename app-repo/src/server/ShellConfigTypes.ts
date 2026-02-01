@@ -10,6 +10,19 @@ export interface ActivePointer {
   safeModeReport?: ValidationReport;
 }
 
+export interface ActivationEvent {
+  id: string;
+  ts: string;
+  actor: string;
+  reason: string;
+  action: string;
+  targetVersion: string | null;
+  outcome: "success" | "failure";
+  errorMessage?: string;
+  requestId?: string;
+  fromVersionId?: string | null;
+}
+
 export interface ConfigMeta {
   versionId: string;
   author: string;

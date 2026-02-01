@@ -8,6 +8,11 @@ export default defineConfig({
     port: 5173,
     strictPort: true,
     proxy: {
+      '/api/v1': {
+        target: 'http://127.0.0.1:3000',
+        changeOrigin: true,
+        secure: false,
+      },
       '/api': {
         target: 'http://127.0.0.1:3000',
         changeOrigin: true,

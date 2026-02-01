@@ -1,14 +1,16 @@
 import { promises as fs } from "fs";
 import * as path from "path";
-import { ActivePointer, ShellBundle, ConfigMeta, ConfigValidation, ShellManifest, BlockEnvelope, ResolvedUiGraph, ValidationReport } from "./ShellConfigTypes";
+import { ActivePointer, ShellBundle, ConfigMeta, ConfigValidation, ShellManifest, BlockEnvelope, ResolvedUiGraph, ValidationReport, ActivationEvent } from "./ShellConfigTypes";
 
 export class ShellConfigRepository {
   private readonly configRoot: string;
   private readonly defaultsRoot: string;
+    private readonly activationEventsPath: string;
   
   constructor(workspaceFolder: string) {
     this.configRoot = path.join(workspaceFolder, "app-repo", "config", "shell");
     this.defaultsRoot = path.join(workspaceFolder, "app-repo", "config", "defaults", "shell");
+        this.activationEventsPath = path.join(this.configRoot, "activation-events.jsonl");
   }
 
   async ensureInitialized(): Promise<void> {
@@ -601,6 +603,46 @@ export class ShellConfigRepository {
       await fs.rename(tempPath, activePath);
       
       return { activeVersionId: versionId, activatedAt: now };
+  }
+
+  async recordActivationEvent(event: ActivationEvent): Promise<void> {
+      const line = JSON.stringify(event) + "\n";
+      await fs.appendFile(this.activationEventsPath, line, "utf-8");
+  }
+
+  async listActivationEvents(options: { limit?: number; outcome?: "success" | "failure"; after?: string } = {}): Promise<ActivationEvent[]> {
+      const limit = typeof options.limit === "number" ? options.limit : 50;
+      const outcome = options.outcome;
+      const after = options.after;
+      let content = "";
+
+      try {
+          content = await fs.readFile(this.activationEventsPath, "utf-8");
+      } catch (err: any) {
+          if (err.code === "ENOENT") return [];
+          throw err;
+      }
+
+      const lines = content.split(/\r?\n/).filter(l => l.trim().length > 0);
+      const parsed: ActivationEvent[] = [];
+      for (const line of lines) {
+          try {
+              const evt = JSON.parse(line) as ActivationEvent;
+              if (evt && evt.ts) parsed.push(evt);
+          } catch {
+              // skip malformed lines
+          }
+      }
+
+      const afterMs = after ? Date.parse(after) : null;
+      const filtered = parsed.filter(evt => {
+          if (outcome && evt.outcome !== outcome) return false;
+          if (afterMs && Date.parse(evt.ts) <= afterMs) return false;
+          return true;
+      });
+
+      filtered.sort((a, b) => new Date(b.ts).getTime() - new Date(a.ts).getTime());
+      return filtered.slice(0, limit);
   }
 
   async cloneVersionWithPatchedSysadmin(

@@ -6,6 +6,7 @@ import { Router } from "./Router";
 import { ShellConfigRepository } from "./ShellConfigRepository";
 import { ShellConfigValidator } from "./ShellConfigValidator";
 import { ShellConfigDeployer } from "./ShellConfigDeployer";
+import { ActivationEvent } from "./ShellConfigTypes";
 import { ModeGate } from "./ModeGate";
 import { BindingRuntime } from "./BindingRuntime";
 import { createBindingRuntimeManager } from "./BindingRuntimeManager";
@@ -68,6 +69,24 @@ async function main() {
             requestId: ctx.requestId,
             timestamp: new Date().toISOString()
         });
+    };
+
+    const recordActivationEvent = async (event: ActivationEvent) => {
+        try {
+            await configRepo.recordActivationEvent(event);
+        } catch (err: any) {
+            // eslint-disable-next-line no-console
+            console.error("[ActivationEvent] Failed to persist activation event:", err?.message || err);
+        }
+    };
+
+    const safeRecordActivationEvent = async (event: ActivationEvent) => {
+        try {
+            await configRepo.recordActivationEvent(event);
+        } catch (err: any) {
+            // eslint-disable-next-line no-console
+            console.warn("[ActivationEvent] Record failed:", err?.message || err);
+        }
     };
 
     const isLocalhostRequest = (ctx: any): boolean => {
@@ -229,16 +248,41 @@ async function main() {
           return router.json(res, auth.status || 403, auth.error || { error: "Access Denied" });
       }
 
+      let versionId: string | undefined;
+      let reason = "";
+      const actor = isLocalhostRequest(ctx) ? "dev" : (ctx.auth?.userId || "unknown");
+      let fromVersionId: string | null = null;
+
       try {
           const body = await router.readJsonBody(req);
-          const { versionId, reason } = body;
+          versionId = body?.versionId;
+          reason = typeof body?.reason === "string" ? body.reason : "";
 
           if (!versionId || typeof versionId !== "string") {
               return router.json(res, 400, { error: "Missing or invalid versionId" });
           }
 
+          try {
+              const active = await configRepo.getActivePointer();
+              fromVersionId = active?.activeVersionId ?? null;
+          } catch {
+              fromVersionId = null;
+          }
+
           const result = await configRepo.activateVersion(versionId, reason);
           await runtimeManager.reload();
+
+          await safeRecordActivationEvent({
+              id: `ae_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+              ts: new Date().toISOString(),
+              actor,
+              reason,
+              action: "activate_shell",
+              targetVersion: versionId,
+              outcome: "success",
+              requestId: ctx.requestId,
+              fromVersionId
+          });
           
           return router.json(res, 200, {
               ok: true,
@@ -247,6 +291,21 @@ async function main() {
               reason
           });
       } catch (err: any) {
+          const errorMessage = err?.message || "Activation failed";
+          if (versionId) {
+              await safeRecordActivationEvent({
+                  id: `ae_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+                  ts: new Date().toISOString(),
+                  actor,
+                  reason,
+                  action: "activate_shell",
+                  targetVersion: versionId,
+                  outcome: "failure",
+                  errorMessage,
+                  requestId: ctx.requestId,
+                  fromVersionId
+              });
+          }
           return router.json(res, 400, { error: err.message });
       }
   });
@@ -421,18 +480,43 @@ async function main() {
           return sendErrorEnvelope(res, ctx, 400, "invalid_request", "Missing or invalid versionId");
       }
       if (!reason) {
+          await safeRecordActivationEvent({
+              id: `ae_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+              ts: new Date().toISOString(),
+              actor: isLocalhostRequest(ctx) ? "dev" : (ctx.auth?.userId || "admin"),
+              reason: "",
+              action: "activate_draft",
+              targetVersion: null,
+              outcome: "failure",
+              errorMessage: "Reason is required",
+              requestId: ctx.requestId,
+              fromVersionId: null
+          });
           return sendErrorEnvelope(res, ctx, 400, "invalid_request", "Reason is required");
       }
 
-        const actorLabel = isLocalhostRequest(ctx) ? "dev" : (ctx.auth?.userId || "admin");
+      const actorLabel = isLocalhostRequest(ctx) ? "dev" : (ctx.auth?.userId || "admin");
       const timestamp = new Date().toISOString();
+      let fromVersionId: string | null = null;
 
       try {
           const active = await configRepo.getActivePointer();
-          const fromVersionId = active?.activeVersionId ?? null;
+          fromVersionId = active?.activeVersionId ?? null;
 
           await configRepo.activateVersion(versionId, reason, "normal");
           await runtimeManager.reload();
+
+          await safeRecordActivationEvent({
+              id: `ae_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+              ts: timestamp,
+              actor: actorLabel,
+              reason,
+              action: "activate_draft",
+              targetVersion: versionId,
+              outcome: "success",
+              requestId: ctx.requestId,
+              fromVersionId
+          });
 
           return sendEnvelope(res, ctx, {
               fromVersionId,
@@ -444,6 +528,18 @@ async function main() {
           });
       } catch (err: any) {
           const errorSummary = err?.message || "Activation failed";
+          await safeRecordActivationEvent({
+              id: `ae_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+              ts: timestamp,
+              actor: actorLabel,
+              reason,
+              action: "activate_draft",
+              targetVersion: versionId,
+              outcome: "failure",
+              errorMessage: errorSummary,
+              requestId: ctx.requestId,
+              fromVersionId
+          });
           return router.json(res, 400, {
               ok: false,
               data: {
@@ -509,6 +605,27 @@ async function main() {
       });
   });
 
+  // Admin: Activation Events (non-debug, versioned)
+  router.get("/api/v1/admin/activations", async (req, res, _params, ctx) => {
+      if (!canAccessRuntimeObservability(ctx)) {
+          return sendErrorEnvelope(res, ctx, 403, "forbidden", "Access Denied");
+      }
+
+      const urlParts = parse(req.url || "", true);
+      const limitParam = urlParts.query.limit;
+      const limit = typeof limitParam === "string" ? Math.max(1, Math.min(100, parseInt(limitParam, 10) || 50)) : 50;
+      const outcomeParam = typeof urlParts.query.outcome === "string" ? urlParts.query.outcome : undefined;
+      const afterParam = typeof urlParts.query.after === "string" ? urlParts.query.after : undefined;
+      const outcome = outcomeParam === "success" || outcomeParam === "failure" ? outcomeParam : undefined;
+
+      try {
+          const items = await configRepo.listActivationEvents({ limit, outcome, after: afterParam });
+          return sendEnvelope(res, ctx, { items });
+      } catch (err: any) {
+          return sendErrorEnvelope(res, ctx, 500, "activation_events_failed", err?.message || "Failed to load activation events");
+      }
+  });
+
   // Debug activate version endpoint (Roadmap #4 Step 2)
   router.get("/api/debug/config/shell/preflight/:versionId", async (req, res, params, ctx) => {
     if (!canAccessDebug(ctx)) {
@@ -550,16 +667,41 @@ async function main() {
           return router.json(res, 403, { error: "Access Denied: Debug mode disabled or insufficient permissions" });
       }
 
+      let versionId: string | undefined;
+      let reason = "";
+      const actor = isLocalhostRequest(ctx) ? "dev" : (ctx.auth?.userId || "unknown");
+      let fromVersionId: string | null = null;
+
       try {
           const body = await router.readJsonBody(req);
-          const { versionId, reason } = body;
+          versionId = body?.versionId;
+          reason = typeof body?.reason === "string" ? body.reason : "";
 
           if (!versionId || typeof versionId !== "string") {
               return router.json(res, 400, { error: "Missing or invalid versionId" });
           }
 
+          try {
+              const active = await configRepo.getActivePointer();
+              fromVersionId = active?.activeVersionId ?? null;
+          } catch {
+              fromVersionId = null;
+          }
+
           const result = await configRepo.activateVersion(versionId, reason);
           await runtimeManager.reload();
+
+          await safeRecordActivationEvent({
+              id: `ae_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+              ts: new Date().toISOString(),
+              actor,
+              reason,
+              action: "activate_shell_debug",
+              targetVersion: versionId,
+              outcome: "success",
+              requestId: ctx.requestId,
+              fromVersionId
+          });
           
           return router.json(res, 200, {
               ok: true,
@@ -568,6 +710,21 @@ async function main() {
               reason
           });
       } catch (err: any) {
+          const errorMessage = err?.message || "Activation failed";
+          if (versionId) {
+              await safeRecordActivationEvent({
+                  id: `ae_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+                  ts: new Date().toISOString(),
+                  actor,
+                  reason,
+                  action: "activate_shell_debug",
+                  targetVersion: versionId,
+                  outcome: "failure",
+                  errorMessage,
+                  requestId: ctx.requestId,
+                  fromVersionId
+              });
+          }
           // If version validation fails, it throws
           return router.json(res, 400, { error: err.message });
       }

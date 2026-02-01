@@ -725,6 +725,18 @@ type DispatchTrace = {
     reasonCode?: string;
     resultSummary?: string;
 };
+type ActivationEvent = {
+    id: string;
+    ts: string;
+    actor: string;
+    reason: string;
+    action: string;
+    targetVersion: string;
+    outcome: 'success' | 'failure';
+    errorMessage?: string;
+    requestId?: string;
+    fromVersionId?: string | null;
+};
 type SysRefresh = {
     bundle: () => Promise<void> | void;
     resolvedGraph: () => void;
@@ -2265,7 +2277,7 @@ function SysadminPanel({
     const ENABLE_LEGACY_SYSADMIN_TABS = true;
 
     // Dynamic Tabs Definition
-    const tabs = ['ShellConfig', 'Blocks', 'Bindings', 'Data', 'ActionIndex', 'Runtime', 'UI Runtime', 'Draft', 'Invocations', 'Traces'];
+    const tabs = ['ShellConfig', 'Blocks', 'Bindings', 'Data', 'ActionIndex', 'Runtime', 'UI Runtime', 'Draft', 'Invocations', 'Traces', 'Activations'];
     if (ENABLE_LEGACY_SYSADMIN_TABS) {
         tabs.push('Snapshot');
         tabs.push('Versions');
@@ -2281,6 +2293,10 @@ function SysadminPanel({
     const [invocations, setInvocations] = useState<RuntimeInvocation[] | null>(null);
     const [invocationsError, setInvocationsError] = useState<string | null>(null);
     const [expandedInvocationKey, setExpandedInvocationKey] = useState<string | null>(null);
+
+    const [activationEvents, setActivationEvents] = useState<ActivationEvent[] | null>(null);
+    const [activationEventsError, setActivationEventsError] = useState<string | null>(null);
+    const [activationEventsLoading, setActivationEventsLoading] = useState(false);
 
     // Execute Mode (Phase 4.3.2)
     const [executeMode, setExecuteMode] = useState<boolean | null>(null);
@@ -2729,6 +2745,42 @@ function SysadminPanel({
         }
     };
 
+    const refreshActivations = async () => {
+        setActivationEventsError(null);
+        setActivationEventsLoading(true);
+
+        const res = await governedFetch('/api/v1/admin/activations?limit=50');
+        if (!res) {
+            setActivationEventsError('Fetch failed (no response)');
+            setActivationEvents([]);
+            setActivationEventsLoading(false);
+            return;
+        }
+        if (res.status === 403) {
+            setActivationEventsError('Access denied (admin only).');
+            setActivationEvents([]);
+            setActivationEventsLoading(false);
+            return;
+        }
+        if (!res.ok) {
+            setActivationEventsError(`Fetch failed (${res.status})`);
+            setActivationEvents([]);
+            setActivationEventsLoading(false);
+            return;
+        }
+
+        try {
+            const j = await res.json();
+            const list = Array.isArray(j?.data?.items) ? (j.data.items as ActivationEvent[]) : [];
+            setActivationEvents(list);
+        } catch (e: any) {
+            setActivationEventsError(e.message || String(e));
+            setActivationEvents([]);
+        } finally {
+            setActivationEventsLoading(false);
+        }
+    };
+
     const refreshExecuteMode = async () => {
         setExecuteModeError(null);
         
@@ -3048,6 +3100,9 @@ function SysadminPanel({
         }
         if (activeTab === 'Traces') {
             refreshTraces();
+        }
+        if (activeTab === 'Activations') {
+            refreshActivations();
         }
         if (activeTab === 'Versions' && !selectedVersionId && caps.debugEndpointsEnabled) {
             refreshVersions(); // Debug-gated
@@ -7649,6 +7704,67 @@ function SysadminPanel({
                                  </table>
                              )}
                          </div>
+                     </div>
+                 );
+            }
+            case 'Activations': {
+                 const items = activationEvents || [];
+
+                 return (
+                     <div style={{display:'flex', flexDirection:'column', height:'100%'}}>
+                         <div style={{padding:'10px', borderBottom:'1px solid #ddd', display:'flex', alignItems:'center', justifyContent:'space-between', background:'#fafafa'}}>
+                             <div style={{display:'flex', alignItems:'center', gap:'10px'}}>
+                                 <strong style={{fontSize:'1.1em'}}>Activations</strong>
+                                 <button onClick={refreshActivations} style={{cursor:'pointer', padding:'2px 8px', fontSize:'0.9em'}}>Refresh</button>
+                                 {activationEventsLoading && <span style={{fontSize:'0.85em', color:'#666'}}>Loading...</span>}
+                             </div>
+                         </div>
+
+                         {activationEventsError ? (
+                             <div style={{padding:'20px', color:'#c62828'}}>{activationEventsError}</div>
+                         ) : !activationEvents ? (
+                             <div style={{padding:'20px', color:'#666'}}>Loading activation events...</div>
+                         ) : items.length === 0 ? (
+                             <div style={{padding:'20px', color:'#666', fontStyle:'italic'}}>No activation events yet.</div>
+                         ) : (
+                             <div style={{flex:1, overflowY:'auto'}}>
+                                 <table style={{width:'100%', borderCollapse:'collapse', fontSize:'0.9em'}}>
+                                     <thead style={{background:'#eee', position:'sticky', top:0}}>
+                                         <tr>
+                                             <th style={{padding:'6px', textAlign:'left', borderBottom:'1px solid #ccc'}}>Time</th>
+                                             <th style={{padding:'6px', textAlign:'left', borderBottom:'1px solid #ccc'}}>Outcome</th>
+                                             <th style={{padding:'6px', textAlign:'left', borderBottom:'1px solid #ccc'}}>Version</th>
+                                             <th style={{padding:'6px', textAlign:'left', borderBottom:'1px solid #ccc'}}>Actor</th>
+                                             <th style={{padding:'6px', textAlign:'left', borderBottom:'1px solid #ccc'}}>Reason</th>
+                                         </tr>
+                                     </thead>
+                                     <tbody>
+                                         {items.map((evt, idx) => {
+                                             const outcomeColor = evt.outcome === 'success' ? '#2e7d32' : '#c62828';
+                                             const reasonText = evt.reason || (evt.outcome === 'failure' ? evt.errorMessage || '' : '');
+                                             return (
+                                                 <tr key={evt.id || `${evt.ts}-${idx}`} style={{borderBottom:'1px solid #eee'}}>
+                                                     <td style={{padding:'6px', color:'#555'}}>{evt.ts ? new Date(evt.ts).toLocaleString() : '-'}</td>
+                                                     <td style={{padding:'6px'}}>
+                                                         <span style={{color: outcomeColor, fontWeight: 600}}>{evt.outcome}</span>
+                                                     </td>
+                                                     <td style={{padding:'6px', fontFamily:'monospace'}}>{evt.targetVersion || '-'}</td>
+                                                     <td style={{padding:'6px', color:'#555'}}>{evt.actor || '-'}</td>
+                                                     <td style={{padding:'6px', color:'#555'}}>
+                                                         <span
+                                                             title={reasonText}
+                                                             style={{display:'inline-block', maxWidth:'360px', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', verticalAlign:'bottom'}}
+                                                         >
+                                                             {reasonText || '-'}
+                                                         </span>
+                                                     </td>
+                                                 </tr>
+                                             );
+                                         })}
+                                     </tbody>
+                                 </table>
+                             </div>
+                         )}
                      </div>
                  );
             }
