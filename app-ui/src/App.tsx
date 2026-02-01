@@ -6327,11 +6327,11 @@ function SysadminPanel({
                                                 >
                                                     Activate Draft
                                                 </button>
-                                                <div style={{fontSize:'0.85em', color: dataStaticError ? '#c62828' : '#2e7d32'}}>
-                                                    {(!showActivateDraftModal || dataStaticError !== 'Activation reason is required')
-                                                        ? (dataStaticError || dataStaticStatus || '')
-                                                        : (dataStaticStatus || '')}
-                                                </div>
+                                                {!showActivateDraftModal && (
+                                                    <div style={{fontSize:'0.85em', color: dataStaticError ? '#c62828' : '#2e7d32'}}>
+                                                        {dataStaticError || dataStaticStatus || ''}
+                                                    </div>
+                                                )}
                                             </div>
                                         </>
                                     ) : (
