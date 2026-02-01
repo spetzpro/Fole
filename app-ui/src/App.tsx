@@ -709,13 +709,22 @@ interface RuntimeInvocation {
     details?: any;
 }
 
-interface RuntimeTrace {
-    ts: string;
+type ActionRunRecord = {
+    id: string;
+    timestamp: number;
     actionId: string;
-    status: string;
+    result: ActionDispatchResult;
+    sourceBlockId?: string;
+};
+
+type DispatchTrace = {
+    ts: string;
+    actionId?: string;
+    status?: string;
     durationMs?: number;
     reasonCode?: string;
-}
+    resultSummary?: string;
+};
 type SysRefresh = {
     bundle: () => Promise<void> | void;
     resolvedGraph: () => void;
@@ -751,7 +760,7 @@ function ConfigSysadminView(props: ConfigSysadminViewProps) {
         activeVersionId,
         onCloneSysadminDraft,
         onActivateVersion,
-        sysRefresh: sysRefreshValue,
+        sysRefresh,
         pendingStage,
         setPendingStage,
         saveMessage,
@@ -767,6 +776,7 @@ function ConfigSysadminView(props: ConfigSysadminViewProps) {
     } = props;
     const caps = useCapabilities();
     const isExpertMode = caps.devModeOverridesEnabled;
+    void sysRefresh;
 
     const [selectedTabId, setSelectedTabId] = useState<string | null>(null);
 
@@ -1342,6 +1352,7 @@ function ConfigSysadminView(props: ConfigSysadminViewProps) {
              // Check rawBlock for "default: true" on tabs (ConfigSysadminView logic)
              if (!targetId && config.rawBlock && config.rawBlock.data && Array.isArray(config.rawBlock.data.tabs)) {
                   const defTab = config.rawBlock.data.tabs.find((t:any) => t.default === true);
+                   void defTab;
              }
              
              // Fallback to first tab
@@ -2112,7 +2123,6 @@ function SysadminPanel({
     onClose, 
     bundleData, 
     runtimePlan, 
-    actionRuns = [], 
     runningSource = 'ACTIVE',
     lastConfigEvent,
     onApplyDraft,
@@ -2126,14 +2136,12 @@ function SysadminPanel({
     onCloseAllWindows,
     onOpenWindow,
     onFocusWindow,
-    onCloseWindow,
-    sysRefresh
+    onCloseWindow
 }: { 
     isOpen: boolean; 
     onClose: () => void; 
     bundleData: BundleResponse | null; 
     runtimePlan: RuntimePlan | null; 
-    actionRuns: ActionRunRecord[];
     runningSource?: 'ACTIVE' | 'DRAFT';
     lastConfigEvent?: { kind: 'APPLY' | 'ROLLBACK'; ts: number } | null;
     onApplyDraft: (draft: BundleResponse) => void;
@@ -2148,7 +2156,6 @@ function SysadminPanel({
     onOpenWindow: (windowId: string) => void;
     onFocusWindow: (windowId: string) => void;
     onCloseWindow: (windowId: string) => void;
-    sysRefresh: SysRefresh;
 }) {
     const caps = useCapabilities();
 
@@ -2278,6 +2285,7 @@ function SysadminPanel({
     // Execute Mode (Phase 4.3.2)
     const [executeMode, setExecuteMode] = useState<boolean | null>(null);
     const [executeModeError, setExecuteModeError] = useState<string | null>(null);
+    void executeModeError;
 
     // Snapshot (Epic 4 Step 2)
     const [snapshotData, setSnapshotData] = useState<SnapshotResponse | null>(null);
@@ -2639,7 +2647,7 @@ function SysadminPanel({
     };
 
     // Traces (Phase 4.3)
-    const [dispatchTraces, setDispatchTraces] = useState<RuntimeTrace[] | null>(null);
+    const [dispatchTraces, setDispatchTraces] = useState<DispatchTrace[] | null>(null);
     const [dispatchTracesError, setDispatchTracesError] = useState<string | null>(null);
     const [expandedTraceKey, setExpandedTraceKey] = useState<string | null>(null);
 
@@ -2768,6 +2776,8 @@ function SysadminPanel({
             setExecuteModeError(err.message);
         }
     };
+    void refreshExecuteMode;
+    void toggleExecuteMode;
 
     const refreshInvocations = async () => {
         setInvocationsError(null);
@@ -3905,6 +3915,8 @@ function SysadminPanel({
         lastResult: true, 
         plan: false 
     });
+    void runtimeSections;
+    void setRuntimeSections;
 
     // Derived State (Data tab)
     const [derivedPatches, setDerivedPatches] = useState<DerivedPatches | null>(null);
@@ -3953,11 +3965,11 @@ function SysadminPanel({
     const refreshDerivedState = async () => {
         await fetchDerivedPatches();
     };
-    const sysRefresh: SysRefresh = {
-        bundle: sysRefreshValue?.bundle ?? (async () => {}),
-        resolvedGraph: sysRefreshValue?.resolvedGraph ?? (() => {}),
+    const localRefresh: SysRefresh = {
+        bundle: onRefresh,
+        resolvedGraph: refreshResolvedGraph,
         derived: refreshDerivedState,
-        snapshot: sysRefreshValue?.snapshot ?? (async () => {})
+        snapshot: refreshSnapshot
     };
 
     useEffect(() => {
@@ -4023,10 +4035,10 @@ function SysadminPanel({
                 setDataStaticStatus('Saved');
             }
 
-            await sysRefresh.bundle();
-            sysRefresh.resolvedGraph();
-            await sysRefresh.derived();
-            await sysRefresh.snapshot();
+            await localRefresh.bundle();
+            localRefresh.resolvedGraph();
+            await localRefresh.derived();
+            await localRefresh.snapshot();
         } catch (e: any) {
             setDataStaticError(e?.message || String(e));
         } finally {
@@ -5672,6 +5684,12 @@ function SysadminPanel({
             }
 
             case 'ConfigSysadmin': {
+                const sysRefresh: SysRefresh = {
+                    bundle: onRefresh,
+                    resolvedGraph: refreshResolvedGraph,
+                    derived: async () => {},
+                    snapshot: refreshSnapshot
+                };
                 return (
                     <ConfigSysadminView 
                         bundleData={bundleData} 
@@ -8055,13 +8073,6 @@ function App() {
     }
   };
 
-    const sysRefresh: SysRefresh = {
-            bundle: fetchBundle,
-            resolvedGraph: refreshResolvedGraph,
-            derived: async () => {},
-            snapshot: refreshSnapshot
-    };
-
   const resolvePing = async () => {
     // PRE-CHECK: Prevent 404 noise if ping route is clearly disabled in active config
     if (bundleData && bundleData.blocks) {
@@ -8383,6 +8394,7 @@ function App() {
       minimize: (id: string, v: boolean) => { runtimeRef.current.setMinimized(id, v); syncRuntime(); },
       dock: (id: string, m: WindowState['dockMode']) => { runtimeRef.current.dockWindow(id, m); syncRuntime(); }
   };
+    void winOps;
 
   const overlayOps = {
       open: (id: string) => { runtimeRef.current.setOverlayOpen(id, true); syncRuntime(); },
@@ -8645,7 +8657,6 @@ function App() {
                      onClose={() => setSysadminOpen(false)}
                      bundleData={bundleData}
                      runtimePlan={runtimePlan}
-                     actionRuns={actionRuns}
                      runningSource={runningSource}
                      lastConfigEvent={lastConfigEvent}
                      onApplyDraft={applyDraft}
@@ -8660,7 +8671,6 @@ function App() {
                      onOpenWindow={openWindowWithTelemetry}
                      onFocusWindow={focusWindowWithTelemetry}
                      onCloseWindow={closeWindowWithTelemetry}
-                     sysRefresh={sysRefresh}
                  />
              </div>
 
