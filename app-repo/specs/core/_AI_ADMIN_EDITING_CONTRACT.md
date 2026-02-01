@@ -1,3 +1,7 @@
+Version: SPEC_V1.0
+Status: Draft
+Last-Updated: 2026-01-31
+
 # Admin Editing Contract
 
 **Version:** 1.0.0

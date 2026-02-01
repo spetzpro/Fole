@@ -3983,6 +3983,10 @@ function SysadminPanel({
     const [dataStaticStatus, setDataStaticStatus] = useState<string | null>(null);
     const [dataStaticError, setDataStaticError] = useState<string | null>(null);
     const [dataStaticSaving, setDataStaticSaving] = useState(false);
+    const [lastDraftVersionId, setLastDraftVersionId] = useState<string | null>(null);
+    const [activateDraftReason, setActivateDraftReason] = useState('');
+    const [showActivateDraftModal, setShowActivateDraftModal] = useState(false);
+    const [activateDraftSaving, setActivateDraftSaving] = useState(false);
 
     const dataBlocks = useMemo(() => {
         const blocksMap = (bundleData as any)?.blocks || {};
@@ -4051,7 +4055,6 @@ function SysadminPanel({
         if (!selectedBlock || selectedBlock.blockType !== 'data.static') return;
 
         setDataStaticSaving(true);
-        setIsApplying(true);
         setDataStaticStatus(null);
         setDataStaticError(null);
         try {
@@ -4088,7 +4091,59 @@ function SysadminPanel({
             }
             const payload = json?.data ?? json?.result ?? null;
             const newVersionId = payload?.newVersionId;
-            const statusMsg = newVersionId ? `Saved & activated: ${newVersionId}` : 'Saved & activated';
+            const statusMsg = newVersionId ? `Draft saved: ${newVersionId}` : 'Draft saved';
+            setDataStaticStatus(statusMsg);
+            showBanner({ kind: 'success', message: statusMsg, ts: Date.now() });
+            setLastDraftVersionId(newVersionId || null);
+        } catch (e: any) {
+            const msg = e?.message || String(e);
+            setDataStaticError(msg);
+            showBanner({ kind: 'error', message: `Save failed: ${msg}`, ts: Date.now() });
+        } finally {
+            setDataStaticSaving(false);
+        }
+    };
+
+    const handleActivateDraft = async () => {
+        if (!lastDraftVersionId) return;
+        const reason = activateDraftReason.trim();
+        if (!reason) {
+            const msg = 'Activation reason is required';
+            setDataStaticError(msg);
+            showBanner({ kind: 'error', message: `Save failed: ${msg}`, ts: Date.now() });
+            return;
+        }
+
+        setActivateDraftSaving(true);
+        setIsApplying(true);
+        setDataStaticStatus(null);
+        setDataStaticError(null);
+
+        try {
+            const res = await governedFetch('/api/v1/config/activate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ versionId: lastDraftVersionId, reason })
+            });
+
+            if (!res) {
+                const msg = 'Activation failed (no response)';
+                setDataStaticError(msg);
+                showBanner({ kind: 'error', message: `Save failed: ${msg}`, ts: Date.now() });
+                return;
+            }
+
+            const json = await res.json().catch(() => null);
+            if (!res.ok || json?.ok === false) {
+                const msg = json?.error?.message || `Activation failed (${res.status})`;
+                setDataStaticError(msg);
+                showBanner({ kind: 'error', message: `Save failed: ${msg}`, ts: Date.now() });
+                return;
+            }
+
+            const payload = json?.data ?? json?.result ?? null;
+            const toVersionId = payload?.toVersionId || lastDraftVersionId;
+            const statusMsg = `Activated: ${toVersionId}`;
             setDataStaticStatus(statusMsg);
             showBanner({ kind: 'success', message: statusMsg, ts: Date.now() });
 
@@ -4096,12 +4151,16 @@ function SysadminPanel({
             localRefresh.resolvedGraph();
             await localRefresh.derived();
             await localRefresh.snapshot();
+
+            setLastDraftVersionId(null);
+            setShowActivateDraftModal(false);
+            setActivateDraftReason('');
         } catch (e: any) {
             const msg = e?.message || String(e);
             setDataStaticError(msg);
             showBanner({ kind: 'error', message: `Save failed: ${msg}`, ts: Date.now() });
         } finally {
-            setDataStaticSaving(false);
+            setActivateDraftSaving(false);
             setIsApplying(false);
         }
     };
@@ -6148,6 +6207,55 @@ function SysadminPanel({
 
                 return (
                     <div style={{display:'flex', height:'100%', overflow:'hidden'}}>
+                        {showActivateDraftModal && (
+                            <div style={{
+                                position:'fixed',
+                                top:0, left:0, right:0, bottom:0,
+                                background:'rgba(0,0,0,0.35)',
+                                zIndex: 9100,
+                                display:'flex',
+                                alignItems:'center',
+                                justifyContent:'center'
+                            }}>
+                                <div style={{
+                                    background:'#fff',
+                                    border:'1px solid #ccc',
+                                    borderRadius:'6px',
+                                    width:'520px',
+                                    maxWidth:'92%',
+                                    padding:'16px',
+                                    boxShadow:'0 6px 16px rgba(0,0,0,0.2)'
+                                }}>
+                                    <div style={{fontWeight:'bold', marginBottom:'8px'}}>Activate Draft</div>
+                                    <div style={{fontSize:'0.9em', color:'#555', marginBottom:'10px'}}>
+                                        Provide a reason for activation. This will reload the active configuration.
+                                    </div>
+                                    <textarea
+                                        value={activateDraftReason}
+                                        onChange={e => setActivateDraftReason(e.target.value)}
+                                        rows={4}
+                                        style={{width:'100%', resize:'vertical', padding:'8px', border:'1px solid #ccc', borderRadius:'4px', fontFamily:'inherit'}}
+                                        placeholder="Reason for activation..."
+                                    />
+                                    <div style={{display:'flex', justifyContent:'flex-end', gap:'8px', marginTop:'12px'}}>
+                                        <button
+                                            onClick={() => { setShowActivateDraftModal(false); setActivateDraftReason(''); }}
+                                            style={{padding:'6px 12px', background:'#fff', border:'1px solid #ccc', borderRadius:'4px', cursor:'pointer'}}
+                                            disabled={activateDraftSaving}
+                                        >
+                                            Cancel
+                                        </button>
+                                        <button
+                                            onClick={handleActivateDraft}
+                                            style={{padding:'6px 12px', background:'#e65100', color:'#fff', border:'1px solid #e65100', borderRadius:'4px', cursor:'pointer', fontWeight:'bold'}}
+                                            disabled={activateDraftSaving}
+                                        >
+                                            {activateDraftSaving ? 'Activating…' : 'Activate'}
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                         {/* Left Column: data.* blocks list */}
                         <div style={{width:'260px', borderRight:'1px solid #ddd', background:'#f9f9f9', overflowY:'auto'}}>
                             <div style={{padding:'10px', borderBottom:'1px solid #eee', fontWeight:'bold', fontSize:'0.9em'}}>Data Blocks</div>
@@ -6200,10 +6308,24 @@ function SysadminPanel({
                                             <div style={{display:'flex', alignItems:'center', gap:'10px'}}>
                                                 <button
                                                     onClick={handleSaveDataStatic}
-                                                    disabled={dataStaticSaving}
-                                                    style={{padding:'6px 12px', cursor: dataStaticSaving ? 'default' : 'pointer'}}
+                                                    disabled={dataStaticSaving || activateDraftSaving}
+                                                    style={{padding:'6px 12px', cursor: (dataStaticSaving || activateDraftSaving) ? 'default' : 'pointer'}}
                                                 >
-                                                    {dataStaticSaving ? 'Saving…' : 'Save & Activate'}
+                                                    {dataStaticSaving ? 'Saving…' : 'Save Draft'}
+                                                </button>
+                                                <button
+                                                    onClick={() => { if (lastDraftVersionId) setShowActivateDraftModal(true); }}
+                                                    disabled={!lastDraftVersionId || dataStaticSaving || activateDraftSaving}
+                                                    style={{
+                                                        padding:'6px 12px',
+                                                        cursor: (!lastDraftVersionId || dataStaticSaving || activateDraftSaving) ? 'default' : 'pointer',
+                                                        background: lastDraftVersionId ? '#e65100' : '#eee',
+                                                        color: lastDraftVersionId ? '#fff' : '#888',
+                                                        border: lastDraftVersionId ? '1px solid #e65100' : '1px solid #ccc',
+                                                        borderRadius:'4px'
+                                                    }}
+                                                >
+                                                    Activate Draft
                                                 </button>
                                                 <div style={{fontSize:'0.85em', color: dataStaticError ? '#c62828' : '#2e7d32'}}>
                                                     {dataStaticError || dataStaticStatus || ''}

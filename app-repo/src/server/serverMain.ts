@@ -404,10 +404,65 @@ async function main() {
           active.activeVersionId,
           message
       );
-      await configRepo.activateVersion(newVersionId, message, "normal");
-      await runtimeManager.reload();
-
       return sendEnvelope(res, ctx, { newVersionId, blockId });
+  });
+
+  // Activate Version (Sysadmin, v1)
+    router.post("/api/v1/config/activate", async (req, res, _params, ctx) => {
+      if (!canAccessRuntimeObservability(ctx)) {
+          return sendErrorEnvelope(res, ctx, 403, "forbidden", "Access Denied");
+      }
+
+      const body = await router.readJsonBody(req);
+      const versionId = body?.versionId;
+      const reason = typeof body?.reason === "string" ? body.reason.trim() : "";
+
+      if (!versionId || typeof versionId !== "string") {
+          return sendErrorEnvelope(res, ctx, 400, "invalid_request", "Missing or invalid versionId");
+      }
+      if (!reason) {
+          return sendErrorEnvelope(res, ctx, 400, "invalid_request", "Reason is required");
+      }
+
+      const actorLabel = isLocalhostRequest(ctx) ? "dev" : (ctx.auth?.userId || ctx.auth?.user?.id || "admin");
+      const timestamp = new Date().toISOString();
+
+      try {
+          const active = await configRepo.getActivePointer();
+          const fromVersionId = active?.activeVersionId ?? null;
+
+          await configRepo.activateVersion(versionId, reason, "normal");
+          await runtimeManager.reload();
+
+          return sendEnvelope(res, ctx, {
+              fromVersionId,
+              toVersionId: versionId,
+              actorLabel,
+              reason,
+              timestamp,
+              outcome: "success"
+          });
+      } catch (err: any) {
+          const errorSummary = err?.message || "Activation failed";
+          return router.json(res, 400, {
+              ok: false,
+              data: {
+                  fromVersionId: null,
+                  toVersionId: versionId,
+                  actorLabel,
+                  reason,
+                  timestamp,
+                  outcome: "fail",
+                  errorSummary
+              },
+              error: {
+                  code: "activation_failed",
+                  message: errorSummary
+              },
+              requestId: ctx.requestId,
+              timestamp
+          });
+      }
   });
 
   // Runtime: Invocations (non-debug, versioned)
