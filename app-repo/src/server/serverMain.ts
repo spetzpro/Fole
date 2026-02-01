@@ -424,7 +424,7 @@ async function main() {
           return sendErrorEnvelope(res, ctx, 400, "invalid_request", "Reason is required");
       }
 
-      const actorLabel = isLocalhostRequest(ctx) ? "dev" : (ctx.auth?.userId || ctx.auth?.user?.id || "admin");
+        const actorLabel = isLocalhostRequest(ctx) ? "dev" : (ctx.auth?.userId || "admin");
       const timestamp = new Date().toISOString();
 
       try {

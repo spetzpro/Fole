@@ -3434,7 +3434,7 @@ function SysadminPanel({
         });
     };
 
-    const handleActivateDraft = async () => {
+    const handleActivateDraftDeploy = async () => {
         if (!draftBundle) return;
         
         const runDeploy = async () => {
@@ -4104,7 +4104,7 @@ function SysadminPanel({
         }
     };
 
-    const handleActivateDraft = async () => {
+    const handleActivateDataStaticVersion = async () => {
         if (!lastDraftVersionId) return;
         const reason = activateDraftReason.trim();
         if (!reason) {
@@ -5154,7 +5154,7 @@ function SysadminPanel({
                                                 <div style={{marginLeft:'auto', display:'flex', flexDirection:'column', alignItems:'flex-end'}}>
                                                 {renderValidationSummary()}
                                                 <button 
-                                                    onClick={handleActivateDraft}
+                                                    onClick={handleActivateDraftDeploy}
                                                     disabled={pendingStage === 'saving' || validationResult.status === 'BLOCKED'}
                                                     style={{
                                                         padding:'10px 20px', fontSize:'1em', 
@@ -5372,7 +5372,7 @@ function SysadminPanel({
                                                 <div style={{marginLeft:'auto', display:'flex', flexDirection:'column', alignItems:'flex-end'}}>
                                                 {renderValidationSummary()}
                                                 <button 
-                                                    onClick={handleActivateDraft}
+                                                    onClick={handleActivateDraftDeploy}
                                                     disabled={pendingStage === 'saving' || validationResult.status === 'BLOCKED'}
                                                     style={{
                                                         padding:'10px 20px', fontSize:'1em', 
@@ -5573,7 +5573,7 @@ function SysadminPanel({
                                                 <div style={{marginLeft:'auto', display:'flex', flexDirection:'column', alignItems:'flex-end'}}>
                                                 {renderValidationSummary()}
                                                 <button 
-                                                    onClick={handleActivateDraft}
+                                                    onClick={handleActivateDraftDeploy}
                                                     disabled={pendingStage === 'saving' || validationResult.status === 'BLOCKED'}
                                                     style={{
                                                         padding:'10px 20px', fontSize:'1em', 
@@ -5773,7 +5773,7 @@ function SysadminPanel({
                                                 <div style={{marginLeft:'auto', display:'flex', flexDirection:'column', alignItems:'flex-end'}}>
                                                 {renderValidationSummary()}
                                                 <button 
-                                                    onClick={handleActivateDraft}
+                                                    onClick={handleActivateDraftDeploy}
                                                     disabled={pendingStage === 'saving' || validationResult.status === 'BLOCKED'}
                                                     style={{
                                                         padding:'10px 20px', fontSize:'1em', 
@@ -6246,7 +6246,7 @@ function SysadminPanel({
                                             Cancel
                                         </button>
                                         <button
-                                            onClick={handleActivateDraft}
+                                            onClick={handleActivateDataStaticVersion}
                                             style={{padding:'6px 12px', background:'#e65100', color:'#fff', border:'1px solid #e65100', borderRadius:'4px', cursor:'pointer', fontWeight:'bold'}}
                                             disabled={activateDraftSaving}
                                         >
@@ -6957,7 +6957,7 @@ function SysadminPanel({
                              <div style={{display:'flex', gap:'10px', alignItems:'center'}}>
 
                                 <button 
-                                    onClick={handleActivateDraft}
+                                    onClick={handleActivateDraftDeploy}
                                     disabled={pendingStage === 'saving'}
                                     style={{
                                         padding:'4px 10px', fontSize:'0.9em', 
