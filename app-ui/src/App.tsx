@@ -4714,8 +4714,14 @@ function SysadminPanel({
             return renderVersionsContent();
         }
 
-        const renderSnapshotContent = () => (
-             <div style={{display:'flex', flexDirection:'column', height:'100%', gap:'10px'}}>
+           const renderSnapshotContent = () => {
+               const runtimeOpenWindows = runtimePlan ? Object.values(runtimePlan.windows || {}) : [];
+               const openWindowIds = runtimeOpenWindows.length > 0
+                  ? runtimeOpenWindows.map(w => w.id)
+                  : (Array.isArray(snapshotData?.openWindows) ? snapshotData.openWindows : []);
+
+               return (
+               <div style={{display:'flex', flexDirection:'column', height:'100%', gap:'10px'}}>
                  <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', borderBottom:'1px solid #eee', paddingBottom:'10px'}}>
                      <div style={{display:'flex', alignItems:'center', gap:'10px'}}>
                          <strong style={{fontSize:'1.1em'}}>Runtime Snapshot</strong>
@@ -4744,7 +4750,7 @@ function SysadminPanel({
                                  <span>{snapshotData.ts ? new Date(snapshotData.ts).toLocaleString() : 'N/A'}</span>
 
                                  <strong style={{color:'#555'}}>Open Windows:</strong>
-                                 <span>{Array.isArray(snapshotData.openWindows) ? snapshotData.openWindows.length : 0}</span>
+                                 <span>{openWindowIds.length}</span>
 
                                  <strong style={{color:'#555'}}>Derived Patches:</strong>
                                 <span>{snapshotData.derivedPatchesCount ?? 0}</span>
@@ -4756,9 +4762,9 @@ function SysadminPanel({
 
                          <div>
                              <strong style={{display:'block', marginBottom:'5px', color:'#333'}}>Open Windows</strong>
-                             {snapshotData.openWindows && snapshotData.openWindows.length > 0 ? (
+                             {openWindowIds.length > 0 ? (
                                  <ul style={{margin:0, paddingLeft:'20px'}}>
-                                     {snapshotData.openWindows.map((w, i) => (
+                                     {openWindowIds.map((w, i) => (
                                          <li key={`${w}-${i}`} style={{fontFamily:'monospace'}}>{w}</li>
                                      ))}
                                  </ul>
@@ -4766,7 +4772,7 @@ function SysadminPanel({
                                  <div style={{fontStyle:'italic', color:'#666'}}>No open windows reported.</div>
                              )}
                          </div>
-                        {snapshotData.blocks?.byType && (
+                                 {snapshotData.blocks?.byType && (
                             <div style={{marginTop:'15px'}}>
                                 <strong style={{display:'block', marginBottom:'5px', color:'#333'}}>Blocks by Type</strong>
                                 <div style={{maxHeight:'200px', overflowY:'auto', border:'1px solid #eee'}}>
@@ -4924,6 +4930,7 @@ function SysadminPanel({
                  )}
              </div>
         );
+        };
 
         const renderKnownPanel = (blockType: string) => {
             if (blockType === 'sysadmin.panel.snapshot') {
