@@ -726,6 +726,7 @@ function ConfigSysadminView(props: {
     onRefreshBundle?: () => Promise<void> | void;
     onRefreshResolvedGraph?: () => void;
     onRefreshSnapshot?: () => Promise<any> | void;
+    onRefreshDerivedState?: () => Promise<void> | void;
     // Stable State Props
     pendingStage: 'idle' | 'saving' | 'awaiting_ack' | 'activating' | 'error' | 'success' | 'preflight_error';
     setPendingStage: (s: 'idle' | 'saving' | 'awaiting_ack' | 'activating' | 'error' | 'success' | 'preflight_error') => void;
@@ -748,9 +749,9 @@ function ConfigSysadminView(props: {
         dismissTimerRef,
         setConfirmModal
     } = props;
-    const refreshBundleFn = props.onRefreshBundle ?? (async () => {});
-    const refreshSnapshotFn = props.onRefreshSnapshot ?? (async () => {});
-    const refreshResolvedGraphFn = props.onRefreshResolvedGraph ?? (() => {});
+    const onRefreshBundle = props.onRefreshBundle ?? (async () => {});
+    const onRefreshSnapshot = props.onRefreshSnapshot ?? (async () => {});
+    const onRefreshResolvedGraph = props.onRefreshResolvedGraph ?? (() => {});
     const caps = useCapabilities();
     const isExpertMode = caps.devModeOverridesEnabled;
 
@@ -3937,6 +3938,7 @@ function SysadminPanel({
     const refreshDerivedState = async () => {
         await fetchDerivedPatches();
     };
+    const onRefreshDerivedState = props.onRefreshDerivedState ?? refreshDerivedState;
 
     useEffect(() => {
         if (activeTab === 'Data' || activeTab === 'Bindings') {
@@ -4001,10 +4003,10 @@ function SysadminPanel({
                 setDataStaticStatus('Saved');
             }
 
-            await refreshBundleFn();
-            refreshResolvedGraphFn();
-            await refreshDerivedState();
-            await refreshSnapshotFn();
+            await onRefreshBundle();
+            onRefreshResolvedGraph();
+            await onRefreshDerivedState();
+            await onRefreshSnapshot();
         } catch (e: any) {
             setDataStaticError(e?.message || String(e));
         } finally {
@@ -5095,100 +5097,100 @@ function SysadminPanel({
                                      </div>
 
                                      <div style={{display:'flex', flexDirection:'column', gap:'15px'}}>
-                                         {schemaFields.map(f => {
+                                         {schemaFields.map((f) => {
                                              let errorMsg = null;
                                              const val = nodeEditorForm[f.path];
                                              const isMulti = isMultilineField('ui.node.text', f.path);
-                                             
-                                            if (f.required && (val === undefined || val === null || val === '')) {
-                                                errorMsg = "Required";
-                                            } else if (f.enumOptions && f.enumOptions.length > 0 && val && !f.enumOptions.includes(val)) {
-                                                errorMsg = 'Must be one of: ' + f.enumOptions.join(', ');
-                                            }
-                                             
+
+                                             if (f.required && (val === undefined || val === null || val === '')) {
+                                                 errorMsg = 'Required';
+                                             } else if (f.enumOptions && f.enumOptions.length > 0 && val && !f.enumOptions.includes(val)) {
+                                                 errorMsg = 'Must be one of: ' + f.enumOptions.join(', ');
+                                             }
+
                                              return (
-                                             <div key={f.path}>
-                                                 {f.type === 'boolean' ? (
-                                                     <div style={{display:'flex', alignItems:'center', gap:'10px'}}>
-                                                         <input 
-                                                             type="checkbox" 
-                                                             checked={!!nodeEditorForm[f.path]} 
-                                                             onChange={(e) => {
-                                                                 setNodeEditorForm({...nodeEditorForm, [f.path]: e.target.checked});
-                                                                 setNodeEditorDirty(true);
-                                                             }}
-                                                             id={'field-' + f.path}
-                                                         />
-                                                         <label htmlFor={'field-' + f.path} style={{cursor:'pointer', fontWeight:'bold', color:'#333'}}>
-                                                            {f.title} {f.required && <span style={{color:'#d32f2f'}}>*</span>}
-                                                         </label>
-                                                     </div>
-                                                 ) : (
-                                                     <>
-                                                        <label style={{display:'block', fontWeight:'bold', marginBottom:'6px', color:'#333'}}>
-                                                            {f.title} {f.required && <span style={{color:'#d32f2f'}}>*</span>}
-                                                        </label>
-                                                        {f.enumOptions && f.enumOptions.length > 0 ? (
-                                                            <select
-                                                                value={nodeEditorForm[f.path] || ''}
-                                                                onChange={(e) => {
-                                                                    setNodeEditorForm({...nodeEditorForm, [f.path]: e.target.value});
-                                                                    setNodeEditorDirty(true);
-                                                                }}
-                                                                style={{
-                                                                    width:'100%', padding:'10px', fontSize:'1em', 
-                                                                    border: errorMsg ? '1px solid #d32f2f' : '1px solid #ccc', 
-                                                                    borderRadius:'4px', boxSizing:'border-box', backgroundColor:'#333', color:'white'
-                                                                }}
-                                                            >
-                                                                <option value="" style={{backgroundColor:'#333', color:'white'}}>(Select Option)</option>
-                                                                {f.enumOptions.map(opt => (
-                                                                    <option key={opt} value={opt} style={{backgroundColor:'#333', color:'white'}}>{opt}</option>
-                                                                ))}
-                                                            </select>
-                                                        ) : (
-                                                            isMulti ? (
-                                                                <AutoGrowTextArea
-                                                                    value={nodeEditorForm[f.path] || ''}
-                                                                    onChange={(e: any) => {
-                                                                        setNodeEditorForm({...nodeEditorForm, [f.path]: e.target.value});
-                                                                        setNodeEditorDirty(true);
-                                                                    }}
-                                                                    style={{
-                                                                        width:'100%', padding:'10px', fontSize:'1em', 
-                                                                        border: errorMsg ? '1px solid #d32f2f' : '1px solid #ccc',
-                                                                        borderRadius:'4px', boxSizing:'border-box'
-                                                                    }}
-                                                                    placeholder={'Enter ' + f.title + '...'}
-                                                                />
-                                                            ) : (
-                                                                <input 
-                                                                    type="text" 
+                                                 <div key={f.path}>
+                                                     {f.type === 'boolean' ? (
+                                                         <div style={{display:'flex', alignItems:'center', gap:'10px'}}>
+                                                             <input
+                                                                 type="checkbox"
+                                                                 checked={!!nodeEditorForm[f.path]}
+                                                                 onChange={(e) => {
+                                                                     setNodeEditorForm({...nodeEditorForm, [f.path]: e.target.checked});
+                                                                     setNodeEditorDirty(true);
+                                                                 }}
+                                                                 id={'field-' + f.path}
+                                                             />
+                                                             <label htmlFor={'field-' + f.path} style={{cursor:'pointer', fontWeight:'bold', color:'#333'}}>
+                                                                {f.title} {f.required && <span style={{color:'#d32f2f'}}>*</span>}
+                                                             </label>
+                                                         </div>
+                                                     ) : (
+                                                         <>
+                                                            <label style={{display:'block', fontWeight:'bold', marginBottom:'6px', color:'#333'}}>
+                                                                {f.title} {f.required && <span style={{color:'#d32f2f'}}>*</span>}
+                                                            </label>
+                                                            {f.enumOptions && f.enumOptions.length > 0 ? (
+                                                                <select
                                                                     value={nodeEditorForm[f.path] || ''}
                                                                     onChange={(e) => {
                                                                         setNodeEditorForm({...nodeEditorForm, [f.path]: e.target.value});
                                                                         setNodeEditorDirty(true);
                                                                     }}
                                                                     style={{
-                                                                        width:'100%', padding:'10px', fontSize:'1em', 
+                                                                        width:'100%', padding:'10px', fontSize:'1em',
                                                                         border: errorMsg ? '1px solid #d32f2f' : '1px solid #ccc',
-                                                                        borderRadius:'4px', boxSizing:'border-box'
+                                                                        borderRadius:'4px', boxSizing:'border-box', backgroundColor:'#333', color:'white'
                                                                     }}
-                                                                    placeholder={'Enter ' + f.title + '...'}
-                                                                />
-                                                            )
-                                                        )}
-                                                     </>
-                                                 )}
-                                                 {errorMsg && (
-                                                     <div style={{color:'#d32f2f', fontSize:'0.8em', marginTop:'2px', fontWeight:'bold'}}>
-                                                         {errorMsg}
+                                                                >
+                                                                    <option value="" style={{backgroundColor:'#333', color:'white'}}>(Select Option)</option>
+                                                                    {f.enumOptions.map(opt => (
+                                                                        <option key={opt} value={opt} style={{backgroundColor:'#333', color:'white'}}>{opt}</option>
+                                                                    ))}
+                                                                </select>
+                                                            ) : (
+                                                                isMulti ? (
+                                                                    <AutoGrowTextArea
+                                                                        value={nodeEditorForm[f.path] || ''}
+                                                                        onChange={(e: any) => {
+                                                                            setNodeEditorForm({...nodeEditorForm, [f.path]: e.target.value});
+                                                                            setNodeEditorDirty(true);
+                                                                        }}
+                                                                        style={{
+                                                                            width:'100%', padding:'10px', fontSize:'1em',
+                                                                            border: errorMsg ? '1px solid #d32f2f' : '1px solid #ccc',
+                                                                            borderRadius:'4px', boxSizing:'border-box'
+                                                                        }}
+                                                                        placeholder={'Enter ' + f.title + '...'}
+                                                                    />
+                                                                ) : (
+                                                                    <input
+                                                                        type="text"
+                                                                        value={nodeEditorForm[f.path] || ''}
+                                                                        onChange={(e) => {
+                                                                            setNodeEditorForm({...nodeEditorForm, [f.path]: e.target.value});
+                                                                            setNodeEditorDirty(true);
+                                                                        }}
+                                                                        style={{
+                                                                            width:'100%', padding:'10px', fontSize:'1em',
+                                                                            border: errorMsg ? '1px solid #d32f2f' : '1px solid #ccc',
+                                                                            borderRadius:'4px', boxSizing:'border-box'
+                                                                        }}
+                                                                        placeholder={'Enter ' + f.title + '...'}
+                                                                    />
+                                                                )
+                                                            )}
+                                                         </>
+                                                     )}
+                                                     {errorMsg && (
+                                                         <div style={{color:'#d32f2f', fontSize:'0.8em', marginTop:'2px', fontWeight:'bold'}}>
+                                                             {errorMsg}
+                                                         </div>
+                                                     )}
+                                                     <div style={{fontSize:'0.8em', color:'#888', marginTop:'4px'}}>
+                                                        {f.description || ('Mapped to ' + f.path)}
                                                      </div>
-                                                 )}
-                                                 <div style={{fontSize:'0.8em', color:'#888', marginTop:'4px'}}>
-                                                    {f.description || ('Mapped to ' + f.path)}
                                                  </div>
-                                             </div>
                                              );
                                          })}
                                          
@@ -5658,6 +5660,7 @@ function SysadminPanel({
                         onRefreshBundle={fetchBundle}
                         onRefreshResolvedGraph={refreshResolvedGraph}
                         onRefreshSnapshot={refreshSnapshot}
+                        onRefreshDerivedState={async () => {}}
                         pendingStage={pendingStage}
                         setPendingStage={setPendingStage}
                         saveMessage={saveMessage}
