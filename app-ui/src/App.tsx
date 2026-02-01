@@ -3918,6 +3918,62 @@ function SysadminPanel({
     void runtimeSections;
     void setRuntimeSections;
 
+    type SessionBanner = {
+        kind: 'success' | 'error';
+        message: string;
+        ts: number;
+    };
+    const SESSION_BANNER_KEY = 'fole.sysadmin.sessionBanner';
+    const [sessionBanner, setSessionBanner] = useState<SessionBanner | null>(() => {
+        try {
+            const raw = sessionStorage.getItem(SESSION_BANNER_KEY);
+            if (!raw) return null;
+            const parsed = JSON.parse(raw) as SessionBanner;
+            if (!parsed || !parsed.message || !parsed.kind || !parsed.ts) return null;
+            return parsed;
+        } catch {
+            return null;
+        }
+    });
+    const bannerTimerRef = useRef<number | null>(null);
+    const dismissBanner = () => {
+        if (bannerTimerRef.current) {
+            clearTimeout(bannerTimerRef.current);
+            bannerTimerRef.current = null;
+        }
+        setSessionBanner(null);
+        try {
+            sessionStorage.removeItem(SESSION_BANNER_KEY);
+        } catch {
+            // ignore
+        }
+    };
+    const showBanner = (next: SessionBanner) => {
+        if (bannerTimerRef.current) clearTimeout(bannerTimerRef.current);
+        setSessionBanner(next);
+        try {
+            sessionStorage.setItem(SESSION_BANNER_KEY, JSON.stringify(next));
+        } catch {
+            // ignore
+        }
+    };
+    useEffect(() => {
+        if (!sessionBanner) return;
+        if (bannerTimerRef.current) clearTimeout(bannerTimerRef.current);
+        const elapsed = Date.now() - sessionBanner.ts;
+        const remaining = Math.max(0, 8000 - elapsed);
+        bannerTimerRef.current = window.setTimeout(() => {
+            dismissBanner();
+        }, remaining);
+    }, [sessionBanner?.ts]);
+    useEffect(() => {
+        return () => {
+            if (bannerTimerRef.current) clearTimeout(bannerTimerRef.current);
+        };
+    }, []);
+
+    const [isApplying, setIsApplying] = useState(false);
+
     // Derived State (Data tab)
     const [derivedPatches, setDerivedPatches] = useState<DerivedPatches | null>(null);
     const [derivedPatchesError, setDerivedPatchesError] = useState<string | null>(null);
@@ -3995,54 +4051,58 @@ function SysadminPanel({
         if (!selectedBlock || selectedBlock.blockType !== 'data.static') return;
 
         setDataStaticSaving(true);
+        setIsApplying(true);
         setDataStaticStatus(null);
         setDataStaticError(null);
-
-        const res = await governedFetch(`/api/v1/config/blocks/${encodeURIComponent(selectedBlock.blockId)}/patch`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                patch: { data: { value: dataStaticDraft } },
-                message: 'Sysadmin data edit'
-            })
-        });
-
-        if (!res) {
-            setDataStaticError('Save failed (no response)');
-            setDataStaticSaving(false);
-            return;
-        }
-
-        if (!res.ok) {
-            const txt = await res.text().catch(() => '');
-            setDataStaticError(`Save failed (${res.status})${txt ? `: ${txt}` : ''}`);
-            setDataStaticSaving(false);
-            return;
-        }
-
         try {
+            const res = await governedFetch(`/api/v1/config/blocks/${encodeURIComponent(selectedBlock.blockId)}/patch`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    patch: { data: { value: dataStaticDraft } },
+                    message: 'Sysadmin data edit'
+                })
+            });
+
+            if (!res) {
+                const msg = 'Save failed (no response)';
+                setDataStaticError(msg);
+                showBanner({ kind: 'error', message: `Save failed: ${msg}`, ts: Date.now() });
+                return;
+            }
+
+            if (!res.ok) {
+                const txt = await res.text().catch(() => '');
+                const msg = `Save failed (${res.status})${txt ? `: ${txt}` : ''}`;
+                setDataStaticError(msg);
+                showBanner({ kind: 'error', message: `Save failed: ${msg}`, ts: Date.now() });
+                return;
+            }
+
             const json = await res.json();
             if (json?.ok === false) {
-                setDataStaticError(json?.error?.message || 'Save failed');
-                setDataStaticSaving(false);
+                const msg = json?.error?.message || 'Save failed';
+                setDataStaticError(msg);
+                showBanner({ kind: 'error', message: `Save failed: ${msg}`, ts: Date.now() });
                 return;
             }
             const payload = json?.data ?? json?.result ?? null;
             const newVersionId = payload?.newVersionId;
-            if (newVersionId) {
-                setDataStaticStatus(`Saved to version ${newVersionId}`);
-            } else {
-                setDataStaticStatus('Saved');
-            }
+            const statusMsg = newVersionId ? `Saved & activated: ${newVersionId}` : 'Saved & activated';
+            setDataStaticStatus(statusMsg);
+            showBanner({ kind: 'success', message: statusMsg, ts: Date.now() });
 
             await localRefresh.bundle();
             localRefresh.resolvedGraph();
             await localRefresh.derived();
             await localRefresh.snapshot();
         } catch (e: any) {
-            setDataStaticError(e?.message || String(e));
+            const msg = e?.message || String(e);
+            setDataStaticError(msg);
+            showBanner({ kind: 'error', message: `Save failed: ${msg}`, ts: Date.now() });
         } finally {
             setDataStaticSaving(false);
+            setIsApplying(false);
         }
     };
 
@@ -6143,7 +6203,7 @@ function SysadminPanel({
                                                     disabled={dataStaticSaving}
                                                     style={{padding:'6px 12px', cursor: dataStaticSaving ? 'default' : 'pointer'}}
                                                 >
-                                                    {dataStaticSaving ? 'Saving…' : 'Save'}
+                                                    {dataStaticSaving ? 'Saving…' : 'Save & Activate'}
                                                 </button>
                                                 <div style={{fontSize:'0.85em', color: dataStaticError ? '#c62828' : '#2e7d32'}}>
                                                     {dataStaticError || dataStaticStatus || ''}
@@ -7717,6 +7777,28 @@ function SysadminPanel({
                 onConfirm={confirmModal.onConfirm} 
                 onCancel={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))} 
             />
+            {isApplying && (
+                <div style={{
+                    position:'absolute',
+                    top:0, left:0, right:0, bottom:0,
+                    background:'rgba(255,255,255,0.7)',
+                    zIndex: 9050,
+                    display:'flex',
+                    alignItems:'center',
+                    justifyContent:'center'
+                }}>
+                    <div style={{
+                        background:'#fff',
+                        border:'1px solid #ccc',
+                        borderRadius:'6px',
+                        padding:'12px 16px',
+                        boxShadow:'0 4px 10px rgba(0,0,0,0.15)',
+                        fontWeight:'bold'
+                    }}>
+                        Applying configuration…
+                    </div>
+                </div>
+            )}
             {toast && (
                 <ToastNotification 
                     message={toast.message} 
@@ -7738,6 +7820,37 @@ function SysadminPanel({
                 </div>
                 <button onClick={onClose} style={{background:'transparent', color:'white', border:'none', fontSize:'1.2em', cursor:'pointer'}}>×</button>
             </div>
+
+            {sessionBanner && (
+                <div style={{
+                    background: sessionBanner.kind === 'success' ? '#e8f5e9' : '#ffebee',
+                    color: sessionBanner.kind === 'success' ? '#1b5e20' : '#b71c1c',
+                    borderBottom: `1px solid ${sessionBanner.kind === 'success' ? '#c8e6c9' : '#ffcdd2'}`,
+                    padding:'8px 12px',
+                    display:'flex',
+                    alignItems:'center',
+                    justifyContent:'space-between',
+                    fontSize:'0.9em',
+                    fontWeight: 600
+                }}>
+                    <span>{sessionBanner.message}</span>
+                    <button
+                        onClick={dismissBanner}
+                        style={{
+                            background:'none',
+                            border:'none',
+                            cursor:'pointer',
+                            color:'inherit',
+                            fontSize:'1.1em',
+                            lineHeight:1,
+                            opacity:0.7
+                        }}
+                        title="Dismiss"
+                    >
+                        ×
+                    </button>
+                </div>
+            )}
             
             <div style={{
                 display:'flex', 

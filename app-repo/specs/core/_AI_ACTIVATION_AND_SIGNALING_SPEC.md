@@ -50,6 +50,11 @@ An ActivationEvent contains:
   - They can be manually dismissed.
 - Banners are not a durable audit log.
 
+**Applying Veil (Optional)**
+- During activation or post-save refresh, the UI may show a transient veil overlay (e.g., “Applying configuration…”).
+- The veil is session-scoped, non-persistent, and must clear even on error.
+- The veil is a UX affordance only; it is not an audit signal or persistent record.
+
 ---
 
 ## 4. Visibility Rules
