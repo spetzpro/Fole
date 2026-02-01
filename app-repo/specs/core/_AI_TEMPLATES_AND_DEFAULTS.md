@@ -1,3 +1,7 @@
+Version: SPEC_V1.0
+Status: Draft
+Last-Updated: 2026-01-31
+
 Version: 1.0.0  
 Last-Updated: 2025-11-23  
 Status: Authoritative Specification (SSOT)
