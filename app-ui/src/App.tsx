@@ -2640,6 +2640,75 @@ function SysadminPanel({
          }
     };
 
+    const handleSaveBindingsDraft = async () => {
+         if (!bundleData || !selectedBindingId) return;
+         const block = findBlockById((bundleData as any)?.blocks, selectedBindingId);
+         const blockId = getBlockId(block);
+         if (!block || !blockId) {
+             showBanner({ kind: 'error', message: 'Save failed: missing binding id', ts: Date.now() });
+             return;
+         }
+         if (block.blockType !== 'binding') {
+             showBanner({ kind: 'error', message: 'Save failed: selected block is not a binding', ts: Date.now() });
+             return;
+         }
+
+         const parsed = parseJsonSafely(bindingsEditorText);
+         if (parsed.error || parsed.value === null) {
+             showBanner({ kind: 'error', message: `Save failed: ${parsed.error || 'Invalid JSON'}`, ts: Date.now() });
+             return;
+         }
+
+         setBindingsDraftSaving(true);
+         try {
+             const res = await governedFetch(`/api/v1/config/blocks/${encodeURIComponent(blockId)}/patch`, {
+                 method: 'POST',
+                 headers: { 'Content-Type': 'application/json' },
+                 body: JSON.stringify({
+                     patch: { data: parsed.value },
+                     message: 'Bindings tab draft save'
+                 })
+             });
+
+             if (!res) {
+                 const msg = 'Save failed (no response)';
+                 showBanner({ kind: 'error', message: `Save failed: ${msg}`, ts: Date.now() });
+                 return;
+             }
+
+             if (!res.ok) {
+                 const txt = await res.text().catch(() => '');
+                 const msg = `Save failed (${res.status})${txt ? `: ${txt}` : ''}`;
+                 showBanner({ kind: 'error', message: `Save failed: ${msg}`, ts: Date.now() });
+                 return;
+             }
+
+             const json = await res.json();
+             if (json?.ok === false) {
+                 const msg = json?.error?.message || 'Save failed';
+                 showBanner({ kind: 'error', message: `Save failed: ${msg}`, ts: Date.now() });
+                 return;
+             }
+
+             const payload = json?.data ?? json?.result ?? null;
+             const newVersionId = payload?.newVersionId;
+             const statusMsg = newVersionId ? `Draft saved: ${newVersionId}` : 'Draft saved';
+             showBanner({ kind: 'success', message: statusMsg, ts: Date.now() });
+             setLastDraftVersionId(newVersionId || null);
+
+             const nextBaseline = JSON.stringify(parsed.value, null, 2);
+             setBindingsEditorBaseline(nextBaseline);
+             setBindingsEditorText(nextBaseline);
+             setBindingsEditorError(null);
+             setBindingsEditorDirty(false);
+         } catch (e: any) {
+             const msg = e?.message || String(e);
+             showBanner({ kind: 'error', message: `Save failed: ${msg}`, ts: Date.now() });
+         } finally {
+             setBindingsDraftSaving(false);
+         }
+    };
+
 
     const renderValidationSummary = () => {
          // --- DIFF PREVIEW ---
@@ -4187,6 +4256,7 @@ function SysadminPanel({
     const [dataStaticSaving, setDataStaticSaving] = useState(false);
     const [nodeDraftSaving, setNodeDraftSaving] = useState(false);
     const [blocksDraftSaving, setBlocksDraftSaving] = useState(false);
+    const [bindingsDraftSaving, setBindingsDraftSaving] = useState(false);
     const [lastDraftVersionId, setLastDraftVersionId] = useState<string | null>(null);
     const [activateDraftReason, setActivateDraftReason] = useState('');
     const [showActivateDraftModal, setShowActivateDraftModal] = useState(false);
@@ -4195,6 +4265,10 @@ function SysadminPanel({
     const [blocksEditorBaseline, setBlocksEditorBaseline] = useState('');
     const [blocksEditorError, setBlocksEditorError] = useState<string | null>(null);
     const [blocksEditorDirty, setBlocksEditorDirty] = useState(false);
+    const [bindingsEditorText, setBindingsEditorText] = useState('');
+    const [bindingsEditorBaseline, setBindingsEditorBaseline] = useState('');
+    const [bindingsEditorError, setBindingsEditorError] = useState<string | null>(null);
+    const [bindingsEditorDirty, setBindingsEditorDirty] = useState(false);
 
     type ActivationFilter = 'all' | 'success' | 'failure';
     const [activationFilter, setActivationFilter] = useState<ActivationFilter>('all');
@@ -4412,6 +4486,24 @@ function SysadminPanel({
         setBlocksEditorError(null);
         setBlocksEditorDirty(false);
     }, [bundleData, selectedBlockId]);
+
+    useEffect(() => {
+        if (!bundleData || !selectedBindingId) {
+            setBindingsEditorText('');
+            setBindingsEditorBaseline('');
+            setBindingsEditorError(null);
+            setBindingsEditorDirty(false);
+            return;
+        }
+
+        const block = findBlockById((bundleData as any)?.blocks, selectedBindingId);
+        const data = block?.data ?? {};
+        const baseline = JSON.stringify(data, null, 2);
+        setBindingsEditorText(baseline);
+        setBindingsEditorBaseline(baseline);
+        setBindingsEditorError(null);
+        setBindingsEditorDirty(false);
+    }, [bundleData, selectedBindingId]);
 
     // --- ActionIndex Memoization ---
     const allActions = runtimePlan?.actions || [];
@@ -6421,7 +6513,7 @@ function SysadminPanel({
                      <div style={{display:'flex', flexDirection:'column', height:'100%'}}>
                          <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'10px'}}>
                              <div style={{fontWeight:'bold', fontSize:'0.9em'}}>Bindings</div>
-                             <div style={{fontSize:'0.8em', color:'#888'}}>Read-only (editing not implemented yet)</div>
+                             <div />
                          </div>
                          <input 
                             type="text" 
@@ -6515,6 +6607,76 @@ function SysadminPanel({
                                             <CopyBtn k="binding" text={selectedBinding} />
                                         </div>
                                         <pre style={preStyle}>{JSON.stringify(selectedBinding, null, 2)}</pre>
+                                        <div style={{marginTop:'10px', border:'1px solid #ddd', borderRadius:'4px', overflow:'hidden'}}>
+                                            <div style={{padding:'8px', background:'#f5f5f5', borderBottom:'1px solid #ddd', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+                                                <strong style={{fontSize:'0.9em'}}>Edit Binding Data (draft)</strong>
+                                            </div>
+                                            <div style={{padding:'8px'}}>
+                                                <textarea
+                                                    value={bindingsEditorText}
+                                                    onChange={(e) => {
+                                                        const nextText = e.target.value;
+                                                        setBindingsEditorText(nextText);
+                                                        const parsed = parseJsonSafely(nextText);
+                                                        setBindingsEditorError(parsed.error);
+                                                        if (!parsed.error) {
+                                                            const baseParsed = parseJsonSafely(bindingsEditorBaseline);
+                                                            if (!baseParsed.error) {
+                                                                setBindingsEditorDirty(JSON.stringify(parsed.value) !== JSON.stringify(baseParsed.value));
+                                                            } else {
+                                                                setBindingsEditorDirty(true);
+                                                            }
+                                                        } else {
+                                                            setBindingsEditorDirty(true);
+                                                        }
+                                                    }}
+                                                    rows={10}
+                                                    style={{width:'100%', resize:'vertical', padding:'8px', border:'1px solid #ccc', borderRadius:'4px', fontFamily:'monospace'}}
+                                                />
+                                                {!showActivateDraftModal && (
+                                                    <div style={{marginTop:'6px', fontSize:'0.85em', color: bindingsEditorError ? '#c62828' : '#2e7d32'}}>
+                                                        {bindingsEditorError ? `Invalid JSON: ${bindingsEditorError}` : 'Valid JSON'}
+                                                    </div>
+                                                )}
+                                                <div style={{display:'flex', gap:'8px', marginTop:'10px'}}>
+                                                    <button
+                                                        onClick={handleSaveBindingsDraft}
+                                                        disabled={!!bindingsEditorError || !bindingsEditorDirty || bindingsDraftSaving}
+                                                        style={{cursor: (!!bindingsEditorError || !bindingsEditorDirty || bindingsDraftSaving) ? 'default' : 'pointer', padding:'4px 8px', fontSize:'0.85em'}}
+                                                    >
+                                                        {bindingsDraftSaving ? 'Saving Draft…' : 'Save Draft'}
+                                                    </button>
+                                                    <button
+                                                        onClick={() => {
+                                                            setBindingsEditorText(bindingsEditorBaseline);
+                                                            setBindingsEditorError(null);
+                                                            setBindingsEditorDirty(false);
+                                                        }}
+                                                        disabled={!bindingsEditorDirty}
+                                                        style={{cursor: (!bindingsEditorDirty) ? 'default' : 'pointer', padding:'4px 8px', fontSize:'0.85em'}}
+                                                    >
+                                                        Reset
+                                                    </button>
+                                                    <button
+                                                        onClick={() => {
+                                                            const parsed = parseJsonSafely(bindingsEditorText);
+                                                            if (parsed.error || parsed.value === null) return;
+                                                            const formatted = JSON.stringify(parsed.value, null, 2);
+                                                            setBindingsEditorText(formatted);
+                                                            setBindingsEditorError(null);
+                                                            const baseParsed = parseJsonSafely(bindingsEditorBaseline);
+                                                            if (!baseParsed.error) {
+                                                                setBindingsEditorDirty(JSON.stringify(parsed.value) !== JSON.stringify(baseParsed.value));
+                                                            }
+                                                        }}
+                                                        disabled={!!bindingsEditorError}
+                                                        style={{cursor: (bindingsEditorError) ? 'default' : 'pointer', padding:'4px 8px', fontSize:'0.85em'}}
+                                                    >
+                                                        Format
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
                                     </>
                                  ) : (
                                     <div style={{fontStyle:'italic', color:'#666', padding:'10px'}}>Select a binding to view details.</div>
