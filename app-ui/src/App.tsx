@@ -7945,7 +7945,7 @@ function SysadminPanel({
                 <button onClick={onClose} style={{background:'transparent', color:'white', border:'none', fontSize:'1.2em', cursor:'pointer'}}>×</button>
             </div>
 
-            {sessionBanner && (
+            {sessionBanner && !(showActivateDraftModal && sessionBanner.message?.includes('Activation reason is required')) && (
                 <div style={{
                     background: sessionBanner.kind === 'success' ? '#e8f5e9' : '#ffebee',
                     color: sessionBanner.kind === 'success' ? '#1b5e20' : '#b71c1c',
