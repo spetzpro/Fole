@@ -516,22 +516,20 @@ function WindowFrame({
         document.addEventListener('mousemove', onMouseMove);
         document.addEventListener('mouseup', onMouseUp);
     };
-
     // Resize
     const startResize = (e: React.MouseEvent) => {
         onFocus();
-        if (win.isMinimized) return;
+        if (win.dockMode !== 'none') return; // Cannot resize docked windows
         e.preventDefault();
-        e.stopPropagation();
         const startX = e.clientX;
         const startY = e.clientY;
-        const startW = win.width;
-        const startH = win.height;
+        const startWidth = win.width;
+        const startHeight = win.height;
 
         const onMouseMove = (me: MouseEvent) => {
             const dx = me.clientX - startX;
             const dy = me.clientY - startY;
-            onResize(startW + dx, startH + dy);
+            onResize(startWidth + dx, startHeight + dy);
         };
         const onMouseUp = () => {
             document.removeEventListener('mousemove', onMouseMove);
@@ -540,7 +538,6 @@ function WindowFrame({
         document.addEventListener('mousemove', onMouseMove);
         document.addEventListener('mouseup', onMouseUp);
     };
-
     const isDocked = win.dockMode !== 'none';
     return (
         <div 
@@ -731,7 +728,7 @@ type ActivationEvent = {
     actor: string;
     reason: string;
     action: string;
-    targetVersion: string;
+    targetVersion: string | null;
     outcome: 'success' | 'failure';
     errorMessage?: string;
     requestId?: string;
@@ -2440,60 +2437,108 @@ function SysadminPanel({
          }
     };
 
-    const handleSaveNode = () => {
-         if (!nodeEditorSelectedId) return;
-         
-         // Initialize from Draft or Clone Active
-         let newDraft: any;
-         if (draftBundle) {
-             newDraft = { ...(draftBundle as any) };
-         } else if (bundleData) {
-             // Deep clone active bundle to start a new draft
-             // Assuming deepClone is available in scope (used by handleCreateDraft)
-             try {
-                newDraft = JSON.parse(JSON.stringify(bundleData)); 
-             } catch(e) { return; }
-         } else {
-             return;
-         }
+    const buildNodeEditorDraftBlock = () => {
+         if (!nodeEditorSelectedId) return null;
 
-         if (!newDraft.blocks) newDraft.blocks = {};
-         
-         const existingDraftBlock = newDraft.blocks[nodeEditorSelectedId];
+         const draftBlocks = (draftBundle as any)?.blocks || {};
+         const existingDraftBlock = draftBlocks[nodeEditorSelectedId];
          const nodes = resolvedGraph?.nodesById || {};
          const activeNode = nodes[nodeEditorSelectedId];
 
-         // Base Data: Default to Active Props (which includes id/type from resolved graph) if no existing draft
-         // This ensures the generic "data" object in Draft JSON looks like the runtime props
          const baseData = existingDraftBlock ? existingDraftBlock.data : (activeNode ? activeNode.props : {});
-         
          let newData = { ...baseData };
          schemaFields.forEach(f => {
              newData = setValueByPath(newData, f.path, nodeEditorForm[f.path]);
          });
-         
-         // Apply Sanitization
+
          newData = sanitizeNodeDataForSchema(schemaFields, newData);
-         
-         // Determine Block Type
+
          let defaultType = 'ui.node.button';
          if (activeTab === 'Node Editor (Text)') defaultType = 'ui.node.text';
          if (activeTab === 'Node Editor (Container)') defaultType = 'ui.node.container';
          if (activeTab === 'Node Editor (Window)') defaultType = 'ui.node.window';
-         
+
          const finalType = activeNode?.type || existingDraftBlock?.blockType || defaultType;
 
-         newDraft.blocks[nodeEditorSelectedId] = {
+         return {
              blockId: nodeEditorSelectedId,
              blockType: finalType,
              schemaVersion: '1.0.0',
              filename: existingDraftBlock?.filename || `${nodeEditorSelectedId}.json`,
              data: newData
          };
-         
+    };
+
+    const applyNodeEditorDraftBlock = (block: any) => {
+         let newDraft: any;
+         if (draftBundle) {
+             newDraft = { ...(draftBundle as any) };
+         } else if (bundleData) {
+             try {
+                newDraft = JSON.parse(JSON.stringify(bundleData));
+             } catch {
+                return;
+             }
+         } else {
+             return;
+         }
+
+         if (!newDraft.blocks) newDraft.blocks = {};
+         newDraft.blocks[block.blockId] = block;
+
          setDraftBundle(newDraft);
          setNodeEditorDirty(false);
-         setTimeout(() => handleNodeSelect(nodeEditorSelectedId), 0);
+         setTimeout(() => handleNodeSelect(block.blockId), 0);
+    };
+
+    const handleSaveNodeDraftVersion = async () => {
+         const block = buildNodeEditorDraftBlock();
+         if (!block) return;
+
+         applyNodeEditorDraftBlock(block);
+         setNodeDraftSaving(true);
+
+         try {
+             const res = await governedFetch(`/api/v1/config/blocks/${encodeURIComponent(block.blockId)}/patch`, {
+                 method: 'POST',
+                 headers: { 'Content-Type': 'application/json' },
+                 body: JSON.stringify({
+                     patch: { data: block.data },
+                     message: 'Node editor draft save'
+                 })
+             });
+
+             if (!res) {
+                 const msg = 'Save failed (no response)';
+                 showBanner({ kind: 'error', message: `Save failed: ${msg}`, ts: Date.now() });
+                 return;
+             }
+
+             if (!res.ok) {
+                 const txt = await res.text().catch(() => '');
+                 const msg = `Save failed (${res.status})${txt ? `: ${txt}` : ''}`;
+                 showBanner({ kind: 'error', message: `Save failed: ${msg}`, ts: Date.now() });
+                 return;
+             }
+
+             const json = await res.json();
+             if (json?.ok === false) {
+                 const msg = json?.error?.message || 'Save failed';
+                 showBanner({ kind: 'error', message: `Save failed: ${msg}`, ts: Date.now() });
+                 return;
+             }
+
+             const payload = json?.data ?? json?.result ?? null;
+             const newVersionId = payload?.newVersionId;
+             const statusMsg = newVersionId ? `Draft saved: ${newVersionId}` : 'Draft saved';
+             showBanner({ kind: 'success', message: statusMsg, ts: Date.now() });
+             setLastDraftVersionId(newVersionId || null);
+         } catch (e: any) {
+             const msg = e?.message || String(e);
+             showBanner({ kind: 'error', message: `Save failed: ${msg}`, ts: Date.now() });
+         } finally {
+             setNodeDraftSaving(false);
+         }
     };
 
     const renderValidationSummary = () => {
@@ -2745,11 +2790,13 @@ function SysadminPanel({
         }
     };
 
-    const refreshActivations = async () => {
+    const refreshActivations = async (nextFilter?: ActivationFilter) => {
         setActivationEventsError(null);
         setActivationEventsLoading(true);
 
-        const res = await governedFetch('/api/v1/admin/activations?limit=50');
+        const filter = nextFilter || activationFilter;
+        const outcomeParam = filter === 'all' ? '' : `&outcome=${filter}`;
+        const res = await governedFetch(`/api/v1/admin/activations?limit=50${outcomeParam}`);
         if (!res) {
             setActivationEventsError('Fetch failed (no response)');
             setActivationEvents([]);
@@ -4038,10 +4085,14 @@ function SysadminPanel({
     const [dataStaticStatus, setDataStaticStatus] = useState<string | null>(null);
     const [dataStaticError, setDataStaticError] = useState<string | null>(null);
     const [dataStaticSaving, setDataStaticSaving] = useState(false);
+    const [nodeDraftSaving, setNodeDraftSaving] = useState(false);
     const [lastDraftVersionId, setLastDraftVersionId] = useState<string | null>(null);
     const [activateDraftReason, setActivateDraftReason] = useState('');
     const [showActivateDraftModal, setShowActivateDraftModal] = useState(false);
     const [activateDraftSaving, setActivateDraftSaving] = useState(false);
+
+    type ActivationFilter = 'all' | 'success' | 'failure';
+    const [activationFilter, setActivationFilter] = useState<ActivationFilter>('all');
 
     const dataBlocks = useMemo(() => {
         const blocksMap = (bundleData as any)?.blocks || {};
@@ -5194,18 +5245,18 @@ function SysadminPanel({
                                          
                                         <div style={{display:'flex', gap:'15px', alignItems:'center', marginTop:'30px', paddingTop:'20px', borderTop:'1px solid #eee'}}>
                                              <button 
-                                                 onClick={handleSaveNode}
-                                                 disabled={!nodeEditorDirty && !!draftBundle}
+                                                 onClick={handleSaveNodeDraftVersion}
+                                                 disabled={!nodeEditorDirty || nodeDraftSaving}
                                                  style={{
                                                      padding:'10px 20px', 
                                                      background: nodeEditorDirty ? '#007acc' : '#e0e0e0', 
                                                      color: nodeEditorDirty ? 'white' : '#888',
-                                                     border:'none', borderRadius:'4px', cursor: nodeEditorDirty ? 'pointer' : 'default', fontWeight:'bold',
+                                                     border:'none', borderRadius:'4px', cursor: (nodeEditorDirty && !nodeDraftSaving) ? 'pointer' : 'default', fontWeight:'bold',
                                                      boxShadow: nodeEditorDirty ? '0 2px 4px rgba(0,122,204,0.3)' : 'none',
                                                      transition: 'all 0.2s'
                                                  }}
                                              >
-                                                 {nodeEditorDirty ? 'Save Changes' : 'No Changes'}
+                                                 {nodeDraftSaving ? 'Saving Draft…' : (nodeEditorDirty ? 'Save Draft' : 'No Changes')}
                                              </button>
                                              
                                              {!draftBundle && (
@@ -5219,18 +5270,18 @@ function SysadminPanel({
                                                 <div style={{marginLeft:'auto', display:'flex', flexDirection:'column', alignItems:'flex-end'}}>
                                                 {renderValidationSummary()}
                                                 <button 
-                                                    onClick={handleActivateDraftDeploy}
-                                                    disabled={pendingStage === 'saving' || validationResult.status === 'BLOCKED'}
+                                                    onClick={() => { if (lastDraftVersionId) setShowActivateDraftModal(true); }}
+                                                    disabled={!lastDraftVersionId || nodeDraftSaving || activateDraftSaving}
                                                     style={{
                                                         padding:'10px 20px', fontSize:'1em', 
-                                                        background: pendingStage === 'saving' ? '#ffcc80' : (validationResult.status === 'BLOCKED' ? '#e57373' : '#e65100'), 
-                                                        color:'white', 
-                                                        border:'none', borderRadius:'4px', cursor: (pendingStage === 'saving' || validationResult.status === 'BLOCKED') ? 'not-allowed' : 'pointer',
+                                                        background: lastDraftVersionId ? '#e65100' : '#eee', 
+                                                        color: lastDraftVersionId ? '#fff' : '#888', 
+                                                        border:'1px solid #e65100', borderRadius:'4px', cursor: (!lastDraftVersionId || nodeDraftSaving || activateDraftSaving) ? 'not-allowed' : 'pointer',
                                                         fontWeight: 'bold'
                                                     }}
-                                                    title={validationResult.status === 'BLOCKED' ? "Fix errors to deploy" : "Save to server and activate as new version"}
+                                                    title={lastDraftVersionId ? "Activate saved draft version" : "Save a draft first"}
                                                 >
-                                                    {pendingStage === 'saving' ? 'Deploying...' : 'Activate (Deploy)'}
+                                                    {activateDraftSaving ? 'Activating…' : 'Activate Draft'}
                                                 </button>
 
                                                 </div>
@@ -5412,18 +5463,18 @@ function SysadminPanel({
                                          
                                          <div style={{display:'flex', gap:'15px', alignItems:'center', marginTop:'30px', paddingTop:'20px', borderTop:'1px solid #eee'}}>
                                              <button 
-                                                 onClick={handleSaveNode}
-                                                 disabled={!nodeEditorDirty && !!draftBundle}
+                                                 onClick={handleSaveNodeDraftVersion}
+                                                 disabled={!nodeEditorDirty || nodeDraftSaving}
                                                  style={{
                                                      padding:'10px 20px', 
                                                      background: nodeEditorDirty ? '#007acc' : '#e0e0e0', 
                                                      color: nodeEditorDirty ? 'white' : '#888',
-                                                     border:'none', borderRadius:'4px', cursor: nodeEditorDirty ? 'pointer' : 'default', fontWeight:'bold',
+                                                     border:'none', borderRadius:'4px', cursor: (nodeEditorDirty && !nodeDraftSaving) ? 'pointer' : 'default', fontWeight:'bold',
                                                      boxShadow: nodeEditorDirty ? '0 2px 4px rgba(0,122,204,0.3)' : 'none',
                                                      transition: 'all 0.2s'
                                                  }}
                                              >
-                                                 {nodeEditorDirty ? 'Save Changes' : 'No Changes'}
+                                                 {nodeDraftSaving ? 'Saving Draft…' : (nodeEditorDirty ? 'Save Draft' : 'No Changes')}
                                              </button>
                                              
                                              {!draftBundle && (
@@ -5437,18 +5488,18 @@ function SysadminPanel({
                                                 <div style={{marginLeft:'auto', display:'flex', flexDirection:'column', alignItems:'flex-end'}}>
                                                 {renderValidationSummary()}
                                                 <button 
-                                                    onClick={handleActivateDraftDeploy}
-                                                    disabled={pendingStage === 'saving' || validationResult.status === 'BLOCKED'}
+                                                    onClick={() => { if (lastDraftVersionId) setShowActivateDraftModal(true); }}
+                                                    disabled={!lastDraftVersionId || nodeDraftSaving || activateDraftSaving}
                                                     style={{
                                                         padding:'10px 20px', fontSize:'1em', 
-                                                        background: pendingStage === 'saving' ? '#ffcc80' : (validationResult.status === 'BLOCKED' ? '#e57373' : '#e65100'), 
-                                                        color:'white', 
-                                                        border:'none', borderRadius:'4px', cursor: (pendingStage === 'saving' || validationResult.status === 'BLOCKED') ? 'not-allowed' : 'pointer',
+                                                        background: lastDraftVersionId ? '#e65100' : '#eee', 
+                                                        color: lastDraftVersionId ? '#fff' : '#888', 
+                                                        border:'1px solid #e65100', borderRadius:'4px', cursor: (!lastDraftVersionId || nodeDraftSaving || activateDraftSaving) ? 'not-allowed' : 'pointer',
                                                         fontWeight: 'bold'
                                                     }}
-                                                    title={validationResult.status === 'BLOCKED' ? "Fix errors to deploy" : "Save to server and activate as new version"}
+                                                    title={lastDraftVersionId ? "Activate saved draft version" : "Save a draft first"}
                                                 >
-                                                    {pendingStage === 'saving' ? 'Deploying...' : 'Activate (Deploy)'}
+                                                    {activateDraftSaving ? 'Activating…' : 'Activate Draft'}
                                                 </button>
                                                 </div>
                                              )}
@@ -5613,18 +5664,18 @@ function SysadminPanel({
                                          
                                          <div style={{display:'flex', gap:'15px', alignItems:'center', marginTop:'30px', paddingTop:'20px', borderTop:'1px solid #eee'}}>
                                              <button 
-                                                 onClick={handleSaveNode}
-                                                 disabled={!nodeEditorDirty && !!draftBundle}
+                                                 onClick={handleSaveNodeDraftVersion}
+                                                 disabled={!nodeEditorDirty || nodeDraftSaving}
                                                  style={{
                                                      padding:'10px 20px', 
                                                      background: nodeEditorDirty ? '#007acc' : '#e0e0e0', 
                                                      color: nodeEditorDirty ? 'white' : '#888',
-                                                     border:'none', borderRadius:'4px', cursor: nodeEditorDirty ? 'pointer' : 'default', fontWeight:'bold',
+                                                     border:'none', borderRadius:'4px', cursor: (nodeEditorDirty && !nodeDraftSaving) ? 'pointer' : 'default', fontWeight:'bold',
                                                      boxShadow: nodeEditorDirty ? '0 2px 4px rgba(0,122,204,0.3)' : 'none',
                                                      transition: 'all 0.2s'
                                                  }}
                                              >
-                                                 {nodeEditorDirty ? 'Save Changes' : 'No Changes'}
+                                                 {nodeDraftSaving ? 'Saving Draft…' : (nodeEditorDirty ? 'Save Draft' : 'No Changes')}
                                              </button>
                                              
                                              {!draftBundle && (
@@ -5638,18 +5689,18 @@ function SysadminPanel({
                                                 <div style={{marginLeft:'auto', display:'flex', flexDirection:'column', alignItems:'flex-end'}}>
                                                 {renderValidationSummary()}
                                                 <button 
-                                                    onClick={handleActivateDraftDeploy}
-                                                    disabled={pendingStage === 'saving' || validationResult.status === 'BLOCKED'}
+                                                    onClick={() => { if (lastDraftVersionId) setShowActivateDraftModal(true); }}
+                                                    disabled={!lastDraftVersionId || nodeDraftSaving || activateDraftSaving}
                                                     style={{
                                                         padding:'10px 20px', fontSize:'1em', 
-                                                        background: pendingStage === 'saving' ? '#ffcc80' : (validationResult.status === 'BLOCKED' ? '#e57373' : '#e65100'), 
-                                                        color:'white', 
-                                                        border:'none', borderRadius:'4px', cursor: (pendingStage === 'saving' || validationResult.status === 'BLOCKED') ? 'not-allowed' : 'pointer',
+                                                        background: lastDraftVersionId ? '#e65100' : '#eee', 
+                                                        color: lastDraftVersionId ? '#fff' : '#888', 
+                                                        border:'1px solid #e65100', borderRadius:'4px', cursor: (!lastDraftVersionId || nodeDraftSaving || activateDraftSaving) ? 'not-allowed' : 'pointer',
                                                         fontWeight: 'bold'
                                                     }}
-                                                    title={validationResult.status === 'BLOCKED' ? "Fix errors to deploy" : "Save to server and activate as new version"}
+                                                    title={lastDraftVersionId ? "Activate saved draft version" : "Save a draft first"}
                                                 >
-                                                    {pendingStage === 'saving' ? 'Deploying...' : 'Activate (Deploy)'}
+                                                    {activateDraftSaving ? 'Activating…' : 'Activate Draft'}
                                                 </button>
                                                 </div>
                                              )}
@@ -5813,18 +5864,18 @@ function SysadminPanel({
                                          
                                          <div style={{display:'flex', gap:'15px', alignItems:'center', marginTop:'30px', paddingTop:'20px', borderTop:'1px solid #eee'}}>
                                              <button 
-                                                 onClick={handleSaveNode}
-                                                 disabled={!nodeEditorDirty && !!draftBundle}
+                                                 onClick={handleSaveNodeDraftVersion}
+                                                 disabled={!nodeEditorDirty || nodeDraftSaving}
                                                  style={{
                                                      padding:'10px 20px', 
                                                      background: nodeEditorDirty ? '#007acc' : '#e0e0e0', 
                                                      color: nodeEditorDirty ? 'white' : '#888',
-                                                     border:'none', borderRadius:'4px', cursor: nodeEditorDirty ? 'pointer' : 'default', fontWeight:'bold',
+                                                     border:'none', borderRadius:'4px', cursor: (nodeEditorDirty && !nodeDraftSaving) ? 'pointer' : 'default', fontWeight:'bold',
                                                      boxShadow: nodeEditorDirty ? '0 2px 4px rgba(0,122,204,0.3)' : 'none',
                                                      transition: 'all 0.2s'
                                                  }}
                                              >
-                                                 {nodeEditorDirty ? 'Save Changes' : 'No Changes'}
+                                                 {nodeDraftSaving ? 'Saving Draft…' : (nodeEditorDirty ? 'Save Draft' : 'No Changes')}
                                              </button>
                                              
                                              {!draftBundle && (
@@ -5838,18 +5889,18 @@ function SysadminPanel({
                                                 <div style={{marginLeft:'auto', display:'flex', flexDirection:'column', alignItems:'flex-end'}}>
                                                 {renderValidationSummary()}
                                                 <button 
-                                                    onClick={handleActivateDraftDeploy}
-                                                    disabled={pendingStage === 'saving' || validationResult.status === 'BLOCKED'}
+                                                    onClick={() => { if (lastDraftVersionId) setShowActivateDraftModal(true); }}
+                                                    disabled={!lastDraftVersionId || nodeDraftSaving || activateDraftSaving}
                                                     style={{
                                                         padding:'10px 20px', fontSize:'1em', 
-                                                        background: pendingStage === 'saving' ? '#ffcc80' : (validationResult.status === 'BLOCKED' ? '#e57373' : '#e65100'), 
-                                                        color:'white', 
-                                                        border:'none', borderRadius:'4px', cursor: (pendingStage === 'saving' || validationResult.status === 'BLOCKED') ? 'not-allowed' : 'pointer',
+                                                        background: lastDraftVersionId ? '#e65100' : '#eee', 
+                                                        color: lastDraftVersionId ? '#fff' : '#888', 
+                                                        border:'1px solid #e65100', borderRadius:'4px', cursor: (!lastDraftVersionId || nodeDraftSaving || activateDraftSaving) ? 'not-allowed' : 'pointer',
                                                         fontWeight: 'bold'
                                                     }}
-                                                    title={validationResult.status === 'BLOCKED' ? "Fix errors to deploy" : "Save to server and activate as new version"}
+                                                    title={lastDraftVersionId ? "Activate saved draft version" : "Save a draft first"}
                                                 >
-                                                    {pendingStage === 'saving' ? 'Deploying...' : 'Activate (Deploy)'}
+                                                    {activateDraftSaving ? 'Activating…' : 'Activate Draft'}
                                                 </button>
                                                 </div>
                                              )}
@@ -7715,8 +7766,27 @@ function SysadminPanel({
                          <div style={{padding:'10px', borderBottom:'1px solid #ddd', display:'flex', alignItems:'center', justifyContent:'space-between', background:'#fafafa'}}>
                              <div style={{display:'flex', alignItems:'center', gap:'10px'}}>
                                  <strong style={{fontSize:'1.1em'}}>Activations</strong>
-                                 <button onClick={refreshActivations} style={{cursor:'pointer', padding:'2px 8px', fontSize:'0.9em'}}>Refresh</button>
+                                <button onClick={() => refreshActivations()} style={{cursor:'pointer', padding:'2px 8px', fontSize:'0.9em'}}>Refresh</button>
                                  {activationEventsLoading && <span style={{fontSize:'0.85em', color:'#666'}}>Loading...</span>}
+                             </div>
+                             <div style={{display:'flex', gap:'6px', alignItems:'center'}}>
+                                 {(['all', 'success', 'failure'] as ActivationFilter[]).map(filter => (
+                                     <button
+                                         key={filter}
+                                         onClick={() => { setActivationFilter(filter); refreshActivations(filter); }}
+                                         style={{
+                                             cursor:'pointer',
+                                             padding:'2px 8px',
+                                             fontSize:'0.85em',
+                                             borderRadius:'4px',
+                                             border: activationFilter === filter ? '1px solid #007acc' : '1px solid #ccc',
+                                             background: activationFilter === filter ? '#e3f2fd' : '#fff',
+                                             color: activationFilter === filter ? '#0d47a1' : '#333'
+                                         }}
+                                     >
+                                         {filter === 'all' ? 'All' : (filter === 'success' ? 'Success' : 'Failure')}
+                                     </button>
+                                 ))}
                              </div>
                          </div>
 
@@ -7736,12 +7806,14 @@ function SysadminPanel({
                                              <th style={{padding:'6px', textAlign:'left', borderBottom:'1px solid #ccc'}}>Version</th>
                                              <th style={{padding:'6px', textAlign:'left', borderBottom:'1px solid #ccc'}}>Actor</th>
                                              <th style={{padding:'6px', textAlign:'left', borderBottom:'1px solid #ccc'}}>Reason</th>
+                                             <th style={{padding:'6px', textAlign:'left', borderBottom:'1px solid #ccc'}}>Error</th>
                                          </tr>
                                      </thead>
                                      <tbody>
                                          {items.map((evt, idx) => {
                                              const outcomeColor = evt.outcome === 'success' ? '#2e7d32' : '#c62828';
                                              const reasonText = evt.reason || (evt.outcome === 'failure' ? evt.errorMessage || '' : '');
+                                             const errorText = evt.outcome === 'failure' ? (evt.errorMessage || '') : '';
                                              return (
                                                  <tr key={evt.id || `${evt.ts}-${idx}`} style={{borderBottom:'1px solid #eee'}}>
                                                      <td style={{padding:'6px', color:'#555'}}>{evt.ts ? new Date(evt.ts).toLocaleString() : '-'}</td>
@@ -7756,6 +7828,14 @@ function SysadminPanel({
                                                              style={{display:'inline-block', maxWidth:'360px', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', verticalAlign:'bottom'}}
                                                          >
                                                              {reasonText || '-'}
+                                                         </span>
+                                                     </td>
+                                                     <td style={{padding:'6px', color:'#555'}}>
+                                                         <span
+                                                             title={errorText}
+                                                             style={{display:'inline-block', maxWidth:'220px', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', verticalAlign:'bottom'}}
+                                                         >
+                                                             {errorText || '-'}
                                                          </span>
                                                      </td>
                                                  </tr>

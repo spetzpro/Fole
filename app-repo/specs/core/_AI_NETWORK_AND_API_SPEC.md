@@ -256,11 +256,11 @@ Operations for defining tables and fields at runtime.
 - **Logic Bounds:** See `_AI_UI_BINDING_AND_LOGIC_SPEC.md` for constraints on expressions sent during validation.
 
 ### 17.5 v1 Config Draft + Activate (Admin-Only)
-Versioned write-back for admin-edited `data.static` blocks, split into **Save Draft** and **Activate**.
+Versioned write-back for admin-edited `data.static` and `ui.node.*` blocks, split into **Save Draft** and **Activate**.
 
 | Method | Endpoint | Description | Permission Required |
 | :--- | :--- | :--- | :--- |
-| `POST` | `/api/v1/config/blocks/:blockId/patch` | Patch `block.data` (shallow merge) and persist as a **new version** (draft only). **Does not activate.** | Admin-equivalent (localhost dev exception allowed) |
+| `POST` | `/api/v1/config/blocks/:blockId/patch` | Patch `block.data` (shallow merge) for `data.static` or `ui.node.*` blocks and persist as a **new version** (draft only). **Does not activate.** | Admin-equivalent (localhost dev exception allowed) |
 | `POST` | `/api/v1/config/activate` | Activate a specific version. Requires a non-empty reason. | Admin-equivalent (localhost dev exception allowed) |
 
 **Save Draft Request Body:**

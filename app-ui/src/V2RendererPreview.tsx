@@ -91,6 +91,30 @@ export function V2RendererPreview({ onClose, embedded, rootId, activeVersionId, 
         };
     }, [activeVersionId, rootId, embedded]); // Refresh when version or root changes
 
+    const isRecord = (value: unknown): value is Record<string, unknown> => {
+        return !!value && typeof value === 'object';
+    };
+
+    const getStringProp = (obj: Record<string, unknown> | null, key: string): string | undefined => {
+        if (!obj) return undefined;
+        const value = obj[key];
+        return typeof value === 'string' ? value : undefined;
+    };
+
+    const getActionIdFromProps = (props: Record<string, unknown>): string | null => {
+        const behaviors = isRecord(props.behaviors) ? props.behaviors : null;
+        const onClickBeh = isRecord(behaviors?.onClick) ? behaviors.onClick : null;
+        const onClickDirect = isRecord(props.onClick) ? props.onClick : null;
+        const nestedAction = isRecord(onClickBeh?.action) ? onClickBeh.action : null;
+
+        return (
+            getStringProp(onClickBeh, 'actionId') ||
+            getStringProp(onClickDirect, 'actionId') ||
+            getStringProp(nestedAction, 'actionId') ||
+            null
+        );
+    };
+
     const renderNode = (nodeId: string) => {
         if (!graph || !graph.nodesById[nodeId]) return <div key={nodeId} style={{color:'red'}}>Missing Node: {nodeId}</div>;
         const node = graph.nodesById[nodeId];
@@ -98,6 +122,7 @@ export function V2RendererPreview({ onClose, embedded, rootId, activeVersionId, 
         // Apply derived state overlay (shallow merge of props)
         const baseProps = node.props ?? {};
         const effectiveProps = mergeDerivedProps(baseProps, derivedState, node.id, node.props);
+        const propsRecord = isRecord(effectiveProps) ? effectiveProps : {};
 
         const style: React.CSSProperties = {
             padding: '10px',
@@ -109,7 +134,7 @@ export function V2RendererPreview({ onClose, embedded, rootId, activeVersionId, 
         switch (node.type) {
             case 'ui.node.container':
                 // Layout logic
-                const directionProp = effectiveProps.direction || effectiveProps.layout || 'column';
+                const directionProp = propsRecord.direction || propsRecord.layout || 'column';
                 const flexDirection = String(directionProp).toLowerCase() === 'row' ? 'row' : 'column';
 
                 return (
@@ -121,7 +146,7 @@ export function V2RendererPreview({ onClose, embedded, rootId, activeVersionId, 
                     </div>
                 );
             case 'ui.node.text':
-                const displayText = effectiveProps.content || effectiveProps.text || effectiveProps.value || effectiveProps.label || "(missing text)";
+                const displayText = propsRecord.content || propsRecord.text || propsRecord.value || propsRecord.label || "(missing text)";
                 return (
                     <div key={commonKey} style={{...style, backgroundColor: 'white', whiteSpace: 'pre-wrap'}}>
                         {String(displayText)}
@@ -129,12 +154,7 @@ export function V2RendererPreview({ onClose, embedded, rootId, activeVersionId, 
                 );
             case 'ui.node.button':
                 const handleButtonClick = async () => {
-                     // @ts-ignore
-                     const actionId =
-                         effectiveProps.behaviors?.onClick?.actionId ??
-                         effectiveProps.onClick?.actionId ??
-                         effectiveProps.behaviors?.onClick?.action?.actionId ??
-                         null;
+                     const actionId = getActionIdFromProps(propsRecord);
                      if (actionId) {
                          const sourceBlockId = (node.props?.blockId as string | undefined) ?? node.id;
                          onAction?.(actionId, sourceBlockId);
@@ -143,10 +163,10 @@ export function V2RendererPreview({ onClose, embedded, rootId, activeVersionId, 
                      }
                 };
                 
-                const displayLabel = effectiveProps.label || effectiveProps.text || "Button";
-                const helpText = (effectiveProps.helpText as string) || undefined;
-                const isDisabled = effectiveProps.enabled === false;
-                const variant = (effectiveProps.variant as string) || 'secondary';
+                const displayLabel = propsRecord.label || propsRecord.text || "Button";
+                const helpText = typeof propsRecord.helpText === 'string' ? propsRecord.helpText : undefined;
+                const isDisabled = propsRecord.enabled === false;
+                const variant = typeof propsRecord.variant === 'string' ? propsRecord.variant : 'secondary';
 
                 let variantStyle: React.CSSProperties = {
                     backgroundColor: '#e0e0e0',
