@@ -2541,6 +2541,106 @@ function SysadminPanel({
          }
     };
 
+    const isPatchableBlockType = (blockType: unknown) => {
+         return typeof blockType === 'string' && (blockType === 'data.static' || blockType.startsWith('ui.node.'));
+    };
+
+    const getBlockId = (block: any): string | null => {
+         const blockId = block?.blockId || block?.id;
+         return typeof blockId === 'string' && blockId.trim() ? blockId : null;
+    };
+
+    const findBlockById = (blocks: any, id: string) => {
+         if (!blocks || !id) return null;
+         if (Array.isArray(blocks)) {
+             return blocks.find((b: any) => (b?.blockId === id || b?.id === id)) || null;
+         }
+         if (typeof blocks === 'object') {
+             const direct = (blocks as Record<string, any>)[id];
+             if (direct) return direct;
+             return Object.values(blocks as Record<string, any>).find((b: any) => (b?.blockId === id || b?.id === id)) || null;
+         }
+         return null;
+    };
+
+    const parseJsonSafely = (text: string) => {
+         try {
+             return { value: JSON.parse(text), error: null as string | null };
+         } catch (e: any) {
+             return { value: null, error: e?.message || 'Invalid JSON' };
+         }
+    };
+
+    const handleSaveBlocksDraft = async () => {
+         if (!bundleData || !selectedBlockId) return;
+         const block = findBlockById((bundleData as any)?.blocks, selectedBlockId);
+         const blockId = getBlockId(block);
+         if (!block || !blockId) {
+             showBanner({ kind: 'error', message: 'Save failed: missing block id', ts: Date.now() });
+             return;
+         }
+         if (!isPatchableBlockType(block.blockType)) {
+             showBanner({ kind: 'error', message: 'Save failed: block type is not patchable', ts: Date.now() });
+             return;
+         }
+
+         const parsed = parseJsonSafely(blocksEditorText);
+         if (parsed.error || parsed.value === null) {
+             showBanner({ kind: 'error', message: `Save failed: ${parsed.error || 'Invalid JSON'}`, ts: Date.now() });
+             return;
+         }
+
+         setBlocksDraftSaving(true);
+         try {
+             const res = await governedFetch(`/api/v1/config/blocks/${encodeURIComponent(blockId)}/patch`, {
+                 method: 'POST',
+                 headers: { 'Content-Type': 'application/json' },
+                 body: JSON.stringify({
+                     patch: { data: parsed.value },
+                     message: 'Blocks tab draft save'
+                 })
+             });
+
+             if (!res) {
+                 const msg = 'Save failed (no response)';
+                 showBanner({ kind: 'error', message: `Save failed: ${msg}`, ts: Date.now() });
+                 return;
+             }
+
+             if (!res.ok) {
+                 const txt = await res.text().catch(() => '');
+                 const msg = `Save failed (${res.status})${txt ? `: ${txt}` : ''}`;
+                 showBanner({ kind: 'error', message: `Save failed: ${msg}`, ts: Date.now() });
+                 return;
+             }
+
+             const json = await res.json();
+             if (json?.ok === false) {
+                 const msg = json?.error?.message || 'Save failed';
+                 showBanner({ kind: 'error', message: `Save failed: ${msg}`, ts: Date.now() });
+                 return;
+             }
+
+             const payload = json?.data ?? json?.result ?? null;
+             const newVersionId = payload?.newVersionId;
+             const statusMsg = newVersionId ? `Draft saved: ${newVersionId}` : 'Draft saved';
+             showBanner({ kind: 'success', message: statusMsg, ts: Date.now() });
+             setLastDraftVersionId(newVersionId || null);
+
+             const nextBaseline = JSON.stringify(parsed.value, null, 2);
+             setBlocksEditorBaseline(nextBaseline);
+             setBlocksEditorText(nextBaseline);
+             setBlocksEditorError(null);
+             setBlocksEditorDirty(false);
+         } catch (e: any) {
+             const msg = e?.message || String(e);
+             showBanner({ kind: 'error', message: `Save failed: ${msg}`, ts: Date.now() });
+         } finally {
+             setBlocksDraftSaving(false);
+         }
+    };
+
+
     const renderValidationSummary = () => {
          // --- DIFF PREVIEW ---
          let diffElement = null;
@@ -4086,10 +4186,15 @@ function SysadminPanel({
     const [dataStaticError, setDataStaticError] = useState<string | null>(null);
     const [dataStaticSaving, setDataStaticSaving] = useState(false);
     const [nodeDraftSaving, setNodeDraftSaving] = useState(false);
+    const [blocksDraftSaving, setBlocksDraftSaving] = useState(false);
     const [lastDraftVersionId, setLastDraftVersionId] = useState<string | null>(null);
     const [activateDraftReason, setActivateDraftReason] = useState('');
     const [showActivateDraftModal, setShowActivateDraftModal] = useState(false);
     const [activateDraftSaving, setActivateDraftSaving] = useState(false);
+    const [blocksEditorText, setBlocksEditorText] = useState('');
+    const [blocksEditorBaseline, setBlocksEditorBaseline] = useState('');
+    const [blocksEditorError, setBlocksEditorError] = useState<string | null>(null);
+    const [blocksEditorDirty, setBlocksEditorDirty] = useState(false);
 
     type ActivationFilter = 'all' | 'success' | 'failure';
     const [activationFilter, setActivationFilter] = useState<ActivationFilter>('all');
@@ -4289,6 +4394,24 @@ function SysadminPanel({
         setDataStaticStatus(null);
         setDataStaticError(null);
     }, [activeTab, dataBlocks, selectedDataBlockId]);
+
+    useEffect(() => {
+        if (!bundleData || !selectedBlockId) {
+            setBlocksEditorText('');
+            setBlocksEditorBaseline('');
+            setBlocksEditorError(null);
+            setBlocksEditorDirty(false);
+            return;
+        }
+
+        const block = findBlockById((bundleData as any)?.blocks, selectedBlockId);
+        const data = block?.data ?? {};
+        const baseline = JSON.stringify(data, null, 2);
+        setBlocksEditorText(baseline);
+        setBlocksEditorBaseline(baseline);
+        setBlocksEditorError(null);
+        setBlocksEditorDirty(false);
+    }, [bundleData, selectedBlockId]);
 
     // --- ActionIndex Memoization ---
     const allActions = runtimePlan?.actions || [];
@@ -6004,6 +6127,10 @@ function SysadminPanel({
                 if (!bundleData) return <div style={{padding:'20px', color:'#666'}}>No bundle/config loaded yet.</div>;
                 return (
                     <div>
+                        <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'10px'}}>
+                             <div style={{fontWeight:'bold', fontSize:'0.9em'}}>ShellConfig</div>
+                             <div style={{fontSize:'0.8em', color:'#888'}}>Read-only (editing not implemented yet)</div>
+                        </div>
                         <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'5px'}}>
                              <strong style={{fontSize:'0.9em'}}>Bundle Configuration</strong>
                              <CopyBtn k="shellconfig" text={bundleData} />
@@ -6032,9 +6159,21 @@ function SysadminPanel({
                  });
                  
                  const selectedBlock = selectedBlockId ? blocksArr.find((b:any) => (b.blockId === selectedBlockId || b.id === selectedBlockId)) : null;
+                 const selectedBlockType = selectedBlock?.blockType as string | undefined;
+                 const isPatchable = isPatchableBlockType(selectedBlockType);
+                 const parsedEditor = parseJsonSafely(blocksEditorText);
+                 const isEditorValid = !blocksEditorError;
+                 const baselineParsed = parseJsonSafely(blocksEditorBaseline);
+                 const dirtyCompared = isEditorValid && !baselineParsed.error
+                     ? JSON.stringify(parsedEditor.value) !== JSON.stringify(baselineParsed.value)
+                     : blocksEditorDirty;
 
                  return (
                      <div style={{display:'flex', flexDirection:'column', height:'100%'}}>
+                         <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'10px'}}>
+                             <div style={{fontWeight:'bold', fontSize:'0.9em'}}>Blocks</div>
+                            <div />
+                         </div>
                          <div style={{marginBottom:'10px'}}>
                              <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'4px'}}>
                                  <label style={{fontSize:'0.85em', fontWeight:'bold', color:'#555'}}>
@@ -6123,6 +6262,84 @@ function SysadminPanel({
                                             <CopyBtn k="block" text={selectedBlock} />
                                         </div>
                                         <pre style={preStyle}>{JSON.stringify(selectedBlock, null, 2)}</pre>
+                                        <div style={{marginTop:'10px', border:'1px solid #ddd', borderRadius:'4px', overflow:'hidden'}}>
+                                            <div style={{padding:'8px', background:'#f5f5f5', borderBottom:'1px solid #ddd', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+                                                <strong style={{fontSize:'0.9em'}}>Edit Block Data (draft)</strong>
+                                                {selectedBlockType && !isPatchable && (
+                                                    <span style={{fontSize:'0.8em', color:'#888'}}>Read-only for {selectedBlockType}</span>
+                                                )}
+                                            </div>
+                                            {isPatchable ? (
+                                                <div style={{padding:'8px'}}>
+                                                    <textarea
+                                                        value={blocksEditorText}
+                                                        onChange={(e) => {
+                                                            const nextText = e.target.value;
+                                                            setBlocksEditorText(nextText);
+                                                            const parsed = parseJsonSafely(nextText);
+                                                            setBlocksEditorError(parsed.error);
+                                                            if (!parsed.error) {
+                                                                const baseParsed = parseJsonSafely(blocksEditorBaseline);
+                                                                if (!baseParsed.error) {
+                                                                    setBlocksEditorDirty(JSON.stringify(parsed.value) !== JSON.stringify(baseParsed.value));
+                                                                } else {
+                                                                    setBlocksEditorDirty(true);
+                                                                }
+                                                            } else {
+                                                                setBlocksEditorDirty(true);
+                                                            }
+                                                        }}
+                                                        rows={10}
+                                                        style={{width:'100%', resize:'vertical', padding:'8px', border:'1px solid #ccc', borderRadius:'4px', fontFamily:'monospace'}}
+                                                    />
+                                                    {!showActivateDraftModal && (
+                                                        <div style={{marginTop:'6px', fontSize:'0.85em', color: isEditorValid ? '#2e7d32' : '#c62828'}}>
+                                                            {isEditorValid ? 'Valid JSON' : `Invalid JSON: ${blocksEditorError}`}
+                                                        </div>
+                                                    )}
+                                                    <div style={{display:'flex', gap:'8px', marginTop:'10px'}}>
+                                                        <button
+                                                            onClick={handleSaveBlocksDraft}
+                                                            disabled={!isEditorValid || !dirtyCompared || blocksDraftSaving}
+                                                            style={{cursor: (!isEditorValid || !dirtyCompared || blocksDraftSaving) ? 'default' : 'pointer', padding:'4px 8px', fontSize:'0.85em'}}
+                                                        >
+                                                            {blocksDraftSaving ? 'Saving Draft…' : 'Save Draft'}
+                                                        </button>
+                                                        <button
+                                                            onClick={() => {
+                                                                setBlocksEditorText(blocksEditorBaseline);
+                                                                setBlocksEditorError(null);
+                                                                setBlocksEditorDirty(false);
+                                                            }}
+                                                            disabled={!dirtyCompared}
+                                                            style={{cursor: (!dirtyCompared) ? 'default' : 'pointer', padding:'4px 8px', fontSize:'0.85em'}}
+                                                        >
+                                                            Reset
+                                                        </button>
+                                                        <button
+                                                            onClick={() => {
+                                                                if (!isEditorValid || parsedEditor.value === null) return;
+                                                                const formatted = JSON.stringify(parsedEditor.value, null, 2);
+                                                                setBlocksEditorText(formatted);
+                                                                setBlocksEditorError(null);
+                                                                const baseParsed = parseJsonSafely(blocksEditorBaseline);
+                                                                if (!baseParsed.error) {
+                                                                    setBlocksEditorDirty(JSON.stringify(parsedEditor.value) !== JSON.stringify(baseParsed.value));
+                                                                }
+                                                            }}
+                                                            disabled={!isEditorValid}
+                                                            style={{cursor: (!isEditorValid) ? 'default' : 'pointer', padding:'4px 8px', fontSize:'0.85em'}}
+                                                        >
+                                                            Format
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <div style={{padding:'8px', color:'#888', fontSize:'0.85em'}}>
+                                                    Read-only (editing not implemented yet for blockType: {selectedBlockType || 'unknown'})
+                                                </div>
+                                            )}
+                                        </div>
                                     </>
                                  ) : (
                                     <div style={{fontStyle:'italic', color:'#666', padding:'10px'}}>Select a block to view details.</div>
@@ -6202,6 +6419,10 @@ function SysadminPanel({
 
                  return (
                      <div style={{display:'flex', flexDirection:'column', height:'100%'}}>
+                         <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'10px'}}>
+                             <div style={{fontWeight:'bold', fontSize:'0.9em'}}>Bindings</div>
+                             <div style={{fontSize:'0.8em', color:'#888'}}>Read-only (editing not implemented yet)</div>
+                         </div>
                          <input 
                             type="text" 
                             placeholder="Filter bindings (id/mode)..." 
@@ -6323,55 +6544,6 @@ function SysadminPanel({
 
                 return (
                     <div style={{display:'flex', height:'100%', overflow:'hidden'}}>
-                        {showActivateDraftModal && (
-                            <div style={{
-                                position:'fixed',
-                                top:0, left:0, right:0, bottom:0,
-                                background:'rgba(0,0,0,0.35)',
-                                zIndex: 9100,
-                                display:'flex',
-                                alignItems:'center',
-                                justifyContent:'center'
-                            }}>
-                                <div style={{
-                                    background:'#fff',
-                                    border:'1px solid #ccc',
-                                    borderRadius:'6px',
-                                    width:'520px',
-                                    maxWidth:'92%',
-                                    padding:'16px',
-                                    boxShadow:'0 6px 16px rgba(0,0,0,0.2)'
-                                }}>
-                                    <div style={{fontWeight:'bold', marginBottom:'8px'}}>Activate Draft</div>
-                                    <div style={{fontSize:'0.9em', color:'#555', marginBottom:'10px'}}>
-                                        Provide a reason for activation. This will reload the active configuration.
-                                    </div>
-                                    <textarea
-                                        value={activateDraftReason}
-                                        onChange={e => setActivateDraftReason(e.target.value)}
-                                        rows={4}
-                                        style={{width:'100%', resize:'vertical', padding:'8px', border:'1px solid #ccc', borderRadius:'4px', fontFamily:'inherit'}}
-                                        placeholder="Reason for activation..."
-                                    />
-                                    <div style={{display:'flex', justifyContent:'flex-end', gap:'8px', marginTop:'12px'}}>
-                                        <button
-                                            onClick={() => { setShowActivateDraftModal(false); setActivateDraftReason(''); }}
-                                            style={{padding:'6px 12px', background:'#fff', color:'#111', border:'1px solid #ccc', borderRadius:'4px', cursor:'pointer'}}
-                                            disabled={activateDraftSaving}
-                                        >
-                                            Cancel
-                                        </button>
-                                        <button
-                                            onClick={handleActivateDataStaticVersion}
-                                            style={{padding:'6px 12px', background:'#e65100', color:'#fff', border:'1px solid #e65100', borderRadius:'4px', cursor:'pointer', fontWeight:'bold'}}
-                                            disabled={activateDraftSaving}
-                                        >
-                                            {activateDraftSaving ? 'Activating…' : 'Activate'}
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
                         {/* Left Column: data.* blocks list */}
                         <div style={{width:'260px', borderRight:'1px solid #ddd', background:'#f9f9f9', overflowY:'auto'}}>
                             <div style={{padding:'10px', borderBottom:'1px solid #eee', fontWeight:'bold', fontSize:'0.9em'}}>Data Blocks</div>
@@ -8107,6 +8279,55 @@ function SysadminPanel({
                 onConfirm={confirmModal.onConfirm} 
                 onCancel={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))} 
             />
+            {showActivateDraftModal && (
+                <div style={{
+                    position:'fixed',
+                    top:0, left:0, right:0, bottom:0,
+                    background:'rgba(0,0,0,0.35)',
+                    zIndex: 9100,
+                    display:'flex',
+                    alignItems:'center',
+                    justifyContent:'center'
+                }}>
+                    <div style={{
+                        background:'#fff',
+                        border:'1px solid #ccc',
+                        borderRadius:'6px',
+                        width:'520px',
+                        maxWidth:'92%',
+                        padding:'16px',
+                        boxShadow:'0 6px 16px rgba(0,0,0,0.2)'
+                    }}>
+                        <div style={{fontWeight:'bold', marginBottom:'8px'}}>Activate Draft</div>
+                        <div style={{fontSize:'0.9em', color:'#555', marginBottom:'10px'}}>
+                            Provide a reason for activation. This will reload the active configuration.
+                        </div>
+                        <textarea
+                            value={activateDraftReason}
+                            onChange={e => setActivateDraftReason(e.target.value)}
+                            rows={4}
+                            style={{width:'100%', resize:'vertical', padding:'8px', border:'1px solid #ccc', borderRadius:'4px', fontFamily:'inherit'}}
+                            placeholder="Reason for activation..."
+                        />
+                        <div style={{display:'flex', justifyContent:'flex-end', gap:'8px', marginTop:'12px'}}>
+                            <button
+                                onClick={() => { setShowActivateDraftModal(false); setActivateDraftReason(''); }}
+                                style={{padding:'6px 12px', background:'#fff', color:'#111', border:'1px solid #ccc', borderRadius:'4px', cursor:'pointer'}}
+                                disabled={activateDraftSaving}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleActivateDataStaticVersion}
+                                style={{padding:'6px 12px', background:'#e65100', color:'#fff', border:'1px solid #e65100', borderRadius:'4px', cursor:'pointer', fontWeight:'bold'}}
+                                disabled={activateDraftSaving}
+                            >
+                                {activateDraftSaving ? 'Activating…' : 'Activate'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
             {isApplying && (
                 <div style={{
                     position:'absolute',
@@ -8147,6 +8368,22 @@ function SysadminPanel({
                     }}>
                         Running: {runningSource}
                     </span>
+                    <button
+                        onClick={() => { if (lastDraftVersionId) setShowActivateDraftModal(true); }}
+                        disabled={!lastDraftVersionId || activateDraftSaving}
+                        style={{
+                            cursor: (!lastDraftVersionId || activateDraftSaving) ? 'default' : 'pointer',
+                            padding:'2px 8px',
+                            fontSize:'0.8em',
+                            background: lastDraftVersionId ? '#e65100' : '#555',
+                            color: 'white',
+                            border: '1px solid rgba(255,255,255,0.3)',
+                            borderRadius:'4px'
+                        }}
+                        title={lastDraftVersionId ? 'Activate saved draft version' : 'Save a draft first'}
+                    >
+                        {activateDraftSaving ? 'Activating…' : 'Activate Draft'}
+                    </button>
                 </div>
                 <button onClick={onClose} style={{background:'transparent', color:'white', border:'none', fontSize:'1.2em', cursor:'pointer'}}>×</button>
             </div>

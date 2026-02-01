@@ -1,10 +1,6 @@
 Version: SPEC_V1.0
-Status: Draft
-Last-Updated: 2026-01-31
-
-Version: 1.0.0
-Last-Updated: 2025-11-23
 Status: Authoritative Specification (SSOT)
+Last-Updated: 2026-02-01
 
 # _AI_NETWORK_AND_API_SPEC.md
 Defines FOLE’s networking, API boundaries, protocol rules, and AI-safe integration layer.

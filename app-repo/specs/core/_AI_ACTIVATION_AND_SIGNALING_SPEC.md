@@ -1,6 +1,6 @@
 Version: SPEC_V1.0
 Status: Draft
-Last-Updated: 2026-01-31
+Last-Updated: 2026-02-01
 
 # AI Guidance: Activation & Signaling
 
@@ -24,20 +24,27 @@ This document defines activation signaling semantics for configuration changes. 
 ## 2. ActivationEvent Fields
 
 An ActivationEvent contains:
+- **id**: string
+  - Stable event identifier (unique per event).
 - **fromVersionId**: string | null
   - Version before activation (if known).
 - **toVersionId**: string
   - Version being activated.
-- **actorId | actorLabel**: string
-  - Identity of actor (user id) or a human-readable label for dev/system actions.
+- **actorId?**: string
+  - Actor identifier (user id) when available.
+- **actorLabel?**: string
+  - Human-readable label for dev/system actions (e.g., "dev").
 - **reason**: string (required for manual activation)
   - Human-entered reason for activation.
 - **timestamp**: string (ISO-8601)
   - When the activation was attempted or completed.
-- **outcome**: "success" | "fail"
+  - Implementation detail: storage may persist this as **ts**; **ts** must map to **timestamp** at read time.
+- **outcome**: "success" | "failure"
   - Whether activation completed successfully.
-- **errorSummary?**: string
+- **errorMessage?**: string
   - Optional short error description for failed activation.
+- **requestId?**: string
+  - Request correlation id for tracing.
 
 ---
 
@@ -90,8 +97,8 @@ An ActivationEvent contains:
 ### 5.2 Production
 - A sysadmin activates a version with a required reason.
 - ActivationEvent records fromVersionId and toVersionId, actorId, reason.
-- If activation fails, outcome="fail" and errorSummary is populated.
-- Banner shows failure message with errorSummary and can be dismissed.
+- If activation fails, outcome="failure" and errorMessage is populated.
+- Banner shows failure message with errorMessage and can be dismissed.
 
 ---
 

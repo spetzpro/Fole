@@ -1,11 +1,10 @@
 Version: SPEC_V1.0
 Status: Draft
-Last-Updated: 2026-01-31
+Last-Updated: 2026-02-01
 
 # _AI_DOCS_OVERVIEW.md
 
-**Document Version:** 1.1  
-**Last Updated:** YYYY-MM-DD
+**Document Version:** 1.1
 
 # AI Documentation Overview & Context Routing Entry Point
 
@@ -84,7 +83,7 @@ If an agent touches:
 
 ```
 app-repo/specs/modules/<moduleName>/
-app-rerepo/specs/blocks/<blockName>/
+app-repo/specs/blocks/<blockName>/
 ```
 
 Each module folder contains:
