@@ -4749,8 +4749,11 @@ function SysadminPanel({
                                  <strong style={{color:'#555'}}>Snapshot Time:</strong>
                                  <span>{snapshotData.ts ? new Date(snapshotData.ts).toLocaleString() : 'N/A'}</span>
 
-                                 <strong style={{color:'#555'}}>Open Windows:</strong>
-                                 <span>{openWindowIds.length}</span>
+                                 <strong style={{color:'#555'}}>UI Open Windows:</strong>
+                                 <span>
+                                     {openWindowIds.length}
+                                     <span style={{marginLeft:'6px', fontSize:'0.85em', color:'#777'}}>(client runtime)</span>
+                                 </span>
 
                                  <strong style={{color:'#555'}}>Derived Patches:</strong>
                                 <span>{snapshotData.derivedPatchesCount ?? 0}</span>
