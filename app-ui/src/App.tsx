@@ -716,16 +716,19 @@ interface RuntimeTrace {
     durationMs?: number;
     reasonCode?: string;
 }
+type SysRefresh = {
+    bundle: () => Promise<void> | void;
+    resolvedGraph: () => void;
+    derived: () => Promise<void> | void;
+    snapshot: () => Promise<any> | void;
+};
 type ConfigSysadminViewProps = {
     bundleData: BundleResponse | null; 
     renderKnownPanel?: (blockType: string) => React.ReactNode | null;
     activeVersionId?: string|null;
     onCloneSysadminDraft?: (sysadminBlocks: Record<string, unknown>, reason: string) => Promise<string>;
     onActivateVersion?: (versionId: string, reason: string) => Promise<void>;
-    onRefreshBundle?: () => Promise<void> | void;
-    onRefreshResolvedGraph?: () => void;
-    onRefreshSnapshot?: () => Promise<any> | void;
-    onRefreshDerivedState?: () => Promise<void> | void;
+    sysRefresh?: SysRefresh;
     // Stable State Props
     pendingStage: 'idle' | 'saving' | 'awaiting_ack' | 'activating' | 'error' | 'success' | 'preflight_error';
     setPendingStage: (s: 'idle' | 'saving' | 'awaiting_ack' | 'activating' | 'error' | 'success' | 'preflight_error') => void;
@@ -748,10 +751,7 @@ function ConfigSysadminView(props: ConfigSysadminViewProps) {
         activeVersionId,
         onCloneSysadminDraft,
         onActivateVersion,
-        onRefreshBundle: onRefreshBundleProp,
-        onRefreshResolvedGraph: onRefreshResolvedGraphProp,
-        onRefreshSnapshot: onRefreshSnapshotProp,
-        onRefreshDerivedState,
+        sysRefresh: sysRefreshValue,
         pendingStage,
         setPendingStage,
         saveMessage,
@@ -765,9 +765,6 @@ function ConfigSysadminView(props: ConfigSysadminViewProps) {
         dismissTimerRef,
         setConfirmModal
     } = props;
-    const onRefreshBundle = onRefreshBundleProp ?? (async () => {});
-    const onRefreshResolvedGraph = onRefreshResolvedGraphProp ?? (() => {});
-    const onRefreshSnapshot = onRefreshSnapshotProp ?? (async () => {});
     const caps = useCapabilities();
     const isExpertMode = caps.devModeOverridesEnabled;
 
@@ -2129,7 +2126,8 @@ function SysadminPanel({
     onCloseAllWindows,
     onOpenWindow,
     onFocusWindow,
-    onCloseWindow
+    onCloseWindow,
+    sysRefresh
 }: { 
     isOpen: boolean; 
     onClose: () => void; 
@@ -2150,6 +2148,7 @@ function SysadminPanel({
     onOpenWindow: (windowId: string) => void;
     onFocusWindow: (windowId: string) => void;
     onCloseWindow: (windowId: string) => void;
+    sysRefresh: SysRefresh;
 }) {
     const caps = useCapabilities();
 
@@ -3954,7 +3953,12 @@ function SysadminPanel({
     const refreshDerivedState = async () => {
         await fetchDerivedPatches();
     };
-    const resolvedRefreshDerivedState = onRefreshDerivedState ?? refreshDerivedState;
+    const sysRefresh: SysRefresh = {
+        bundle: sysRefreshValue?.bundle ?? (async () => {}),
+        resolvedGraph: sysRefreshValue?.resolvedGraph ?? (() => {}),
+        derived: refreshDerivedState,
+        snapshot: sysRefreshValue?.snapshot ?? (async () => {})
+    };
 
     useEffect(() => {
         if (activeTab === 'Data' || activeTab === 'Bindings') {
@@ -4019,10 +4023,10 @@ function SysadminPanel({
                 setDataStaticStatus('Saved');
             }
 
-            await onRefreshBundle();
-            onRefreshResolvedGraph();
-            await resolvedRefreshDerivedState();
-            await onRefreshSnapshot();
+            await sysRefresh.bundle();
+            sysRefresh.resolvedGraph();
+            await sysRefresh.derived();
+            await sysRefresh.snapshot();
         } catch (e: any) {
             setDataStaticError(e?.message || String(e));
         } finally {
@@ -5673,10 +5677,7 @@ function SysadminPanel({
                         bundleData={bundleData} 
                         renderKnownPanel={renderKnownPanel} 
                         activeVersionId={snapshotData?.activeVersionId}
-                        onRefreshBundle={fetchBundle}
-                        onRefreshResolvedGraph={refreshResolvedGraph}
-                        onRefreshSnapshot={refreshSnapshot}
-                        onRefreshDerivedState={async () => {}}
+                        sysRefresh={sysRefresh}
                         pendingStage={pendingStage}
                         setPendingStage={setPendingStage}
                         saveMessage={saveMessage}
@@ -8054,6 +8055,13 @@ function App() {
     }
   };
 
+    const sysRefresh: SysRefresh = {
+            bundle: fetchBundle,
+            resolvedGraph: refreshResolvedGraph,
+            derived: async () => {},
+            snapshot: refreshSnapshot
+    };
+
   const resolvePing = async () => {
     // PRE-CHECK: Prevent 404 noise if ping route is clearly disabled in active config
     if (bundleData && bundleData.blocks) {
@@ -8652,6 +8660,7 @@ function App() {
                      onOpenWindow={openWindowWithTelemetry}
                      onFocusWindow={focusWindowWithTelemetry}
                      onCloseWindow={closeWindowWithTelemetry}
+                     sysRefresh={sysRefresh}
                  />
              </div>
 
