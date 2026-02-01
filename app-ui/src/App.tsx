@@ -716,8 +716,7 @@ interface RuntimeTrace {
     durationMs?: number;
     reasonCode?: string;
 }
-
-function ConfigSysadminView(props: { 
+type ConfigSysadminViewProps = {
     bundleData: BundleResponse | null; 
     renderKnownPanel?: (blockType: string) => React.ReactNode | null;
     activeVersionId?: string|null;
@@ -740,18 +739,35 @@ function ConfigSysadminView(props: {
     setPendingCandidateVersionId: (id: string | null) => void;
     dismissTimerRef: React.MutableRefObject<number | null>;
     setConfirmModal: React.Dispatch<React.SetStateAction<{ isOpen: boolean; title: string; message: string; onConfirm: () => void; }>>;
-}) {
-    const { 
-        bundleData, renderKnownPanel, activeVersionId, onCloneSysadminDraft, onActivateVersion,
-        pendingStage, setPendingStage, saveMessage, setSaveMessage, 
-        pendingPreflight, setPendingPreflight, pendingAck, setPendingAck, 
-        pendingCandidateVersionId, setPendingCandidateVersionId,
+};
+
+function ConfigSysadminView(props: ConfigSysadminViewProps) {
+    const {
+        bundleData,
+        renderKnownPanel,
+        activeVersionId,
+        onCloneSysadminDraft,
+        onActivateVersion,
+        onRefreshBundle: onRefreshBundleProp,
+        onRefreshResolvedGraph: onRefreshResolvedGraphProp,
+        onRefreshSnapshot: onRefreshSnapshotProp,
+        onRefreshDerivedState,
+        pendingStage,
+        setPendingStage,
+        saveMessage,
+        setSaveMessage,
+        pendingPreflight,
+        setPendingPreflight,
+        pendingAck,
+        setPendingAck,
+        pendingCandidateVersionId,
+        setPendingCandidateVersionId,
         dismissTimerRef,
         setConfirmModal
     } = props;
-    const onRefreshBundle = props.onRefreshBundle ?? (async () => {});
-    const onRefreshSnapshot = props.onRefreshSnapshot ?? (async () => {});
-    const onRefreshResolvedGraph = props.onRefreshResolvedGraph ?? (() => {});
+    const onRefreshBundle = onRefreshBundleProp ?? (async () => {});
+    const onRefreshResolvedGraph = onRefreshResolvedGraphProp ?? (() => {});
+    const onRefreshSnapshot = onRefreshSnapshotProp ?? (async () => {});
     const caps = useCapabilities();
     const isExpertMode = caps.devModeOverridesEnabled;
 
@@ -3938,7 +3954,7 @@ function SysadminPanel({
     const refreshDerivedState = async () => {
         await fetchDerivedPatches();
     };
-    const onRefreshDerivedState = props.onRefreshDerivedState ?? refreshDerivedState;
+    const resolvedRefreshDerivedState = onRefreshDerivedState ?? refreshDerivedState;
 
     useEffect(() => {
         if (activeTab === 'Data' || activeTab === 'Bindings') {
@@ -4005,7 +4021,7 @@ function SysadminPanel({
 
             await onRefreshBundle();
             onRefreshResolvedGraph();
-            await onRefreshDerivedState();
+            await resolvedRefreshDerivedState();
             await onRefreshSnapshot();
         } catch (e: any) {
             setDataStaticError(e?.message || String(e));
