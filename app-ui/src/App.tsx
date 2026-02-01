@@ -717,17 +717,7 @@ interface RuntimeTrace {
     reasonCode?: string;
 }
 
-function ConfigSysadminView({ 
-    bundleData, renderKnownPanel, activeVersionId, onCloneSysadminDraft, onActivateVersion,
-    pendingStage, setPendingStage, saveMessage, setSaveMessage, 
-    pendingPreflight, setPendingPreflight, pendingAck, setPendingAck, 
-    pendingCandidateVersionId, setPendingCandidateVersionId,
-    dismissTimerRef,
-    onRefreshBundle,
-    onRefreshResolvedGraph,
-    onRefreshSnapshot,
-    setConfirmModal
-}: { 
+function ConfigSysadminView(props: { 
     bundleData: BundleResponse | null; 
     renderKnownPanel?: (blockType: string) => React.ReactNode | null;
     activeVersionId?: string|null;
@@ -750,6 +740,17 @@ function ConfigSysadminView({
     dismissTimerRef: React.MutableRefObject<number | null>;
     setConfirmModal: React.Dispatch<React.SetStateAction<{ isOpen: boolean; title: string; message: string; onConfirm: () => void; }>>;
 }) {
+    const { 
+        bundleData, renderKnownPanel, activeVersionId, onCloneSysadminDraft, onActivateVersion,
+        pendingStage, setPendingStage, saveMessage, setSaveMessage, 
+        pendingPreflight, setPendingPreflight, pendingAck, setPendingAck, 
+        pendingCandidateVersionId, setPendingCandidateVersionId,
+        dismissTimerRef,
+        setConfirmModal
+    } = props;
+    const refreshBundleFn = props.onRefreshBundle ?? (async () => {});
+    const refreshSnapshotFn = props.onRefreshSnapshot ?? (async () => {});
+    const refreshResolvedGraphFn = props.onRefreshResolvedGraph ?? (() => {});
     const caps = useCapabilities();
     const isExpertMode = caps.devModeOverridesEnabled;
 
@@ -3933,6 +3934,10 @@ function SysadminPanel({
         }
     };
 
+    const refreshDerivedState = async () => {
+        await fetchDerivedPatches();
+    };
+
     useEffect(() => {
         if (activeTab === 'Data' || activeTab === 'Bindings') {
             fetchDerivedPatches();
@@ -3996,10 +4001,10 @@ function SysadminPanel({
                 setDataStaticStatus('Saved');
             }
 
-            await onRefreshBundle?.();
-            await onRefreshSnapshot?.();
-            onRefreshResolvedGraph?.();
-            await fetchDerivedPatches();
+            await refreshBundleFn();
+            refreshResolvedGraphFn();
+            await refreshDerivedState();
+            await refreshSnapshotFn();
         } catch (e: any) {
             setDataStaticError(e?.message || String(e));
         } finally {
