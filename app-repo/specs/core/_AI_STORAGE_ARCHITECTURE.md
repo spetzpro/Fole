@@ -1,3 +1,7 @@
+Version: SPEC_V1.0
+Status: Draft
+Last-Updated: 2026-01-31
+
 # AI Guidance: Storage Architecture
 
 File: `specs/core/_AI_STORAGE_ARCHITECTURE.md`  

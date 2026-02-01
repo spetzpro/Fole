@@ -1,3 +1,7 @@
+Version: SPEC_V1.0
+Status: Draft
+Last-Updated: 2026-01-31
+
 # AI Guidance: Roles & Permissions
 
 File: `specs/core/_AI_ROLES_AND_PERMISSIONS.md`  
