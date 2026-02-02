@@ -64,6 +64,10 @@ Reusable value configurations.
 The normative rules for UI template blocks, `inheritFrom` semantics, deep-merge behavior, and validation
 are defined in [core.ux.shell.TemplateSystem](../modules/core.ux.shell/core.ux.shell.TemplateSystem.md).
 
+**v1 window support:**
+`ui.node.window` now supports template defaults + overrides for curated leaf fields (title, width, docking,
+help/permission, visibility/enabled conditions). `children` is explicitly excluded from templating in v1.
+
 ### 2.5 Themes (`ui.theme.*`)
 - **`ui.theme`**: Defines color palettes, spacing, and typography tokens.
 - **`ui.themeProfile.sysadminBuilder`**: Built-in overrides specifically for the Sysadmin Builder mode to distinguish it from the runtime app.

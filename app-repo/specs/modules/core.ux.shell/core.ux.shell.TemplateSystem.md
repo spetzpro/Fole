@@ -78,6 +78,29 @@ For v1 template inheritance, a `template` block MAY define UI node defaults.
 **v1 Restriction:**
 - Template → template inheritance is **forbidden** in v1.
 
+### 3.2.1 v1 UI Node Templates: `ui.node.window`
+
+`ui.node.window` supports **template defaults + overrides** in v1, with a curated field set.
+
+**Template-managed fields (v1):**
+- `title`
+- `initialWidth`
+- `dockable`
+- `helpText`
+- `requiredPermission`
+- `visibleWhen`
+- `enabledWhen`
+
+**Explicitly excluded (v1):**
+- `children` / slots / nested node trees
+
+**Storage rules:**
+- Node `data` stores **overrides only** (do not persist effective values).
+- Effective values are computed via deep-merge of template defaults + overrides.
+
+**Restrictions:**
+- Template → template inheritance remains **forbidden**.
+
 ## 4. Governance Rules
 
 ### 4.1 Validation

@@ -1,0 +1,17 @@
+{
+  "blockId": "tpl_window_primary",
+  "blockType": "template",
+  "schemaVersion": "1.0.0",
+  "data": {
+    "label": "Primary Window Template",
+    "templateName": "Window Primary",
+    "enabled": true,
+    "targetBlockType": "ui.node.window",
+    "defaults": {
+      "title": "Primary Window",
+      "initialWidth": 520,
+      "dockable": true,
+      "helpText": "Primary window template"
+    }
+  }
+}
