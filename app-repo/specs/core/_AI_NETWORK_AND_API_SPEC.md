@@ -156,6 +156,7 @@ Networking must follow _AI_SECURITY_AND_COMPLIANCE_SPEC.md:
 API discoverability:
 - `/api/v1/meta/schema` → endpoint schemas
 - `/api/v1/meta/routes` → documented route table
+- `/api/v1/meta/build` → server build metadata (dev ergonomics; no secrets)
 - AI must use schema before constructing payloads
 
 STOP if schema missing or ambiguous.

@@ -20,6 +20,13 @@ import { evaluateBoolean, ExpressionContext } from "./ExpressionEvaluator";
 
 // Default to port 3000, or use env var
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
+const SERVER_START_TS = Date.now();
+const SERVER_BUILD_ID = (() => {
+    const gitSha = process.env.GIT_COMMIT || process.env.GIT_SHA || process.env.VCS_REF || "";
+    const shortSha = gitSha ? gitSha.slice(0, 7) : "";
+    const suffix = shortSha ? `_${shortSha}` : "";
+    return `dev_${process.pid}_${SERVER_START_TS}${suffix}`;
+})();
 
 async function main() {
   const router = new Router();
@@ -178,6 +185,13 @@ async function main() {
   router.get("/api/health", (_req, res) => {
     router.json(res, 200, { ok: true });
   });
+
+    router.get("/api/v1/meta/build", (_req, res, _params, ctx) => {
+            return sendEnvelope(res, ctx, {
+                    serverBuildId: SERVER_BUILD_ID,
+                    uiAdvice: { reloadRecommended: false }
+            });
+    });
 
   // UI Node Schema Endpoint
   router.get("/api/schemas/ui-node/:nodeType", async (_req, res, params) => {

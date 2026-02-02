@@ -6,6 +6,8 @@ import type { PersistedWindowLayout } from './lib/windowLayout';
 import V2RendererPreview from './V2RendererPreview';
 import { findSysadminBlock, parseSysadminConfig } from './SysadminLoader';
 
+const UI_BUILD_ID = `dev_${Date.now().toString()}`;
+
 // --- Capabilities Context ---
 interface RuntimeCapabilities {
   debugEndpointsEnabled: boolean;
@@ -2735,12 +2737,12 @@ function SysadminPanel({
     const findBlockById = (blocks: any, id: string) => {
          if (!blocks || !id) return null;
          if (Array.isArray(blocks)) {
-             return blocks.find((b: any) => (b?.blockId === id || b?.id === id)) || null;
+             return blocks.find((b: any) => (b?.blockId === id || b?.id === id || b?.data?.id === id)) || null;
          }
          if (typeof blocks === 'object') {
              const direct = (blocks as Record<string, any>)[id];
              if (direct) return direct;
-             return Object.values(blocks as Record<string, any>).find((b: any) => (b?.blockId === id || b?.id === id)) || null;
+             return Object.values(blocks as Record<string, any>).find((b: any) => (b?.blockId === id || b?.id === id || b?.data?.id === id)) || null;
          }
          return null;
     };
@@ -4394,6 +4396,7 @@ function SysadminPanel({
         kind: 'success' | 'error';
         message: string;
         ts: number;
+        action?: 'reload';
     };
     const SESSION_BANNER_KEY = 'fole.sysadmin.sessionBanner';
     const [sessionBanner, setSessionBanner] = useState<SessionBanner | null>(() => {
@@ -4429,15 +4432,56 @@ function SysadminPanel({
             // ignore
         }
     };
+    const BUILD_ID_STORAGE_KEY = 'fole.dev.serverBuildId';
+    const UI_BUILD_ID_STORAGE_KEY = 'fole.dev.uiBuildId';
+    const uiBuildIdRef = useRef(UI_BUILD_ID);
+    const buildCheckInFlightRef = useRef(false);
+    useEffect(() => {
+        const checkBuildId = async () => {
+            if (buildCheckInFlightRef.current) return;
+            buildCheckInFlightRef.current = true;
+            try {
+                const devAuth = localStorage.getItem('FOLE_DEV_AUTH');
+                const headers = new Headers();
+                if (devAuth) headers.set('X-Dev-Auth', devAuth);
+
+                const res = await fetch(apiUrl('/api/v1/meta/build'), { headers });
+                if (!res.ok) return;
+                const json = await res.json().catch(() => null);
+                const serverBuildId = json?.data?.serverBuildId;
+                if (!serverBuildId || typeof serverBuildId !== 'string') return;
+
+                const lastSeen = sessionStorage.getItem(BUILD_ID_STORAGE_KEY);
+                if (lastSeen && lastSeen !== serverBuildId) {
+                    showBanner({
+                        kind: 'error',
+                        message: 'New UI/server version detected — reload recommended',
+                        ts: Date.now(),
+                        action: 'reload'
+                    });
+                }
+
+                sessionStorage.setItem(BUILD_ID_STORAGE_KEY, serverBuildId);
+                sessionStorage.setItem(UI_BUILD_ID_STORAGE_KEY, uiBuildIdRef.current);
+            } catch {
+                // ignore
+            } finally {
+                buildCheckInFlightRef.current = false;
+            }
+        };
+
+        void checkBuildId();
+    }, []);
     useEffect(() => {
         if (!sessionBanner) return;
+        if (sessionBanner.action === 'reload') return;
         if (bannerTimerRef.current) clearTimeout(bannerTimerRef.current);
         const elapsed = Date.now() - sessionBanner.ts;
         const remaining = Math.max(0, 8000 - elapsed);
         bannerTimerRef.current = window.setTimeout(() => {
             dismissBanner();
         }, remaining);
-    }, [sessionBanner?.ts]);
+    }, [sessionBanner?.ts, sessionBanner?.action]);
     useEffect(() => {
         return () => {
             if (bannerTimerRef.current) clearTimeout(bannerTimerRef.current);
@@ -9389,21 +9433,40 @@ function SysadminPanel({
                     fontWeight: 600
                 }}>
                     <span>{sessionBanner.message}</span>
-                    <button
-                        onClick={dismissBanner}
-                        style={{
-                            background:'none',
-                            border:'none',
-                            cursor:'pointer',
-                            color:'inherit',
-                            fontSize:'1.1em',
-                            lineHeight:1,
-                            opacity:0.7
-                        }}
-                        title="Dismiss"
-                    >
-                        ×
-                    </button>
+                    <div style={{display:'flex', alignItems:'center', gap:'8px'}}>
+                        {sessionBanner.action === 'reload' && (
+                            <button
+                                onClick={() => window.location.reload()}
+                                style={{
+                                    background: 'white',
+                                    border: `1px solid ${sessionBanner.kind === 'success' ? '#c8e6c9' : '#ffcdd2'}`,
+                                    color: 'inherit',
+                                    borderRadius: '4px',
+                                    cursor: 'pointer',
+                                    padding: '2px 8px',
+                                    fontSize: '0.85em',
+                                    fontWeight: 600
+                                }}
+                            >
+                                Reload now
+                            </button>
+                        )}
+                        <button
+                            onClick={dismissBanner}
+                            style={{
+                                background:'none',
+                                border:'none',
+                                cursor:'pointer',
+                                color:'inherit',
+                                fontSize:'1.1em',
+                                lineHeight:1,
+                                opacity:0.7
+                            }}
+                            title="Dismiss"
+                        >
+                            ×
+                        </button>
+                    </div>
                 </div>
             )}
             
@@ -9473,6 +9536,51 @@ function App() {
   const [caps, setCaps] = useState<RuntimeCapabilities>({ debugEndpointsEnabled: false, devModeOverridesEnabled: false });
   const hasDevAuth = !!localStorage.getItem('FOLE_DEV_AUTH');
   const canUseDebugUi = caps.debugEndpointsEnabled && hasDevAuth;
+  const uiBuildIdRef = useRef(UI_BUILD_ID);
+  const buildCheckInFlightRef = useRef(false);
+
+  useEffect(() => {
+      const BUILD_ID_STORAGE_KEY = 'fole.dev.serverBuildId';
+      const UI_BUILD_ID_STORAGE_KEY = 'fole.dev.uiBuildId';
+      const SESSION_BANNER_KEY = 'fole.sysadmin.sessionBanner';
+      const checkBuildId = async () => {
+          if (buildCheckInFlightRef.current) return;
+          buildCheckInFlightRef.current = true;
+          try {
+              const devAuth = localStorage.getItem('FOLE_DEV_AUTH');
+              const headers = new Headers();
+              if (devAuth) headers.set('X-Dev-Auth', devAuth);
+
+              const res = await fetch(apiUrl('/api/v1/meta/build'), { headers });
+              if (!res.ok) return;
+              const json = await res.json().catch(() => null);
+              const serverBuildId = json?.data?.serverBuildId;
+              if (!serverBuildId || typeof serverBuildId !== 'string') return;
+
+              const lastSeen = sessionStorage.getItem(BUILD_ID_STORAGE_KEY);
+              if (lastSeen && lastSeen !== serverBuildId) {
+                  const existingBanner = sessionStorage.getItem(SESSION_BANNER_KEY);
+                  if (!existingBanner) {
+                      sessionStorage.setItem(SESSION_BANNER_KEY, JSON.stringify({
+                          kind: 'error',
+                          message: 'New UI/server version detected — reload recommended',
+                          ts: Date.now(),
+                          action: 'reload'
+                      }));
+                  }
+              }
+
+              sessionStorage.setItem(BUILD_ID_STORAGE_KEY, serverBuildId);
+              sessionStorage.setItem(UI_BUILD_ID_STORAGE_KEY, uiBuildIdRef.current);
+          } catch {
+              // ignore
+          } finally {
+              buildCheckInFlightRef.current = false;
+          }
+      };
+
+      void checkBuildId();
+  }, []);
 
   useEffect(() => {
      fetch(apiUrl('/api/runtime/capabilities'))
