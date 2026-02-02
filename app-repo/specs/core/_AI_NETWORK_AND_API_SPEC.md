@@ -256,7 +256,7 @@ Versioned write-back for admin-edited `data.static` and `ui.node.*` blocks, spli
 
 | Method | Endpoint | Description | Permission Required |
 | :--- | :--- | :--- | :--- |
-| `POST` | `/api/v1/config/blocks/:blockId/patch` | Patch `block.data` (shallow merge) for `data.static`, `binding`, or `ui.node.*` blocks and persist as a **new version** (draft only). **Does not activate.** | Admin-equivalent (localhost dev exception allowed) |
+| `POST` | `/api/v1/config/blocks/:blockId/patch` | Patch `block.data` (shallow merge) for `data.static`, `binding`, `shell.infra.theme_tokens`, or `ui.node.*` blocks and persist as a **new version** (draft only). **Does not activate.** | Admin-equivalent (localhost dev exception allowed) |
 | `POST` | `/api/v1/config/activate` | Activate a specific version. Requires a non-empty reason. | Admin-equivalent (localhost dev exception allowed) |
 
 ### 17.6 v1 Block Schema Fetch (Admin-Only)

@@ -476,8 +476,8 @@ async function main() {
           return sendErrorEnvelope(res, ctx, 404, "not_found", `Block ${blockId} not found`);
       }
 
-      if (block.blockType !== "data.static" && block.blockType !== "binding" && !block.blockType.startsWith("ui.node.")) {
-          return sendErrorEnvelope(res, ctx, 400, "invalid_block_type", "Only data.static, binding, or ui.node.* blocks are editable");
+      if (block.blockType !== "data.static" && block.blockType !== "binding" && block.blockType !== "shell.infra.theme_tokens" && !block.blockType.startsWith("ui.node.")) {
+          return sendErrorEnvelope(res, ctx, 400, "invalid_block_type", "Only data.static, binding, shell.infra.theme_tokens, or ui.node.* blocks are editable");
       }
 
       const baseData = block.data && typeof block.data === "object" ? block.data : {};

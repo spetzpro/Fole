@@ -4372,7 +4372,7 @@ function SysadminPanel({
     const [themeTokensEditorBaseline, setThemeTokensEditorBaseline] = useState('');
     const [themeTokensEditorError, setThemeTokensEditorError] = useState<string | null>(null);
     const [themeTokensEditorDirty, setThemeTokensEditorDirty] = useState(false);
-    const [themeTokensDraftSaving] = useState(false);
+    const [themeTokensDraftSaving, setThemeTokensDraftSaving] = useState(false);
 
     type ActivationFilter = 'all' | 'success' | 'failure';
     const [activationFilter, setActivationFilter] = useState<ActivationFilter>('all');
@@ -4398,6 +4398,18 @@ function SysadminPanel({
                 : [];
         return blocksArr.find((b: any) => b?.blockType === 'shell.infra.theme_tokens') || null;
     }, [bundleData]);
+
+    const themeTokens = useMemo(() => {
+        const tokens = (themeTokensBlock as any)?.data?.tokens;
+        return tokens && typeof tokens === 'object' ? tokens as Record<string, unknown> : {};
+    }, [themeTokensBlock]);
+
+    const getThemeToken = (key: string, fallback: string) => {
+        const val = themeTokens[key];
+        return typeof val === 'string' && val.trim().length > 0 ? val : fallback;
+    };
+
+    const primaryColor = getThemeToken('primaryColor', '#e65100');
 
     const fetchDerivedPatches = async () => {
         const versionKey = snapshotData?.activeVersionId || 'active';
@@ -4581,6 +4593,77 @@ function SysadminPanel({
             showBanner({ kind: 'error', message: `Save failed: ${msg}`, ts: Date.now() });
         } finally {
             setDataStaticSaving(false);
+        }
+    };
+
+    const handleSaveThemeTokensDraft = async () => {
+        if (!themeTokensBlock) return;
+        const blockId = (themeTokensBlock as any)?.blockId || (themeTokensBlock as any)?.id;
+        if (!blockId || typeof blockId !== 'string') return;
+
+        const parsed = parseJsonSafely(themeTokensEditorText);
+        if (parsed.error || parsed.value === null) {
+            setThemeTokensEditorError(parsed.error || 'Invalid JSON');
+            showBanner({ kind: 'error', message: `Save failed: ${parsed.error || 'Invalid JSON'}`, ts: Date.now() });
+            return;
+        }
+
+        const schema = blockSchemas['shell.infra.theme_tokens'];
+        const validation = schema ? validateWithSchemaMinimal(schema, parsed.value) : { valid: true, errors: [] as string[] };
+        if (!validation.valid) {
+            const msg = validation.errors.join('; ');
+            setThemeTokensEditorError(msg || 'Schema validation failed');
+            showBanner({ kind: 'error', message: `Save failed: ${msg || 'Schema validation failed'}`, ts: Date.now() });
+            return;
+        }
+
+        setThemeTokensDraftSaving(true);
+        try {
+            const res = await governedFetch(`/api/v1/config/blocks/${encodeURIComponent(blockId)}/patch`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    patch: { data: parsed.value },
+                    message: 'Theme tokens draft save'
+                })
+            });
+
+            if (!res) {
+                const msg = 'Save failed (no response)';
+                showBanner({ kind: 'error', message: `Save failed: ${msg}`, ts: Date.now() });
+                return;
+            }
+
+            if (!res.ok) {
+                const txt = await res.text().catch(() => '');
+                const msg = `Save failed (${res.status})${txt ? `: ${txt}` : ''}`;
+                showBanner({ kind: 'error', message: `Save failed: ${msg}`, ts: Date.now() });
+                return;
+            }
+
+            const json = await res.json();
+            if (json?.ok === false) {
+                const msg = json?.error?.message || 'Save failed';
+                showBanner({ kind: 'error', message: `Save failed: ${msg}`, ts: Date.now() });
+                return;
+            }
+
+            const payload = json?.data ?? json?.result ?? null;
+            const newVersionId = payload?.newVersionId;
+            const statusMsg = newVersionId ? `Draft saved: ${newVersionId}` : 'Draft saved';
+            showBanner({ kind: 'success', message: statusMsg, ts: Date.now() });
+            setLastDraftVersionId(newVersionId || null);
+
+            const nextBaseline = JSON.stringify(parsed.value, null, 2);
+            setThemeTokensEditorBaseline(nextBaseline);
+            setThemeTokensEditorText(nextBaseline);
+            setThemeTokensEditorError(null);
+            setThemeTokensEditorDirty(false);
+        } catch (e: any) {
+            const msg = e?.message || String(e);
+            showBanner({ kind: 'error', message: `Save failed: ${msg}`, ts: Date.now() });
+        } finally {
+            setThemeTokensDraftSaving(false);
         }
     };
 
@@ -7235,26 +7318,33 @@ function SysadminPanel({
                 const themeValidation = themeSchema && !themeParsed.error
                     ? validateWithSchemaMinimal(themeSchema, themeParsed.value)
                     : { valid: true, errors: [] as string[] };
-                const canPatchThemeTokens = false;
+                const canPatchThemeTokens = true;
+                const canSaveThemeTokens = !!themeTokensEditorDirty
+                    && !themeParsed.error
+                    && (themeSchema ? themeValidation.valid : true);
 
                 return (
                     <div style={{display:'flex', flexDirection:'column', height:'100%'}}>
                         <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'10px'}}>
                             <div style={{fontWeight:'bold', fontSize:'0.9em'}}>Theme Tokens</div>
-                            <div style={{fontSize:'0.8em', color:'#888'}}>
-                                {canPatchThemeTokens ? 'Draft-enabled' : 'Read-only (patch endpoint does not support this block type)'}
-                            </div>
+                            {!showActivateDraftModal && (
+                                <div style={{fontSize:'0.8em', color:'#888'}}>
+                                    Draft-enabled
+                                </div>
+                            )}
                         </div>
                         <div style={{border:'1px solid #ddd', borderRadius:'4px', overflow:'hidden'}}>
                             <div style={{padding:'8px', background:'#f5f5f5', borderBottom:'1px solid #ddd', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
                                 <strong>Advanced JSON (Theme Tokens)</strong>
-                                <span style={{fontSize:'0.8em', color: themeParsed.error ? '#c62828' : (themeValidation.valid ? '#2e7d32' : '#c62828')}}>
-                                    {themeParsed.error
-                                        ? `Invalid JSON: ${themeParsed.error}`
-                                        : themeSchema
-                                            ? (themeValidation.valid ? 'Schema valid' : 'Schema invalid')
-                                            : (themeSchemaError || 'Schema unavailable')}
-                                </span>
+                                {!showActivateDraftModal && (
+                                    <span style={{fontSize:'0.8em', color: themeParsed.error ? '#c62828' : (themeValidation.valid ? '#2e7d32' : '#c62828')}}>
+                                        {themeParsed.error
+                                            ? `Invalid JSON: ${themeParsed.error}`
+                                            : themeSchema
+                                                ? (themeValidation.valid ? 'Schema valid' : 'Schema invalid')
+                                                : (themeSchemaError || 'Schema unavailable')}
+                                    </span>
+                                )}
                             </div>
                             <div style={{padding:'10px'}}>
                                 <textarea
@@ -7285,9 +7375,9 @@ function SysadminPanel({
                                 )}
                                 <div style={{display:'flex', gap:'8px', marginTop:'10px'}}>
                                     <button
-                                        onClick={() => void 0}
-                                        disabled={!canPatchThemeTokens || !!themeTokensEditorError || !themeTokensEditorDirty || themeTokensDraftSaving}
-                                        style={{padding:'6px 12px', cursor: (!canPatchThemeTokens || !!themeTokensEditorError || !themeTokensEditorDirty || themeTokensDraftSaving) ? 'default' : 'pointer'}}
+                                        onClick={handleSaveThemeTokensDraft}
+                                        disabled={!canPatchThemeTokens || !canSaveThemeTokens || themeTokensDraftSaving}
+                                        style={{padding:'6px 12px', cursor: (!canPatchThemeTokens || !canSaveThemeTokens || themeTokensDraftSaving) ? 'default' : 'pointer'}}
                                     >
                                         {themeTokensDraftSaving ? 'Saving…' : 'Save Draft'}
                                     </button>
@@ -7320,11 +7410,6 @@ function SysadminPanel({
                                         Format
                                     </button>
                                 </div>
-                                {!canPatchThemeTokens && (
-                                    <div style={{marginTop:'6px', fontSize:'0.8em', color:'#888'}}>
-                                        Draft save disabled: /api/v1/config/blocks/:blockId/patch does not support shell.infra.theme_tokens.
-                                    </div>
-                                )}
                             </div>
                         </div>
                     </div>
@@ -9029,9 +9114,10 @@ function SysadminPanel({
                             cursor: (!lastDraftVersionId || activateDraftSaving) ? 'default' : 'pointer',
                             padding:'2px 8px',
                             fontSize:'0.8em',
-                            background: lastDraftVersionId ? '#e65100' : '#555',
+                            background: primaryColor,
                             color: 'white',
-                            border: '1px solid rgba(255,255,255,0.3)',
+                            border: `1px solid ${primaryColor}`,
+                            opacity: lastDraftVersionId ? 1 : 0.6,
                             borderRadius:'4px'
                         }}
                         title={lastDraftVersionId ? 'Activate saved draft version' : 'Save a draft first'}
