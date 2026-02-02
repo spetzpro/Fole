@@ -204,6 +204,52 @@ async function main() {
       }
   });
 
+  // Block Schema Endpoint (non-ui-node)
+  router.get("/api/schemas/block/:blockType", async (_req, res, params, ctx) => {
+      if (!canAccessRuntimeObservability(ctx)) {
+          return sendErrorEnvelope(res, ctx, 403, "forbidden", "Access Denied");
+      }
+
+      const { blockType } = params;
+
+      // Security Validation: Alphanumeric, dots, dashes, underscores only
+      if (!blockType || typeof blockType !== "string" || !/^[a-z0-9._-]+$/.test(blockType)) {
+          return sendErrorEnvelope(res, ctx, 400, "invalid_request", "Invalid blockType parameter");
+      }
+
+      if (blockType.startsWith("ui.node.")) {
+          return sendErrorEnvelope(res, ctx, 400, "invalid_request", "Use /api/schemas/ui-node/:nodeType for ui.node.* schemas");
+      }
+
+      let schemaRoot: string | null = null;
+      let schemaFile: string | null = null;
+
+      if (blockType === "data.static") {
+          schemaRoot = path.join(__dirname, "schemas", "data");
+          schemaFile = "data.static.schema.json";
+      } else {
+          schemaRoot = path.join(__dirname, "schemas", "shell");
+          schemaFile = validator.getSchemaForBlockType(blockType);
+      }
+
+      if (!schemaRoot || !schemaFile) {
+          return sendErrorEnvelope(res, ctx, 404, "schema_not_found", "Schema not found");
+      }
+
+      try {
+          const content = await fs.readFile(path.join(schemaRoot, schemaFile), "utf-8");
+          const json = JSON.parse(content);
+          return sendEnvelope(res, ctx, { schema: json });
+      } catch (err: any) {
+          if (err.code === "ENOENT") {
+              return sendErrorEnvelope(res, ctx, 404, "schema_not_found", "Schema not found");
+          }
+          // eslint-disable-next-line no-console
+          console.error(`Schema read error for ${blockType}:`, err);
+          return sendErrorEnvelope(res, ctx, 500, "schema_read_failed", "Internal Server Error");
+      }
+  });
+
   // Preflight Endpoint (Governed)
   router.get("/api/config/shell/preflight/:versionId", async (req, res, params, ctx) => {
     // Production Auth Check

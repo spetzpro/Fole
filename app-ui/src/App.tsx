@@ -2205,6 +2205,89 @@ function SysadminPanel({
         }
     };
 
+    // Block Schema Cache (non-ui-node)
+    const [blockSchemas, setBlockSchemas] = useState<Record<string, any>>({});
+    const [blockSchemaErrors, setBlockSchemaErrors] = useState<Record<string, string | null>>({});
+
+    const fetchBlockSchema = async (blockType: string): Promise<any | null> => {
+        if (!blockType) return null;
+        if (blockSchemas[blockType]) return blockSchemas[blockType];
+
+        const res = await governedFetch(`/api/schemas/block/${encodeURIComponent(blockType)}`);
+        if (!res) {
+            setBlockSchemaErrors(prev => ({ ...prev, [blockType]: 'Schema fetch failed (no response)' }));
+            return null;
+        }
+
+        if (!res.ok) {
+            const msg = `Schema fetch failed (${res.status})`;
+            setBlockSchemaErrors(prev => ({ ...prev, [blockType]: msg }));
+            return null;
+        }
+
+        try {
+            const json = await res.json();
+            const schema = json?.data?.schema ?? json?.schema ?? null;
+            if (schema) {
+                setBlockSchemas(prev => ({ ...prev, [blockType]: schema }));
+                setBlockSchemaErrors(prev => ({ ...prev, [blockType]: null }));
+                return schema;
+            }
+            setBlockSchemaErrors(prev => ({ ...prev, [blockType]: 'Schema missing in response' }));
+            return null;
+        } catch (e: any) {
+            setBlockSchemaErrors(prev => ({ ...prev, [blockType]: e?.message || 'Schema parse failed' }));
+            return null;
+        }
+    };
+
+    const validateWithSchemaMinimal = (schema: any, value: unknown) => {
+        const errors: string[] = [];
+        if (!schema) return { valid: true, errors };
+
+        const expectType = (t: any, v: any, label: string) => {
+            if (!t) return;
+            const types = Array.isArray(t) ? t : [t];
+            const ok = types.some((type: string) => {
+                if (type === 'array') return Array.isArray(v);
+                if (type === 'object') return v !== null && typeof v === 'object' && !Array.isArray(v);
+                return typeof v === type;
+            });
+            if (!ok) errors.push(`${label} must be ${types.join(' or ')}`);
+        };
+
+        expectType(schema.type, value, 'Value');
+
+        if (schema.type === 'object' && value && typeof value === 'object' && !Array.isArray(value)) {
+            const obj = value as Record<string, any>;
+            if (Array.isArray(schema.required)) {
+                schema.required.forEach((key: string) => {
+                    if (obj[key] === undefined) errors.push(`Missing required field: ${key}`);
+                });
+            }
+
+            if (schema.properties && typeof schema.properties === 'object') {
+                Object.entries(schema.properties).forEach(([key, def]: any) => {
+                    if (obj[key] === undefined) return;
+                    expectType(def?.type, obj[key], key);
+                });
+            }
+
+            const tokensSchema = schema?.properties?.tokens;
+            if (tokensSchema?.patternProperties && obj.tokens && typeof obj.tokens === 'object') {
+                const tokenDef = Object.values(tokensSchema.patternProperties)[0] as any;
+                if (tokenDef?.type) {
+                    Object.entries(obj.tokens).forEach(([k, v]) => {
+                        expectType(tokenDef.type, v, `tokens.${k}`);
+                    });
+                }
+            }
+
+        }
+
+        return { valid: errors.length === 0, errors };
+    };
+
     // Roadmap #6.1: Config-Driven Sysadmin Loader Hook (Placeholder)
     // In future steps, this will drive the UI instead of the hardcoded tabs below.
     // const sysadminBlock = bundleData?.blocks ? findSysadminBlock(bundleData.blocks) : null;
@@ -2274,7 +2357,7 @@ function SysadminPanel({
     const ENABLE_LEGACY_SYSADMIN_TABS = true;
 
     // Dynamic Tabs Definition
-    const tabs = ['ShellConfig', 'Blocks', 'Bindings', 'Data', 'ActionIndex', 'Runtime', 'UI Runtime', 'Draft', 'Invocations', 'Traces', 'Activations'];
+    const tabs = ['ShellConfig', 'Blocks', 'Bindings', 'Data', 'Theme', 'ActionIndex', 'Runtime', 'UI Runtime', 'Draft', 'Invocations', 'Traces', 'Activations'];
     if (ENABLE_LEGACY_SYSADMIN_TABS) {
         tabs.push('Snapshot');
         tabs.push('Versions');
@@ -2389,6 +2472,18 @@ function SysadminPanel({
                 });
         }
     }, [activeTab, buttonSchema, buttonSchemaLoading, textSchema, textSchemaLoading, containerSchema, containerSchemaLoading, windowSchema, windowSchemaLoading]);
+
+    useEffect(() => {
+        if (activeTab === 'Data') {
+            void fetchBlockSchema('data.static');
+        }
+        if (activeTab === 'Bindings') {
+            void fetchBlockSchema('binding');
+        }
+        if (activeTab === 'Theme') {
+            void fetchBlockSchema('shell.infra.theme_tokens');
+        }
+    }, [activeTab]);
 
     // --- Node Editor Hooks & Helpers (Unconditional) ---
     const schemaFields = useMemo(() => {
@@ -4254,6 +4349,10 @@ function SysadminPanel({
     const [dataStaticStatus, setDataStaticStatus] = useState<string | null>(null);
     const [dataStaticError, setDataStaticError] = useState<string | null>(null);
     const [dataStaticSaving, setDataStaticSaving] = useState(false);
+    const [dataStaticJsonText, setDataStaticJsonText] = useState('');
+    const [dataStaticJsonBaseline, setDataStaticJsonBaseline] = useState('');
+    const [dataStaticJsonError, setDataStaticJsonError] = useState<string | null>(null);
+    const [dataStaticJsonDirty, setDataStaticJsonDirty] = useState(false);
     const [nodeDraftSaving, setNodeDraftSaving] = useState(false);
     const [blocksDraftSaving, setBlocksDraftSaving] = useState(false);
     const [bindingsDraftSaving, setBindingsDraftSaving] = useState(false);
@@ -4269,6 +4368,11 @@ function SysadminPanel({
     const [bindingsEditorBaseline, setBindingsEditorBaseline] = useState('');
     const [bindingsEditorError, setBindingsEditorError] = useState<string | null>(null);
     const [bindingsEditorDirty, setBindingsEditorDirty] = useState(false);
+    const [themeTokensEditorText, setThemeTokensEditorText] = useState('');
+    const [themeTokensEditorBaseline, setThemeTokensEditorBaseline] = useState('');
+    const [themeTokensEditorError, setThemeTokensEditorError] = useState<string | null>(null);
+    const [themeTokensEditorDirty, setThemeTokensEditorDirty] = useState(false);
+    const [themeTokensDraftSaving] = useState(false);
 
     type ActivationFilter = 'all' | 'success' | 'failure';
     const [activationFilter, setActivationFilter] = useState<ActivationFilter>('all');
@@ -4283,6 +4387,16 @@ function SysadminPanel({
                 data: b.data
             }))
             .filter((b: any) => !!b.blockId);
+    }, [bundleData]);
+
+    const themeTokensBlock = useMemo(() => {
+        const blocksMap = (bundleData as any)?.blocks || {};
+        const blocksArr = Array.isArray(blocksMap)
+            ? blocksMap
+            : typeof blocksMap === 'object'
+                ? Object.values(blocksMap)
+                : [];
+        return blocksArr.find((b: any) => b?.blockType === 'shell.infra.theme_tokens') || null;
     }, [bundleData]);
 
     const fetchDerivedPatches = async () => {
@@ -4389,6 +4503,87 @@ function SysadminPanel({
         }
     };
 
+    const handleSaveDataStaticJson = async () => {
+        const selectedBlock = dataBlocks.find(b => b.blockId === selectedDataBlockId) || dataBlocks[0];
+        if (!selectedBlock || selectedBlock.blockType !== 'data.static') return;
+
+        const parsed = parseJsonSafely(dataStaticJsonText);
+        if (parsed.error || parsed.value === null) {
+            setDataStaticJsonError(parsed.error || 'Invalid JSON');
+            showBanner({ kind: 'error', message: `Save failed: ${parsed.error || 'Invalid JSON'}`, ts: Date.now() });
+            return;
+        }
+
+        const schema = blockSchemas['data.static'];
+        const validation = validateWithSchemaMinimal(schema, parsed.value);
+        if (!validation.valid) {
+            const msg = validation.errors.join('; ');
+            setDataStaticJsonError(msg || 'Schema validation failed');
+            showBanner({ kind: 'error', message: `Save failed: ${msg || 'Schema validation failed'}`, ts: Date.now() });
+            return;
+        }
+
+        setDataStaticSaving(true);
+        setDataStaticStatus(null);
+        setDataStaticError(null);
+        try {
+            const res = await governedFetch(`/api/v1/config/blocks/${encodeURIComponent(selectedBlock.blockId)}/patch`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    patch: { data: parsed.value },
+                    message: 'Sysadmin data edit (advanced)'
+                })
+            });
+
+            if (!res) {
+                const msg = 'Save failed (no response)';
+                setDataStaticError(msg);
+                showBanner({ kind: 'error', message: `Save failed: ${msg}`, ts: Date.now() });
+                return;
+            }
+
+            if (!res.ok) {
+                const txt = await res.text().catch(() => '');
+                const msg = `Save failed (${res.status})${txt ? `: ${txt}` : ''}`;
+                setDataStaticError(msg);
+                showBanner({ kind: 'error', message: `Save failed: ${msg}`, ts: Date.now() });
+                return;
+            }
+
+            const json = await res.json();
+            if (json?.ok === false) {
+                const msg = json?.error?.message || 'Save failed';
+                setDataStaticError(msg);
+                showBanner({ kind: 'error', message: `Save failed: ${msg}`, ts: Date.now() });
+                return;
+            }
+            const payload = json?.data ?? json?.result ?? null;
+            const newVersionId = payload?.newVersionId;
+            const statusMsg = newVersionId ? `Draft saved: ${newVersionId}` : 'Draft saved';
+            setDataStaticStatus(statusMsg);
+            showBanner({ kind: 'success', message: statusMsg, ts: Date.now() });
+            setLastDraftVersionId(newVersionId || null);
+
+            const nextBaseline = JSON.stringify(parsed.value, null, 2);
+            setDataStaticJsonBaseline(nextBaseline);
+            setDataStaticJsonText(nextBaseline);
+            setDataStaticJsonError(null);
+            setDataStaticJsonDirty(false);
+
+            const nextValue = (parsed.value as any)?.value;
+            if (typeof nextValue === 'string') {
+                setDataStaticDraft(nextValue);
+            }
+        } catch (e: any) {
+            const msg = e?.message || String(e);
+            setDataStaticError(msg);
+            showBanner({ kind: 'error', message: `Save failed: ${msg}`, ts: Date.now() });
+        } finally {
+            setDataStaticSaving(false);
+        }
+    };
+
     const handleActivateDataStaticVersion = async () => {
         if (!lastDraftVersionId) return;
         const reason = activateDraftReason.trim();
@@ -4462,8 +4657,17 @@ function SysadminPanel({
             } else {
                 setDataStaticDraft('');
             }
+            const nextJson = JSON.stringify(selectedBlock.data ?? {}, null, 2);
+            setDataStaticJsonText(nextJson);
+            setDataStaticJsonBaseline(nextJson);
+            setDataStaticJsonError(null);
+            setDataStaticJsonDirty(false);
         } else {
             setDataStaticDraft('');
+            setDataStaticJsonText('');
+            setDataStaticJsonBaseline('');
+            setDataStaticJsonError(null);
+            setDataStaticJsonDirty(false);
         }
         setDataStaticStatus(null);
         setDataStaticError(null);
@@ -4504,6 +4708,23 @@ function SysadminPanel({
         setBindingsEditorError(null);
         setBindingsEditorDirty(false);
     }, [bundleData, selectedBindingId]);
+
+    useEffect(() => {
+        if (!themeTokensBlock) {
+            setThemeTokensEditorText('');
+            setThemeTokensEditorBaseline('');
+            setThemeTokensEditorError(null);
+            setThemeTokensEditorDirty(false);
+            return;
+        }
+
+        const data = (themeTokensBlock as any)?.data ?? {};
+        const baseline = JSON.stringify(data, null, 2);
+        setThemeTokensEditorText(baseline);
+        setThemeTokensEditorBaseline(baseline);
+        setThemeTokensEditorError(null);
+        setThemeTokensEditorDirty(false);
+    }, [themeTokensBlock]);
 
     // --- ActionIndex Memoization ---
     const allActions = runtimePlan?.actions || [];
@@ -6356,7 +6577,7 @@ function SysadminPanel({
                                         <pre style={preStyle}>{JSON.stringify(selectedBlock, null, 2)}</pre>
                                         <div style={{marginTop:'10px', border:'1px solid #ddd', borderRadius:'4px', overflow:'hidden'}}>
                                             <div style={{padding:'8px', background:'#f5f5f5', borderBottom:'1px solid #ddd', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
-                                                <strong style={{fontSize:'0.9em'}}>Edit Block Data (draft)</strong>
+                                                <strong style={{fontSize:'0.9em'}}>Advanced JSON (Block Data)</strong>
                                                 {selectedBlockType && !isPatchable && (
                                                     <span style={{fontSize:'0.8em', color:'#888'}}>Read-only for {selectedBlockType}</span>
                                                 )}
@@ -6481,6 +6702,13 @@ function SysadminPanel({
                  const mapping = selectedBindingData.mapping || {};
                  const mode = selectedBindingData.mode || 'unknown';
                  const enabled = selectedBindingData.enabled !== false;
+                 const bindingSchema = blockSchemas['binding'];
+                 const bindingSchemaError = blockSchemaErrors['binding'];
+                 const bindingJsonParsed = parseJsonSafely(bindingsEditorText);
+                 const bindingSchemaValidation = bindingSchema && !bindingJsonParsed.error
+                     ? validateWithSchemaMinimal(bindingSchema, bindingJsonParsed.value)
+                     : { valid: true, errors: [] as string[] };
+                 const canToggleEnabled = typeof selectedBindingData.enabled === 'boolean';
 
                  const sourceBlockId = sourceEp?.target?.blockId;
                  const destBlockId = destEp?.target?.blockId;
@@ -6602,6 +6830,51 @@ function SysadminPanel({
                                                 </button>
                                             </div>
                                         </div>
+                                        <div style={{marginBottom:'10px', padding:'8px', border:'1px solid #ddd', borderRadius:'4px', background:'#fafafa'}}>
+                                            <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'6px'}}>
+                                                <strong style={{fontSize:'0.9em'}}>Quick Controls</strong>
+                                                <span style={{fontSize:'0.8em', color: bindingJsonParsed.error ? '#c62828' : (bindingSchema ? (bindingSchemaValidation.valid ? '#2e7d32' : '#c62828') : '#888')}}>
+                                                    {bindingJsonParsed.error
+                                                        ? `Invalid JSON: ${bindingJsonParsed.error}`
+                                                        : bindingSchema
+                                                            ? (bindingSchemaValidation.valid ? 'Schema valid' : 'Schema invalid')
+                                                            : (bindingSchemaError || 'Schema unavailable')}
+                                                </span>
+                                            </div>
+                                            {canToggleEnabled ? (
+                                                <label style={{display:'flex', alignItems:'center', gap:'8px', fontSize:'0.85em'}}>
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={!!selectedBindingData.enabled}
+                                                        onChange={(e) => {
+                                                            const nextEnabled = e.target.checked;
+                                                            const parsed = parseJsonSafely(bindingsEditorText);
+                                                            const baseObj = (!parsed.error && parsed.value && typeof parsed.value === 'object')
+                                                                ? parsed.value as Record<string, unknown>
+                                                                : (selectedBindingData as Record<string, unknown>);
+                                                            const nextObj = { ...baseObj, enabled: nextEnabled };
+                                                            const formatted = JSON.stringify(nextObj, null, 2);
+                                                            setBindingsEditorText(formatted);
+                                                            setBindingsEditorError(null);
+                                                            const baseParsed = parseJsonSafely(bindingsEditorBaseline);
+                                                            if (!baseParsed.error) {
+                                                                setBindingsEditorDirty(JSON.stringify(nextObj) !== JSON.stringify(baseParsed.value));
+                                                            } else {
+                                                                setBindingsEditorDirty(true);
+                                                            }
+                                                        }}
+                                                    />
+                                                    Enabled
+                                                </label>
+                                            ) : (
+                                                <div style={{fontSize:'0.85em', color:'#888'}}>Enabled toggle unavailable (field missing).</div>
+                                            )}
+                                            {!bindingSchemaValidation.valid && bindingSchemaValidation.errors.length > 0 && (
+                                                <div style={{marginTop:'6px', fontSize:'0.8em', color:'#c62828'}}>
+                                                    {bindingSchemaValidation.errors.slice(0, 3).join('; ')}
+                                                </div>
+                                            )}
+                                        </div>
                                         <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'5px'}}>
                                             <strong style={{fontSize:'0.9em'}}>Binding Details</strong>
                                             <CopyBtn k="binding" text={selectedBinding} />
@@ -6609,7 +6882,7 @@ function SysadminPanel({
                                         <pre style={preStyle}>{JSON.stringify(selectedBinding, null, 2)}</pre>
                                         <div style={{marginTop:'10px', border:'1px solid #ddd', borderRadius:'4px', overflow:'hidden'}}>
                                             <div style={{padding:'8px', background:'#f5f5f5', borderBottom:'1px solid #ddd', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
-                                                <strong style={{fontSize:'0.9em'}}>Edit Binding Data (draft)</strong>
+                                                <strong style={{fontSize:'0.9em'}}>Advanced JSON (Binding Data)</strong>
                                             </div>
                                             <div style={{padding:'8px'}}>
                                                 <textarea
@@ -6703,6 +6976,18 @@ function SysadminPanel({
                 const derivedPatch = selectedBlock ? derivedPatches?.[selectedBlock.blockId] : undefined;
                 const effectiveData = derivedPatch ? { ...baseObj, ...derivedPatch } : baseObj;
                 const isDataStatic = selectedBlock?.blockType === 'data.static';
+                const dataStaticSchema = blockSchemas['data.static'];
+                const dataStaticSchemaError = blockSchemaErrors['data.static'];
+                const dataFormValidation = dataStaticSchema
+                    ? validateWithSchemaMinimal(dataStaticSchema, { value: dataStaticDraft })
+                    : { valid: true, errors: [] as string[] };
+                const dataJsonParsed = isDataStatic ? parseJsonSafely(dataStaticJsonText) : { value: null, error: null as string | null };
+                const dataJsonValidation = dataStaticSchema && !dataJsonParsed.error
+                    ? validateWithSchemaMinimal(dataStaticSchema, dataJsonParsed.value)
+                    : { valid: true, errors: [] as string[] };
+                const dataValueHelp = dataStaticSchema?.properties?.value?.['x-ui-editorHint']
+                    || dataStaticSchema?.properties?.value?.description
+                    || null;
 
                 return (
                     <div style={{display:'flex', height:'100%', overflow:'hidden'}}>
@@ -6745,10 +7030,16 @@ function SysadminPanel({
                                         <strong>Editable Value</strong>
                                         <span style={{marginLeft:'8px', fontSize:'0.85em', color:'#666'}}>(data.static only)</span>
                                     </span>
+                                    <span style={{fontSize:'0.8em', color: dataStaticSchema ? (dataFormValidation.valid ? '#2e7d32' : '#c62828') : '#888'}}>
+                                        {dataStaticSchema ? (dataFormValidation.valid ? 'Schema valid' : 'Schema invalid') : (dataStaticSchemaError || 'Schema unavailable')}
+                                    </span>
                                 </div>
                                 <div style={{padding:'10px', display:'flex', flexDirection:'column', gap:'8px'}}>
                                     {isDataStatic ? (
                                         <>
+                                            {dataValueHelp && (
+                                                <div style={{fontSize:'0.8em', color:'#666'}}>{dataValueHelp}</div>
+                                            )}
                                             <textarea
                                                 value={dataStaticDraft}
                                                 onChange={e => setDataStaticDraft(e.target.value)}
@@ -6792,6 +7083,91 @@ function SysadminPanel({
                                 </div>
                             </div>
 
+                        <div style={{marginBottom:'15px', border:'1px solid #ddd', borderRadius:'4px', overflow:'hidden'}}>
+                            <div style={{padding:'8px', background:'#f5f5f5', borderBottom:'1px solid #ddd', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+                                <strong>Advanced JSON (data.static)</strong>
+                                <span style={{fontSize:'0.8em', color: dataJsonParsed.error ? '#c62828' : (dataJsonValidation.valid ? '#2e7d32' : '#c62828')}}>
+                                    {dataJsonParsed.error
+                                        ? `Invalid JSON: ${dataJsonParsed.error}`
+                                        : dataStaticSchema
+                                            ? (dataJsonValidation.valid ? 'Schema valid' : 'Schema invalid')
+                                            : (dataStaticSchemaError || 'Schema unavailable')}
+                                </span>
+                            </div>
+                            <div style={{padding:'10px'}}>
+                                {isDataStatic ? (
+                                    <>
+                                        <textarea
+                                            value={dataStaticJsonText}
+                                            onChange={(e) => {
+                                                const nextText = e.target.value;
+                                                setDataStaticJsonText(nextText);
+                                                const parsed = parseJsonSafely(nextText);
+                                                setDataStaticJsonError(parsed.error);
+                                                if (!parsed.error) {
+                                                    const baseParsed = parseJsonSafely(dataStaticJsonBaseline);
+                                                    if (!baseParsed.error) {
+                                                        setDataStaticJsonDirty(JSON.stringify(parsed.value) !== JSON.stringify(baseParsed.value));
+                                                    } else {
+                                                        setDataStaticJsonDirty(true);
+                                                    }
+                                                    const nextValue = (parsed.value as any)?.value;
+                                                    if (typeof nextValue === 'string') {
+                                                        setDataStaticDraft(nextValue);
+                                                    }
+                                                } else {
+                                                    setDataStaticJsonDirty(true);
+                                                }
+                                            }}
+                                            rows={8}
+                                            style={{width:'100%', resize:'vertical', padding:'8px', border:'1px solid #ccc', borderRadius:'4px', fontFamily:'monospace'}}
+                                        />
+                                        <div style={{display:'flex', gap:'8px', marginTop:'10px'}}>
+                                            <button
+                                                onClick={handleSaveDataStaticJson}
+                                                disabled={!!dataStaticJsonError || !dataStaticJsonDirty || dataStaticSaving || activateDraftSaving}
+                                                style={{padding:'6px 12px', cursor: (!!dataStaticJsonError || !dataStaticJsonDirty || dataStaticSaving || activateDraftSaving) ? 'default' : 'pointer'}}
+                                            >
+                                                {dataStaticSaving ? 'Saving…' : 'Save Draft (Advanced)'}
+                                            </button>
+                                            <button
+                                                onClick={() => {
+                                                    setDataStaticJsonText(dataStaticJsonBaseline);
+                                                    setDataStaticJsonError(null);
+                                                    setDataStaticJsonDirty(false);
+                                                }}
+                                                disabled={!dataStaticJsonDirty}
+                                                style={{padding:'6px 12px', cursor: (!dataStaticJsonDirty) ? 'default' : 'pointer'}}
+                                            >
+                                                Reset
+                                            </button>
+                                            <button
+                                                onClick={() => {
+                                                    const parsed = parseJsonSafely(dataStaticJsonText);
+                                                    if (parsed.error || parsed.value === null) return;
+                                                    const formatted = JSON.stringify(parsed.value, null, 2);
+                                                    setDataStaticJsonText(formatted);
+                                                    setDataStaticJsonError(null);
+                                                    const baseParsed = parseJsonSafely(dataStaticJsonBaseline);
+                                                    if (!baseParsed.error) {
+                                                        setDataStaticJsonDirty(JSON.stringify(parsed.value) !== JSON.stringify(baseParsed.value));
+                                                    }
+                                                }}
+                                                disabled={!!dataStaticJsonError}
+                                                style={{padding:'6px 12px', cursor: (dataStaticJsonError) ? 'default' : 'pointer'}}
+                                            >
+                                                Format
+                                            </button>
+                                        </div>
+                                    </>
+                                ) : (
+                                    <div style={{fontSize:'0.9em', color:'#666'}}>
+                                        Read-only. Only data.static blocks are editable.
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
                             <div style={{marginBottom:'15px', border:'1px solid #ddd', borderRadius:'4px'}}>
                                 <div style={{padding:'8px', background:'#f5f5f5', borderBottom:'1px solid #ddd', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
                                     <span>
@@ -6833,6 +7209,117 @@ function SysadminPanel({
                                         {JSON.stringify(effectiveData, null, 2)}
                                     </pre>
                                 </div>
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+            case 'Theme': {
+                if (!bundleData) return <div style={{padding:'20px', color:'#666'}}>No bundle/config loaded yet.</div>;
+                if (!themeTokensBlock) {
+                    return (
+                        <div style={{padding:'20px', color:'#666'}}>
+                            No theme tokens block found (blockType: shell.infra.theme_tokens).
+                        </div>
+                    );
+                }
+
+                const themeSchema = blockSchemas['shell.infra.theme_tokens'];
+                const themeSchemaError = blockSchemaErrors['shell.infra.theme_tokens'];
+                const themeParsed = parseJsonSafely(themeTokensEditorText);
+                const themeValidation = themeSchema && !themeParsed.error
+                    ? validateWithSchemaMinimal(themeSchema, themeParsed.value)
+                    : { valid: true, errors: [] as string[] };
+                const canPatchThemeTokens = false;
+
+                return (
+                    <div style={{display:'flex', flexDirection:'column', height:'100%'}}>
+                        <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'10px'}}>
+                            <div style={{fontWeight:'bold', fontSize:'0.9em'}}>Theme Tokens</div>
+                            <div style={{fontSize:'0.8em', color:'#888'}}>
+                                {canPatchThemeTokens ? 'Draft-enabled' : 'Read-only (patch endpoint does not support this block type)'}
+                            </div>
+                        </div>
+                        <div style={{border:'1px solid #ddd', borderRadius:'4px', overflow:'hidden'}}>
+                            <div style={{padding:'8px', background:'#f5f5f5', borderBottom:'1px solid #ddd', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+                                <strong>Advanced JSON (Theme Tokens)</strong>
+                                <span style={{fontSize:'0.8em', color: themeParsed.error ? '#c62828' : (themeValidation.valid ? '#2e7d32' : '#c62828')}}>
+                                    {themeParsed.error
+                                        ? `Invalid JSON: ${themeParsed.error}`
+                                        : themeSchema
+                                            ? (themeValidation.valid ? 'Schema valid' : 'Schema invalid')
+                                            : (themeSchemaError || 'Schema unavailable')}
+                                </span>
+                            </div>
+                            <div style={{padding:'10px'}}>
+                                <textarea
+                                    value={themeTokensEditorText}
+                                    onChange={(e) => {
+                                        const nextText = e.target.value;
+                                        setThemeTokensEditorText(nextText);
+                                        const parsed = parseJsonSafely(nextText);
+                                        setThemeTokensEditorError(parsed.error);
+                                        if (!parsed.error) {
+                                            const baseParsed = parseJsonSafely(themeTokensEditorBaseline);
+                                            if (!baseParsed.error) {
+                                                setThemeTokensEditorDirty(JSON.stringify(parsed.value) !== JSON.stringify(baseParsed.value));
+                                            } else {
+                                                setThemeTokensEditorDirty(true);
+                                            }
+                                        } else {
+                                            setThemeTokensEditorDirty(true);
+                                        }
+                                    }}
+                                    rows={12}
+                                    style={{width:'100%', resize:'vertical', padding:'8px', border:'1px solid #ccc', borderRadius:'4px', fontFamily:'monospace'}}
+                                />
+                                {!themeValidation.valid && themeValidation.errors.length > 0 && !themeParsed.error && (
+                                    <div style={{marginTop:'6px', fontSize:'0.8em', color:'#c62828'}}>
+                                        {themeValidation.errors.slice(0, 3).join('; ')}
+                                    </div>
+                                )}
+                                <div style={{display:'flex', gap:'8px', marginTop:'10px'}}>
+                                    <button
+                                        onClick={() => void 0}
+                                        disabled={!canPatchThemeTokens || !!themeTokensEditorError || !themeTokensEditorDirty || themeTokensDraftSaving}
+                                        style={{padding:'6px 12px', cursor: (!canPatchThemeTokens || !!themeTokensEditorError || !themeTokensEditorDirty || themeTokensDraftSaving) ? 'default' : 'pointer'}}
+                                    >
+                                        {themeTokensDraftSaving ? 'Saving…' : 'Save Draft'}
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            setThemeTokensEditorText(themeTokensEditorBaseline);
+                                            setThemeTokensEditorError(null);
+                                            setThemeTokensEditorDirty(false);
+                                        }}
+                                        disabled={!themeTokensEditorDirty}
+                                        style={{padding:'6px 12px', cursor: (!themeTokensEditorDirty) ? 'default' : 'pointer'}}
+                                    >
+                                        Reset
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            const parsed = parseJsonSafely(themeTokensEditorText);
+                                            if (parsed.error || parsed.value === null) return;
+                                            const formatted = JSON.stringify(parsed.value, null, 2);
+                                            setThemeTokensEditorText(formatted);
+                                            setThemeTokensEditorError(null);
+                                            const baseParsed = parseJsonSafely(themeTokensEditorBaseline);
+                                            if (!baseParsed.error) {
+                                                setThemeTokensEditorDirty(JSON.stringify(parsed.value) !== JSON.stringify(baseParsed.value));
+                                            }
+                                        }}
+                                        disabled={!!themeTokensEditorError}
+                                        style={{padding:'6px 12px', cursor: (themeTokensEditorError) ? 'default' : 'pointer'}}
+                                    >
+                                        Format
+                                    </button>
+                                </div>
+                                {!canPatchThemeTokens && (
+                                    <div style={{marginTop:'6px', fontSize:'0.8em', color:'#888'}}>
+                                        Draft save disabled: /api/v1/config/blocks/:blockId/patch does not support shell.infra.theme_tokens.
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>

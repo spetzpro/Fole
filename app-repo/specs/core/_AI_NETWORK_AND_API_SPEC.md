@@ -259,6 +259,23 @@ Versioned write-back for admin-edited `data.static` and `ui.node.*` blocks, spli
 | `POST` | `/api/v1/config/blocks/:blockId/patch` | Patch `block.data` (shallow merge) for `data.static`, `binding`, or `ui.node.*` blocks and persist as a **new version** (draft only). **Does not activate.** | Admin-equivalent (localhost dev exception allowed) |
 | `POST` | `/api/v1/config/activate` | Activate a specific version. Requires a non-empty reason. | Admin-equivalent (localhost dev exception allowed) |
 
+### 17.6 v1 Block Schema Fetch (Admin-Only)
+Schema discovery for sysadmin editing surfaces.
+
+| Method | Endpoint | Description | Permission Required |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/api/schemas/block/:blockType` | Fetch JSON schema for non-`ui.node.*` block types (e.g., `data.static`, `binding`, `template`, `shell.infra.theme_tokens`). | Admin-equivalent (localhost dev exception allowed) |
+
+**Response Shape:**
+```json
+{
+  "ok": true,
+  "data": { "schema": { /* JSON Schema */ } },
+  "requestId": "...",
+  "timestamp": "..."
+}
+```
+
 **Save Draft Request Body:**
 ```json
 {

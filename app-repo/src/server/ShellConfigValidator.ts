@@ -154,7 +154,7 @@ export class ShellConfigValidator {
     }
   }
 
-  private getSchemaForBlockType(blockType: string): string | null {
+    public getSchemaForBlockType(blockType: string): string | null {
       const exactMap: Record<string, string> = {
           "shell.region.header": "shell.region.header.data.schema.json",
           "shell.region.footer": "shell.region.footer.data.schema.json",
