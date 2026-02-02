@@ -1,4 +1,5 @@
 import http from "http";
+import Ajv from "ajv";
 import * as path from "path";
 import { promises as fs } from "fs";
 import { parse } from "url";
@@ -27,6 +28,37 @@ const SERVER_BUILD_ID = (() => {
     const suffix = shortSha ? `_${shortSha}` : "";
     return `dev_${process.pid}_${SERVER_START_TS}${suffix}`;
 })();
+
+const deepMerge = (base: any, override: any): any => {
+    if (Array.isArray(override)) return override;
+    if (override && typeof override === "object" && !Array.isArray(override)) {
+        const baseObj = (base && typeof base === "object" && !Array.isArray(base)) ? base : {};
+        const result: any = { ...baseObj };
+        Object.keys(override).forEach((key) => {
+            const next = (override as any)[key];
+            if (next === undefined) return;
+            result[key] = deepMerge((baseObj as any)[key], next);
+        });
+        return result;
+    }
+    return override !== undefined ? override : base;
+};
+
+let uiNodeButtonSchemaCache: any | null = null;
+let uiNodeButtonAjv: Ajv | null = null;
+const getUiNodeButtonValidator = async (repoRoot: string) => {
+    if (uiNodeButtonAjv && uiNodeButtonSchemaCache) {
+        return { ajv: uiNodeButtonAjv, schema: uiNodeButtonSchemaCache };
+    }
+    const schemaPath = path.join(repoRoot, "app-repo", "src", "server", "schemas", "ui-node", "ui.node.button.schema.json");
+    const content = await fs.readFile(schemaPath, "utf-8");
+    const schema = JSON.parse(content);
+    const ajv = new Ajv({ allErrors: true });
+    ajv.addKeyword("x-ui-editorHint");
+    uiNodeButtonSchemaCache = schema;
+    uiNodeButtonAjv = ajv;
+    return { ajv, schema };
+};
 
 async function main() {
   const router = new Router();
@@ -512,10 +544,95 @@ async function main() {
           blocks: nextBlocks
       };
 
-      const report = await validator.validateBundle(nextBundle);
-      const errors = report.errors?.filter((e: any) => e.severity === "A1" || e.severity === "A2") || [];
-      if (report.status !== "valid" || errors.length > 0) {
-          return sendErrorEnvelope(res, ctx, 400, "validation_failed", "Bundle validation failed");
+    const errors: any[] = [];
+    const effectiveErrors: any[] = [];
+      if (nextBlock.blockType === "ui.node.button" && typeof nextBlock?.data?.inheritFrom === "string") {
+          const inheritFrom = nextBlock.data.inheritFrom;
+          const templateBlock = nextBundle.blocks?.[inheritFrom] || baseBundle.blocks?.[inheritFrom];
+          if (!templateBlock) {
+              effectiveErrors.push({
+                  severity: "A1",
+                  code: "template_missing",
+                  message: `Block ${blockId} inheritFrom references missing template '${inheritFrom}'`,
+                  path: `/blocks/${blockId}/data/inheritFrom`,
+                  blockId
+              });
+          } else if (templateBlock.blockType !== "template") {
+              effectiveErrors.push({
+                  severity: "A1",
+                  code: "template_type_mismatch",
+                  message: `Block ${blockId} inheritFrom '${inheritFrom}' is not a template block`,
+                  path: `/blocks/${blockId}/data/inheritFrom`,
+                  blockId
+              });
+          } else if (templateBlock?.data?.inheritFrom) {
+              effectiveErrors.push({
+                  severity: "A1",
+                  code: "template_inherit_forbidden",
+                  message: `Template '${inheritFrom}' must not inherit from another template in v1`,
+                  path: `/blocks/${inheritFrom}/data/inheritFrom`,
+                  blockId: inheritFrom
+              });
+          } else if (templateBlock?.data?.targetBlockType !== "ui.node.button") {
+              effectiveErrors.push({
+                  severity: "A1",
+                  code: "template_target_mismatch",
+                  message: `Template '${inheritFrom}' does not target ui.node.button`,
+                  path: `/blocks/${inheritFrom}/data/targetBlockType`,
+                  blockId: inheritFrom
+              });
+          } else if (!templateBlock?.data?.defaults || typeof templateBlock.data.defaults !== "object" || Array.isArray(templateBlock.data.defaults)) {
+              effectiveErrors.push({
+                  severity: "A1",
+                  code: "template_defaults_invalid",
+                  message: `Template '${inheritFrom}' missing defaults object`,
+                  path: `/blocks/${inheritFrom}/data/defaults`,
+                  blockId: inheritFrom
+              });
+          } else {
+              const activeBlockData = block.data && typeof block.data === "object" ? block.data : {};
+              const draftOverrides = nextBlock.data && typeof nextBlock.data === "object" ? nextBlock.data : {};
+              const templateDefaults = templateBlock.data.defaults || {};
+              const effective = deepMerge(deepMerge(activeBlockData, templateDefaults), draftOverrides);
+              const { ajv, schema } = await getUiNodeButtonValidator(cwd);
+              const valid = ajv.validate(schema, effective);
+              if (!valid) {
+                  (ajv.errors || []).forEach((err: any) => {
+                      effectiveErrors.push({
+                          severity: "A1",
+                          code: `effective_schema_${err.keyword}`,
+                          message: `Block ${blockId} effective data invalid: ${err.message}`,
+                          path: `/blocks/${blockId}/effective${err.instancePath}`,
+                          blockId
+                      });
+                  });
+              }
+          }
+      }
+
+      const combinedErrors = [...errors, ...effectiveErrors];
+
+      if (combinedErrors.length > 0) {
+          const details = isLocalhostRequest(ctx)
+              ? combinedErrors.map((e: any) => ({
+                  severity: e.severity,
+                  code: e.code,
+                  message: e.message,
+                  path: e.path,
+                  blockId: e.blockId
+              }))
+              : undefined;
+          return router.json(res, 400, {
+              ok: false,
+              data: null,
+              error: {
+                  code: "validation_failed",
+                  message: "Bundle validation failed",
+                  details
+              },
+              requestId: ctx.requestId,
+              timestamp: new Date().toISOString()
+          });
       }
 
       const { newVersionId } = await configRepo.saveHealedBundleAsVersion(

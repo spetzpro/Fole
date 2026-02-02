@@ -266,9 +266,11 @@ export class ShellConfigValidator {
             return data;
         }
 
+        const baseData = { ...data } as any;
         const overrides = { ...data } as any;
         delete overrides.inheritFrom;
-        return this.deepMerge(templateData.defaults, overrides);
+        const withDefaults = this.deepMerge(templateData.defaults, baseData);
+        return this.deepMerge(withDefaults, overrides);
     }
 
   async validateBundle(bundle: ShellBundle["bundle"]): Promise<ValidationReport> {

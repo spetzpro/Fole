@@ -2635,6 +2635,9 @@ function SysadminPanel({
                  }
              });
              newData = sanitizeNodeDataForSchema(schemaFields, overrideData);
+             if (getValueByPath(newData, 'behaviors.onClick.actionId') === '') {
+                 newData = setValueByPath(newData, 'behaviors.onClick.actionId', undefined);
+             }
          }
 
          let defaultType = 'ui.node.button';
@@ -4432,45 +4435,22 @@ function SysadminPanel({
             // ignore
         }
     };
-    const BUILD_ID_STORAGE_KEY = 'fole.dev.serverBuildId';
-    const UI_BUILD_ID_STORAGE_KEY = 'fole.dev.uiBuildId';
-    const uiBuildIdRef = useRef(UI_BUILD_ID);
-    const buildCheckInFlightRef = useRef(false);
+    const syncSessionBannerFromStorage = () => {
+        try {
+            const raw = sessionStorage.getItem(SESSION_BANNER_KEY);
+            if (!raw) return;
+            const parsed = JSON.parse(raw) as SessionBanner;
+            if (!parsed || !parsed.message || !parsed.kind || !parsed.ts) return;
+            setSessionBanner(parsed);
+        } catch {
+            // ignore
+        }
+    };
     useEffect(() => {
-        const checkBuildId = async () => {
-            if (buildCheckInFlightRef.current) return;
-            buildCheckInFlightRef.current = true;
-            try {
-                const devAuth = localStorage.getItem('FOLE_DEV_AUTH');
-                const headers = new Headers();
-                if (devAuth) headers.set('X-Dev-Auth', devAuth);
-
-                const res = await fetch(apiUrl('/api/v1/meta/build'), { headers });
-                if (!res.ok) return;
-                const json = await res.json().catch(() => null);
-                const serverBuildId = json?.data?.serverBuildId;
-                if (!serverBuildId || typeof serverBuildId !== 'string') return;
-
-                const lastSeen = sessionStorage.getItem(BUILD_ID_STORAGE_KEY);
-                if (lastSeen && lastSeen !== serverBuildId) {
-                    showBanner({
-                        kind: 'error',
-                        message: 'New UI/server version detected — reload recommended',
-                        ts: Date.now(),
-                        action: 'reload'
-                    });
-                }
-
-                sessionStorage.setItem(BUILD_ID_STORAGE_KEY, serverBuildId);
-                sessionStorage.setItem(UI_BUILD_ID_STORAGE_KEY, uiBuildIdRef.current);
-            } catch {
-                // ignore
-            } finally {
-                buildCheckInFlightRef.current = false;
-            }
-        };
-
-        void checkBuildId();
+        const handler = () => syncSessionBannerFromStorage();
+        syncSessionBannerFromStorage();
+        window.addEventListener('fole:session-banner', handler);
+        return () => window.removeEventListener('fole:session-banner', handler);
     }, []);
     useEffect(() => {
         if (!sessionBanner) return;
@@ -9436,7 +9416,15 @@ function SysadminPanel({
                     <div style={{display:'flex', alignItems:'center', gap:'8px'}}>
                         {sessionBanner.action === 'reload' && (
                             <button
-                                onClick={() => window.location.reload()}
+                                onClick={() => {
+                                    try {
+                                        sessionStorage.removeItem(SESSION_BANNER_KEY);
+                                    } catch {
+                                        // ignore
+                                    }
+                                    setSessionBanner(null);
+                                    window.location.reload();
+                                }}
                                 style={{
                                     background: 'white',
                                     border: `1px solid ${sessionBanner.kind === 'success' ? '#c8e6c9' : '#ffcdd2'}`,
@@ -9539,48 +9527,49 @@ function App() {
   const uiBuildIdRef = useRef(UI_BUILD_ID);
   const buildCheckInFlightRef = useRef(false);
 
-  useEffect(() => {
-      const BUILD_ID_STORAGE_KEY = 'fole.dev.serverBuildId';
-      const UI_BUILD_ID_STORAGE_KEY = 'fole.dev.uiBuildId';
-      const SESSION_BANNER_KEY = 'fole.sysadmin.sessionBanner';
-      const checkBuildId = async () => {
-          if (buildCheckInFlightRef.current) return;
-          buildCheckInFlightRef.current = true;
-          try {
-              const devAuth = localStorage.getItem('FOLE_DEV_AUTH');
-              const headers = new Headers();
-              if (devAuth) headers.set('X-Dev-Auth', devAuth);
+  const triggerBuildCheck = async () => {
+      if (buildCheckInFlightRef.current) return;
+      buildCheckInFlightRef.current = true;
+      try {
+          const BUILD_ID_STORAGE_KEY = 'fole.dev.serverBuildId';
+          const UI_BUILD_ID_STORAGE_KEY = 'fole.dev.uiBuildId';
+          const SESSION_BANNER_KEY = 'fole.sysadmin.sessionBanner';
 
-              const res = await fetch(apiUrl('/api/v1/meta/build'), { headers });
-              if (!res.ok) return;
-              const json = await res.json().catch(() => null);
-              const serverBuildId = json?.data?.serverBuildId;
-              if (!serverBuildId || typeof serverBuildId !== 'string') return;
+          const devAuth = localStorage.getItem('FOLE_DEV_AUTH');
+          const headers = new Headers();
+          if (devAuth) headers.set('X-Dev-Auth', devAuth);
 
-              const lastSeen = sessionStorage.getItem(BUILD_ID_STORAGE_KEY);
-              if (lastSeen && lastSeen !== serverBuildId) {
-                  const existingBanner = sessionStorage.getItem(SESSION_BANNER_KEY);
-                  if (!existingBanner) {
-                      sessionStorage.setItem(SESSION_BANNER_KEY, JSON.stringify({
-                          kind: 'error',
-                          message: 'New UI/server version detected — reload recommended',
-                          ts: Date.now(),
-                          action: 'reload'
-                      }));
-                  }
-              }
+          const res = await fetch(apiUrl('/api/v1/meta/build'), { headers });
+          if (!res.ok) return;
+          const json = await res.json().catch(() => null);
+          const serverBuildId = json?.data?.serverBuildId;
+          if (!serverBuildId || typeof serverBuildId !== 'string') return;
 
-              sessionStorage.setItem(BUILD_ID_STORAGE_KEY, serverBuildId);
-              sessionStorage.setItem(UI_BUILD_ID_STORAGE_KEY, uiBuildIdRef.current);
-          } catch {
-              // ignore
-          } finally {
-              buildCheckInFlightRef.current = false;
+          const lastSeen = sessionStorage.getItem(BUILD_ID_STORAGE_KEY);
+          if (lastSeen && lastSeen !== serverBuildId) {
+              const banner = {
+                  kind: 'error',
+                  message: 'New UI/server version detected — reload recommended',
+                  ts: Date.now(),
+                  action: 'reload'
+              };
+              sessionStorage.setItem(SESSION_BANNER_KEY, JSON.stringify(banner));
+              window.dispatchEvent(new Event('fole:session-banner'));
           }
-      };
 
-      void checkBuildId();
+          sessionStorage.setItem(BUILD_ID_STORAGE_KEY, serverBuildId);
+          sessionStorage.setItem(UI_BUILD_ID_STORAGE_KEY, uiBuildIdRef.current);
+      } catch {
+          // ignore
+      } finally {
+          buildCheckInFlightRef.current = false;
+      }
+  };
+
+  useEffect(() => {
+      void triggerBuildCheck();
   }, []);
+
 
   useEffect(() => {
      fetch(apiUrl('/api/runtime/capabilities'))
@@ -9632,6 +9621,12 @@ function App() {
 
   // Sysadmin Toggle
   const [sysadminOpen, setSysadminOpen] = useState(false);
+
+  useEffect(() => {
+      if (sysadminOpen) {
+          void triggerBuildCheck();
+      }
+  }, [sysadminOpen]);
   
   // Safe Mode Override (Recovery)
   const [safeModeEnabled, setSafeModeEnabled] = useState(() => localStorage.getItem('FOLE_SAFE_MODE') === '1');
