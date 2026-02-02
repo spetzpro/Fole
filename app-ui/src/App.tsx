@@ -6708,7 +6708,14 @@ function SysadminPanel({
                  const bindingSchemaValidation = bindingSchema && !bindingJsonParsed.error
                      ? validateWithSchemaMinimal(bindingSchema, bindingJsonParsed.value)
                      : { valid: true, errors: [] as string[] };
-                 const canToggleEnabled = typeof selectedBindingData.enabled === 'boolean';
+                 const bindingJsonValue = (!bindingJsonParsed.error && bindingJsonParsed.value && typeof bindingJsonParsed.value === 'object')
+                     ? bindingJsonParsed.value as Record<string, unknown>
+                     : null;
+                 const bindingJsonEnabled = bindingJsonValue && typeof bindingJsonValue.enabled === 'boolean'
+                     ? bindingJsonValue.enabled
+                     : undefined;
+                 const enabledDisplay = typeof bindingJsonEnabled === 'boolean' ? bindingJsonEnabled : enabled;
+                 const canToggleEnabled = typeof bindingJsonEnabled === 'boolean';
 
                  const sourceBlockId = sourceEp?.target?.blockId;
                  const destBlockId = destEp?.target?.blockId;
@@ -6785,8 +6792,8 @@ function SysadminPanel({
                                         <div style={{marginBottom:'10px', padding:'8px', border:'1px solid #ddd', borderRadius:'4px', background:'#fafafa'}}>
                                             <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'6px'}}>
                                                 <strong style={{fontSize:'0.9em'}}>Summary</strong>
-                                                <span style={{fontSize:'0.85em', color: enabled ? '#2e7d32' : '#c62828'}}>
-                                                    {enabled ? 'Enabled' : 'Disabled'} | {String(mode).toUpperCase()}
+                                                <span style={{fontSize:'0.85em', color: enabledDisplay ? '#2e7d32' : '#c62828'}}>
+                                                    {enabledDisplay ? 'Enabled' : 'Disabled'} | {String(mode).toUpperCase()}
                                                 </span>
                                             </div>
                                             <div style={{fontSize:'0.85em', color:'#333', marginBottom:'6px'}}>
@@ -6845,13 +6852,11 @@ function SysadminPanel({
                                                 <label style={{display:'flex', alignItems:'center', gap:'8px', fontSize:'0.85em'}}>
                                                     <input
                                                         type="checkbox"
-                                                        checked={!!selectedBindingData.enabled}
-                                                        onChange={(e) => {
-                                                            const nextEnabled = e.target.checked;
-                                                            const parsed = parseJsonSafely(bindingsEditorText);
-                                                            const baseObj = (!parsed.error && parsed.value && typeof parsed.value === 'object')
-                                                                ? parsed.value as Record<string, unknown>
-                                                                : (selectedBindingData as Record<string, unknown>);
+                                                        checked={!!bindingJsonEnabled}
+                                                        onChange={() => {
+                                                            if (bindingJsonEnabled === undefined) return;
+                                                            const nextEnabled = !bindingJsonEnabled;
+                                                            const baseObj = bindingJsonValue || (selectedBindingData as Record<string, unknown>);
                                                             const nextObj = { ...baseObj, enabled: nextEnabled };
                                                             const formatted = JSON.stringify(nextObj, null, 2);
                                                             setBindingsEditorText(formatted);
