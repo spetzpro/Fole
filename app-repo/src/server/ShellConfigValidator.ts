@@ -184,6 +184,93 @@ export class ShellConfigValidator {
     return JSON.parse(content);
   }
 
+    private deepMerge(base: any, override: any): any {
+        if (Array.isArray(override)) return override;
+        if (override && typeof override === "object" && !Array.isArray(override)) {
+            const baseObj = (base && typeof base === "object" && !Array.isArray(base)) ? base : {};
+            const result: any = { ...baseObj };
+            Object.keys(override).forEach(key => {
+                const next = (override as any)[key];
+                if (next === undefined) return;
+                result[key] = this.deepMerge((baseObj as any)[key], next);
+            });
+            return result;
+        }
+        return override !== undefined ? override : base;
+    }
+
+    private resolveUiNodeButtonData(
+        blockId: string,
+        block: any,
+        bundle: ShellBundle["bundle"],
+        errors?: ValidationError[]
+    ): any {
+        const data = block?.data || {};
+        const inheritFrom = data?.inheritFrom;
+        if (!inheritFrom || typeof inheritFrom !== "string") return data;
+
+        const templateBlock = bundle.blocks?.[inheritFrom];
+        if (!templateBlock) {
+            errors?.push({
+                severity: "A1",
+                code: "template_missing",
+                message: `Block ${blockId} inheritFrom references missing template '${inheritFrom}'`,
+                path: `/blocks/${blockId}/data/inheritFrom`,
+                blockId
+            });
+            return data;
+        }
+
+        if (templateBlock.blockType !== "template") {
+            errors?.push({
+                severity: "A1",
+                code: "template_type_mismatch",
+                message: `Block ${blockId} inheritFrom '${inheritFrom}' is not a template block`,
+                path: `/blocks/${blockId}/data/inheritFrom`,
+                blockId
+            });
+            return data;
+        }
+
+        const templateData = templateBlock.data || {};
+        if (templateData?.inheritFrom) {
+            errors?.push({
+                severity: "A1",
+                code: "template_inherit_forbidden",
+                message: `Template '${inheritFrom}' must not inherit from another template in v1`,
+                path: `/blocks/${inheritFrom}/data/inheritFrom`,
+                blockId: inheritFrom
+            });
+            return data;
+        }
+
+        if (templateData?.targetBlockType !== "ui.node.button") {
+            errors?.push({
+                severity: "A1",
+                code: "template_target_mismatch",
+                message: `Template '${inheritFrom}' does not target ui.node.button`,
+                path: `/blocks/${inheritFrom}/data/targetBlockType`,
+                blockId: inheritFrom
+            });
+            return data;
+        }
+
+        if (!templateData?.defaults || typeof templateData.defaults !== "object" || Array.isArray(templateData.defaults)) {
+            errors?.push({
+                severity: "A1",
+                code: "template_defaults_invalid",
+                message: `Template '${inheritFrom}' missing defaults object`,
+                path: `/blocks/${inheritFrom}/data/defaults`,
+                blockId: inheritFrom
+            });
+            return data;
+        }
+
+        const overrides = { ...data } as any;
+        delete overrides.inheritFrom;
+        return this.deepMerge(templateData.defaults, overrides);
+    }
+
   async validateBundle(bundle: ShellBundle["bundle"]): Promise<ValidationReport> {
     await this.ensureSchemas();
 
@@ -200,24 +287,56 @@ export class ShellConfigValidator {
     for (const blockId of Object.keys(bundle.blocks)) {
         const block = bundle.blocks[blockId];
         const schemaName = this.getSchemaForBlockType(block.blockType);
+        const hasTemplate = block.blockType === "ui.node.button" && !!block?.data?.inheritFrom;
 
         if (schemaName) {
-            const valid = this.ajv.validate(schemaName, block.data);
-            if (!valid) {
-                 (this.ajv.errors || []).forEach(err => {
-                    errors.push({
-                        severity: "A1",
-                        code: `data_schema_${err.keyword}`,
-                        message: `Block ${blockId} data invalid: ${err.message}`,
-                        path: `/blocks/${blockId}/data${err.instancePath}`,
-                        blockId: blockId
-                    });
-                 });
+            if (!(block.blockType === "ui.node.button" && hasTemplate)) {
+                const valid = this.ajv.validate(schemaName, block.data);
+                if (!valid) {
+                     (this.ajv.errors || []).forEach(err => {
+                        errors.push({
+                            severity: "A1",
+                            code: `data_schema_${err.keyword}`,
+                            message: `Block ${blockId} data invalid: ${err.message}`,
+                            path: `/blocks/${blockId}/data${err.instancePath}`,
+                            blockId: blockId
+                        });
+                     });
+                }
             }
         } else if (block.blockType.startsWith("shell.")) {
              // Unknown shell block type
              // For strictness, if it claims to be a shell.* block but we don't have a schema, flag it.
              // (Optional: could relax this if we expect plugins to extend shell.*)
+        }
+
+        if (block.blockType === "template") {
+            const tData = block.data || {};
+            if (tData.targetBlockType && (!tData.defaults || typeof tData.defaults !== "object" || Array.isArray(tData.defaults))) {
+                errors.push({
+                    severity: "A1",
+                    code: "template_defaults_invalid",
+                    message: `Template ${blockId} missing defaults object for targetBlockType`,
+                    path: `/blocks/${blockId}/data/defaults`,
+                    blockId
+                });
+            }
+        }
+
+        if (block.blockType === "ui.node.button" && hasTemplate && schemaName) {
+            const effective = this.resolveUiNodeButtonData(blockId, block, bundle, errors);
+            const valid = this.ajv.validate(schemaName, effective);
+            if (!valid) {
+                (this.ajv.errors || []).forEach(err => {
+                    errors.push({
+                        severity: "A1",
+                        code: `effective_schema_${err.keyword}`,
+                        message: `Block ${blockId} effective data invalid: ${err.message}`,
+                        path: `/blocks/${blockId}/effective${err.instancePath}`,
+                        blockId: blockId
+                    });
+                });
+            }
         }
     }
 
@@ -633,10 +752,14 @@ export class ShellConfigValidator {
               });
           }
 
+          const props = node.blockType === "ui.node.button"
+              ? this.resolveUiNodeButtonData(id, node, bundle)
+              : node.data;
+
           nodesById[id] = {
               id: id,
               type: node.blockType,
-              props: node.data, // Pass through data as props (so behaviors are available)
+              props: props, // Pass through data as props (so behaviors are available)
               children: resolvedChildren
           };
 

@@ -60,6 +60,24 @@ A Template is a structured JSON Block. Templates are referenceable entities in t
 }
 ```
 
+### 3.2 UI Node Templates (Value-Level)
+For v1 template inheritance, a `template` block MAY define UI node defaults.
+
+**UI template fields (additive):**
+- `targetBlockType: string` (e.g., `ui.node.button`)
+- `defaults: object` (value defaults for the target schema)
+- `templateName?: string`
+
+**Usage:**
+- A `ui.node.*` block may reference a template via `inheritFrom` (blockId).
+- Effective values are computed via a **value-level deep merge**:
+  - `effective = deepMerge(template.defaults, node.data)`
+  - `node.data` remains **overrides only** (do not persist effective values).
+- **Validation:** The effective values must satisfy the target node schema.
+
+**v1 Restriction:**
+- Template → template inheritance is **forbidden** in v1.
+
 ## 4. Governance Rules
 
 ### 4.1 Validation

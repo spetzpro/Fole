@@ -1,0 +1,19 @@
+{
+  "blockId": "tpl_button_primary",
+  "blockType": "template",
+  "schemaVersion": "1.0.0",
+  "data": {
+    "label": "Primary Button Template",
+    "templateName": "Primary Button",
+    "enabled": true,
+    "targetBlockType": "ui.node.button",
+    "defaults": {
+      "type": "ui.node.button",
+      "label": "Primary Action",
+      "variant": "primary",
+      "icon": "star",
+      "helpText": "Primary button template",
+      "requiredPermission": ""
+    }
+  }
+}

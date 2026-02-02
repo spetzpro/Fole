@@ -60,6 +60,10 @@ Reusable value configurations.
 - **Inheritance (`inheritFrom`):** Value-level inheritance only (DeepMerge strategy).
 - **No Logical Inheritance:** Templates cannot define new behavior, only default property values.
 
+#### Templates & Inheritance (v1)
+The normative rules for UI template blocks, `inheritFrom` semantics, deep-merge behavior, and validation
+are defined in [core.ux.shell.TemplateSystem](../modules/core.ux.shell/core.ux.shell.TemplateSystem.md).
+
 ### 2.5 Themes (`ui.theme.*`)
 - **`ui.theme`**: Defines color palettes, spacing, and typography tokens.
 - **`ui.themeProfile.sysadminBuilder`**: Built-in overrides specifically for the Sysadmin Builder mode to distinguish it from the runtime app.

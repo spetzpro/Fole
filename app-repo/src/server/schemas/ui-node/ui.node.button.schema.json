@@ -9,6 +9,10 @@
     "type": {
       "const": "ui.node.button"
     },
+    "inheritFrom": {
+      "type": "string",
+      "description": "Template blockId to inherit defaults from"
+    },
     "helpText": {
       "type": "string"
     },
