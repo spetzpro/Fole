@@ -2571,6 +2571,16 @@ function SysadminPanel({
 
             return { id: draftBlock.blockId, type: nodeType, ...effectiveData, _source: 'DRAFT' };
          }
+         const activeBlocks = (bundleData as any)?.blocks || {};
+         const activeBlock = findBlockById(activeBlocks, id);
+         if (activeBlock?.data && typeof activeBlock.data === 'object') {
+             return {
+                 id: activeBlock.blockId || activeBlock.id || id,
+                 type: activeBlock.blockType || 'ui.node.button',
+                 ...(activeBlock.data as any),
+                 _source: 'ACTIVE'
+             };
+         }
          // Updated to use nodesById and props
          const nodes = resolvedGraph?.nodesById || {};
          const activeNode = nodes[id];
