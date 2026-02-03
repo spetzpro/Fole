@@ -44,6 +44,27 @@ const deepMerge = (base: any, override: any): any => {
     return override !== undefined ? override : base;
 };
 
+const deleteValueByPath = (obj: any, path: string) => {
+    if (!obj || typeof obj !== "object") return obj;
+    const keys = path.split(".");
+    const newObj = Array.isArray(obj) ? [...obj] : { ...obj };
+    let current: any = newObj;
+    for (let i = 0; i < keys.length; i++) {
+        const key = keys[i];
+        if (key === "__proto__" || key === "prototype" || key === "constructor") return newObj;
+        if (i === keys.length - 1) {
+            if (current && typeof current === "object") {
+                delete current[key];
+            }
+            break;
+        }
+        if (!current[key] || typeof current[key] !== "object") break;
+        current[key] = Array.isArray(current[key]) ? [...current[key]] : { ...current[key] };
+        current = current[key];
+    }
+    return newObj;
+};
+
 let uiNodeButtonSchemaCache: any | null = null;
 let uiNodeButtonAjv: Ajv | null = null;
 let uiNodeWindowSchemaCache: any | null = null;
@@ -525,12 +546,20 @@ async function main() {
       }
 
       const patchKeys = Object.keys(patch);
-      if (patchKeys.some((k) => k !== "data")) {
-          return sendErrorEnvelope(res, ctx, 400, "invalid_patch", "Only data patches are supported");
+      if (patchKeys.some((k) => k !== "data" && k !== "dataDeletePaths")) {
+          return sendErrorEnvelope(res, ctx, 400, "invalid_patch", "Only data patches with optional dataDeletePaths are supported");
       }
 
       if (!patch.data || typeof patch.data !== "object") {
           return sendErrorEnvelope(res, ctx, 400, "invalid_patch", "Patch.data must be an object");
+      }
+
+      const deletePathsRaw = (patch as any).dataDeletePaths;
+      if (deletePathsRaw !== undefined && !Array.isArray(deletePathsRaw)) {
+          return sendErrorEnvelope(res, ctx, 400, "invalid_patch", "Patch.dataDeletePaths must be an array of strings");
+      }
+      if (Array.isArray(deletePathsRaw) && deletePathsRaw.some((p) => typeof p !== "string" || !p.trim())) {
+          return sendErrorEnvelope(res, ctx, 400, "invalid_patch", "Patch.dataDeletePaths must contain non-empty strings");
       }
 
       const active = await configRepo.getActivePointer();
@@ -560,8 +589,16 @@ async function main() {
           return sendErrorEnvelope(res, ctx, 400, "invalid_block_type", "Only data.static, binding, shell.infra.theme_tokens, or ui.node.* blocks are editable");
       }
 
-      const baseData = block.data && typeof block.data === "object" ? block.data : {};
-      const nextData = { ...baseData, ...(patch.data as Record<string, unknown>) };
+    const baseData = block.data && typeof block.data === "object" ? block.data : {};
+      const deletePaths: string[] = Array.isArray(deletePathsRaw) ? deletePathsRaw : [];
+      if (deletePaths.some((p) => p.includes("..") || p.startsWith("/") || p.startsWith("."))) {
+          return sendErrorEnvelope(res, ctx, 400, "invalid_patch", "Patch.dataDeletePaths must be relative data paths");
+      }
+      if (deletePaths.some((p) => p.split(".").some((seg) => seg === "__proto__" || seg === "prototype" || seg === "constructor"))) {
+          return sendErrorEnvelope(res, ctx, 400, "invalid_patch", "Patch.dataDeletePaths contains forbidden path segment");
+      }
+      const cleanedBaseData = deletePaths.reduce((acc, path) => deleteValueByPath(acc, path), baseData as any);
+    const nextData = { ...cleanedBaseData, ...(patch.data as Record<string, unknown>) };
 
       const nextBlock = {
           ...block,

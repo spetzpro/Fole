@@ -72,6 +72,7 @@ The UI adapts to the active [ModesAdvancedDeveloper](core.ux.shell.ModesAdvanced
 -   **Edit**:
     -   modifications add the block to the "Staged" change set.
     -   Validation runs strictly against the Staged set.
+    -   Block patch operations may include `dataDeletePaths` (data-relative paths) to remove fields from a block's `data` payload; this is required for template override-off behavior.
 -   **Delete**:
     -   **Soft Delete**: Marks block for removal in the next deploy.
     -   **Referential Integrity**: Deletion is blocked if other blocks reference the target, unless "Cascade Delete" (Future) is authorized or references are removed first.

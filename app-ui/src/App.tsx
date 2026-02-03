@@ -2782,12 +2782,16 @@ function SysadminPanel({
          applyNodeEditorDraftBlock(block);
          setNodeDraftSaving(true);
 
+         const dataDeletePaths = activeTab === 'Node Editor (Window)' && nodeTemplateId
+             ? windowOverrideFields.filter(path => !nodeOverrideFlags[path])
+             : [];
+
          try {
              const res = await governedFetch(`/api/v1/config/blocks/${encodeURIComponent(block.blockId)}/patch`, {
                  method: 'POST',
                  headers: { 'Content-Type': 'application/json' },
                  body: JSON.stringify({
-                     patch: { data: block.data },
+                     patch: { data: block.data, ...(dataDeletePaths.length ? { dataDeletePaths } : {}) },
                      message: 'Node editor draft save'
                  })
              });
