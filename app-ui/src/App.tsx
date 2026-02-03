@@ -2072,6 +2072,28 @@ const applyTemplateDefaultsForFields = (data: any, defaults: any, fields: string
     return result;
 };
 
+const deleteValueByPath = (obj: any, path: string) => {
+    if (!obj || typeof obj !== 'object') return obj;
+    const keys = path.split('.');
+    const newObj = Array.isArray(obj) ? [...obj] : { ...obj };
+    let current: any = newObj;
+    for (let i = 0; i < keys.length; i++) {
+        const key = keys[i];
+        if (i === keys.length - 1) {
+            if (current && typeof current === 'object') {
+                delete current[key];
+            }
+            break;
+        }
+        if (!current[key] || typeof current[key] !== 'object') {
+            break;
+        }
+        current[key] = Array.isArray(current[key]) ? [...current[key]] : { ...current[key] };
+        current = current[key];
+    }
+    return newObj;
+};
+
 const pickDefaultsForFields = (defaults: any, fields: string[]) => {
     let result: any = {};
     fields.forEach(path => {
@@ -6691,9 +6713,17 @@ function SysadminPanel({
                         return acc;
                     }, {})
                     : overridesOnly;
-                 const composedWithTemplateDefaults = nodeTemplateId
-                    ? applyTemplateDefaultsForFields(composedNodeData, templateDefaults, windowOverrideFields)
-                    : composedNodeData;
+                const composedNodeDataForTemplate = nodeTemplateId
+                   ? windowOverrideFields.reduce((acc: any, path: string) => {
+                       if (!nodeOverrideFlags[path]) {
+                           return deleteValueByPath(acc, path);
+                       }
+                       return acc;
+                   }, composedNodeData)
+                   : composedNodeData;
+                const composedWithTemplateDefaults = nodeTemplateId
+                   ? applyTemplateDefaultsForFields(composedNodeDataForTemplate, templateDefaults, windowOverrideFields)
+                   : composedNodeData;
                  const effectivePreview = nodeTemplateId
                     ? deepMerge(composedWithTemplateDefaults, overridesWithToggles)
                     : composedNodeData;
