@@ -220,6 +220,40 @@ export class ShellConfigValidator {
         return override !== undefined ? override : base;
     }
 
+    private stripNullTombstones(value: any): any {
+        if (!value || typeof value !== "object" || Array.isArray(value)) return value;
+        const result: any = {};
+        Object.keys(value).forEach(key => {
+            if (key === "__proto__" || key === "prototype" || key === "constructor") return;
+            const next = (value as any)[key];
+            if (next === null) return;
+            if (next && typeof next === "object" && !Array.isArray(next)) {
+                result[key] = this.stripNullTombstones(next);
+            } else {
+                result[key] = next;
+            }
+        });
+        return result;
+    }
+
+    private applyNullTombstones(base: any, overrides: any): any {
+        if (!overrides || typeof overrides !== "object" || Array.isArray(overrides)) return base;
+        const result: any = this.deepMerge(base, {});
+        Object.keys(overrides).forEach(key => {
+            if (key === "__proto__" || key === "prototype" || key === "constructor") return;
+            const next = (overrides as any)[key];
+            if (next === null) {
+                delete result[key];
+                return;
+            }
+            if (next && typeof next === "object" && !Array.isArray(next)) {
+                const childBase = result[key] && typeof result[key] === "object" && !Array.isArray(result[key]) ? result[key] : {};
+                result[key] = this.applyNullTombstones(childBase, next);
+            }
+        });
+        return result;
+    }
+
     private resolveUiNodeButtonData(
         blockId: string,
         block: any,
@@ -365,8 +399,10 @@ export class ShellConfigValidator {
         const overrides = { ...data } as any;
         delete overrides.inheritFrom;
         const filteredDefaults = filterTemplateDefaults(templateData.defaults, uiNodeWindowTemplateFields);
-        const withDefaults = this.deepMerge(filteredDefaults, baseData);
-        return this.deepMerge(withDefaults, overrides);
+        const baseMinus = this.applyNullTombstones(baseData, overrides);
+        const overridesWithoutNulls = this.stripNullTombstones(overrides);
+        const withDefaults = this.deepMerge(baseMinus, filteredDefaults);
+        return this.deepMerge(withDefaults, overridesWithoutNulls);
     }
 
   async validateBundle(bundle: ShellBundle["bundle"]): Promise<ValidationReport> {
