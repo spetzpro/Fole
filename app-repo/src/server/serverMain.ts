@@ -44,25 +44,38 @@ const deepMerge = (base: any, override: any): any => {
     return override !== undefined ? override : base;
 };
 
-const deleteValueByPath = (obj: any, path: string) => {
-    if (!obj || typeof obj !== "object") return obj;
-    const keys = path.split(".");
-    const newObj = Array.isArray(obj) ? [...obj] : { ...obj };
-    let current: any = newObj;
-    for (let i = 0; i < keys.length; i++) {
-        const key = keys[i];
-        if (key === "__proto__" || key === "prototype" || key === "constructor") return newObj;
-        if (i === keys.length - 1) {
-            if (current && typeof current === "object") {
-                delete current[key];
-            }
-            break;
+const stripNullTombstones = (value: any): any => {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return value;
+    const result: any = {};
+    Object.keys(value).forEach((key) => {
+        if (key === "__proto__" || key === "prototype" || key === "constructor") return;
+        const next = (value as any)[key];
+        if (next === null) return;
+        if (next && typeof next === "object" && !Array.isArray(next)) {
+            result[key] = stripNullTombstones(next);
+        } else {
+            result[key] = next;
         }
-        if (!current[key] || typeof current[key] !== "object") break;
-        current[key] = Array.isArray(current[key]) ? [...current[key]] : { ...current[key] };
-        current = current[key];
-    }
-    return newObj;
+    });
+    return result;
+};
+
+const applyNullTombstones = (base: any, overrides: any): any => {
+    if (!overrides || typeof overrides !== "object" || Array.isArray(overrides)) return base;
+    const result: any = deepMerge(base, {});
+    Object.keys(overrides).forEach((key) => {
+        if (key === "__proto__" || key === "prototype" || key === "constructor") return;
+        const next = (overrides as any)[key];
+        if (next === null) {
+            delete result[key];
+            return;
+        }
+        if (next && typeof next === "object" && !Array.isArray(next)) {
+            const childBase = result[key] && typeof result[key] === "object" && !Array.isArray(result[key]) ? result[key] : {};
+            result[key] = applyNullTombstones(childBase, next);
+        }
+    });
+    return result;
 };
 
 let uiNodeButtonSchemaCache: any | null = null;
@@ -546,21 +559,14 @@ async function main() {
       }
 
       const patchKeys = Object.keys(patch);
-      if (patchKeys.some((k) => k !== "data" && k !== "dataDeletePaths")) {
-          return sendErrorEnvelope(res, ctx, 400, "invalid_patch", "Only data patches with optional dataDeletePaths are supported");
+      if (patchKeys.some((k) => k !== "data")) {
+          return sendErrorEnvelope(res, ctx, 400, "invalid_patch", "Only data patches are supported");
       }
 
       if (!patch.data || typeof patch.data !== "object") {
           return sendErrorEnvelope(res, ctx, 400, "invalid_patch", "Patch.data must be an object");
       }
 
-      const deletePathsRaw = (patch as any).dataDeletePaths;
-      if (deletePathsRaw !== undefined && !Array.isArray(deletePathsRaw)) {
-          return sendErrorEnvelope(res, ctx, 400, "invalid_patch", "Patch.dataDeletePaths must be an array of strings");
-      }
-      if (Array.isArray(deletePathsRaw) && deletePathsRaw.some((p) => typeof p !== "string" || !p.trim())) {
-          return sendErrorEnvelope(res, ctx, 400, "invalid_patch", "Patch.dataDeletePaths must contain non-empty strings");
-      }
 
       const active = await configRepo.getActivePointer();
       if (!active) {
@@ -589,16 +595,8 @@ async function main() {
           return sendErrorEnvelope(res, ctx, 400, "invalid_block_type", "Only data.static, binding, shell.infra.theme_tokens, or ui.node.* blocks are editable");
       }
 
-    const baseData = block.data && typeof block.data === "object" ? block.data : {};
-      const deletePaths: string[] = Array.isArray(deletePathsRaw) ? deletePathsRaw : [];
-      if (deletePaths.some((p) => p.includes("..") || p.startsWith("/") || p.startsWith("."))) {
-          return sendErrorEnvelope(res, ctx, 400, "invalid_patch", "Patch.dataDeletePaths must be relative data paths");
-      }
-      if (deletePaths.some((p) => p.split(".").some((seg) => seg === "__proto__" || seg === "prototype" || seg === "constructor"))) {
-          return sendErrorEnvelope(res, ctx, 400, "invalid_patch", "Patch.dataDeletePaths contains forbidden path segment");
-      }
-      const cleanedBaseData = deletePaths.reduce((acc, path) => deleteValueByPath(acc, path), baseData as any);
-    const nextData = { ...cleanedBaseData, ...(patch.data as Record<string, unknown>) };
+      const baseData = block.data && typeof block.data === "object" ? block.data : {};
+      const nextData = deepMerge(baseData, patch.data as Record<string, unknown>);
 
       const nextBlock = {
           ...block,
@@ -746,7 +744,9 @@ async function main() {
               const activeBlockData = block.data && typeof block.data === "object" ? block.data : {};
               const draftOverrides = nextBlock.data && typeof nextBlock.data === "object" ? nextBlock.data : {};
               const templateDefaults = filterTemplateDefaults(templateBlock.data.defaults || {}, uiNodeWindowTemplateFields);
-              const effective = deepMerge(deepMerge(activeBlockData, templateDefaults), draftOverrides);
+              const baseForEffective = applyNullTombstones(activeBlockData, draftOverrides);
+              const overridesWithoutNulls = stripNullTombstones(draftOverrides);
+              const effective = deepMerge(deepMerge(baseForEffective, templateDefaults), overridesWithoutNulls);
               const { ajv, schema } = await getUiNodeWindowValidator(cwd);
               const valid = ajv.validate(schema, effective);
               if (!valid) {

@@ -2106,7 +2106,12 @@ const pickDefaultsForFields = (defaults: any, fields: string[]) => {
 };
 
 // Helper: Sanitize Data for Schema (Remove empty enums/optionals)
-const sanitizeNodeDataForSchema = (fields: FieldDef[], data: any) => {
+const sanitizeNodeDataForSchema = (
+    fields: FieldDef[],
+    data: any,
+    options?: { allowNullPaths?: string[] }
+) => {
+    const allowNullPaths = new Set(options?.allowNullPaths || []);
     let newData = { ...data };
     fields.forEach(f => {
          let val = getValueByPath(newData, f.path);
@@ -2122,7 +2127,9 @@ const sanitizeNodeDataForSchema = (fields: FieldDef[], data: any) => {
              }
              // Otherwise KEEP "" (valid empty string)
          } else if (val === null) {
-             newData = setValueByPath(newData, f.path, undefined);
+             if (!allowNullPaths.has(f.path)) {
+                 newData = setValueByPath(newData, f.path, undefined);
+             }
          }
     });
     return newData;
@@ -2625,7 +2632,13 @@ function SysadminPanel({
                         ? tpl.data?.defaults || {}
                         : null;
                     if (tplDefaults && typeof tplDefaults === 'object') {
-                        effectiveData = applyTemplateDefaultsForFields(composedData, tplDefaults, windowOverrideFields);
+                        let composedForTemplate = composedData;
+                        windowOverrideFields.forEach(path => {
+                            if (getValueByPath(composedForTemplate, path) === null) {
+                                composedForTemplate = deleteValueByPath(composedForTemplate, path);
+                            }
+                        });
+                        effectiveData = applyTemplateDefaultsForFields(composedForTemplate, tplDefaults, windowOverrideFields);
                     }
                 }
             }
@@ -2732,9 +2745,18 @@ function SysadminPanel({
                      const fallbackVal = getValueByPath(draftNodeData, path);
                      const resolvedVal = formVal === undefined ? fallbackVal : formVal;
                      overrideData = setValueByPath(overrideData, path, resolvedVal);
+                } else if (nodeTemplateId) {
+                    overrideData = setValueByPath(overrideData, path, null);
                  }
              });
-             newData = sanitizeNodeDataForSchema(schemaFields, overrideData);
+            newData = sanitizeNodeDataForSchema(schemaFields, overrideData, { allowNullPaths: windowOverrideFields });
+            if (nodeTemplateId) {
+                windowOverrideFields.forEach(path => {
+                    if (!nodeOverrideFlags[path]) {
+                        newData = setValueByPath(newData, path, null);
+                    }
+                });
+            }
          }
 
          let defaultType = 'ui.node.button';
@@ -2782,16 +2804,12 @@ function SysadminPanel({
          applyNodeEditorDraftBlock(block);
          setNodeDraftSaving(true);
 
-         const dataDeletePaths = activeTab === 'Node Editor (Window)' && nodeTemplateId
-             ? windowOverrideFields.filter(path => !nodeOverrideFlags[path])
-             : [];
-
          try {
              const res = await governedFetch(`/api/v1/config/blocks/${encodeURIComponent(block.blockId)}/patch`, {
                  method: 'POST',
                  headers: { 'Content-Type': 'application/json' },
                  body: JSON.stringify({
-                     patch: { data: block.data, ...(dataDeletePaths.length ? { dataDeletePaths } : {}) },
+                     patch: { data: block.data },
                      message: 'Node editor draft save'
                  })
              });
@@ -3670,7 +3688,8 @@ function SysadminPanel({
         delete (overridesOnly as any).inheritFrom;
         const flags: Record<string, boolean> = {};
         windowOverrideFields.forEach(path => {
-            flags[path] = hasOwnPath(overridesOnly, path);
+            const overrideVal = getValueByPath(overridesOnly, path);
+            flags[path] = hasOwnPath(overridesOnly, path) && overrideVal !== null;
         });
         setNodeOverrideFlags(flags);
     }, [activeTab, nodeEditorSelectedId, draftBundle, bundleData]);
@@ -6692,15 +6711,16 @@ function SysadminPanel({
                  const windowNodes = Object.values(nodes).filter((n: any) => n.type === 'ui.node.window');
                  
                  const selectedNode = nodeEditorSelectedId ? getEffectiveNode(nodeEditorSelectedId) : null;
-                 const draftBundle = bundleData; 
+                 const draftBundleForWindow = draftBundle;
                  const activeBlocks = (bundleData as any)?.blocks || {};
-                 const draftBlocks = (draftBundle as any)?.blocks || {};
+                 const draftBlocks = (draftBundleForWindow as any)?.blocks || {};
                  const activeNodeBlock = selectedNode ? findBlockById(activeBlocks, selectedNode.id) : null;
                  const draftNodeBlock = selectedNode ? findBlockById(draftBlocks, selectedNode.id) : null;
                  const baseNodeData = (activeNodeBlock?.data || {}) as any;
                  const draftNodeData = (draftNodeBlock?.data || {}) as any;
                  const composedNodeData = deepMerge(baseNodeData, draftNodeData);
-                 const templateBlocks = (Object.values((bundleData as any)?.blocks || {}) as any[])
+                 const templateBlocksSource = (draftBundleForWindow as any)?.blocks || (bundleData as any)?.blocks || {};
+                 const templateBlocks = (Object.values(templateBlocksSource) as any[])
                      .filter((b: any) => b?.blockType === 'template' && b?.data?.targetBlockType === 'ui.node.window');
                  const selectedTemplateBlock = nodeTemplateId
                      ? templateBlocks.find((b: any) => (b.blockId || b.id) === nodeTemplateId)
@@ -6738,7 +6758,7 @@ function SysadminPanel({
                              <div style={{fontWeight:'bold', marginBottom:'10px', color:'#333'}}>Windows ({windowNodes.length})</div>
                              {windowNodes.length === 0 && <div style={{fontStyle:'italic', color:'#666'}}>No window nodes.</div>}
                              {windowNodes.map((n:any) => {
-                                 const isDraft = !!(draftBundle as any)?.blocks?.[n.id];
+                                 const isDraft = !!(draftBundleForWindow as any)?.blocks?.[n.id];
                                  let displayLabel = n.id;
                                  if (n.props?.title) displayLabel += ` (${n.props.title})`;
 
