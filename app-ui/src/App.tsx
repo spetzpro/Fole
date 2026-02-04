@@ -6719,7 +6719,7 @@ function SysadminPanel({
                  const baseNodeData = (activeNodeBlock?.data || {}) as any;
                  const draftNodeData = (draftNodeBlock?.data || {}) as any;
                  const composedNodeData = deepMerge(baseNodeData, draftNodeData);
-                 const templateBlocksSource = (draftBundleForWindow as any)?.blocks || (bundleData as any)?.blocks || {};
+                 const templateBlocksSource = (bundleData as any)?.blocks || {};
                  const templateBlocks = (Object.values(templateBlocksSource) as any[])
                      .filter((b: any) => b?.blockType === 'template' && b?.data?.targetBlockType === 'ui.node.window');
                  const selectedTemplateBlock = nodeTemplateId
