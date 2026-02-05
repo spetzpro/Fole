@@ -3264,10 +3264,7 @@ function SysadminPanel({
          const activeBlocks = (bundleData as any)?.blocks || {};
          const draftBlocks = (draftBundle as any)?.blocks || {};
          const existsInBundles = !!(draftBlocks[targetBlockId] || activeBlocks[targetBlockId]);
-         if (!existsInBundles && !options?.createIfMissing) {
-             showBanner({ kind: 'error', message: 'Template not persisted yet — click Create Template again or refresh bundle', ts: Date.now() });
-             return false;
-         }
+         void existsInBundles;
 
          let schema = templateSchemas[targetBlockType];
          if (!schema) {
@@ -3311,8 +3308,8 @@ function SysadminPanel({
                  body: JSON.stringify({
                      patch: { data: dataPayload },
                      message: 'Template draft save',
-                     createIfMissing: options?.createIfMissing === true,
-                     createBlockType: options?.createIfMissing ? 'template' : undefined
+                     createIfMissing: true,
+                     createBlockType: 'template'
                  })
              });
 
