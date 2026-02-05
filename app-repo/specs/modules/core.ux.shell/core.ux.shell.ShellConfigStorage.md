@@ -53,6 +53,12 @@ config/shell/
             └── ...
 ```
 
+### 2.2.1 Runtime Logs (Non-Config)
+Activation events and other runtime logs MUST be written under STORAGE_ROOT, not inside `app-repo/config/shell/`.
+
+Path (dev default):
+`STORAGE_ROOT/shell/activation-events.jsonl`
+
 ### 2.3 Bundle Loading Logic
 At runtime, the storage engine loads a bundle by enumerating **all** `.json` files in the `bundle/` directory (excluding `shell.manifest.json` which is loaded separately for region wiring).
 

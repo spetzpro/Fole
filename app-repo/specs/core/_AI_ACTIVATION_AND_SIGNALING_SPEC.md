@@ -75,6 +75,7 @@ An ActivationEvent contains:
   - Read-only access is provided via admin-gated endpoints.
   - This log is intended for recent history and troubleshooting, not full compliance auditing.
   - Endpoint (MVP): `GET /api/v1/admin/activations?limit=50`
+  - Storage (dev default): `STORAGE_ROOT/shell/activation-events.jsonl`
 
 - **Audit Log (Future)**
   - A full audit system remains out of scope for this spec.

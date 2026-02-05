@@ -47,7 +47,7 @@ All application data lives under a **single root directory**, called `STORAGE_RO
 
 In dev this might be:
 
-- `./.storage/` inside the repo  
+- `./localstorage/` inside the repo  
 
 In production it might be:
 
@@ -57,6 +57,8 @@ In production it might be:
 `STORAGE_ROOT` is configured via:
 
 - `ConfigService.getAppConfig().storage.projectsRoot` (or similar).
+
+Runtime state (logs, activation events, and other non-config artifacts) MUST live under STORAGE_ROOT and MUST NOT be written into tracked repo paths such as `app-repo/config/shell/`.
 
 ### 2.1 Project-Oriented Layout
 

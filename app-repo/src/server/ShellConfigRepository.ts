@@ -5,12 +5,16 @@ import { ActivePointer, ShellBundle, ConfigMeta, ConfigValidation, ShellManifest
 export class ShellConfigRepository {
   private readonly configRoot: string;
   private readonly defaultsRoot: string;
+    private readonly storageRoot: string;
     private readonly activationEventsPath: string;
+    private readonly legacyActivationEventsPath: string;
   
-  constructor(workspaceFolder: string) {
-    this.configRoot = path.join(workspaceFolder, "app-repo", "config", "shell");
-    this.defaultsRoot = path.join(workspaceFolder, "app-repo", "config", "defaults", "shell");
-        this.activationEventsPath = path.join(this.configRoot, "activation-events.jsonl");
+    constructor(workspaceFolder: string, storageRootOverride?: string) {
+        this.configRoot = path.join(workspaceFolder, "app-repo", "config", "shell");
+        this.defaultsRoot = path.join(workspaceFolder, "app-repo", "config", "defaults", "shell");
+        this.storageRoot = storageRootOverride || process.env.STORAGE_ROOT || path.join(workspaceFolder, "localstorage");
+        this.activationEventsPath = path.join(this.storageRoot, "shell", "activation-events.jsonl");
+        this.legacyActivationEventsPath = path.join(this.configRoot, "activation-events.jsonl");
   }
 
   async ensureInitialized(): Promise<void> {
@@ -23,6 +27,34 @@ export class ShellConfigRepository {
       // @ts-ignore - cp might not be in the definition file depending on version
       await (fs as any).cp(this.defaultsRoot, this.configRoot, { recursive: true });
     }
+
+        const eventsDir = path.dirname(this.activationEventsPath);
+        await fs.mkdir(eventsDir, { recursive: true });
+
+        let legacyExists = false;
+        let newExists = false;
+        try {
+            await fs.access(this.legacyActivationEventsPath);
+            legacyExists = true;
+        } catch {
+            legacyExists = false;
+        }
+        try {
+            await fs.access(this.activationEventsPath);
+            newExists = true;
+        } catch {
+            newExists = false;
+        }
+
+        if (legacyExists && !newExists) {
+            try {
+                await fs.rename(this.legacyActivationEventsPath, this.activationEventsPath);
+            } catch {
+                const content = await fs.readFile(this.legacyActivationEventsPath, "utf-8");
+                await fs.writeFile(this.activationEventsPath, content, "utf-8");
+                await fs.unlink(this.legacyActivationEventsPath);
+            }
+        }
   }
 
   async getActivePointer(): Promise<ActivePointer | null> {
