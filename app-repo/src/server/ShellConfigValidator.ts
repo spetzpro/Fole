@@ -22,6 +22,15 @@ const uiNodeContainerTemplateFields = [
     "visibleWhen",
     "enabledWhen"
 ];
+const uiNodeTextTemplateFields = [
+    "content",
+    "variant",
+    "align",
+    "helpText",
+    "requiredPermission",
+    "visibleWhen",
+    "enabledWhen"
+];
 
 function filterTemplateDefaults(defaults: any, allowedFields: string[]) {
     if (!defaults || typeof defaults !== "object" || Array.isArray(defaults)) return {};
@@ -490,6 +499,83 @@ export class ShellConfigValidator {
         return this.deepMerge(withDefaults, overridesWithoutNulls);
     }
 
+    private resolveUiNodeTextData(
+        blockId: string,
+        block: any,
+        bundle: ShellBundle["bundle"],
+        errors?: ValidationError[]
+    ): any {
+        const data = block?.data || {};
+        const inheritFrom = data?.inheritFrom;
+        if (!inheritFrom || typeof inheritFrom !== "string") return data;
+
+        const templateBlock = bundle.blocks?.[inheritFrom];
+        if (!templateBlock) {
+            errors?.push({
+                severity: "A1",
+                code: "template_missing",
+                message: `Block ${blockId} inheritFrom references missing template '${inheritFrom}'`,
+                path: `/blocks/${blockId}/data/inheritFrom`,
+                blockId
+            });
+            return data;
+        }
+
+        const templateData = templateBlock?.data || {};
+        if (templateBlock.blockType !== "template") {
+            errors?.push({
+                severity: "A1",
+                code: "template_type_mismatch",
+                message: `Block ${blockId} inheritFrom '${inheritFrom}' is not a template block`,
+                path: `/blocks/${blockId}/data/inheritFrom`,
+                blockId
+            });
+            return data;
+        }
+
+        if (templateData?.inheritFrom) {
+            errors?.push({
+                severity: "A1",
+                code: "template_inherit_forbidden",
+                message: `Template '${inheritFrom}' must not inherit from another template in v1`,
+                path: `/blocks/${inheritFrom}/data/inheritFrom`,
+                blockId: inheritFrom
+            });
+            return data;
+        }
+
+        if (templateData?.targetBlockType !== "ui.node.text") {
+            errors?.push({
+                severity: "A1",
+                code: "template_target_mismatch",
+                message: `Template '${inheritFrom}' does not target ui.node.text`,
+                path: `/blocks/${inheritFrom}/data/targetBlockType`,
+                blockId: inheritFrom
+            });
+            return data;
+        }
+
+        if (!templateData?.defaults || typeof templateData.defaults !== "object" || Array.isArray(templateData.defaults)) {
+            errors?.push({
+                severity: "A1",
+                code: "template_defaults_invalid",
+                message: `Template '${inheritFrom}' missing defaults object`,
+                path: `/blocks/${inheritFrom}/data/defaults`,
+                blockId: inheritFrom
+            });
+            return data;
+        }
+
+        const baseData = { ...data } as any;
+        const overrides = { ...data } as any;
+        delete overrides.inheritFrom;
+        const filteredDefaults = filterTemplateDefaults(templateData.defaults, uiNodeTextTemplateFields);
+        const baseMinus = this.applyNullTombstones(baseData, overrides);
+        const overridesWithoutNulls = this.stripNullTombstones(overrides);
+        const withDefaults = this.deepMerge(baseMinus, filteredDefaults);
+        return this.deepMerge(withDefaults, overridesWithoutNulls);
+    }
+
   async validateBundle(bundle: ShellBundle["bundle"]): Promise<ValidationReport> {
     await this.ensureSchemas();
 
@@ -506,10 +592,10 @@ export class ShellConfigValidator {
     for (const blockId of Object.keys(bundle.blocks)) {
         const block = bundle.blocks[blockId];
         const schemaName = this.getSchemaForBlockType(block.blockType);
-        const hasTemplate = (block.blockType === "ui.node.button" || block.blockType === "ui.node.window" || block.blockType === "ui.node.container") && !!block?.data?.inheritFrom;
+        const hasTemplate = (block.blockType === "ui.node.button" || block.blockType === "ui.node.window" || block.blockType === "ui.node.container" || block.blockType === "ui.node.text") && !!block?.data?.inheritFrom;
 
         if (schemaName) {
-            if (!(hasTemplate && (block.blockType === "ui.node.button" || block.blockType === "ui.node.window"))) {
+            if (!(hasTemplate && (block.blockType === "ui.node.button" || block.blockType === "ui.node.window" || block.blockType === "ui.node.container" || block.blockType === "ui.node.text"))) {
                 const valid = this.ajv.validate(schemaName, block.data);
                 if (!valid) {
                      (this.ajv.errors || []).forEach(err => {
@@ -576,6 +662,22 @@ export class ShellConfigValidator {
 
         if (block.blockType === "ui.node.container" && hasTemplate && schemaName) {
             const effective = this.resolveUiNodeContainerData(blockId, block, bundle, errors);
+            const valid = this.ajv.validate(schemaName, effective);
+            if (!valid) {
+                (this.ajv.errors || []).forEach(err => {
+                    errors.push({
+                        severity: "A1",
+                        code: `effective_schema_${err.keyword}`,
+                        message: `Block ${blockId} effective data invalid: ${err.message}`,
+                        path: `/blocks/${blockId}/effective${err.instancePath}`,
+                        blockId: blockId
+                    });
+                });
+            }
+        }
+
+        if (block.blockType === "ui.node.text" && hasTemplate && schemaName) {
+            const effective = this.resolveUiNodeTextData(blockId, block, bundle, errors);
             const valid = this.ajv.validate(schemaName, effective);
             if (!valid) {
                 (this.ajv.errors || []).forEach(err => {

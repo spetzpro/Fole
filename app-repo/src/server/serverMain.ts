@@ -84,6 +84,10 @@ let uiNodeWindowSchemaCache: any | null = null;
 let uiNodeWindowAjv: Ajv | null = null;
 let uiNodeContainerSchemaCache: any | null = null;
 let uiNodeContainerAjv: Ajv | null = null;
+let uiNodeTextSchemaCache: any | null = null;
+let uiNodeTextAjv: Ajv | null = null;
+let templateBlockSchemaCache: any | null = null;
+let templateBlockAjv: Ajv | null = null;
 const uiNodeWindowTemplateFields = [
     "title",
     "initialWidth",
@@ -96,6 +100,15 @@ const uiNodeWindowTemplateFields = [
 const uiNodeContainerTemplateFields = [
     "direction",
     "gap",
+    "helpText",
+    "requiredPermission",
+    "visibleWhen",
+    "enabledWhen"
+];
+const uiNodeTextTemplateFields = [
+    "content",
+    "variant",
+    "align",
     "helpText",
     "requiredPermission",
     "visibleWhen",
@@ -148,6 +161,32 @@ const getUiNodeContainerValidator = async (repoRoot: string) => {
     ajv.addKeyword("x-ui-editorHint");
     uiNodeContainerSchemaCache = schema;
     uiNodeContainerAjv = ajv;
+    return { ajv, schema };
+};
+const getUiNodeTextValidator = async (repoRoot: string) => {
+    if (uiNodeTextAjv && uiNodeTextSchemaCache) {
+        return { ajv: uiNodeTextAjv, schema: uiNodeTextSchemaCache };
+    }
+    const schemaPath = path.join(repoRoot, "app-repo", "src", "server", "schemas", "ui-node", "ui.node.text.schema.json");
+    const content = await fs.readFile(schemaPath, "utf-8");
+    const schema = JSON.parse(content);
+    const ajv = new Ajv({ allErrors: true });
+    ajv.addKeyword("x-ui-editorHint");
+    uiNodeTextSchemaCache = schema;
+    uiNodeTextAjv = ajv;
+    return { ajv, schema };
+};
+const getTemplateBlockValidator = async (repoRoot: string) => {
+    if (templateBlockAjv && templateBlockSchemaCache) {
+        return { ajv: templateBlockAjv, schema: templateBlockSchemaCache };
+    }
+    const schemaPath = path.join(repoRoot, "app-repo", "src", "server", "schemas", "shell", "template-block.data.schema.json");
+    const content = await fs.readFile(schemaPath, "utf-8");
+    const schema = JSON.parse(content);
+    const ajv = new Ajv({ allErrors: true });
+    ajv.addKeyword("x-ui-editorHint");
+    templateBlockSchemaCache = schema;
+    templateBlockAjv = ajv;
     return { ajv, schema };
 };
 
@@ -568,6 +607,8 @@ async function main() {
       const body = await router.readJsonBody(req);
       const patch = body?.patch;
       const message = typeof body?.message === "string" ? body.message : "Sysadmin data patch";
+    const createIfMissing = body?.createIfMissing === true;
+    const createBlockType = typeof body?.createBlockType === "string" ? body.createBlockType : null;
 
       if (!patch || typeof patch !== "object") {
           return sendErrorEnvelope(res, ctx, 400, "invalid_request", "Missing or invalid patch");
@@ -611,18 +652,28 @@ async function main() {
 
       const block = (blocks as Record<string, any>)[blockId];
       if (!block) {
-          return sendErrorEnvelope(res, ctx, 404, "not_found", `Block ${blockId} not found`);
+          if (!createIfMissing || createBlockType !== "template") {
+              return sendErrorEnvelope(res, ctx, 404, "not_found", `Block ${blockId} not found`);
+          }
       }
 
-      if (block.blockType !== "data.static" && block.blockType !== "binding" && block.blockType !== "shell.infra.theme_tokens" && !block.blockType.startsWith("ui.node.")) {
-          return sendErrorEnvelope(res, ctx, 400, "invalid_block_type", "Only data.static, binding, shell.infra.theme_tokens, or ui.node.* blocks are editable");
+      const resolvedBlock = block || {
+          blockId,
+          blockType: "template",
+          schemaVersion: "1.0.0",
+          filename: `${blockId}.json`,
+          data: {}
+      };
+
+      if (resolvedBlock.blockType !== "data.static" && resolvedBlock.blockType !== "binding" && resolvedBlock.blockType !== "shell.infra.theme_tokens" && resolvedBlock.blockType !== "template" && !resolvedBlock.blockType.startsWith("ui.node.")) {
+          return sendErrorEnvelope(res, ctx, 400, "invalid_block_type", "Only data.static, binding, shell.infra.theme_tokens, template, or ui.node.* blocks are editable");
       }
 
-      const baseData = block.data && typeof block.data === "object" ? block.data : {};
+      const baseData = resolvedBlock.data && typeof resolvedBlock.data === "object" ? resolvedBlock.data : {};
       const nextData = deepMerge(baseData, patch.data as Record<string, unknown>);
 
       const nextBlock = {
-          ...block,
+          ...resolvedBlock,
           data: nextData
       };
 
@@ -639,8 +690,9 @@ async function main() {
     const errors: any[] = [];
     const effectiveErrors: any[] = [];
 
-    const hasWindowTemplate = nextBlock.blockType === "ui.node.window" && typeof nextBlock?.data?.inheritFrom === "string";
-    const hasContainerTemplate = nextBlock.blockType === "ui.node.container" && typeof nextBlock?.data?.inheritFrom === "string";
+      const hasWindowTemplate = nextBlock.blockType === "ui.node.window" && typeof nextBlock?.data?.inheritFrom === "string";
+      const hasContainerTemplate = nextBlock.blockType === "ui.node.container" && typeof nextBlock?.data?.inheritFrom === "string";
+      const hasTextTemplate = nextBlock.blockType === "ui.node.text" && typeof nextBlock?.data?.inheritFrom === "string";
       if (nextBlock.blockType === "ui.node.window" && !hasWindowTemplate) {
           const { ajv, schema } = await getUiNodeWindowValidator(cwd);
           const valid = ajv.validate(schema, nextBlock.data);
@@ -803,6 +855,38 @@ async function main() {
           }
       }
 
+      if (nextBlock.blockType === "ui.node.text" && !hasTextTemplate) {
+          const { ajv, schema } = await getUiNodeTextValidator(cwd);
+          const valid = ajv.validate(schema, nextBlock.data);
+          if (!valid) {
+              (ajv.errors || []).forEach((err: any) => {
+                  errors.push({
+                      severity: "A1",
+                      code: `data_schema_${err.keyword}`,
+                      message: `Block ${blockId} data invalid: ${err.message}`,
+                      path: `/blocks/${blockId}/data${err.instancePath}`,
+                      blockId
+                  });
+              });
+          }
+      }
+
+      if (nextBlock.blockType === "template") {
+          const { ajv, schema } = await getTemplateBlockValidator(cwd);
+          const valid = ajv.validate(schema, nextBlock.data);
+          if (!valid) {
+              (ajv.errors || []).forEach((err: any) => {
+                  errors.push({
+                      severity: "A1",
+                      code: `data_schema_${err.keyword}`,
+                      message: `Block ${blockId} data invalid: ${err.message}`,
+                      path: `/blocks/${blockId}/data${err.instancePath}`,
+                      blockId
+                  });
+              });
+          }
+      }
+
       if (nextBlock.blockType === "ui.node.container" && hasContainerTemplate) {
           const inheritFrom = nextBlock.data.inheritFrom;
           const templateBlock = nextBundle.blocks?.[inheritFrom] || baseBundle.blocks?.[inheritFrom];
@@ -854,6 +938,72 @@ async function main() {
               const overridesWithoutNulls = stripNullTombstones(draftOverrides);
               const effective = deepMerge(deepMerge(baseForEffective, templateDefaults), overridesWithoutNulls);
               const { ajv, schema } = await getUiNodeContainerValidator(cwd);
+              const valid = ajv.validate(schema, effective);
+              if (!valid) {
+                  (ajv.errors || []).forEach((err: any) => {
+                      effectiveErrors.push({
+                          severity: "A1",
+                          code: `effective_schema_${err.keyword}`,
+                          message: `Block ${blockId} effective data invalid: ${err.message}`,
+                          path: `/blocks/${blockId}/effective${err.instancePath}`,
+                          blockId
+                      });
+                  });
+              }
+          }
+      }
+
+      if (nextBlock.blockType === "ui.node.text" && hasTextTemplate) {
+          const inheritFrom = nextBlock.data.inheritFrom;
+          const templateBlock = nextBundle.blocks?.[inheritFrom] || baseBundle.blocks?.[inheritFrom];
+          if (!templateBlock) {
+              effectiveErrors.push({
+                  severity: "A1",
+                  code: "template_missing",
+                  message: `Block ${blockId} inheritFrom references missing template '${inheritFrom}'`,
+                  path: `/blocks/${blockId}/data/inheritFrom`,
+                  blockId
+              });
+          } else if (templateBlock.blockType !== "template") {
+              effectiveErrors.push({
+                  severity: "A1",
+                  code: "template_type_mismatch",
+                  message: `Block ${blockId} inheritFrom '${inheritFrom}' is not a template block`,
+                  path: `/blocks/${blockId}/data/inheritFrom`,
+                  blockId
+              });
+          } else if (templateBlock?.data?.inheritFrom) {
+              effectiveErrors.push({
+                  severity: "A1",
+                  code: "template_inherit_forbidden",
+                  message: `Template '${inheritFrom}' must not inherit from another template in v1`,
+                  path: `/blocks/${inheritFrom}/data/inheritFrom`,
+                  blockId: inheritFrom
+              });
+          } else if (templateBlock?.data?.targetBlockType !== "ui.node.text") {
+              effectiveErrors.push({
+                  severity: "A1",
+                  code: "template_target_mismatch",
+                  message: `Template '${inheritFrom}' does not target ui.node.text`,
+                  path: `/blocks/${inheritFrom}/data/targetBlockType`,
+                  blockId: inheritFrom
+              });
+          } else if (!templateBlock?.data?.defaults || typeof templateBlock.data.defaults !== "object" || Array.isArray(templateBlock.data.defaults)) {
+              effectiveErrors.push({
+                  severity: "A1",
+                  code: "template_defaults_invalid",
+                  message: `Template '${inheritFrom}' missing defaults object`,
+                  path: `/blocks/${inheritFrom}/data/defaults`,
+                  blockId: inheritFrom
+              });
+          } else {
+              const activeBlockData = block?.data && typeof block.data === "object" ? block.data : {};
+              const draftOverrides = nextBlock.data && typeof nextBlock.data === "object" ? nextBlock.data : {};
+              const templateDefaults = filterTemplateDefaults(templateBlock.data.defaults || {}, uiNodeTextTemplateFields);
+              const baseForEffective = applyNullTombstones(activeBlockData, draftOverrides);
+              const overridesWithoutNulls = stripNullTombstones(draftOverrides);
+              const effective = deepMerge(deepMerge(baseForEffective, templateDefaults), overridesWithoutNulls);
+              const { ajv, schema } = await getUiNodeTextValidator(cwd);
               const valid = ajv.validate(schema, effective);
               if (!valid) {
                   (ajv.errors || []).forEach((err: any) => {

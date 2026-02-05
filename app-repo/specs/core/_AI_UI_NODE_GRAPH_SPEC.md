@@ -72,6 +72,10 @@ help/permission, visibility/enabled conditions). `children` is explicitly exclud
 `ui.node.container` supports template defaults + overrides for curated leaf fields (direction, gap,
 help/permission, visibility/enabled conditions). `children` is explicitly excluded from templating in v1.
 
+**v1 templates management:**
+The Sysadmin UI exposes a Templates tab to create/edit `template` blocks for `ui.node.button`,
+`ui.node.window`, `ui.node.container`, and `ui.node.text`. Defaults are leaf-only and exclude `children`.
+
 ### 2.5 Themes (`ui.theme.*`)
 - **`ui.theme`**: Defines color palettes, spacing, and typography tokens.
 - **`ui.themeProfile.sysadminBuilder`**: Built-in overrides specifically for the Sysadmin Builder mode to distinguish it from the runtime app.

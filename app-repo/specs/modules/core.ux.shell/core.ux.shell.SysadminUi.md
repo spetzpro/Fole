@@ -53,6 +53,27 @@ Real-time feedback on configuration health.
 -   **Impact Analysis**: Diff view showing changed blocks between current and target version.
 -   **Confirmation**: "Revert to V-{hash}".
 
+### 2.6 Templates Manager (v1)
+
+Sysadmins can manage `template` blocks through a dedicated Templates tab.
+
+**Capabilities:**
+- List all template blocks (blockId, templateName, targetBlockType, enabled).
+- Create new templates (blockId must start with `tpl_`).
+- Edit templates (templateName, enabled, defaults).
+- Enable/disable templates without deleting them.
+
+**Defaults Editing:**
+- Schema-driven per `targetBlockType` using UI node schemas.
+- Only schema-defined **leaf** fields are editable.
+- `children` and `inheritFrom` are forbidden in defaults.
+- Advanced JSON editor is always available.
+
+**Governance:**
+- All edits use PATCH (draft overlays).
+- Only header Activate promotes to active.
+- No template → template inheritance.
+
 ## 3. Mode Gating Behaviors
 
 The UI adapts to the active [ModesAdvancedDeveloper](core.ux.shell.ModesAdvancedDeveloper.md) state.

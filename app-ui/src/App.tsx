@@ -1914,6 +1914,14 @@ interface FieldDef {
   minLength?: number;
 }
 
+interface TemplateFieldDef {
+    path: string;
+    title: string;
+    description?: string;
+    enumOptions?: string[];
+    type: 'string' | 'boolean' | 'number' | 'json';
+}
+
 const isMultilineField = (nodeType: string, fieldPath: string) => {
     // Specific fields that should render as textarea
     if (nodeType === 'ui.node.text' && (fieldPath === 'content' || fieldPath.endsWith('.content'))) return true;
@@ -2006,6 +2014,114 @@ const extractStringFields = (schema: any, prefix = ""): FieldDef[] => {
       }
   }
   return fields;
+};
+
+const extractTemplateFields = (schema: any, prefix = ""): TemplateFieldDef[] => {
+  let fields: TemplateFieldDef[] = [];
+  if (!schema || !schema.properties) return fields;
+
+  for (const key in schema.properties) {
+      const prop = schema.properties[key];
+      const fullPath = prefix ? `${prefix}.${key}` : key;
+
+      if (prop.type === 'string') {
+          fields.push({
+              path: fullPath,
+              title: prop.title || key,
+              description: prop.description,
+              enumOptions: prop.enum,
+              type: 'string'
+          });
+      } else if (prop.type === 'boolean') {
+          fields.push({
+              path: fullPath,
+              title: prop.title || key,
+              description: prop.description,
+              type: 'boolean'
+          });
+      } else if (prop.type === 'number') {
+          fields.push({
+              path: fullPath,
+              title: prop.title || key,
+              description: prop.description,
+              type: 'number'
+          });
+      } else if (prop.type === 'object' && prop.properties) {
+          fields.push(...extractTemplateFields(prop, fullPath));
+      } else if (prop.type === 'object') {
+          fields.push({
+              path: fullPath,
+              title: prop.title || key,
+              description: prop.description,
+              type: 'json'
+          });
+      }
+  }
+  return fields;
+};
+
+const collectTemplateLeafPaths = (schema: any, prefix = "") => {
+  const paths: string[] = [];
+  const jsonPaths = new Set<string>();
+  if (!schema || !schema.properties) return { paths, jsonPaths };
+
+  Object.keys(schema.properties).forEach((key) => {
+      const prop = schema.properties[key];
+      const fullPath = prefix ? `${prefix}.${key}` : key;
+
+      if (prop.type === 'object' && prop.properties) {
+          const nested = collectTemplateLeafPaths(prop, fullPath);
+          paths.push(...nested.paths);
+          nested.jsonPaths.forEach(p => jsonPaths.add(p));
+      } else if (prop.type === 'object') {
+          paths.push(fullPath);
+          jsonPaths.add(fullPath);
+      } else if (prop.type === 'string' || prop.type === 'boolean' || prop.type === 'number') {
+          paths.push(fullPath);
+      }
+  });
+
+  return { paths, jsonPaths };
+};
+
+const collectDefaultsLeafPaths = (value: any, prefix = "", jsonLeafPaths: Set<string> = new Set()): string[] => {
+  const paths: string[] = [];
+  if (value === null || value === undefined) return paths;
+
+  if (prefix && jsonLeafPaths.has(prefix)) {
+      return [prefix];
+  }
+
+  if (Array.isArray(value)) {
+      return prefix ? [prefix] : paths;
+  }
+
+  if (typeof value === 'object') {
+      const keys = Object.keys(value);
+      if (keys.length === 0) {
+          return prefix ? [prefix] : paths;
+      }
+      keys.forEach((key) => {
+          const nextPath = prefix ? `${prefix}.${key}` : key;
+          const nextVal = value[key];
+          if (nextVal && typeof nextVal === 'object' && !Array.isArray(nextVal)) {
+              if (jsonLeafPaths.has(nextPath)) {
+                  paths.push(nextPath);
+              } else {
+                  paths.push(...collectDefaultsLeafPaths(nextVal, nextPath, jsonLeafPaths));
+              }
+          } else {
+              paths.push(nextPath);
+          }
+      });
+      return paths;
+  }
+
+  return prefix ? [prefix] : paths;
+};
+
+const hasForbiddenTemplatePaths = (paths: string[]) => {
+  return paths.some(p => p.split('.').includes('children') || p.split('.').includes('inheritFrom'));
 };
 
 // Simple object path getter
@@ -2332,6 +2448,46 @@ function SysadminPanel({
         }
     };
 
+    const fetchTemplateSchema = async (targetBlockType: string): Promise<any | null> => {
+        if (!targetBlockType || !targetBlockType.startsWith('ui.node.')) return null;
+        if (templateSchemas[targetBlockType]) return templateSchemas[targetBlockType];
+        if (templateSchemaLoading[targetBlockType]) return null;
+
+        setTemplateSchemaLoading(prev => ({ ...prev, [targetBlockType]: true }));
+
+        const res = await governedFetch(`/api/schemas/ui-node/${encodeURIComponent(targetBlockType)}`);
+        if (!res) {
+            setTemplateSchemaErrors(prev => ({ ...prev, [targetBlockType]: 'Schema fetch failed (no response)' }));
+            setTemplateSchemaLoading(prev => ({ ...prev, [targetBlockType]: false }));
+            return null;
+        }
+
+        if (!res.ok) {
+            const msg = `Schema fetch failed (${res.status})`;
+            setTemplateSchemaErrors(prev => ({ ...prev, [targetBlockType]: msg }));
+            setTemplateSchemaLoading(prev => ({ ...prev, [targetBlockType]: false }));
+            return null;
+        }
+
+        try {
+            const json = await res.json();
+            const schema = json?.data?.schema ?? json?.schema ?? null;
+            if (schema) {
+                setTemplateSchemas(prev => ({ ...prev, [targetBlockType]: schema }));
+                setTemplateSchemaErrors(prev => ({ ...prev, [targetBlockType]: null }));
+                setTemplateSchemaLoading(prev => ({ ...prev, [targetBlockType]: false }));
+                return schema;
+            }
+            setTemplateSchemaErrors(prev => ({ ...prev, [targetBlockType]: 'Schema missing in response' }));
+            setTemplateSchemaLoading(prev => ({ ...prev, [targetBlockType]: false }));
+            return null;
+        } catch (e: any) {
+            setTemplateSchemaErrors(prev => ({ ...prev, [targetBlockType]: e?.message || 'Schema parse failed' }));
+            setTemplateSchemaLoading(prev => ({ ...prev, [targetBlockType]: false }));
+            return null;
+        }
+    };
+
     const validateWithSchemaMinimal = (schema: any, value: unknown) => {
         const errors: string[] = [];
         if (!schema) return { valid: true, errors };
@@ -2448,7 +2604,7 @@ function SysadminPanel({
     const ENABLE_LEGACY_SYSADMIN_TABS = true;
 
     // Dynamic Tabs Definition
-    const tabs = ['ShellConfig', 'Blocks', 'Bindings', 'Data', 'Theme', 'ActionIndex', 'Runtime', 'UI Runtime', 'Draft', 'Invocations', 'Traces', 'Activations'];
+    const tabs = ['ShellConfig', 'Blocks', 'Templates', 'Bindings', 'Data', 'Theme', 'ActionIndex', 'Runtime', 'UI Runtime', 'Draft', 'Invocations', 'Traces', 'Activations'];
     if (ENABLE_LEGACY_SYSADMIN_TABS) {
         tabs.push('Snapshot');
         tabs.push('Versions');
@@ -2496,6 +2652,26 @@ function SysadminPanel({
     const buttonOverrideFields = ['label', 'variant', 'icon', 'helpText', 'requiredPermission'];
     const windowOverrideFields = ['title', 'initialWidth', 'dockable', 'helpText', 'requiredPermission', 'visibleWhen', 'enabledWhen'];
     const containerOverrideFields = ['direction', 'gap', 'helpText', 'requiredPermission', 'visibleWhen', 'enabledWhen'];
+    const supportedTemplateTargets = ['ui.node.button', 'ui.node.window', 'ui.node.container', 'ui.node.text'];
+
+    const [templateSelectedId, setTemplateSelectedId] = useState<string | null>(null);
+    const [templateEditorData, setTemplateEditorData] = useState<any>(null);
+    const [templateDefaultsText, setTemplateDefaultsText] = useState('');
+    const [templateDefaultsError, setTemplateDefaultsError] = useState<string | null>(null);
+    const [templateDefaultsValidationError, setTemplateDefaultsValidationError] = useState<string | null>(null);
+    const [templateEditorDirty, setTemplateEditorDirty] = useState(false);
+    const [templateEditorSaving, setTemplateEditorSaving] = useState(false);
+    const [templateDefaultsJsonInputs, setTemplateDefaultsJsonInputs] = useState<Record<string, string>>({});
+    const [templateDefaultsJsonErrors, setTemplateDefaultsJsonErrors] = useState<Record<string, string | null>>({});
+
+    const [templateCreateBlockId, setTemplateCreateBlockId] = useState('');
+    const [templateCreateName, setTemplateCreateName] = useState('');
+    const [templateCreateTarget, setTemplateCreateTarget] = useState('ui.node.button');
+    const [templateCreateError, setTemplateCreateError] = useState<string | null>(null);
+
+    const [templateSchemas, setTemplateSchemas] = useState<Record<string, any>>({});
+    const [templateSchemaErrors, setTemplateSchemaErrors] = useState<Record<string, string | null>>({});
+    const [templateSchemaLoading, setTemplateSchemaLoading] = useState<Record<string, boolean>>({});
 
     // Schema State
     const [buttonSchema, setButtonSchema] = useState<any>(null);
@@ -2573,6 +2749,13 @@ function SysadminPanel({
     }, [activeTab, buttonSchema, buttonSchemaLoading, textSchema, textSchemaLoading, containerSchema, containerSchemaLoading, windowSchema, windowSchemaLoading]);
 
     useEffect(() => {
+        if (activeTab !== 'Templates') return;
+        const target = templateEditorData?.targetBlockType || templateCreateTarget;
+        if (!target) return;
+        void fetchTemplateSchema(target);
+    }, [activeTab, templateEditorData?.targetBlockType, templateCreateTarget]);
+
+    useEffect(() => {
         if (activeTab === 'Data') {
             void fetchBlockSchema('data.static');
         }
@@ -2583,6 +2766,21 @@ function SysadminPanel({
             void fetchBlockSchema('shell.infra.theme_tokens');
         }
     }, [activeTab]);
+
+    useEffect(() => {
+        if (activeTab !== 'Templates') return;
+        if (!templateEditorData) {
+            setTemplateDefaultsValidationError(null);
+            return;
+        }
+        const schema = templateSchemas[templateEditorData.targetBlockType];
+        if (!schema) {
+            setTemplateDefaultsValidationError('Schema not loaded.');
+            return;
+        }
+        const validation = validateTemplateDefaults(templateEditorData.defaults || {}, schema);
+        setTemplateDefaultsValidationError(validation.error);
+    }, [activeTab, templateEditorData, templateSchemas]);
 
     // --- Node Editor Hooks & Helpers (Unconditional) ---
     const schemaFields = useMemo(() => {
@@ -2861,6 +3059,25 @@ function SysadminPanel({
          setTimeout(() => handleNodeSelect(block.blockId), 0);
     };
 
+    const applyDraftBlockUpdate = (block: any) => {
+         let newDraft: any;
+         if (draftBundle) {
+             newDraft = { ...(draftBundle as any) };
+         } else if (bundleData) {
+             try {
+                 newDraft = JSON.parse(JSON.stringify(bundleData));
+             } catch {
+                 return;
+             }
+         } else {
+             return;
+         }
+
+         if (!newDraft.blocks) newDraft.blocks = {};
+         newDraft.blocks[block.blockId] = block;
+         setDraftBundle(newDraft);
+    };
+
     const handleSaveNodeDraftVersion = async () => {
          const block = buildNodeEditorDraftBlock();
          if (!block) return;
@@ -2912,7 +3129,7 @@ function SysadminPanel({
     };
 
     const isPatchableBlockType = (blockType: unknown) => {
-         return typeof blockType === 'string' && (blockType === 'data.static' || blockType.startsWith('ui.node.'));
+            return typeof blockType === 'string' && (blockType === 'data.static' || blockType === 'template' || blockType.startsWith('ui.node.'));
     };
 
     const getBlockId = (block: any): string | null => {
@@ -2939,6 +3156,28 @@ function SysadminPanel({
          } catch (e: any) {
              return { value: null, error: e?.message || 'Invalid JSON' };
          }
+    };
+
+    const validateTemplateDefaults = (defaults: any, schema: any) => {
+         if (!schema) return { valid: false, error: 'Schema not loaded.' };
+         if (!defaults || typeof defaults !== 'object' || Array.isArray(defaults)) {
+             return { valid: false, error: 'Defaults must be an object.' };
+         }
+
+         const { paths, jsonPaths } = collectTemplateLeafPaths(schema);
+         const allowedPaths = new Set(paths.filter(p => !hasForbiddenTemplatePaths([p])));
+         const leafPaths = collectDefaultsLeafPaths(defaults, '', jsonPaths);
+
+         if (hasForbiddenTemplatePaths(leafPaths)) {
+             return { valid: false, error: 'Defaults cannot include children or inheritFrom.' };
+         }
+
+         const unknown = leafPaths.filter(p => !allowedPaths.has(p));
+         if (unknown.length > 0) {
+             return { valid: false, error: `Defaults contain unsupported fields: ${unknown.slice(0, 5).join(', ')}` };
+         }
+
+         return { valid: true, error: null };
     };
 
     const handleSaveBlocksDraft = async () => {
@@ -3008,6 +3247,209 @@ function SysadminPanel({
          } finally {
              setBlocksDraftSaving(false);
          }
+    };
+
+    const handleSaveTemplateDraft = async (options?: { createIfMissing?: boolean; blockId?: string; data?: any }) => {
+         if (!bundleData) return;
+         const targetBlockId = options?.blockId || templateSelectedId;
+         const editorData = options?.data || templateEditorData;
+         if (!targetBlockId || !editorData) return;
+
+         const targetBlockType = editorData.targetBlockType;
+         if (!supportedTemplateTargets.includes(targetBlockType)) {
+             showBanner({ kind: 'error', message: 'Save failed: unsupported targetBlockType', ts: Date.now() });
+             return;
+         }
+
+         const schema = templateSchemas[targetBlockType];
+         if (!schema) {
+             showBanner({ kind: 'error', message: 'Save failed: template schema not loaded', ts: Date.now() });
+             return;
+         }
+
+         if (!options?.data && templateDefaultsError) {
+             showBanner({ kind: 'error', message: `Save failed: ${templateDefaultsError}`, ts: Date.now() });
+             return;
+         }
+         if (!options?.data && templateDefaultsValidationError) {
+             showBanner({ kind: 'error', message: `Save failed: ${templateDefaultsValidationError}`, ts: Date.now() });
+             return;
+         }
+
+         const defaultsValue = editorData.defaults || {};
+         const validation = validateTemplateDefaults(defaultsValue, schema);
+         if (!validation.valid) {
+             showBanner({ kind: 'error', message: `Save failed: ${validation.error}`, ts: Date.now() });
+             return;
+         }
+
+         const dataPayload = {
+             label: editorData.label || editorData.templateName || targetBlockId,
+             templateName: editorData.templateName || '',
+             enabled: editorData.enabled !== false,
+             targetBlockType: editorData.targetBlockType,
+             defaults: defaultsValue
+         };
+
+         const activeBlocks = (bundleData as any)?.blocks || {};
+         const draftBlocks = (draftBundle as any)?.blocks || {};
+         const baseBlock = draftBlocks[targetBlockId] || activeBlocks[targetBlockId];
+         const nextBlock = {
+             blockId: targetBlockId,
+             blockType: 'template',
+             schemaVersion: baseBlock?.schemaVersion || '1.0.0',
+             filename: baseBlock?.filename || `${targetBlockId}.json`,
+             data: dataPayload
+         };
+         applyDraftBlockUpdate(nextBlock);
+
+         setTemplateEditorSaving(true);
+         try {
+             const res = await governedFetch(`/api/v1/config/blocks/${encodeURIComponent(targetBlockId)}/patch`, {
+                 method: 'POST',
+                 headers: { 'Content-Type': 'application/json' },
+                 body: JSON.stringify({
+                     patch: { data: dataPayload },
+                     message: 'Template draft save',
+                     createIfMissing: options?.createIfMissing === true,
+                     createBlockType: options?.createIfMissing ? 'template' : undefined
+                 })
+             });
+
+             if (!res) {
+                 const msg = 'Save failed (no response)';
+                 showBanner({ kind: 'error', message: `Save failed: ${msg}`, ts: Date.now() });
+                 return;
+             }
+
+             if (!res.ok) {
+                 const txt = await res.text().catch(() => '');
+                 const msg = `Save failed (${res.status})${txt ? `: ${txt}` : ''}`;
+                 showBanner({ kind: 'error', message: `Save failed: ${msg}`, ts: Date.now() });
+                 return;
+             }
+
+             const json = await res.json();
+             if (json?.ok === false) {
+                 const msg = json?.error?.message || 'Save failed';
+                 showBanner({ kind: 'error', message: `Save failed: ${msg}`, ts: Date.now() });
+                 return;
+             }
+
+             const payload = json?.data ?? json?.result ?? null;
+             const newVersionId = payload?.newVersionId;
+             const statusMsg = newVersionId ? `Draft saved: ${newVersionId}` : 'Draft saved';
+             showBanner({ kind: 'success', message: statusMsg, ts: Date.now() });
+             setLastDraftVersionId(newVersionId || null);
+             if (!options?.data || targetBlockId === templateSelectedId) {
+                 setTemplateEditorDirty(false);
+             }
+         } catch (e: any) {
+             const msg = e?.message || String(e);
+             showBanner({ kind: 'error', message: `Save failed: ${msg}`, ts: Date.now() });
+         } finally {
+             setTemplateEditorSaving(false);
+         }
+    };
+
+    const handleCreateTemplate = async () => {
+         if (!bundleData) return;
+         const blockId = templateCreateBlockId.trim();
+         const templateName = templateCreateName.trim();
+
+         if (!blockId || !blockId.startsWith('tpl_')) {
+             setTemplateCreateError('Block ID must start with "tpl_".');
+             return;
+         }
+         if (!templateName) {
+             setTemplateCreateError('Template name is required.');
+             return;
+         }
+         if (!supportedTemplateTargets.includes(templateCreateTarget)) {
+             setTemplateCreateError('Target block type is not supported.');
+             return;
+         }
+
+         const activeBlocks = (bundleData as any)?.blocks || {};
+         const draftBlocks = (draftBundle as any)?.blocks || {};
+         if (activeBlocks[blockId] || draftBlocks[blockId]) {
+             setTemplateCreateError('Block ID already exists.');
+             return;
+         }
+
+         const schema = templateSchemas[templateCreateTarget];
+         if (!schema) {
+             setTemplateCreateError('Template schema not loaded.');
+             return;
+         }
+
+         const dataPayload = {
+             label: templateName,
+             templateName,
+             enabled: true,
+             targetBlockType: templateCreateTarget,
+             defaults: {}
+         };
+
+         const validation = validateTemplateDefaults(dataPayload.defaults, schema);
+         if (!validation.valid) {
+             setTemplateCreateError(validation.error);
+             return;
+         }
+
+         setTemplateCreateError(null);
+
+         const newBlock = {
+             blockId,
+             blockType: 'template',
+             schemaVersion: '1.0.0',
+             filename: `${blockId}.json`,
+             data: dataPayload
+         };
+
+         applyDraftBlockUpdate(newBlock);
+         setTemplateSelectedId(blockId);
+         setTemplateEditorData({ ...dataPayload });
+         setTemplateDefaultsText(JSON.stringify(dataPayload.defaults, null, 2));
+         setTemplateDefaultsError(null);
+         setTemplateDefaultsValidationError(null);
+         setTemplateEditorDirty(false);
+         setTemplateDefaultsJsonInputs({});
+         setTemplateDefaultsJsonErrors({});
+
+         await handleSaveTemplateDraft({ createIfMissing: true });
+
+            setTemplateCreateBlockId('');
+            setTemplateCreateName('');
+            setTemplateCreateTarget('ui.node.button');
+    };
+
+    const handleToggleTemplateEnabled = async (blockId: string, enabled: boolean) => {
+         if (!bundleData) return;
+         const activeBlocks = (bundleData as any)?.blocks || {};
+         const draftBlocks = (draftBundle as any)?.blocks || {};
+         const block = draftBlocks[blockId] || activeBlocks[blockId];
+         if (!block || block.blockType !== 'template') return;
+
+         const nextData = {
+             ...(block.data || {}),
+             enabled
+         };
+
+         const nextBlock = {
+             ...block,
+             data: nextData
+         };
+
+         applyDraftBlockUpdate(nextBlock);
+         if (templateSelectedId === blockId) {
+             setTemplateEditorData((prev: any) => ({
+                 ...(prev || {}),
+                 enabled
+             }));
+         }
+
+            await handleSaveTemplateDraft({ blockId, data: nextData });
     };
 
     const handleSaveBindingsDraft = async () => {
@@ -3757,6 +4199,69 @@ function SysadminPanel({
         });
         setNodeOverrideFlags(flags);
     }, [activeTab, nodeEditorSelectedId, draftBundle, bundleData]);
+
+    useEffect(() => {
+        if (activeTab !== 'Templates') return;
+        if (!templateSelectedId || !bundleData) {
+            setTemplateEditorData(null);
+            setTemplateDefaultsText('');
+            setTemplateDefaultsError(null);
+            setTemplateDefaultsValidationError(null);
+            setTemplateEditorDirty(false);
+            return;
+        }
+
+        const activeBlocks = (bundleData as any)?.blocks || {};
+        const draftBlocks = (draftBundle as any)?.blocks || {};
+        const block = draftBlocks[templateSelectedId] || activeBlocks[templateSelectedId];
+        if (!block || block.blockType !== 'template') {
+            setTemplateEditorData(null);
+            setTemplateDefaultsText('');
+            setTemplateDefaultsError(null);
+            setTemplateDefaultsValidationError(null);
+            setTemplateEditorDirty(false);
+            return;
+        }
+
+        const data = block.data || {};
+        const defaults = data.defaults || {};
+        setTemplateEditorData({
+            label: data.label || '',
+            templateName: data.templateName || '',
+            enabled: data.enabled !== false,
+            targetBlockType: data.targetBlockType || '',
+            defaults: defaults
+        });
+        setTemplateDefaultsText(JSON.stringify(defaults, null, 2));
+        const schema = templateSchemas[data.targetBlockType];
+        if (schema) {
+            const fields = extractTemplateFields(schema).filter(f => !hasForbiddenTemplatePaths([f.path]));
+            const jsonFields = fields.filter(f => f.type === 'json');
+            const nextInputs: Record<string, string> = {};
+            const nextErrors: Record<string, string | null> = {};
+            jsonFields.forEach(field => {
+                const val = getValueByPath(defaults, field.path);
+                if (val !== '' && val !== undefined) {
+                    try {
+                        nextInputs[field.path] = JSON.stringify(val, null, 2);
+                    } catch {
+                        nextInputs[field.path] = '';
+                    }
+                } else {
+                    nextInputs[field.path] = '';
+                }
+                nextErrors[field.path] = null;
+            });
+            setTemplateDefaultsJsonInputs(nextInputs);
+            setTemplateDefaultsJsonErrors(nextErrors);
+        } else {
+            setTemplateDefaultsJsonInputs({});
+            setTemplateDefaultsJsonErrors({});
+        }
+        setTemplateDefaultsError(null);
+        setTemplateDefaultsValidationError(null);
+        setTemplateEditorDirty(false);
+    }, [activeTab, templateSelectedId, draftBundle, bundleData, templateSchemas]);
 
     useEffect(() => {
         if (activeTab !== 'Node Editor (Container)' || !nodeEditorSelectedId) return;
@@ -7680,6 +8185,412 @@ function SysadminPanel({
                                                         </div>
                                                     )}
                                                     <div style={{display:'flex', gap:'8px', marginTop:'10px'}}>
+                                                case 'Templates': {
+                                                     if (!bundleData) return <div style={{padding:'20px', color:'#666'}}>No bundle/config loaded yet.</div>;
+
+                                                     const activeBlocks = (bundleData as any).blocks || {};
+                                                     const draftBlocks = (draftBundle as any)?.blocks || {};
+                                                     const templateIds = Array.from(new Set([
+                                                         ...Object.keys(activeBlocks),
+                                                         ...Object.keys(draftBlocks)
+                                                     ]));
+                                                     const templateBlocks = templateIds
+                                                         .map((id) => draftBlocks[id] || activeBlocks[id])
+                                                         .filter((b: any) => b?.blockType === 'template')
+                                                         .sort((a: any, b: any) => {
+                                                             const aId = a?.blockId || a?.id || '';
+                                                             const bId = b?.blockId || b?.id || '';
+                                                             return aId.localeCompare(bId);
+                                                         });
+
+                                                     const selectedTemplate = templateSelectedId
+                                                         ? templateBlocks.find((b: any) => (b.blockId || b.id) === templateSelectedId)
+                                                         : null;
+
+                                                     const editorTargetType = templateEditorData?.targetBlockType || '';
+                                                     const editorSchema = editorTargetType ? templateSchemas[editorTargetType] : null;
+                                                     const editorSchemaError = editorTargetType ? templateSchemaErrors[editorTargetType] : null;
+                                                     const editorSchemaLoading = editorTargetType ? templateSchemaLoading[editorTargetType] : false;
+                                                     const templateFields = editorSchema ? extractTemplateFields(editorSchema) : [];
+                                                     const editableTemplateFields = templateFields.filter(f => !hasForbiddenTemplatePaths([f.path]));
+                                                     const defaultsValue = templateEditorData?.defaults || {};
+                                                     const isSaveDisabled = !templateEditorDirty || templateEditorSaving || !!templateDefaultsError || !!templateDefaultsValidationError;
+
+                                                     return (
+                                                         <div style={{display:'flex', flexDirection:'column', height:'100%'}}>
+                                                             <div style={{marginBottom:'10px', padding:'10px', border:'1px solid #ddd', borderRadius:'6px', background:'#fafafa'}}>
+                                                                 <div style={{fontWeight:'bold', marginBottom:'6px'}}>Create Template</div>
+                                                                 <div style={{display:'grid', gridTemplateColumns:'160px 1fr', gap:'8px', alignItems:'center'}}>
+                                                                     <div style={{fontSize:'0.85em', fontWeight:'bold'}}>Block ID</div>
+                                                                     <input
+                                                                         type="text"
+                                                                         value={templateCreateBlockId}
+                                                                         onChange={(e) => { setTemplateCreateBlockId(e.target.value); setTemplateCreateError(null); }}
+                                                                         placeholder="tpl_my_template"
+                                                                         style={{padding:'6px 8px', border:'1px solid #ccc', borderRadius:'4px'}}
+                                                                     />
+                                                                     <div style={{fontSize:'0.85em', fontWeight:'bold'}}>Template Name</div>
+                                                                     <input
+                                                                         type="text"
+                                                                         value={templateCreateName}
+                                                                         onChange={(e) => { setTemplateCreateName(e.target.value); setTemplateCreateError(null); }}
+                                                                         placeholder="My Template"
+                                                                         style={{padding:'6px 8px', border:'1px solid #ccc', borderRadius:'4px'}}
+                                                                     />
+                                                                     <div style={{fontSize:'0.85em', fontWeight:'bold'}}>Target Block Type</div>
+                                                                     <select
+                                                                         value={templateCreateTarget}
+                                                                         onChange={(e) => { setTemplateCreateTarget(e.target.value); setTemplateCreateError(null); }}
+                                                                         style={{padding:'6px 8px', border:'1px solid #ccc', borderRadius:'4px'}}
+                                                                     >
+                                                                         {supportedTemplateTargets.map((t) => (
+                                                                             <option key={t} value={t}>{t}</option>
+                                                                         ))}
+                                                                     </select>
+                                                                 </div>
+                                                                 {templateCreateError && (
+                                                                     <div style={{marginTop:'6px', color:'#c62828', fontSize:'0.85em'}}>{templateCreateError}</div>
+                                                                 )}
+                                                                 <div style={{marginTop:'8px', display:'flex', justifyContent:'flex-end'}}>
+                                                                     <button
+                                                                         onClick={handleCreateTemplate}
+                                                                         style={{padding:'6px 12px', background:'#007acc', color:'white', border:'none', borderRadius:'4px', cursor:'pointer', fontWeight:'bold'}}
+                                                                     >
+                                                                         Create Template
+                                                                     </button>
+                                                                 </div>
+                                                             </div>
+
+                                                             <div style={{display:'flex', flex:1, overflow:'hidden', gap:'10px'}}>
+                                                                 <div style={{flex:'0 0 320px', borderRight:'1px solid #ddd', paddingRight:'8px', overflowY:'auto'}}>
+                                                                     <div style={{fontWeight:'bold', marginBottom:'8px'}}>Templates ({templateBlocks.length})</div>
+                                                                     {templateBlocks.map((b: any) => {
+                                                                         const bid = b.blockId || b.id;
+                                                                         const data = b.data || {};
+                                                                         const isSelected = bid === templateSelectedId;
+                                                                         const isDraft = !!draftBlocks[bid];
+
+                                                                         return (
+                                                                             <div
+                                                                                 key={bid}
+                                                                                 onClick={() => setTemplateSelectedId(bid)}
+                                                                                 style={{
+                                                                                     border: isSelected ? '1px solid #007acc' : '1px solid #ddd',
+                                                                                     background: isSelected ? '#e6f7ff' : 'white',
+                                                                                     padding:'8px',
+                                                                                     marginBottom:'6px',
+                                                                                     cursor:'pointer',
+                                                                                     borderRadius:'4px'
+                                                                                 }}
+                                                                             >
+                                                                                 <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'4px'}}>
+                                                                                     <div style={{fontWeight:'bold'}}>{bid}</div>
+                                                                                     {isDraft && (
+                                                                                         <span style={{fontSize:'0.7em', background:'#e8f5e9', color:'green', padding:'1px 4px', borderRadius:'3px', border:'1px solid #c8e6c9', fontWeight:'bold'}}>DRAFT</span>
+                                                                                     )}
+                                                                                 </div>
+                                                                                 <div style={{fontSize:'0.85em', color:'#555'}}>{data.templateName || data.label || '(Unnamed)'}</div>
+                                                                                 <div style={{fontSize:'0.8em', color:'#777'}}>{data.targetBlockType || 'unknown target'}</div>
+                                                                                 <div style={{display:'flex', alignItems:'center', gap:'6px', marginTop:'6px'}}>
+                                                                                     <label style={{fontSize:'0.8em'}}>Enabled</label>
+                                                                                     <input
+                                                                                         type="checkbox"
+                                                                                         checked={data.enabled !== false}
+                                                                                         onChange={(e) => handleToggleTemplateEnabled(bid, e.target.checked)}
+                                                                                     />
+                                                                                 </div>
+                                                                             </div>
+                                                                         );
+                                                                     })}
+                                                                     {templateBlocks.length === 0 && (
+                                                                         <div style={{fontStyle:'italic', color:'#777'}}>No template blocks found.</div>
+                                                                     )}
+                                                                 </div>
+
+                                                                 <div style={{flex:1, overflowY:'auto', paddingLeft:'8px'}}>
+                                                                     {selectedTemplate && templateEditorData ? (
+                                                                         <div style={{maxWidth:'720px'}}>
+                                                                             <div style={{borderBottom:'1px solid #ddd', paddingBottom:'10px', marginBottom:'12px'}}>
+                                                                                 <div style={{fontWeight:'bold', fontSize:'1.1em'}}>{templateSelectedId}</div>
+                                                                                 <div style={{fontSize:'0.85em', color:'#666'}}>Block Type: template</div>
+                                                                             </div>
+
+                                                                             <div style={{display:'grid', gridTemplateColumns:'160px 1fr', gap:'10px', alignItems:'center', marginBottom:'12px'}}>
+                                                                                 <div style={{fontWeight:'bold', fontSize:'0.85em'}}>Template Name</div>
+                                                                                 <input
+                                                                                     type="text"
+                                                                                     value={templateEditorData.templateName || ''}
+                                                                                     onChange={(e) => {
+                                                                                         setTemplateEditorData({ ...templateEditorData, templateName: e.target.value, label: e.target.value || templateEditorData.label });
+                                                                                         setTemplateEditorDirty(true);
+                                                                                     }}
+                                                                                     style={{padding:'6px 8px', border:'1px solid #ccc', borderRadius:'4px'}}
+                                                                                 />
+
+                                                                                 <div style={{fontWeight:'bold', fontSize:'0.85em'}}>Enabled</div>
+                                                                                 <input
+                                                                                     type="checkbox"
+                                                                                     checked={templateEditorData.enabled !== false}
+                                                                                     onChange={(e) => {
+                                                                                         setTemplateEditorData({ ...templateEditorData, enabled: e.target.checked });
+                                                                                         setTemplateEditorDirty(true);
+                                                                                     }}
+                                                                                 />
+
+                                                                                 <div style={{fontWeight:'bold', fontSize:'0.85em'}}>Target Block Type</div>
+                                                                                 <div style={{fontFamily:'monospace', fontSize:'0.9em'}}>{templateEditorData.targetBlockType || '(none)'}</div>
+                                                                             </div>
+
+                                                                             <div style={{marginBottom:'12px', padding:'10px', border:'1px solid #eee', borderRadius:'6px', background:'#fafafa'}}>
+                                                                                 <div style={{fontWeight:'bold', marginBottom:'6px'}}>Defaults (Schema Driven)</div>
+                                                                                 {editorSchemaError && (
+                                                                                     <div style={{color:'#c62828', fontSize:'0.85em', marginBottom:'6px'}}>{editorSchemaError}</div>
+                                                                                 )}
+                                                                                 {editorSchemaLoading && (
+                                                                                     <div style={{color:'#666', fontSize:'0.85em'}}>Loading schema...</div>
+                                                                                 )}
+                                                                                 {editorSchema && (
+                                                                                     <div style={{display:'flex', flexDirection:'column', gap:'10px'}}>
+                                                                                         {editableTemplateFields.map((field) => {
+                                                                                             const val = getValueByPath(defaultsValue, field.path);
+                                                                                             const isEnum = field.enumOptions && field.enumOptions.length > 0;
+
+                                                                                             return (
+                                                                                                 <div key={field.path} style={{display:'grid', gridTemplateColumns:'160px 1fr', gap:'10px', alignItems:'center'}}>
+                                                                                                     <div style={{fontWeight:'bold', fontSize:'0.85em', color:'#333'}}>{field.title}</div>
+                                                                                                     <div style={{display:'flex', flexDirection:'column', gap:'6px'}}>
+                                                                                                         {field.type === 'boolean' ? (
+                                                                                                             <input
+                                                                                                                 type="checkbox"
+                                                                                                                 checked={!!val}
+                                                                                                                 onChange={(e) => {
+                                                                                                                     const nextDefaults = setValueByPath(defaultsValue, field.path, e.target.checked);
+                                                                                                                     setTemplateDefaultsError(null);
+                                                                                                                     setTemplateEditorData({ ...templateEditorData, defaults: nextDefaults });
+                                                                                                                     setTemplateDefaultsText(JSON.stringify(nextDefaults, null, 2));
+                                                                                                                     setTemplateEditorDirty(true);
+                                                                                                                 }}
+                                                                                                                 style={{width:'18px', height:'18px'}}
+                                                                                                             />
+                                                                                                         ) : field.type === 'number' ? (
+                                                                                                             <input
+                                                                                                                 type="number"
+                                                                                                                 value={val ?? ''}
+                                                                                                                 onChange={(e) => {
+                                                                                                                     const raw = e.target.value;
+                                                                                                                     let nextDefaults = defaultsValue;
+                                                                                                                     if (raw === '') {
+                                                                                                                         nextDefaults = deleteValueByPath(nextDefaults, field.path);
+                                                                                                                     } else {
+                                                                                                                         nextDefaults = setValueByPath(nextDefaults, field.path, Number(raw));
+                                                                                                                     }
+                                                                                                                     setTemplateDefaultsError(null);
+                                                                                                                     setTemplateEditorData({ ...templateEditorData, defaults: nextDefaults });
+                                                                                                                     setTemplateDefaultsText(JSON.stringify(nextDefaults, null, 2));
+                                                                                                                     setTemplateEditorDirty(true);
+                                                                                                                 }}
+                                                                                                                 style={{padding:'6px 8px', border:'1px solid #ccc', borderRadius:'4px'}}
+                                                                                                             />
+                                                                                                         ) : field.type === 'json' ? (
+                                                                                                             <>
+                                                                                                                 <AutoGrowTextArea
+                                                                                                                     value={templateDefaultsJsonInputs[field.path] ?? ''}
+                                                                                                                     onChange={(e: any) => {
+                                                                                                                         const raw = e.target.value;
+                                                                                                                         setTemplateDefaultsJsonInputs(prev => ({ ...prev, [field.path]: raw }));
+                                                                                                                         if (!raw.trim()) {
+                                                                                                                             const nextDefaults = deleteValueByPath(defaultsValue, field.path);
+                                                                                                                             setTemplateEditorData({ ...templateEditorData, defaults: nextDefaults });
+                                                                                                                             setTemplateDefaultsText(JSON.stringify(nextDefaults, null, 2));
+                                                                                                                             setTemplateDefaultsJsonErrors(prev => ({ ...prev, [field.path]: null }));
+                                                                                                                             setTemplateEditorDirty(true);
+                                                                                                                             return;
+                                                                                                                         }
+                                                                                                                         const parsed = parseJsonSafely(raw);
+                                                                                                                         if (parsed.error) {
+                                                                                                                             setTemplateDefaultsJsonErrors(prev => ({ ...prev, [field.path]: parsed.error }));
+                                                                                                                         } else {
+                                                                                                                             const nextDefaults = setValueByPath(defaultsValue, field.path, parsed.value);
+                                                                                                                             setTemplateEditorData({ ...templateEditorData, defaults: nextDefaults });
+                                                                                                                             setTemplateDefaultsText(JSON.stringify(nextDefaults, null, 2));
+                                                                                                                             setTemplateDefaultsJsonErrors(prev => ({ ...prev, [field.path]: null }));
+                                                                                                                             setTemplateEditorDirty(true);
+                                                                                                                         }
+                                                                                                                     }}
+                                                                                                                     style={{padding:'6px 8px', border:'1px solid #ccc', borderRadius:'4px'}}
+                                                                                                                     placeholder={'Enter JSON...'}
+                                                                                                                 />
+                                                                                                                 {templateDefaultsJsonErrors[field.path] && (
+                                                                                                                     <div style={{fontSize:'0.75em', color:'#d32f2f'}}>
+                                                                                                                         {templateDefaultsJsonErrors[field.path]}
+                                                                                                                     </div>
+                                                                                                                 )}
+                                                                                                             </>
+                                                                                                         ) : isEnum ? (
+                                                                                                             <select
+                                                                                                                 value={val ?? ''}
+                                                                                                                 onChange={(e) => {
+                                                                                                                     const nextDefaults = setValueByPath(defaultsValue, field.path, e.target.value);
+                                                                                                                     setTemplateDefaultsError(null);
+                                                                                                                     setTemplateEditorData({ ...templateEditorData, defaults: nextDefaults });
+                                                                                                                     setTemplateDefaultsText(JSON.stringify(nextDefaults, null, 2));
+                                                                                                                     setTemplateEditorDirty(true);
+                                                                                                                 }}
+                                                                                                                 style={{padding:'6px 8px', border:'1px solid #ccc', borderRadius:'4px'}}
+                                                                                                             >
+                                                                                                                 <option value="">(Select)</option>
+                                                                                                                 {field.enumOptions?.map(opt => (
+                                                                                                                     <option key={opt} value={opt}>{opt}</option>
+                                                                                                                 ))}
+                                                                                                             </select>
+                                                                                                         ) : (
+                                                                                                             <input
+                                                                                                                 type="text"
+                                                                                                                 value={val ?? ''}
+                                                                                                                 onChange={(e) => {
+                                                                                                                     const nextDefaults = setValueByPath(defaultsValue, field.path, e.target.value);
+                                                                                                                     setTemplateDefaultsError(null);
+                                                                                                                     setTemplateEditorData({ ...templateEditorData, defaults: nextDefaults });
+                                                                                                                     setTemplateDefaultsText(JSON.stringify(nextDefaults, null, 2));
+                                                                                                                     setTemplateEditorDirty(true);
+                                                                                                                 }}
+                                                                                                                 style={{padding:'6px 8px', border:'1px solid #ccc', borderRadius:'4px'}}
+                                                                                                             />
+                                                                                                         )}
+                                                                                                         {field.description && (
+                                                                                                             <div style={{fontSize:'0.75em', color:'#666'}}>{field.description}</div>
+                                                                                                         )}
+                                                                                                     </div>
+                                                                                                 </div>
+                                                                                             );
+                                                                                         })}
+                                                                                     </div>
+                                                                                 )}
+                                                                             </div>
+
+                                                                             <div style={{marginBottom:'12px'}}>
+                                                                                 <div style={{fontWeight:'bold', marginBottom:'6px'}}>Defaults (Advanced JSON)</div>
+                                                                                 <textarea
+                                                                                     value={templateDefaultsText}
+                                                                                     onChange={(e) => {
+                                                                                         const raw = e.target.value;
+                                                                                         setTemplateDefaultsText(raw);
+                                                                                         const parsed = parseJsonSafely(raw);
+                                                                                         if (parsed.error) {
+                                                                                             setTemplateDefaultsError(parsed.error);
+                                                                                             return;
+                                                                                         }
+                                                                                         if (!parsed.value || typeof parsed.value !== 'object' || Array.isArray(parsed.value)) {
+                                                                                             setTemplateDefaultsError('Defaults must be an object.');
+                                                                                             return;
+                                                                                         }
+                                                                                         setTemplateDefaultsError(null);
+                                                                                         setTemplateEditorData({ ...templateEditorData, defaults: parsed.value });
+                                                                                         setTemplateEditorDirty(true);
+
+                                                                                         const schema = templateSchemas[templateEditorData.targetBlockType];
+                                                                                         if (schema) {
+                                                                                             const fields = extractTemplateFields(schema).filter(f => !hasForbiddenTemplatePaths([f.path]));
+                                                                                             const jsonFields = fields.filter(f => f.type === 'json');
+                                                                                             const nextInputs: Record<string, string> = {};
+                                                                                             const nextErrors: Record<string, string | null> = {};
+                                                                                             jsonFields.forEach(field => {
+                                                                                                 const val = getValueByPath(parsed.value, field.path);
+                                                                                                 if (val !== '' && val !== undefined) {
+                                                                                                     try {
+                                                                                                         nextInputs[field.path] = JSON.stringify(val, null, 2);
+                                                                                                     } catch {
+                                                                                                         nextInputs[field.path] = '';
+                                                                                                     }
+                                                                                                 } else {
+                                                                                                     nextInputs[field.path] = '';
+                                                                                                 }
+                                                                                                 nextErrors[field.path] = null;
+                                                                                             });
+                                                                                             setTemplateDefaultsJsonInputs(nextInputs);
+                                                                                             setTemplateDefaultsJsonErrors(nextErrors);
+                                                                                         }
+                                                                                     }}
+                                                                                     rows={10}
+                                                                                     style={{width:'100%', resize:'vertical', padding:'8px', border:'1px solid #ccc', borderRadius:'4px', fontFamily:'monospace'}}
+                                                                                 />
+                                                                                 {templateDefaultsError && (
+                                                                                     <div style={{color:'#c62828', fontSize:'0.85em', marginTop:'4px'}}>{templateDefaultsError}</div>
+                                                                                 )}
+                                                                                 {templateDefaultsValidationError && (
+                                                                                     <div style={{color:'#c62828', fontSize:'0.85em', marginTop:'4px'}}>{templateDefaultsValidationError}</div>
+                                                                                 )}
+                                                                             </div>
+
+                                                                             <div style={{display:'flex', justifyContent:'flex-end', gap:'10px'}}>
+                                                                                 <button
+                                                                                     onClick={() => {
+                                                                                         if (!selectedTemplate) return;
+                                                                                         const data = selectedTemplate.data || {};
+                                                                                         const defaults = data.defaults || {};
+                                                                                         setTemplateEditorData({
+                                                                                             label: data.label || '',
+                                                                                             templateName: data.templateName || '',
+                                                                                             enabled: data.enabled !== false,
+                                                                                             targetBlockType: data.targetBlockType || '',
+                                                                                             defaults: defaults
+                                                                                         });
+                                                                                         setTemplateDefaultsText(JSON.stringify(defaults, null, 2));
+                                                                                         setTemplateDefaultsError(null);
+                                                                                         setTemplateDefaultsValidationError(null);
+                                                                                         const schema = templateSchemas[data.targetBlockType];
+                                                                                         if (schema) {
+                                                                                             const fields = extractTemplateFields(schema).filter(f => !hasForbiddenTemplatePaths([f.path]));
+                                                                                             const jsonFields = fields.filter(f => f.type === 'json');
+                                                                                             const nextInputs: Record<string, string> = {};
+                                                                                             const nextErrors: Record<string, string | null> = {};
+                                                                                             jsonFields.forEach(field => {
+                                                                                                 const val = getValueByPath(defaults, field.path);
+                                                                                                 if (val !== '' && val !== undefined) {
+                                                                                                     try {
+                                                                                                         nextInputs[field.path] = JSON.stringify(val, null, 2);
+                                                                                                     } catch {
+                                                                                                         nextInputs[field.path] = '';
+                                                                                                     }
+                                                                                                 } else {
+                                                                                                     nextInputs[field.path] = '';
+                                                                                                 }
+                                                                                                 nextErrors[field.path] = null;
+                                                                                             });
+                                                                                             setTemplateDefaultsJsonInputs(nextInputs);
+                                                                                             setTemplateDefaultsJsonErrors(nextErrors);
+                                                                                         }
+                                                                                         setTemplateEditorDirty(false);
+                                                                                     }}
+                                                                                     style={{padding:'6px 12px', cursor:'pointer'}}
+                                                                                 >
+                                                                                     Reset
+                                                                                 </button>
+                                                                                 <button
+                                                                                     onClick={() => handleSaveTemplateDraft()}
+                                                                                     disabled={isSaveDisabled}
+                                                                                     style={{
+                                                                                         padding:'6px 12px',
+                                                                                         background: isSaveDisabled ? '#ccc' : '#007acc',
+                                                                                         color:'white',
+                                                                                         border:'none',
+                                                                                         borderRadius:'4px',
+                                                                                         cursor: isSaveDisabled ? 'default' : 'pointer',
+                                                                                         fontWeight:'bold'
+                                                                                     }}
+                                                                                 >
+                                                                                     {templateEditorSaving ? 'Saving…' : 'Save Draft'}
+                                                                                 </button>
+                                                                             </div>
+                                                                         </div>
+                                                                     ) : (
+                                                                         <div style={{padding:'20px', color:'#888', fontStyle:'italic'}}>Select a template to edit.</div>
+                                                                     )}
+                                                                 </div>
+                                                             </div>
+                                                         </div>
+                                                     );
+                                                }
                                                         <button
                                                             onClick={handleSaveBlocksDraft}
                                                             disabled={!isEditorValid || !dirtyCompared || blocksDraftSaving}
