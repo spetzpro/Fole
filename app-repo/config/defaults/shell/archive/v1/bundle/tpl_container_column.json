@@ -1,0 +1,15 @@
+{
+  "blockId": "tpl_container_column",
+  "blockType": "template",
+  "schemaVersion": "1.0.0",
+  "data": {
+    "label": "Container Column Template",
+    "templateName": "Container Column",
+    "enabled": true,
+    "targetBlockType": "ui.node.container",
+    "defaults": {
+      "direction": "column",
+      "gap": 8
+    }
+  }
+}

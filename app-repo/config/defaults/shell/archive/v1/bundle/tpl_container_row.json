@@ -1,0 +1,15 @@
+{
+  "blockId": "tpl_container_row",
+  "blockType": "template",
+  "schemaVersion": "1.0.0",
+  "data": {
+    "label": "Container Row Template",
+    "templateName": "Container Row",
+    "enabled": true,
+    "targetBlockType": "ui.node.container",
+    "defaults": {
+      "direction": "row",
+      "gap": 8
+    }
+  }
+}
