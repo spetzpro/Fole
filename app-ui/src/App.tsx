@@ -3250,15 +3250,23 @@ function SysadminPanel({
     };
 
     const handleSaveTemplateDraft = async (options?: { createIfMissing?: boolean; blockId?: string; data?: any }) => {
-         if (!bundleData) return;
+         if (!bundleData) return false;
          const targetBlockId = options?.blockId || templateSelectedId;
          const editorData = options?.data || templateEditorData;
-         if (!targetBlockId || !editorData) return;
+         if (!targetBlockId || !editorData) return false;
 
          const targetBlockType = editorData.targetBlockType;
          if (!supportedTemplateTargets.includes(targetBlockType)) {
              showBanner({ kind: 'error', message: 'Save failed: unsupported targetBlockType', ts: Date.now() });
-             return;
+             return false;
+         }
+
+         const activeBlocks = (bundleData as any)?.blocks || {};
+         const draftBlocks = (draftBundle as any)?.blocks || {};
+         const existsInBundles = !!(draftBlocks[targetBlockId] || activeBlocks[targetBlockId]);
+         if (!existsInBundles && !options?.createIfMissing) {
+             showBanner({ kind: 'error', message: 'Template not persisted yet — click Create Template again or refresh bundle', ts: Date.now() });
+             return false;
          }
 
          let schema = templateSchemas[targetBlockType];
@@ -3269,11 +3277,11 @@ function SysadminPanel({
 
          if (!options?.data && templateDefaultsError) {
              showBanner({ kind: 'error', message: `Save failed: ${templateDefaultsError}`, ts: Date.now() });
-             return;
+             return false;
          }
          if (!options?.data && templateDefaultsValidationError) {
              showBanner({ kind: 'error', message: `Save failed: ${templateDefaultsValidationError}`, ts: Date.now() });
-             return;
+             return false;
          }
 
          const defaultsValue = editorData.defaults || {};
@@ -3281,7 +3289,7 @@ function SysadminPanel({
              const validation = validateTemplateDefaults(defaultsValue, schema);
              if (!validation.valid) {
                  showBanner({ kind: 'error', message: `Save failed: ${validation.error}`, ts: Date.now() });
-                 return;
+                 return false;
              }
          } else {
              showBanner({ kind: 'error', message: 'Template schema not loaded; saving without schema validation.', ts: Date.now() });
@@ -3294,18 +3302,6 @@ function SysadminPanel({
              targetBlockType: editorData.targetBlockType,
              defaults: defaultsValue
          };
-
-         const activeBlocks = (bundleData as any)?.blocks || {};
-         const draftBlocks = (draftBundle as any)?.blocks || {};
-         const baseBlock = draftBlocks[targetBlockId] || activeBlocks[targetBlockId];
-         const nextBlock = {
-             blockId: targetBlockId,
-             blockType: 'template',
-             schemaVersion: baseBlock?.schemaVersion || '1.0.0',
-             filename: baseBlock?.filename || `${targetBlockId}.json`,
-             data: dataPayload
-         };
-         applyDraftBlockUpdate(nextBlock);
 
          setTemplateEditorSaving(true);
          try {
@@ -3323,21 +3319,21 @@ function SysadminPanel({
              if (!res) {
                  const msg = 'Save failed (no response)';
                  showBanner({ kind: 'error', message: `Save failed: ${msg}`, ts: Date.now() });
-                 return;
+                 return false;
              }
 
              if (!res.ok) {
                  const txt = await res.text().catch(() => '');
                  const msg = `Save failed (${res.status})${txt ? `: ${txt}` : ''}`;
                  showBanner({ kind: 'error', message: `Save failed: ${msg}`, ts: Date.now() });
-                 return;
+                 return false;
              }
 
              const json = await res.json();
              if (json?.ok === false) {
                  const msg = json?.error?.message || 'Save failed';
                  showBanner({ kind: 'error', message: `Save failed: ${msg}`, ts: Date.now() });
-                 return;
+                 return false;
              }
 
              const payload = json?.data ?? json?.result ?? null;
@@ -3345,12 +3341,23 @@ function SysadminPanel({
              const statusMsg = newVersionId ? `Draft saved: ${newVersionId}` : 'Draft saved';
              showBanner({ kind: 'success', message: statusMsg, ts: Date.now() });
              setLastDraftVersionId(newVersionId || null);
+             const baseBlock = draftBlocks[targetBlockId] || activeBlocks[targetBlockId];
+             const nextBlock = {
+                 blockId: targetBlockId,
+                 blockType: 'template',
+                 schemaVersion: baseBlock?.schemaVersion || '1.0.0',
+                 filename: baseBlock?.filename || `${targetBlockId}.json`,
+                 data: dataPayload
+             };
+             applyDraftBlockUpdate(nextBlock);
              if (!options?.data || targetBlockId === templateSelectedId) {
                  setTemplateEditorDirty(false);
              }
+             return true;
          } catch (e: any) {
              const msg = e?.message || String(e);
              showBanner({ kind: 'error', message: `Save failed: ${msg}`, ts: Date.now() });
+             return false;
          } finally {
              setTemplateEditorSaving(false);
          }
@@ -3407,15 +3414,9 @@ function SysadminPanel({
 
          setTemplateCreateError(null);
 
-         const newBlock = {
-             blockId,
-             blockType: 'template',
-             schemaVersion: '1.0.0',
-             filename: `${blockId}.json`,
-             data: dataPayload
-         };
+         const saved = await handleSaveTemplateDraft({ createIfMissing: true, blockId, data: dataPayload });
+         if (!saved) return;
 
-         applyDraftBlockUpdate(newBlock);
          setTemplateSelectedId(blockId);
          setTemplateEditorData({ ...dataPayload });
          setTemplateDefaultsText(JSON.stringify(dataPayload.defaults, null, 2));
@@ -3424,12 +3425,11 @@ function SysadminPanel({
          setTemplateEditorDirty(false);
          setTemplateDefaultsJsonInputs({});
          setTemplateDefaultsJsonErrors({});
+         onRefresh();
 
-         await handleSaveTemplateDraft({ createIfMissing: true });
-
-            setTemplateCreateBlockId('');
-            setTemplateCreateName('');
-            setTemplateCreateTarget('ui.node.button');
+         setTemplateCreateBlockId('');
+         setTemplateCreateName('');
+         setTemplateCreateTarget('ui.node.button');
     };
 
     const handleToggleTemplateEnabled = async (blockId: string, enabled: boolean) => {
