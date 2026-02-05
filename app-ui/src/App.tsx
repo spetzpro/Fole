@@ -2652,6 +2652,7 @@ function SysadminPanel({
     const buttonOverrideFields = ['label', 'variant', 'icon', 'helpText', 'requiredPermission'];
     const windowOverrideFields = ['title', 'initialWidth', 'dockable', 'helpText', 'requiredPermission', 'visibleWhen', 'enabledWhen'];
     const containerOverrideFields = ['direction', 'gap', 'helpText', 'requiredPermission', 'visibleWhen', 'enabledWhen'];
+    const textOverrideFields = ['content', 'variant', 'align', 'helpText', 'requiredPermission', 'visibleWhen', 'enabledWhen'];
     const supportedTemplateTargets = ['ui.node.button', 'ui.node.window', 'ui.node.container', 'ui.node.text'];
 
     const [templateSelectedId, setTemplateSelectedId] = useState<string | null>(null);
@@ -2861,6 +2862,25 @@ function SysadminPanel({
                 }
             }
 
+            if (nodeType === 'ui.node.text') {
+                const inheritFrom = (draftOverrides as any)?.inheritFrom ?? (baseData as any)?.inheritFrom;
+                if (typeof inheritFrom === 'string' && bundleData?.blocks) {
+                    const tpl = (bundleData as any).blocks[inheritFrom];
+                    const tplDefaults = tpl?.blockType === 'template' && tpl?.data?.targetBlockType === 'ui.node.text'
+                        ? tpl.data?.defaults || {}
+                        : null;
+                    if (tplDefaults && typeof tplDefaults === 'object') {
+                        let composedForTemplate = composedData;
+                        textOverrideFields.forEach(path => {
+                            if (getValueByPath(composedForTemplate, path) === null) {
+                                composedForTemplate = deleteValueByPath(composedForTemplate, path);
+                            }
+                        });
+                        effectiveData = applyTemplateDefaultsForFields(composedForTemplate, tplDefaults, textOverrideFields);
+                    }
+                }
+            }
+
             return { id: draftBlock.blockId, type: nodeType, ...effectiveData, _source: 'DRAFT' };
          }
          const activeBlocks = (bundleData as any)?.blocks || {};
@@ -2917,6 +2937,25 @@ function SysadminPanel({
                setNodeEditorJsonErrors(nextJsonErrors);
            }
            if (activeTab === 'Node Editor (Container)') {
+               const nextJsonInputs: Record<string, string> = {};
+               const nextJsonErrors: Record<string, string | null> = {};
+               ['visibleWhen', 'enabledWhen'].forEach(path => {
+                   const val = getValueByPath(n, path);
+                   if (val !== '' && val !== undefined) {
+                       try {
+                           nextJsonInputs[path] = JSON.stringify(val, null, 2);
+                       } catch {
+                           nextJsonInputs[path] = '';
+                       }
+                   } else {
+                       nextJsonInputs[path] = '';
+                   }
+                   nextJsonErrors[path] = null;
+               });
+               setNodeEditorJsonInputs(nextJsonInputs);
+               setNodeEditorJsonErrors(nextJsonErrors);
+           }
+           if (activeTab === 'Node Editor (Text)') {
                const nextJsonInputs: Record<string, string> = {};
                const nextJsonErrors: Record<string, string | null> = {};
                ['visibleWhen', 'enabledWhen'].forEach(path => {
@@ -3019,6 +3058,31 @@ function SysadminPanel({
                     }
                 });
             }
+         }
+
+         if (activeTab === 'Node Editor (Text)') {
+             let overrideData: any = {};
+             if (nodeTemplateId) {
+                 overrideData = { ...overrideData, inheritFrom: nodeTemplateId };
+             }
+             textOverrideFields.forEach(path => {
+                 if (nodeOverrideFlags[path]) {
+                     const formVal = getValueByPath(nodeEditorForm, path);
+                     const fallbackVal = getValueByPath(draftNodeData, path);
+                     const resolvedVal = formVal === undefined ? fallbackVal : formVal;
+                     overrideData = setValueByPath(overrideData, path, resolvedVal);
+                 } else if (nodeTemplateId) {
+                     overrideData = setValueByPath(overrideData, path, null);
+                 }
+             });
+             newData = sanitizeNodeDataForSchema(schemaFields, overrideData, { allowNullPaths: textOverrideFields });
+             if (nodeTemplateId) {
+                 textOverrideFields.forEach(path => {
+                     if (!nodeOverrideFlags[path]) {
+                         newData = setValueByPath(newData, path, null);
+                     }
+                 });
+             }
          }
 
          let defaultType = 'ui.node.button';
@@ -4199,6 +4263,26 @@ function SysadminPanel({
         delete (overridesOnly as any).inheritFrom;
         const flags: Record<string, boolean> = {};
         windowOverrideFields.forEach(path => {
+            const overrideVal = getValueByPath(overridesOnly, path);
+            flags[path] = hasOwnPath(overridesOnly, path) && overrideVal !== null;
+        });
+        setNodeOverrideFlags(flags);
+    }, [activeTab, nodeEditorSelectedId, draftBundle, bundleData]);
+
+    useEffect(() => {
+        if (activeTab !== 'Node Editor (Text)' || !nodeEditorSelectedId) return;
+        const draftBlocks = (draftBundle as any)?.blocks || {};
+        const activeBlocks = (bundleData as any)?.blocks || {};
+        const draftBlock = findBlockById(draftBlocks, nodeEditorSelectedId);
+        const activeBlock = findBlockById(activeBlocks, nodeEditorSelectedId);
+        const draftInherit = draftBlock?.data?.inheritFrom;
+        const baseInherit = activeBlock?.data?.inheritFrom;
+        const inheritFrom = typeof draftInherit === 'string' ? draftInherit : (typeof baseInherit === 'string' ? baseInherit : null);
+        setNodeTemplateId(inheritFrom);
+        const overridesOnly = draftBlock?.data ? { ...draftBlock.data } : {};
+        delete (overridesOnly as any).inheritFrom;
+        const flags: Record<string, boolean> = {};
+        textOverrideFields.forEach(path => {
             const overrideVal = getValueByPath(overridesOnly, path);
             flags[path] = hasOwnPath(overridesOnly, path) && overrideVal !== null;
         });
@@ -6843,7 +6927,49 @@ function SysadminPanel({
                  const textNodes = Object.values(nodes).filter((n: any) => n.type === 'ui.node.text');
                  
                  const selectedNode = nodeEditorSelectedId ? getEffectiveNode(nodeEditorSelectedId) : null;
-                 const draftBundle = bundleData; 
+                 const draftBundleForText = draftBundle;
+
+                 const activeBlocks = (bundleData as any)?.blocks || {};
+                 const draftBlocks = (draftBundleForText as any)?.blocks || {};
+                 const activeNodeBlock = selectedNode ? findBlockById(activeBlocks, selectedNode.id) : null;
+                 const draftNodeBlock = selectedNode ? findBlockById(draftBlocks, selectedNode.id) : null;
+                 const baseNodeData = (activeNodeBlock?.data || {}) as any;
+                 const draftNodeData = (draftNodeBlock?.data || {}) as any;
+                 const composedNodeData = deepMerge(baseNodeData, draftNodeData);
+                 const templateBlocksSource = (bundleData as any)?.blocks || {};
+                 const templateBlocks = (Object.values(templateBlocksSource) as any[])
+                     .filter((b: any) => b?.blockType === 'template' && b?.data?.targetBlockType === 'ui.node.text');
+                 const selectedTemplateBlock = nodeTemplateId
+                     ? templateBlocks.find((b: any) => (b.blockId || b.id) === nodeTemplateId)
+                     : null;
+                 const templateDefaultsRaw = selectedTemplateBlock?.data?.defaults || {};
+                 const templateDefaults = pickDefaultsForFields(templateDefaultsRaw, textOverrideFields);
+                 const variantOptions = textSchema?.properties?.variant?.enum || ['body', 'h1', 'h2', 'h3', 'caption'];
+                 const alignOptions = textSchema?.properties?.align?.enum || ['left', 'center', 'right'];
+                 const overridesOnly = { ...(draftNodeData || {}) } as any;
+                 delete overridesOnly.inheritFrom;
+                 const overridesWithToggles = nodeTemplateId
+                    ? textOverrideFields.reduce((acc: any, path: string) => {
+                        if (nodeOverrideFlags[path]) {
+                            return setValueByPath(acc, path, nodeEditorForm[path]);
+                        }
+                        return acc;
+                    }, {})
+                    : overridesOnly;
+                 const composedNodeDataForTemplate = nodeTemplateId
+                    ? textOverrideFields.reduce((acc: any, path: string) => {
+                        if (!nodeOverrideFlags[path]) {
+                            return deleteValueByPath(acc, path);
+                        }
+                        return acc;
+                    }, composedNodeData)
+                    : composedNodeData;
+                 const composedWithTemplateDefaults = nodeTemplateId
+                    ? applyTemplateDefaultsForFields(composedNodeDataForTemplate, templateDefaults, textOverrideFields)
+                    : composedNodeData;
+                 const effectivePreview = nodeTemplateId
+                    ? deepMerge(composedWithTemplateDefaults, overridesWithToggles)
+                    : composedNodeData;
                  
                  return (
                      <div style={{display:'flex', height:'100%'}}>
@@ -6851,7 +6977,7 @@ function SysadminPanel({
                              <div style={{fontWeight:'bold', marginBottom:'10px', color:'#333'}}>Text Nodes ({textNodes.length})</div>
                              {textNodes.length === 0 && <div style={{fontStyle:'italic', color:'#666'}}>No text nodes found in active graph.</div>}
                              {textNodes.map((n:any) => {
-                                 const isDraft = !!(draftBundle as any)?.blocks?.[n.id];
+                                 const isDraft = !!(draftBundleForText as any)?.blocks?.[n.id];
                                  const displayText = n.props?.content || n.props?.text || n.label || n.id;
                                  const truncate = (s:string) => s && s.length > 30 ? s.substring(0,30)+'...' : s;
                                  
@@ -6888,7 +7014,179 @@ function SysadminPanel({
                                      </div>
 
                                      <div style={{display:'flex', flexDirection:'column', gap:'15px'}}>
-                                         {schemaFields.map((f) => {
+
+                                         <div style={{marginBottom:'16px', padding:'12px', border:'1px solid #eee', borderRadius:'6px', background:'#fafafa'}}>
+                                             <div style={{fontWeight:'bold', marginBottom:'8px'}}>Template</div>
+                                             <div style={{display:'flex', gap:'10px', alignItems:'center', marginBottom:'8px'}}>
+                                                 <select
+                                                     value={nodeTemplateId || ''}
+                                                     onChange={(e) => {
+                                                         const next = e.target.value || null;
+                                                         setNodeTemplateId(next);
+                                                         setNodeEditorDirty(true);
+                                                     }}
+                                                     style={{padding:'6px 8px', border:'1px solid #ccc', borderRadius:'4px', minWidth:'260px'}}
+                                                 >
+                                                     <option value="">(None)</option>
+                                                     {templateBlocks.map((t: any) => (
+                                                         <option key={t.blockId || t.id} value={t.blockId || t.id}>
+                                                             {t.data?.templateName || t.data?.label || (t.blockId || t.id)}
+                                                         </option>
+                                                     ))}
+                                                 </select>
+                                                 <div style={{fontSize:'0.85em', color:'#666'}}>
+                                                     {nodeTemplateId ? `Selected: ${nodeTemplateId}` : 'No template selected'}
+                                                 </div>
+                                             </div>
+                                             <div style={{display:'flex', gap:'8px', alignItems:'center', marginBottom:'8px'}}>
+                                                 <button
+                                                     onClick={() => {
+                                                         if (!selectedNode) return;
+                                                         setSelectedBlockId(selectedNode.id);
+                                                         setActiveTab('Blocks');
+                                                     }}
+                                                     style={{padding:'4px 8px', fontSize:'0.85em', cursor:'pointer'}}
+                                                 >
+                                                     Open Advanced JSON in Blocks tab
+                                                 </button>
+                                             </div>
+                                             <div style={{display:'flex', flexDirection:'column', gap:'10px'}}>
+                                                 {[
+                                                     { path: 'content', label: 'Content', type: 'textarea' },
+                                                     { path: 'variant', label: 'Variant', type: 'select', options: variantOptions },
+                                                     { path: 'align', label: 'Align', type: 'select', options: alignOptions },
+                                                     { path: 'helpText', label: 'Help Text', type: 'text' },
+                                                     { path: 'requiredPermission', label: 'Required Permission', type: 'text' },
+                                                     { path: 'visibleWhen', label: 'Visible When', type: 'json' },
+                                                     { path: 'enabledWhen', label: 'Enabled When', type: 'json' }
+                                                 ].map(field => {
+                                                     const overrideOn = !!nodeOverrideFlags[field.path];
+                                                     const inheritedValue = getValueByPath(templateDefaults, field.path);
+                                                     const effectiveValue = getValueByPath(effectivePreview, field.path);
+                                                     const disableOverride = !nodeTemplateId;
+
+                                                     const jsonInputValue = overrideOn
+                                                         ? (nodeEditorJsonInputs[field.path] ?? '')
+                                                         : (inheritedValue ? JSON.stringify(inheritedValue, null, 2) : '');
+
+                                                     return (
+                                                         <div key={field.path} style={{display:'grid', gridTemplateColumns:'140px 1fr', gap:'10px', alignItems:'center'}}>
+                                                             <div style={{fontWeight:'bold', fontSize:'0.85em', color:'#333'}}>{field.label}</div>
+                                                             <div style={{display:'flex', flexDirection:'column', gap:'6px'}}>
+                                                                 <label style={{display:'flex', alignItems:'center', gap:'8px', fontSize:'0.85em'}}>
+                                                                     <input
+                                                                         type="checkbox"
+                                                                         checked={overrideOn}
+                                                                         disabled={disableOverride}
+                                                                         onChange={(e) => {
+                                                                             const next = e.target.checked;
+                                                                             setNodeOverrideFlags({ ...nodeOverrideFlags, [field.path]: next });
+                                                                             if (next) {
+                                                                                 if (field.type === 'json') {
+                                                                                     const nextJson = effectiveValue ? JSON.stringify(effectiveValue, null, 2) : '';
+                                                                                     setNodeEditorJsonInputs(prev => ({ ...prev, [field.path]: nextJson }));
+                                                                                     setNodeEditorJsonErrors(prev => ({ ...prev, [field.path]: null }));
+                                                                                 }
+                                                                                 setNodeEditorForm({ ...nodeEditorForm, [field.path]: effectiveValue ?? (field.type === 'boolean' ? false : '') });
+                                                                             } else {
+                                                                                 setNodeEditorForm((prev: any) => {
+                                                                                     const nextForm = { ...prev };
+                                                                                     delete nextForm[field.path];
+                                                                                     return nextForm;
+                                                                                 });
+                                                                                 if (field.type === 'json') {
+                                                                                     setNodeEditorJsonInputs(prev => ({ ...prev, [field.path]: '' }));
+                                                                                     setNodeEditorJsonErrors(prev => ({ ...prev, [field.path]: null }));
+                                                                                 }
+                                                                             }
+                                                                             setNodeEditorDirty(true);
+                                                                         }}
+                                                                     />
+                                                                     Override
+                                                                 </label>
+                                                                 {field.type === 'select' ? (
+                                                                     <select
+                                                                         value={overrideOn ? (nodeEditorForm[field.path] ?? '') : (inheritedValue ?? '')}
+                                                                         disabled={!overrideOn}
+                                                                         onChange={(e) => {
+                                                                             setNodeEditorForm({ ...nodeEditorForm, [field.path]: e.target.value });
+                                                                             setNodeEditorDirty(true);
+                                                                         }}
+                                                                         style={{padding:'6px 8px', border:'1px solid #ccc', borderRadius:'4px'}}
+                                                                     >
+                                                                         <option value="">(Select)</option>
+                                                                         {(field.options || []).map((opt: string) => (
+                                                                             <option key={opt} value={opt}>{opt}</option>
+                                                                         ))}
+                                                                     </select>
+                                                                 ) : field.type === 'textarea' ? (
+                                                                     <AutoGrowTextArea
+                                                                         value={overrideOn ? (nodeEditorForm[field.path] ?? '') : (inheritedValue ?? '')}
+                                                                         onChange={(e: any) => {
+                                                                             setNodeEditorForm({ ...nodeEditorForm, [field.path]: e.target.value });
+                                                                             setNodeEditorDirty(true);
+                                                                         }}
+                                                                         style={{padding:'6px 8px', border:'1px solid #ccc', borderRadius:'4px'}}
+                                                                         placeholder={'Enter ' + field.label + '...'}
+                                                                     />
+                                                                 ) : field.type === 'json' ? (
+                                                                     <>
+                                                                         <AutoGrowTextArea
+                                                                             value={jsonInputValue}
+                                                                             onChange={(e: any) => {
+                                                                                 const raw = e.target.value;
+                                                                                 setNodeEditorJsonInputs(prev => ({ ...prev, [field.path]: raw }));
+                                                                                 if (!raw.trim()) {
+                                                                                     setNodeEditorJsonErrors(prev => ({ ...prev, [field.path]: null }));
+                                                                                     setNodeEditorForm((prev: any) => {
+                                                                                         const nextForm = { ...prev };
+                                                                                         delete nextForm[field.path];
+                                                                                         return nextForm;
+                                                                                     });
+                                                                                     setNodeEditorDirty(true);
+                                                                                     return;
+                                                                                 }
+                                                                                 const parsed = parseJsonSafely(raw);
+                                                                                 if (parsed.error) {
+                                                                                     setNodeEditorJsonErrors(prev => ({ ...prev, [field.path]: parsed.error }));
+                                                                                 } else {
+                                                                                     setNodeEditorJsonErrors(prev => ({ ...prev, [field.path]: null }));
+                                                                                     setNodeEditorForm({ ...nodeEditorForm, [field.path]: parsed.value });
+                                                                                     setNodeEditorDirty(true);
+                                                                                 }
+                                                                             }}
+                                                                             style={{padding:'6px 8px', border:'1px solid #ccc', borderRadius:'4px'}}
+                                                                             placeholder={'Enter JSON...'}
+                                                                         />
+                                                                         {nodeEditorJsonErrors[field.path] && (
+                                                                             <div style={{fontSize:'0.75em', color:'#d32f2f'}}>
+                                                                                 {nodeEditorJsonErrors[field.path]}
+                                                                             </div>
+                                                                         )}
+                                                                     </>
+                                                                 ) : (
+                                                                     <input
+                                                                         type="text"
+                                                                         value={overrideOn ? (nodeEditorForm[field.path] ?? '') : (inheritedValue ?? '')}
+                                                                         disabled={!overrideOn}
+                                                                         onChange={(e) => {
+                                                                             setNodeEditorForm({ ...nodeEditorForm, [field.path]: e.target.value });
+                                                                             setNodeEditorDirty(true);
+                                                                         }}
+                                                                         style={{padding:'6px 8px', border:'1px solid #ccc', borderRadius:'4px'}}
+                                                                     />
+                                                                 )}
+                                                                 <div style={{fontSize:'0.75em', color:'#666'}}>
+                                                                     Inherited: {field.type === 'json' ? (inheritedValue ? JSON.stringify(inheritedValue) : '(none)') : (String(inheritedValue || '') || '(none)')} | Effective: {field.type === 'json' ? (effectiveValue ? JSON.stringify(effectiveValue) : '(none)') : (String(effectiveValue || '') || '(none)')}
+                                                                 </div>
+                                                             </div>
+                                                         </div>
+                                                     );
+                                                 })}
+                                             </div>
+                                         </div>
+
+                                         {schemaFields.filter(f => !textOverrideFields.includes(f.path)).map((f) => {
                                              let errorMsg = null;
                                              const val = nodeEditorForm[f.path];
                                              const isMulti = isMultilineField('ui.node.text', f.path);
@@ -7023,14 +7321,14 @@ function SysadminPanel({
                                                  {nodeDraftSaving ? 'Saving Draft…' : (nodeEditorDirty ? 'Save Draft' : 'No Changes')}
                                              </button>
                                              
-                                             {!draftBundle && (
+                                             {!draftBundleForText && (
                                                 <div style={{color:'#e65100', fontSize:'0.9em', background:'#fff3e0', padding:'8px', borderRadius:'4px', border:'1px solid #ffe0b2'}}>
                                                     <strong>Draft not started.</strong> Editing will initialize a new draft.
                                                 </div>
                                              )}
                                              
                                              {/* Deployed Button inside Node Editor */}
-                                             {draftBundle && (
+                                             {draftBundleForText && (
                                                 <div style={{marginLeft:'auto', display:'flex', flexDirection:'column', alignItems:'flex-end'}}>
                                                 {renderValidationSummary()}
                                                 <button 
