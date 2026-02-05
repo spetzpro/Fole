@@ -5,7 +5,7 @@
 		{
 			"label": "Start Debug Backend",
 			"type": "shell",
-			"command": "npm run dev:server",
+			"command": "cls; npm run dev:server",
 			"options": {
 				"cwd": "${workspaceFolder}",
 				"env": {
@@ -29,7 +29,7 @@
 		{
 			"label": "Start Debug Frontend",
 			"type": "shell",
-			"command": "npm run dev:ui",
+			"command": "cls; npm run dev:ui",
 			"options": {
 				"cwd": "${workspaceFolder}"
 			},
@@ -60,6 +60,15 @@
 			"type": "shell",
 			"command": "taskkill /F /IM node.exe /T; exit 0",
 			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Restart Debug Environment",
+			"dependsOn": [
+				"Stop Debug Environment",
+				"Start Debug Environment"
+			],
+			"dependsOrder": "sequence",
 			"problemMatcher": []
 		}
 	]
