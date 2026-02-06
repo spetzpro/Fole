@@ -1105,9 +1105,16 @@ export class ShellConfigValidator {
               });
           }
 
-          const props = node.blockType === "ui.node.button"
-              ? this.resolveUiNodeButtonData(id, node, bundle)
-              : node.data;
+          let props = node.data;
+          if (node.blockType === "ui.node.button") {
+              props = this.resolveUiNodeButtonData(id, node, bundle);
+          } else if (node.blockType === "ui.node.window") {
+              props = this.resolveUiNodeWindowData(id, node, bundle);
+          } else if (node.blockType === "ui.node.container") {
+              props = this.resolveUiNodeContainerData(id, node, bundle);
+          } else if (node.blockType === "ui.node.text") {
+              props = this.resolveUiNodeTextData(id, node, bundle);
+          }
 
           nodesById[id] = {
               id: id,

@@ -2471,7 +2471,9 @@ function SysadminPanel({
 
         try {
             const json = await res.json();
-            const schema = json?.data?.schema ?? json?.schema ?? null;
+            const schema = json?.data?.schema
+                ?? json?.schema
+                ?? ((json && (json.$schema || json.properties)) ? json : null);
             if (schema) {
                 setTemplateSchemas(prev => ({ ...prev, [targetBlockType]: schema }));
                 setTemplateSchemaErrors(prev => ({ ...prev, [targetBlockType]: null }));
