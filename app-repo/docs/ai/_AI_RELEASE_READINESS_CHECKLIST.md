@@ -15,20 +15,23 @@ Use this short, repeatable checklist before release. It focuses on the builder f
 ## 2) Sysadmin governance checks
 - Make a small change in Sysadmin and click `Save Draft`.
 - Confirm a draft version is created and `Activate Draft` becomes available.
+- If `Save Draft: No changes` appears, confirm the overlay already contains your intended state via Advanced JSON.
 - Click `Activate Draft` and provide a non-empty reason.
 - After activation, confirm the `Activations` tab lists the new entry.
+- Node editors/Templates can show draft state while runtime reflects active; always `Activate Draft` before judging runtime behavior.
 
 ## 3) Templates tab checks
 - Select a template (e.g., `tpl_text_body_4`).
 - Defaults editor renders without "schema missing" error.
 - `id` is not shown in the schema-driven defaults editor.
 - Advanced JSON still renders and can save valid defaults.
-- `PENDING` badge appears only when the draft version differs from active.
+- `PENDING` means the draft block differs from the active block (divergence-based, not just draft mode).
 - After `Activate Draft`, `PENDING` clears for that template.
 
 ## 4) Node Editor (Text) template application
 - Open `Node Editor (Text)`.
 - Select a text node that inherits from a template.
+- If runtime text shows "(missing text)" or seems unchanged, trace Window -> Container -> Text via `Open Advanced JSON in Blocks tab` to confirm you are editing the rendered text node.
 - Turn override OFF for `content` and save the draft (tombstone should be stored).
 - Runtime: open Help window and verify text renders from template (no "missing text").
 
@@ -40,3 +43,4 @@ Use this short, repeatable checklist before release. It focuses on the builder f
 Notes
 - Advanced JSON is the fallback for template defaults when schema-driven fields are insufficient.
 - Template defaults must stay leaf-only (no `children` or `inheritFrom`).
+- Regression guard: `app-repo/tests/test_resolved_graph_text_template.ts` covers runtime text template inheritance with tombstones.
