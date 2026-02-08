@@ -1,8 +1,7 @@
 # Modules Overview
 
-This file is the canonical index of all blocks and modules in the system.
-
-Lifecycle status and block-level entries are maintained in:
+This file is a legacy overview of modules and blocks.
+The authoritative inventory and lifecycle status live in:
 
 - `specs/Blocks_Modules_Inventory.md`
 
@@ -153,4 +152,4 @@ Spec files under: `specs/lib/`
   - status can be updated to include implementation info if desired
     (e.g. `SPEC_READY / IMPL_WIP`, `SPEC_READY / IMPL_DONE`).
 
-This README is the **single source of truth** for the spec-level module inventory.
+This README is not authoritative; treat it as a convenience summary only.
