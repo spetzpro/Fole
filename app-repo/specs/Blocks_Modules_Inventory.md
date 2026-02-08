@@ -216,7 +216,6 @@ This table mirrors the current `specs/inventory/inventory.json` entries for CI c
 - Missing block specs for feature.sketch, feature.files, feature.comments, feature.measure (module specs exist).
 - No module specs under `specs/modules/lib.*` for the lib.* blocks (specs only exist at block level).
 - Legacy root-level core specs in `specs/modules/Core_*.md` need mapping to block folders or deprecation decisions.
-- core.exportImport is listed in inventory.json but no spec file exists at `specs/modules/core.exportImport`; add or update spec path.
 - Dependency and TODO metadata for many entries is not yet extracted; update per module spec when available.
 - This inventory is spec-only; any implemented modules without specs require code inspection to confirm and add.
 
