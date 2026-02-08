@@ -9,6 +9,9 @@ core.exportImport
 - Layer: core
 - Status: In implementation
 
+## Spec Status
+Draft (MVP implemented in code)
+
 ## Purpose
 The `core.exportImport` module defines project-level export/import services. The MVP implementation exports a
 project DB descriptor (including a minimal manifest) and imports by copying a project DB into the target
@@ -19,11 +22,13 @@ project directory. Permission enforcement is handled by secured wrappers.
 {}
 ```
 
-## Blocks
-- core.block.projectExport: Build an export descriptor for a project DB snapshot.
-- core.block.projectImport: Apply an import bundle to a target project directory.
-- core.block.exportPermissions: Enforce `PROJECT_EXPORT` via core.permissions.
-- core.block.importPermissions: Enforce ADMIN role for import.
+## Conceptual building blocks (not formal block specs yet)
+These are conceptual helpers used to describe the flow; they are not registered block specs.
+
+- projectExport: Build an export descriptor for a project DB snapshot.
+- projectImport: Apply an import bundle to a target project directory.
+- exportPermissions: Enforce `PROJECT_EXPORT` via core.permissions.
+- importPermissions: Enforce ADMIN role for import.
 
 ## Public API (Operations)
 
@@ -58,6 +63,7 @@ project directory. Permission enforcement is handled by secured wrappers.
   - SecuredProjectExportService
 - Permissions:
   - Requires `PROJECT_EXPORT` on the project resource via PermissionService.
+  - PolicyRegistry maps `PROJECT_EXPORT` to `projects.export`.
 
 ### createSecuredProjectImportService
 - Inputs:
@@ -66,7 +72,12 @@ project directory. Permission enforcement is handled by secured wrappers.
 - Outputs:
   - SecuredProjectImportService
 - Permissions:
-  - Requires current user to have ADMIN role.
+  - Requires current user `roles` to include `ADMIN` (CanonicalRole).
+
+## Implementation references
+- [app-repo/src/core/ProjectExportImportService.ts](app-repo/src/core/ProjectExportImportService.ts)
+- [app-repo/tests/core/projectExportImportService.test.ts](app-repo/tests/core/projectExportImportService.test.ts)
+- [app-repo/tests/core/projectExportImportSecured.test.ts](app-repo/tests/core/projectExportImportSecured.test.ts)
 
 ## Lifecycle
 - No persisted state or migrations.
@@ -86,6 +97,12 @@ project directory. Permission enforcement is handled by secured wrappers.
   - Secured export checks `PROJECT_EXPORT` and throws `PERMISSION_DENIED` on failure.
   - Secured import requires ADMIN role and throws `PERMISSION_DENIED` on failure.
 
+## Non-goals (MVP)
+- Full bundle export (files, assets, templates, module data) with checksums.
+- Export/import version negotiation or conflict resolution.
+- Identity mapping for imported `project_members`.
+- Background job orchestration for long-running exports/imports.
+
 ## Dependencies
 - Modules:
   - core.permissions.PermissionService
@@ -100,8 +117,13 @@ project directory. Permission enforcement is handled by secured wrappers.
   - specs/core/_AI_TESTING_AND_VERIFICATION_SPEC.md
 
 ## Error Model
-- Throws `Error` if source or target project DB paths are missing.
-- Throws `AppError` with code `PERMISSION_DENIED` for failed permission checks.
+- Throws `Error` if source/target DB paths are missing (e.g., "Project DB not found at ...", "Source project DB not found at ...").
+- Secured export throws `AppError` with code `PERMISSION_DENIED`.
+  - `message` is `decision.reasonCode` (e.g., `INSUFFICIENT_ROLE`, `NOT_AUTHENTICATED`, `RESOURCE_NOT_IN_PROJECT`) or "Access denied".
+  - `details` includes `{ action: "PROJECT_EXPORT", resource }`.
+- Secured import throws `AppError` with code `PERMISSION_DENIED`.
+  - `message` is "Permission denied".
+  - `details.reasonCode` is `ADMIN_ROLE_REQUIRED` and `details.grantSource` is `role_check`.
 
 ## Test Matrix
 - tests/core/projectExportImportService.test.ts
