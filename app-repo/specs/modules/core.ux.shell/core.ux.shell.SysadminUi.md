@@ -66,6 +66,7 @@ Sysadmins can manage `template` blocks through a dedicated Templates tab.
 **Defaults Editing:**
 - Schema-driven per `targetBlockType` using UI node schemas.
 - Only schema-defined **leaf** fields are editable.
+- Identity fields (such as `id`) are hidden in the schema-driven defaults editor.
 - `children` and `inheritFrom` are forbidden in defaults.
 - Advanced JSON editor is always available.
 
@@ -73,6 +74,10 @@ Sysadmins can manage `template` blocks through a dedicated Templates tab.
 - All edits use PATCH (draft overlays).
 - Only header Activate promotes to active.
 - No template → template inheritance.
+
+**Draft Indicators:**
+- Per-template badge: `PENDING` appears only when the draft block diverges from the active block.
+- Global indicator: show an "Editing Draft" banner when working against a draft bundle.
 
 ## 3. Mode Gating Behaviors
 

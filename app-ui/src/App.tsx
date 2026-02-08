@@ -4326,7 +4326,7 @@ function SysadminPanel({
         setTemplateDefaultsText(JSON.stringify(defaults, null, 2));
         const schema = templateSchemas[data.targetBlockType];
         if (schema) {
-            const fields = extractTemplateFields(schema).filter(f => !hasForbiddenTemplatePaths([f.path]));
+            const fields = extractTemplateFields(schema).filter(f => !hasForbiddenTemplatePaths([f.path]) && f.path !== 'id' && !f.path.endsWith('.id'));
             const jsonFields = fields.filter(f => f.type === 'json');
             const nextInputs: Record<string, string> = {};
             const nextErrors: Record<string, string | null> = {};
@@ -8568,12 +8568,25 @@ function SysadminPanel({
                  const editorSchemaError = editorTargetType ? templateSchemaErrors[editorTargetType] : null;
                  const editorSchemaLoading = editorTargetType ? templateSchemaLoading[editorTargetType] : false;
                  const templateFields = editorSchema ? extractTemplateFields(editorSchema) : [];
-                 const editableTemplateFields = templateFields.filter(f => !hasForbiddenTemplatePaths([f.path]));
+                 const editableTemplateFields = templateFields.filter(f => !hasForbiddenTemplatePaths([f.path]) && f.path !== 'id' && !f.path.endsWith('.id'));
                  const defaultsValue = templateEditorData?.defaults || {};
                  const isSaveDisabled = !templateEditorDirty || templateEditorSaving || !!templateDefaultsError || !!templateDefaultsValidationError;
+                 const isEditingDraft = !!draftBundle;
+                 const isTemplatePending = (blockId: string) => {
+                     const draftBlock = draftBlocks[blockId];
+                     if (!draftBlock) return false;
+                     const activeBlock = activeBlocks[blockId];
+                     if (!activeBlock) return true;
+                     return JSON.stringify(draftBlock) !== JSON.stringify(activeBlock);
+                 };
 
                  return (
                      <div style={{display:'flex', flexDirection:'column', height:'100%'}}>
+                         {isEditingDraft && (
+                             <div style={{marginBottom:'10px', padding:'8px 10px', border:'1px solid #ffe0b2', borderRadius:'6px', background:'#fff8e1', color:'#8d6e63', fontSize:'0.85em', fontWeight:'bold'}}>
+                                 Editing Draft: changes are not active until you activate the draft.
+                             </div>
+                         )}
                          <div style={{marginBottom:'10px', padding:'10px', border:'1px solid #ddd', borderRadius:'6px', background:'#fafafa'}}>
                              <div style={{fontWeight:'bold', marginBottom:'6px'}}>Create Template</div>
                              <div style={{display:'grid', gridTemplateColumns:'160px 1fr', gap:'8px', alignItems:'center'}}>
@@ -8624,7 +8637,7 @@ function SysadminPanel({
                                      const bid = b.blockId || b.id;
                                      const data = b.data || {};
                                      const isSelected = bid === templateSelectedId;
-                                     const isDraft = !!draftBlocks[bid];
+                                     const isPending = isTemplatePending(bid);
 
                                      return (
                                          <div
@@ -8641,8 +8654,8 @@ function SysadminPanel({
                                          >
                                              <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'4px'}}>
                                                  <div style={{fontWeight:'bold'}}>{bid}</div>
-                                                 {isDraft && (
-                                                     <span style={{fontSize:'0.7em', background:'#e8f5e9', color:'green', padding:'1px 4px', borderRadius:'3px', border:'1px solid #c8e6c9', fontWeight:'bold'}}>DRAFT</span>
+                                                 {isPending && (
+                                                     <span style={{fontSize:'0.7em', background:'#fff3e0', color:'#ef6c00', padding:'1px 4px', borderRadius:'3px', border:'1px solid #ffe0b2', fontWeight:'bold'}}>PENDING</span>
                                                  )}
                                              </div>
                                              <div style={{fontSize:'0.85em', color:'#555'}}>{data.templateName || data.label || '(Unnamed)'}</div>
@@ -8846,7 +8859,7 @@ function SysadminPanel({
 
                                                      const schema = templateSchemas[templateEditorData.targetBlockType];
                                                      if (schema) {
-                                                         const fields = extractTemplateFields(schema).filter(f => !hasForbiddenTemplatePaths([f.path]));
+                                                         const fields = extractTemplateFields(schema).filter(f => !hasForbiddenTemplatePaths([f.path]) && f.path !== 'id' && !f.path.endsWith('.id'));
                                                          const jsonFields = fields.filter(f => f.type === 'json');
                                                          const nextInputs: Record<string, string> = {};
                                                          const nextErrors: Record<string, string | null> = {};
@@ -8896,7 +8909,7 @@ function SysadminPanel({
                                                      setTemplateDefaultsValidationError(null);
                                                      const schema = templateSchemas[data.targetBlockType];
                                                      if (schema) {
-                                                         const fields = extractTemplateFields(schema).filter(f => !hasForbiddenTemplatePaths([f.path]));
+                                                         const fields = extractTemplateFields(schema).filter(f => !hasForbiddenTemplatePaths([f.path]) && f.path !== 'id' && !f.path.endsWith('.id'));
                                                          const jsonFields = fields.filter(f => f.type === 'json');
                                                          const nextInputs: Record<string, string> = {};
                                                          const nextErrors: Record<string, string | null> = {};

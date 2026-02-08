@@ -74,6 +74,8 @@ For v1 template inheritance, a `template` block MAY define UI node defaults.
   - `effective = deepMerge(template.defaults, node.data)`
   - `node.data` remains **overrides only** (do not persist effective values).
 - **Validation:** The effective values must satisfy the target node schema.
+ - **Editing:** The template defaults editor uses the target block's schema and only exposes leaf/default fields.
+   - Identity fields (such as `id`) are not editable in template defaults.
 
 **v1 Restriction:**
 - Template → template inheritance is **forbidden** in v1.
@@ -100,6 +102,9 @@ For v1 template inheritance, a `template` block MAY define UI node defaults.
 
 **Restrictions:**
 - Template → template inheritance remains **forbidden**.
+
+**Regression Coverage:**
+- `tests/test_resolved_graph_text_template.ts` ensures `ui.node.text` templates apply defaults in the resolved graph (null tombstones must not leak).
 
 ### 3.2.1 v1 UI Node Templates: `ui.node.window`
 

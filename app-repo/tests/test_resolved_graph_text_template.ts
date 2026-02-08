@@ -1,3 +1,5 @@
+// Regression test: ensures ui.node.text templates apply defaults in the resolved graph (null tombstones must not leak).
+// Guards a runtime bug where template defaults were ignored for text nodes.
 import { ShellConfigValidator } from "../src/server/ShellConfigValidator";
 import { ShellBundle } from "../src/server/ShellConfigTypes";
 
