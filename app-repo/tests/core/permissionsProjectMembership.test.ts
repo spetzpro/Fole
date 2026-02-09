@@ -1,14 +1,31 @@
 import { initDefaultPolicies } from "../../src/core/permissions/PolicyRegistry";
 import { getPermissionService } from "../../src/core/permissions/PermissionService";
 import type { CurrentUser } from "../../src/core/permissions/PermissionModel";
+import { setCurrentUserProvider } from "../../src/core/auth/CurrentUserProvider";
 import {
 	createPermissionContextFromCurrentUser,
 	createProjectPermissionContextForUser,
 } from "../../src/core/permissions/PermissionGuards";
 
+class FakeCurrentUserProvider {
+	constructor(private readonly user: CurrentUser | null) {}
+
+	getCurrentUser(): CurrentUser | null {
+		return this.user;
+	}
+
+	isAuthenticated(): boolean {
+		return this.user !== null;
+	}
+}
+
 describe("core.permissions project membership behavior", () => {
 	beforeAll(() => {
 		initDefaultPolicies();
+	});
+
+	afterEach(() => {
+		setCurrentUserProvider(new FakeCurrentUserProvider(null));
 	});
 
 	test("project membership grants project-scoped permissions", () => {
@@ -55,6 +72,7 @@ describe("core.permissions project membership behavior", () => {
 			displayName: "Global Editor",
 			roles: ["EDITOR"],
 		};
+		setCurrentUserProvider(new FakeCurrentUserProvider(user));
 
 		const ctx = createPermissionContextFromCurrentUser();
 		const service = getPermissionService();

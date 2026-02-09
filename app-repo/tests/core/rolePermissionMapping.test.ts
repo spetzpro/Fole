@@ -46,6 +46,7 @@ describe("deriveGlobalPermissionsForUser", () => {
       expect.arrayContaining([
         "projects.read",
         "projects.write",
+        "projects.export",
         "files.read",
         "files.write",
         "comments.create",
@@ -65,6 +66,7 @@ describe("deriveGlobalPermissionsForUser", () => {
       expect.arrayContaining([
         "projects.read",
         "projects.write",
+        "projects.export",
         "files.read",
         "files.write",
         "comments.create",
@@ -73,6 +75,8 @@ describe("deriveGlobalPermissionsForUser", () => {
         "sketch.edit",
         "map.edit",
         "map.calibrate",
+        "sysadmin.config.preflight",
+        "sysadmin.config.activate",
       ])
     );
   });
