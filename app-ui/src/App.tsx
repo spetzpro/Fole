@@ -2434,20 +2434,24 @@ function SysadminPanel({
     const [projectFiles, setProjectFiles] = useState<ProjectFileItem[]>([]);
     const [projectFilesLoading, setProjectFilesLoading] = useState(false);
     const [projectFilesError, setProjectFilesError] = useState<string | null>(null);
+    const [projectFilesRequested, setProjectFilesRequested] = useState(false);
 
     const [commentsTargetType, setCommentsTargetType] = useState('');
     const [commentsTargetId, setCommentsTargetId] = useState('');
     const [projectComments, setProjectComments] = useState<ProjectCommentItem[]>([]);
     const [projectCommentsLoading, setProjectCommentsLoading] = useState(false);
     const [projectCommentsError, setProjectCommentsError] = useState<string | null>(null);
+    const [projectCommentsRequested, setProjectCommentsRequested] = useState(false);
 
     useEffect(() => {
         setProjectFiles([]);
         setProjectFilesError(null);
         setProjectFilesLoading(false);
+        setProjectFilesRequested(false);
         setProjectComments([]);
         setProjectCommentsError(null);
         setProjectCommentsLoading(false);
+        setProjectCommentsRequested(false);
     }, [currentProjectId]);
 
     const toHttpErrorMessage = async (res: Response, fallback: string): Promise<string> => {
@@ -2469,6 +2473,7 @@ function SysadminPanel({
         setProjectFilesLoading(true);
         setProjectFilesError(null);
         setProjectFiles([]);
+        setProjectFilesRequested(true);
 
         const res = await governedFetch(`/api/projects/${encodeURIComponent(currentProjectId.trim())}/files`);
         if (!res) {
@@ -2511,6 +2516,7 @@ function SysadminPanel({
         setProjectCommentsLoading(true);
         setProjectCommentsError(null);
         setProjectComments([]);
+        setProjectCommentsRequested(true);
 
         const query = `targetType=${encodeURIComponent(targetType)}&targetId=${encodeURIComponent(targetId)}`;
         const res = await governedFetch(`/api/projects/${encodeURIComponent(currentProjectId.trim())}/comments?${query}`);
@@ -8490,9 +8496,14 @@ function SysadminPanel({
                                                 <td style={{padding:'6px', borderBottom:'1px solid #f0f0f0'}}>{file.createdBy || '-'}</td>
                                             </tr>
                                         ))}
-                                        {projectFiles.length === 0 && !projectFilesLoading && (
+                                        {!projectFilesError && !projectFilesLoading && !projectFilesRequested && (
                                             <tr>
-                                                <td colSpan={6} style={{padding:'8px', color:'#888'}}>No files loaded.</td>
+                                                <td colSpan={6} style={{padding:'8px', color:'#888'}}>Not loaded yet.</td>
+                                            </tr>
+                                        )}
+                                        {!projectFilesError && !projectFilesLoading && projectFilesRequested && projectFiles.length === 0 && (
+                                            <tr>
+                                                <td colSpan={6} style={{padding:'8px', color:'#888'}}>Loaded (0 files).</td>
                                             </tr>
                                         )}
                                     </tbody>
@@ -8548,9 +8559,14 @@ function SysadminPanel({
                                                 <td style={{padding:'6px', borderBottom:'1px solid #f0f0f0'}}>{Array.isArray(comment.attachments) ? comment.attachments.length : 0}</td>
                                             </tr>
                                         ))}
-                                        {projectComments.length === 0 && !projectCommentsLoading && (
+                                        {!projectCommentsError && !projectCommentsLoading && !projectCommentsRequested && (
                                             <tr>
-                                                <td colSpan={5} style={{padding:'8px', color:'#888'}}>No comments loaded.</td>
+                                                <td colSpan={5} style={{padding:'8px', color:'#888'}}>Not loaded yet.</td>
+                                            </tr>
+                                        )}
+                                        {!projectCommentsError && !projectCommentsLoading && projectCommentsRequested && projectComments.length === 0 && (
+                                            <tr>
+                                                <td colSpan={5} style={{padding:'8px', color:'#888'}}>Loaded (0 comments).</td>
                                             </tr>
                                         )}
                                     </tbody>
