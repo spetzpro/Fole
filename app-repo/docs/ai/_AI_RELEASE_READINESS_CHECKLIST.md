@@ -4,6 +4,16 @@ Last-Updated: 2026-02-08
 
 Use this short, repeatable checklist before release. It focuses on the builder feel and config-driven sysadmin workflows.
 
+## Release ritual (manual)
+- Run the canonical gate: `npm run smoke`.
+- Run the minimal UI verification loop by completing [1) Bootstrap UI flow](app-repo/docs/ai/_AI_RELEASE_READINESS_CHECKLIST.md#1-bootstrap-ui-flow), [2) Sysadmin governance checks](app-repo/docs/ai/_AI_RELEASE_READINESS_CHECKLIST.md#2-sysadmin-governance-checks), [3) Templates tab checks](app-repo/docs/ai/_AI_RELEASE_READINESS_CHECKLIST.md#3-templates-tab-checks), and [4) Node Editor (Text) template application](app-repo/docs/ai/_AI_RELEASE_READINESS_CHECKLIST.md#4-node-editor-text-template-application).
+- Record artifacts: active version/activation id from `Activations` tab and current commit hash from `git rev-parse HEAD`.
+- Capture exactly 3 screenshots:
+  - `release-activations-tab.png` — Activations tab entry for the release activation.
+  - `release-templates-schema-ok.png` — Templates tab with schema editor rendered and no "schema missing" error.
+  - `release-runtime-help-template-text.png` — Runtime Help window showing template text (not "missing text").
+- Rollback note: use the `Activations` tab history as the rollback mechanism by re-activating the last known-good activation. Verify runtime state immediately after rollback activation.
+
 ## 1) Bootstrap UI flow
 - Open ShellRuntime Bootstrap UI.
 - Click `1. Fetch Bundle`.
