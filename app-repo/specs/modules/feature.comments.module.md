@@ -66,6 +66,7 @@ As of the current MVP, a backend `CommentsService` is implemented with a
 minimal write surface for project comments:
 
 - `createComment(projectId, { targetType, targetId, body }): Promise<Result<{ commentId: string }, AppError>>`
+- `listComments(projectId, targetType, targetId): Promise<Result<readonly CommentRecord[], AppError>>`
 - `deleteComment(projectId, commentId): Promise<Result<void, AppError>>`
 
 Both operations:
@@ -82,6 +83,15 @@ Both operations:
    - `canWithReason("PROJECT_READ", { type: "project", id: projectId, projectId })`.
 2. `COMMENT_CREATE` on a `comment` resource scoped to the project:
    - `canWithReason("COMMENT_CREATE", { type: "comment", id: "new", projectId })`.
+
+`listComments` enforces the existing canonical MVP read gate:
+
+1. `PROJECT_READ` on the project resource:
+  - `canWithReason("PROJECT_READ", { type: "project", id: projectId, projectId })`.
+
+No new `COMMENT_READ` action is introduced in MVP; comment listing remains
+guarded by project read access until a dedicated comment-read policy action
+is specified.
 
 `deleteComment` enforces `COMMENT_DELETE` on the concrete `comment`
 row:

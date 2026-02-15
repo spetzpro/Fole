@@ -16,6 +16,15 @@ import { dispatchActionEvent } from "./ActionDispatcher";
 import { IntegrationAdapterRegistry } from "./integrations/IntegrationAdapterRegistry";
 import { canAccessDebug } from "./DebugGuard";
 import { requirePermission } from "./DevPermissionGuard";
+import { CoreRuntime } from "../core/CoreRuntime";
+import { ProjectDb } from "../core/ProjectDb";
+import { createProjectMembershipService } from "../core/ProjectMembershipService";
+import { createFileService, type FileRecord } from "../feature/files/FileService";
+import { createCommentsService, type CommentRecord } from "../feature/comments/CommentsService";
+import { initDefaultPolicies } from "../core/permissions/PolicyRegistry";
+import { setCurrentUserProvider, type CurrentUserProvider } from "../core/auth/CurrentUserProvider";
+import type { CurrentUser } from "../core/auth/CurrentUserTypes";
+import type { AppError } from "../core/foundation/CoreTypes";
 
 import { evaluateBoolean, ExpressionContext } from "./ExpressionEvaluator";
 
@@ -213,6 +222,16 @@ async function main() {
 
   const validator = new ShellConfigValidator(cwd);
   const deployer = new ShellConfigDeployer(configRepo, validator, cwd);
+
+    initDefaultPolicies();
+
+    const coreRuntime = new CoreRuntime({
+        storageRoot: path.join(cwd, "localstorage"),
+    });
+    const projectDb = new ProjectDb(coreRuntime);
+    const membershipService = createProjectMembershipService(projectDb);
+    const fileService = createFileService({ projectDb, membershipService });
+    const commentsService = createCommentsService({ projectDb, membershipService });
   
   // Singleton runtime manager
   const runtimeManager = createBindingRuntimeManager(configRepo);
@@ -273,6 +292,102 @@ async function main() {
 
     const canAccessRuntimeObservability = (ctx: any): boolean => {
         return isLocalhostRequest(ctx) || hasRuntimeAdminRole(ctx);
+    };
+
+    class RequestCurrentUserProvider implements CurrentUserProvider {
+        constructor(private readonly user: CurrentUser | null) {}
+
+        getCurrentUser(): CurrentUser | null {
+            return this.user;
+        }
+
+        isAuthenticated(): boolean {
+            return this.user !== null;
+        }
+    }
+
+    const getRequestUser = (req: http.IncomingMessage, ctx: any): CurrentUser | null => {
+        if (ctx.auth?.userId) {
+            return {
+                id: String(ctx.auth.userId),
+                displayName: String(ctx.auth.userId),
+                roles: Array.isArray(ctx.auth.roles) ? ctx.auth.roles.map((r: any) => String(r)) : [],
+            };
+        }
+
+        if (!ModeGate.canUseDevAuthBypass(ctx)) {
+            return null;
+        }
+
+        const authHeader = req.headers["x-dev-auth"] as string | undefined;
+        if (!authHeader) {
+            return null;
+        }
+
+        try {
+            const payload = JSON.parse(authHeader);
+            const userId = typeof payload?.userId === "string" && payload.userId.length > 0 ? payload.userId : "dev-user";
+            const roles = Array.isArray(payload?.roles) ? payload.roles.map((r: any) => String(r)) : [];
+            return {
+                id: userId,
+                displayName: userId,
+                roles,
+            };
+        } catch {
+            return null;
+        }
+    };
+
+    const withRequestUser = async <T>(req: http.IncomingMessage, ctx: any, fn: () => Promise<T>): Promise<T> => {
+        const user = getRequestUser(req, ctx);
+        setCurrentUserProvider(new RequestCurrentUserProvider(user));
+        return fn();
+    };
+
+    const sendAppError = (res: http.ServerResponse, ctx: any, error: AppError) => {
+        if (error.code === "PERMISSION_DENIED") {
+            return sendErrorEnvelope(res, ctx, 403, "forbidden", error.message);
+        }
+        if (error.code === "NOT_FOUND") {
+            return sendErrorEnvelope(res, ctx, 404, "not_found", error.message);
+        }
+        return sendErrorEnvelope(res, ctx, 400, "invalid_request", error.message);
+    };
+
+    const toFileResponse = (row: FileRecord) => ({
+        id: row.id,
+        storageKey: row.storageKey,
+        filename: row.filename,
+        mimeType: row.mimeType,
+        sizeBytes: row.sizeBytes,
+        createdAt: row.createdAt,
+        createdBy: row.createdBy,
+        metadata: row.metadata,
+    });
+
+    const toCommentResponse = (row: CommentRecord) => {
+        const result: {
+            id: string;
+            authorUserId: string;
+            body: string;
+            createdAt: string;
+            attachments?: readonly string[];
+            metadata?: Record<string, unknown>;
+        } = {
+            id: row.id,
+            authorUserId: row.authorUserId,
+            body: row.body,
+            createdAt: row.createdAt,
+        };
+
+        if (row.attachments.length > 0) {
+            result.attachments = row.attachments;
+        }
+        if (row.metadata) {
+            result.metadata = row.metadata;
+        }
+
+        return result;
     };
 
 
@@ -354,6 +469,59 @@ async function main() {
                     uiAdvice: { reloadRecommended: false }
             });
     });
+
+      router.get("/api/projects/:projectId/files", async (req, res, params, ctx) => {
+          const { projectId } = params;
+          const result = await withRequestUser(req, ctx, async () => fileService.listFiles(projectId));
+
+          if (!result.ok) {
+              return sendAppError(res, ctx, result.error);
+          }
+
+          return sendEnvelope(res, ctx, {
+              items: result.value.map(toFileResponse),
+          });
+      });
+
+      router.get("/api/projects/:projectId/files/:fileId", async (req, res, params, ctx) => {
+          const { projectId, fileId } = params;
+          const result = await withRequestUser(req, ctx, async () => fileService.getFile(projectId, fileId));
+
+          if (!result.ok) {
+              return sendAppError(res, ctx, result.error);
+          }
+
+          return sendEnvelope(res, ctx, {
+              item: toFileResponse(result.value),
+          });
+      });
+
+      router.get("/api/projects/:projectId/comments", async (req, res, params, ctx) => {
+          const { projectId } = params;
+          const urlParts = parse(req.url || "", true);
+          const targetType = typeof urlParts.query.targetType === "string" ? urlParts.query.targetType.trim() : "";
+          const targetId = typeof urlParts.query.targetId === "string" ? urlParts.query.targetId.trim() : "";
+
+          if (!targetType || !targetId) {
+              return sendErrorEnvelope(
+                  res,
+                  ctx,
+                  400,
+                  "invalid_request",
+                  "Missing required query params: targetType and targetId"
+              );
+          }
+
+          const result = await withRequestUser(req, ctx, async () => commentsService.listComments(projectId, targetType, targetId));
+
+          if (!result.ok) {
+              return sendAppError(res, ctx, result.error);
+          }
+
+          return sendEnvelope(res, ctx, {
+              items: result.value.map(toCommentResponse),
+          });
+      });
 
   // UI Node Schema Endpoint
   router.get("/api/schemas/ui-node/:nodeType", async (_req, res, params) => {

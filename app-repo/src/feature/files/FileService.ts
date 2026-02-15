@@ -29,6 +29,10 @@ export interface FileService {
     input: { name: string; contentType: string; sizeBytes: number; storageKey?: string; metadata?: Record<string, unknown> | null }
   ): Promise<Result<{ fileId: string }, AppError>>;
 
+  listFiles(projectId: string): Promise<Result<readonly FileRecord[], AppError>>;
+
+  getFile(projectId: string, fileId: string): Promise<Result<FileRecord, AppError>>;
+
   deleteFile(projectId: string, fileId: string): Promise<Result<void, AppError>>;
 }
 
@@ -80,6 +84,51 @@ export function createFileService(deps: FileServiceDependencies): FileService {
       });
 
       return { ok: true, value: { fileId: created.id } };
+    },
+
+    async listFiles(projectId) {
+      const ctx = await buildProjectPermissionContextForCurrentUser(projectId, membershipService);
+
+      const decision = permissionService.canWithReason(ctx, "FILE_READ", {
+        type: "file",
+        id: "*",
+        projectId,
+      });
+
+      if (!decision.allowed) {
+        return toPermissionError(decision);
+      }
+
+      const rows = await repository.list(projectId);
+      return { ok: true, value: rows };
+    },
+
+    async getFile(projectId, fileId) {
+      const row = await repository.get(projectId, fileId);
+
+      if (!row) {
+        return {
+          ok: false,
+          error: {
+            code: "NOT_FOUND",
+            message: "File not found",
+          },
+        };
+      }
+
+      const ctx = await buildProjectPermissionContextForCurrentUser(projectId, membershipService);
+
+      const decision = permissionService.canWithReason(ctx, "FILE_READ", {
+        type: "file",
+        id: row.id,
+        projectId: row.projectId,
+      });
+
+      if (!decision.allowed) {
+        return toPermissionError(decision);
+      }
+
+      return { ok: true, value: row };
     },
 
     async deleteFile(projectId, fileId) {

@@ -49,6 +49,8 @@ As of the current MVP, a backend `FileService` is implemented with a
 minimal but real write surface for project files:
 
 - `uploadFile(projectId, { name, contentType, sizeBytes }): Promise<Result<{ fileId: string }, AppError>>`
+- `listFiles(projectId): Promise<Result<readonly FileRecord[], AppError>>`
+- `getFile(projectId, fileId): Promise<Result<FileRecord, AppError>>`
 - `deleteFile(projectId, fileId): Promise<Result<void, AppError>>`
 
 Both operations:
@@ -57,8 +59,8 @@ Both operations:
   project using `buildProjectPermissionContextForCurrentUser(projectId,
   membershipService)` from `core.permissions`.
 - Delegate the actual decision to `PermissionService.canWithReason`
-  using `FILE_WRITE` on a `file` resource (and `FILE_READ` where read
-  checks are needed as the surface grows).
+  using `FILE_WRITE` on a `file` resource for write operations and
+  `FILE_READ` for list/get read operations.
 - On permission denial, return a failure `Result` with an `AppError` of
   the form:
   - `code: "PERMISSION_DENIED"`

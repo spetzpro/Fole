@@ -34,6 +34,7 @@ export interface CommentsServiceDependencies {
 
 export interface CommentsService {
 	createComment(projectId: string, input: CreateCommentInput): Promise<Result<{ commentId: string }, AppError>>;
+	listComments(projectId: string, targetType: string, targetId: string): Promise<Result<readonly CommentRecord[], AppError>>;
 	deleteComment(projectId: string, commentId: string): Promise<Result<void, AppError>>;
 }
 
@@ -98,6 +99,23 @@ export function createCommentsService(deps: CommentsServiceDependencies): Commen
 			});
 
 			return { ok: true, value: { commentId: id } };
+		},
+
+		async listComments(projectId, targetType, targetId) {
+			const ctx = await buildProjectPermissionContextForCurrentUser(projectId, membershipService);
+
+			const projectReadDecision = await permissionService.canWithReason(ctx, "PROJECT_READ", {
+				type: "project",
+				id: projectId,
+				projectId,
+			});
+
+			if (!projectReadDecision.allowed) {
+				return toPermissionError(projectReadDecision.reasonCode, projectReadDecision.grantSource);
+			}
+
+			const rows = await repository.listByTarget(projectId, targetType, targetId);
+			return { ok: true, value: rows };
 		},
 
 		async deleteComment(projectId, commentId) {
