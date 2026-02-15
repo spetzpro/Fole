@@ -40,6 +40,14 @@ Use this short, repeatable checklist before release. It focuses on the builder f
 - Quick check: search repo root for recent file changes outside `localstorage/` after activation.
   - If files appear under `app-repo/` or other tracked paths, treat as a release blocker.
 
+## 6) Smoke check
+- Run `npm run smoke`.
+- Use this before release and after major changes.
+
+## 7) Tests
+- Run core permissions tests: `npm run test:core:jest`.
+- Run one file only when needed: `npm run test:core:file -- app-repo/tests/core/<name>.test.ts`.
+
 Notes
 - Advanced JSON is the fallback for template defaults when schema-driven fields are insufficient.
 - Template defaults must stay leaf-only (no `children` or `inheritFrom`).

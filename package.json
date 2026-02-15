@@ -9,6 +9,7 @@
     "test:feature": "npx ts-node --project tsconfig.json app-repo/tests/feature/files/filesPermissions.test.ts && npx ts-node --project tsconfig.json app-repo/tests/feature/comments/commentsPermissions.test.ts",
     "test:core:jest": "jest --config jest.config.js --runInBand app-repo/tests/core/permissionGuards.test.ts app-repo/tests/core/rolePermissionMapping.test.ts app-repo/tests/core/permissionsProjectMembership.test.ts",
     "test:core:file": "jest --config jest.config.js --runInBand",
+    "smoke": "npm run spec:check && npm run test:core:jest",
     "test:all": "npm run test:core && npm run test:feature",
     "test:binding-runtime": "npx ts-node --project tsconfig.json app-repo/scripts/test_binding_runtime_integration.ts",
     "test:action-dispatcher": "npx ts-node --project tsconfig.json app-repo/scripts/test_action_dispatcher.ts",
