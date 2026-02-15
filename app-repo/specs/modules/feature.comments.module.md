@@ -66,6 +66,7 @@ As of the current MVP, a backend `CommentsService` is implemented with a
 minimal write surface for project comments:
 
 - `createComment(projectId, { targetType, targetId, body }): Promise<Result<{ commentId: string }, AppError>>`
+- `createCommentRecord(projectId, { targetType, targetId, body, attachments?, metadata? }): Promise<Result<CommentRecord, AppError>>`
 - `listComments(projectId, targetType, targetId): Promise<Result<readonly CommentRecord[], AppError>>`
 - `deleteComment(projectId, commentId): Promise<Result<void, AppError>>`
 

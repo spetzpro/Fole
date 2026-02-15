@@ -49,6 +49,7 @@ As of the current MVP, a backend `FileService` is implemented with a
 minimal but real write surface for project files:
 
 - `uploadFile(projectId, { name, contentType, sizeBytes }): Promise<Result<{ fileId: string }, AppError>>`
+- `createFileMetadata(projectId, { id?, storageKey, filename, mimeType?, sizeBytes?, metadata? }): Promise<Result<FileRecord, AppError>>`
 - `listFiles(projectId): Promise<Result<readonly FileRecord[], AppError>>`
 - `getFile(projectId, fileId): Promise<Result<FileRecord, AppError>>`
 - `deleteFile(projectId, fileId): Promise<Result<void, AppError>>`

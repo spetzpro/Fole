@@ -34,6 +34,7 @@ export interface CommentsServiceDependencies {
 
 export interface CommentsService {
 	createComment(projectId: string, input: CreateCommentInput): Promise<Result<{ commentId: string }, AppError>>;
+	createCommentRecord(projectId: string, input: CreateCommentInput): Promise<Result<CommentRecord, AppError>>;
 	listComments(projectId: string, targetType: string, targetId: string): Promise<Result<readonly CommentRecord[], AppError>>;
 	deleteComment(projectId: string, commentId: string): Promise<Result<void, AppError>>;
 }
@@ -56,6 +57,15 @@ export function createCommentsService(deps: CommentsServiceDependencies): Commen
 
 	return {
 		async createComment(projectId, input) {
+			const createResult = await this.createCommentRecord(projectId, input);
+			if (!createResult.ok) {
+				return createResult;
+			}
+
+			return { ok: true, value: { commentId: createResult.value.id } };
+		},
+
+		async createCommentRecord(projectId, input) {
 			const ctx = await buildProjectPermissionContextForCurrentUser(projectId, membershipService);
 
 			// MVP underlying-resource read gate: PROJECT_READ on the project.
@@ -87,7 +97,7 @@ export function createCommentsService(deps: CommentsServiceDependencies): Commen
 			const currentUser = currentUserProvider?.getCurrentUser() ?? null;
 			const authorUserId = currentUser?.id ?? "unknown";
 
-			await repository.create(projectId, {
+			const created = await repository.create(projectId, {
 				id,
 				targetType: input.targetType,
 				targetId: input.targetId,
@@ -98,7 +108,7 @@ export function createCommentsService(deps: CommentsServiceDependencies): Commen
 				createdAt: now,
 			});
 
-			return { ok: true, value: { commentId: id } };
+			return { ok: true, value: created };
 		},
 
 		async listComments(projectId, targetType, targetId) {

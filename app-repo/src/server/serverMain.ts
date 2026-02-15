@@ -496,6 +496,41 @@ async function main() {
           });
       });
 
+      router.post("/api/projects/:projectId/files", async (req, res, params, ctx) => {
+          const { projectId } = params;
+
+          let body: any;
+          try {
+              body = await router.readJsonBody(req);
+          } catch {
+              return sendErrorEnvelope(res, ctx, 400, "invalid_request", "Invalid JSON body");
+          }
+
+          const storageKey = typeof body?.storageKey === "string" ? body.storageKey.trim() : "";
+          const filename = typeof body?.filename === "string" ? body.filename.trim() : "";
+
+          if (!storageKey || !filename) {
+              return sendErrorEnvelope(res, ctx, 400, "invalid_request", "Missing required fields: storageKey and filename");
+          }
+
+          const result = await withRequestUser(req, ctx, async () =>
+              fileService.createFileMetadata(projectId, {
+                  id: typeof body?.id === "string" && body.id.trim().length > 0 ? body.id.trim() : undefined,
+                  storageKey,
+                  filename,
+                  mimeType: typeof body?.mimeType === "string" && body.mimeType.trim().length > 0 ? body.mimeType.trim() : undefined,
+                  sizeBytes: typeof body?.sizeBytes === "number" && Number.isFinite(body.sizeBytes) ? body.sizeBytes : undefined,
+                  metadata: body?.metadata && typeof body.metadata === "object" && !Array.isArray(body.metadata) ? body.metadata : undefined,
+              })
+          );
+
+          if (!result.ok) {
+              return sendAppError(res, ctx, result.error);
+          }
+
+          return sendEnvelope(res, ctx, { item: toFileResponse(result.value) });
+      });
+
       router.get("/api/projects/:projectId/comments", async (req, res, params, ctx) => {
           const { projectId } = params;
           const urlParts = parse(req.url || "", true);
@@ -520,6 +555,53 @@ async function main() {
 
           return sendEnvelope(res, ctx, {
               items: result.value.map(toCommentResponse),
+          });
+      });
+
+      router.post("/api/projects/:projectId/comments", async (req, res, params, ctx) => {
+          const { projectId } = params;
+
+          let body: any;
+          try {
+              body = await router.readJsonBody(req);
+          } catch {
+              return sendErrorEnvelope(res, ctx, 400, "invalid_request", "Invalid JSON body");
+          }
+
+          const targetType = typeof body?.targetType === "string" ? body.targetType.trim() : "";
+          const targetId = typeof body?.targetId === "string" ? body.targetId.trim() : "";
+          const commentBody = typeof body?.body === "string" ? body.body.trim() : "";
+
+          if (!targetType || !targetId || !commentBody) {
+              return sendErrorEnvelope(
+                  res,
+                  ctx,
+                  400,
+                  "invalid_request",
+                  "Missing required fields: targetType, targetId, and body"
+              );
+          }
+
+          const attachments = Array.isArray(body?.attachments)
+              ? body.attachments.filter((entry: unknown): entry is string => typeof entry === "string")
+              : undefined;
+
+          const result = await withRequestUser(req, ctx, async () =>
+              commentsService.createCommentRecord(projectId, {
+                  targetType,
+                  targetId,
+                  body: commentBody,
+                  attachments,
+                  metadata: body?.metadata && typeof body.metadata === "object" && !Array.isArray(body.metadata) ? body.metadata : undefined,
+              })
+          );
+
+          if (!result.ok) {
+              return sendAppError(res, ctx, result.error);
+          }
+
+          return sendEnvelope(res, ctx, {
+              item: toCommentResponse(result.value),
           });
       });
 

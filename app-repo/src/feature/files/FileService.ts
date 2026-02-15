@@ -29,6 +29,18 @@ export interface FileService {
     input: { name: string; contentType: string; sizeBytes: number; storageKey?: string; metadata?: Record<string, unknown> | null }
   ): Promise<Result<{ fileId: string }, AppError>>;
 
+  createFileMetadata(
+    projectId: string,
+    input: {
+      id?: string;
+      storageKey: string;
+      filename: string;
+      mimeType?: string;
+      sizeBytes?: number;
+      metadata?: Record<string, unknown> | null;
+    }
+  ): Promise<Result<FileRecord, AppError>>;
+
   listFiles(projectId: string): Promise<Result<readonly FileRecord[], AppError>>;
 
   getFile(projectId: string, fileId: string): Promise<Result<FileRecord, AppError>>;
@@ -84,6 +96,35 @@ export function createFileService(deps: FileServiceDependencies): FileService {
       });
 
       return { ok: true, value: { fileId: created.id } };
+    },
+
+    async createFileMetadata(projectId, input) {
+      const ctx = await buildProjectPermissionContextForCurrentUser(projectId, membershipService);
+
+      const resource: ResourceDescriptor = {
+        type: "file",
+        id: input.id ?? "new",
+        projectId,
+      };
+
+      const decision = permissionService.canWithReason(ctx, "FILE_WRITE", resource);
+      if (!decision.allowed) {
+        return toPermissionError(decision);
+      }
+
+      const createdBy = ctx.user?.id ?? "unknown";
+
+      const created = await repository.create(projectId, {
+        id: input.id,
+        storageKey: input.storageKey,
+        filename: input.filename,
+        mimeType: input.mimeType ?? "application/octet-stream",
+        sizeBytes: input.sizeBytes ?? 0,
+        metadata: input.metadata ?? null,
+        createdBy,
+      });
+
+      return { ok: true, value: created };
     },
 
     async listFiles(projectId) {
