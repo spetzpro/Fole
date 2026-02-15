@@ -2337,6 +2337,7 @@ const ToastNotification = ({ message, onClose, type = 'info' }: ToastProps) => {
 function SysadminPanel({ 
     isOpen, 
     onClose, 
+    currentProjectId,
     bundleData, 
     runtimePlan, 
     runningSource = 'ACTIVE',
@@ -2356,6 +2357,7 @@ function SysadminPanel({
 }: { 
     isOpen: boolean; 
     onClose: () => void; 
+    currentProjectId: string;
     bundleData: BundleResponse | null; 
     runtimePlan: RuntimePlan | null; 
     runningSource?: 'ACTIVE' | 'DRAFT';
@@ -2409,6 +2411,129 @@ function SysadminPanel({
         } catch (e) {
             console.warn("Governed fetch failed", e);
             return null;
+        }
+    };
+
+    type ProjectFileItem = {
+        id: string;
+        filename?: string;
+        mimeType?: string;
+        sizeBytes?: number;
+        createdAt?: string;
+        createdBy?: string;
+    };
+
+    type ProjectCommentItem = {
+        id: string;
+        authorUserId?: string;
+        createdAt?: string;
+        body?: string;
+        attachments?: unknown[];
+    };
+
+    const [projectFiles, setProjectFiles] = useState<ProjectFileItem[]>([]);
+    const [projectFilesLoading, setProjectFilesLoading] = useState(false);
+    const [projectFilesError, setProjectFilesError] = useState<string | null>(null);
+
+    const [commentsTargetType, setCommentsTargetType] = useState('');
+    const [commentsTargetId, setCommentsTargetId] = useState('');
+    const [projectComments, setProjectComments] = useState<ProjectCommentItem[]>([]);
+    const [projectCommentsLoading, setProjectCommentsLoading] = useState(false);
+    const [projectCommentsError, setProjectCommentsError] = useState<string | null>(null);
+
+    useEffect(() => {
+        setProjectFiles([]);
+        setProjectFilesError(null);
+        setProjectFilesLoading(false);
+        setProjectComments([]);
+        setProjectCommentsError(null);
+        setProjectCommentsLoading(false);
+    }, [currentProjectId]);
+
+    const toHttpErrorMessage = async (res: Response, fallback: string): Promise<string> => {
+        try {
+            const json = await res.json();
+            const details = json?.error?.message || json?.error || json?.message || fallback;
+            return `${res.status} ${details}`;
+        } catch {
+            return `${res.status} ${fallback}`;
+        }
+    };
+
+    const loadProjectFiles = async () => {
+        if (!currentProjectId.trim()) {
+            setProjectFilesError('Set current projectId first.');
+            return;
+        }
+
+        setProjectFilesLoading(true);
+        setProjectFilesError(null);
+        setProjectFiles([]);
+
+        const res = await governedFetch(`/api/projects/${encodeURIComponent(currentProjectId.trim())}/files`);
+        if (!res) {
+            setProjectFilesError('Network error while loading files');
+            setProjectFilesLoading(false);
+            return;
+        }
+
+        if (!res.ok) {
+            setProjectFilesError(await toHttpErrorMessage(res, 'Failed to load files'));
+            setProjectFilesLoading(false);
+            return;
+        }
+
+        try {
+            const json = await res.json();
+            const items = Array.isArray(json?.data?.items) ? json.data.items : [];
+            setProjectFiles(items as ProjectFileItem[]);
+        } catch {
+            setProjectFilesError('Invalid JSON while loading files');
+        } finally {
+            setProjectFilesLoading(false);
+        }
+    };
+
+    const loadProjectComments = async () => {
+        if (!currentProjectId.trim()) {
+            setProjectCommentsError('Set current projectId first.');
+            return;
+        }
+
+        const targetType = commentsTargetType.trim();
+        const targetId = commentsTargetId.trim();
+
+        if (!targetType || !targetId) {
+            setProjectCommentsError('targetType and targetId are required');
+            return;
+        }
+
+        setProjectCommentsLoading(true);
+        setProjectCommentsError(null);
+        setProjectComments([]);
+
+        const query = `targetType=${encodeURIComponent(targetType)}&targetId=${encodeURIComponent(targetId)}`;
+        const res = await governedFetch(`/api/projects/${encodeURIComponent(currentProjectId.trim())}/comments?${query}`);
+        if (!res) {
+            setProjectCommentsError('Network error while loading comments');
+            setProjectCommentsLoading(false);
+            return;
+        }
+
+        if (!res.ok) {
+            setProjectCommentsError(await toHttpErrorMessage(res, 'Failed to load comments'));
+            setProjectCommentsLoading(false);
+            return;
+        }
+
+        try {
+            const json = await res.json();
+            const items = Array.isArray(json?.data?.items) ? json.data.items : [];
+            setProjectComments(items as ProjectCommentItem[]);
+        } catch {
+            setProjectCommentsError('Invalid JSON while loading comments');
+        } finally {
+            setProjectCommentsLoading(false);
         }
     };
 
@@ -2612,6 +2737,7 @@ function SysadminPanel({
         tabs.push('Versions');
     }
     tabs.push('Resolved Graph');
+    tabs.push('Projects');
     tabs.push('ConfigSysadmin');
     tabs.push('Node Editor (Button)');
     tabs.push('Node Editor (Text)');
@@ -8315,6 +8441,125 @@ function SysadminPanel({
                     />
                 );
             }
+            case 'Projects': {
+                const projectId = currentProjectId.trim();
+                if (!projectId) {
+                    return (
+                        <div style={{padding:'20px', color:'#666'}}>
+                            Set Current Project ID in the app header before using this section.
+                        </div>
+                    );
+                }
+
+                return (
+                    <div style={{display:'flex', flexDirection:'column', gap:'16px'}}>
+                        <div style={{padding:'8px 10px', background:'#f5f5f5', border:'1px solid #ddd', borderRadius:'4px'}}>
+                            <strong>Project:</strong> {projectId}
+                        </div>
+
+                        <div style={{border:'1px solid #ddd', borderRadius:'4px', padding:'10px'}}>
+                            <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'8px'}}>
+                                <strong>Files</strong>
+                                <button onClick={loadProjectFiles} disabled={projectFilesLoading}>
+                                    {projectFilesLoading ? 'Loading…' : 'Load Files'}
+                                </button>
+                            </div>
+
+                            {projectFilesError && <div style={{color:'#b71c1c', marginBottom:'8px'}}>{projectFilesError}</div>}
+
+                            <div style={{maxHeight:'220px', overflow:'auto', border:'1px solid #eee'}}>
+                                <table style={{width:'100%', borderCollapse:'collapse', fontSize:'0.85em'}}>
+                                    <thead>
+                                        <tr style={{background:'#fafafa'}}>
+                                            <th style={{textAlign:'left', padding:'6px', borderBottom:'1px solid #eee'}}>fileId</th>
+                                            <th style={{textAlign:'left', padding:'6px', borderBottom:'1px solid #eee'}}>filename</th>
+                                            <th style={{textAlign:'left', padding:'6px', borderBottom:'1px solid #eee'}}>mimeType</th>
+                                            <th style={{textAlign:'left', padding:'6px', borderBottom:'1px solid #eee'}}>sizeBytes</th>
+                                            <th style={{textAlign:'left', padding:'6px', borderBottom:'1px solid #eee'}}>createdAt</th>
+                                            <th style={{textAlign:'left', padding:'6px', borderBottom:'1px solid #eee'}}>createdBy</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {projectFiles.map((file, idx) => (
+                                            <tr key={`${file.id}-${idx}`}>
+                                                <td style={{padding:'6px', borderBottom:'1px solid #f0f0f0'}}>{file.id}</td>
+                                                <td style={{padding:'6px', borderBottom:'1px solid #f0f0f0'}}>{file.filename || '-'}</td>
+                                                <td style={{padding:'6px', borderBottom:'1px solid #f0f0f0'}}>{file.mimeType || '-'}</td>
+                                                <td style={{padding:'6px', borderBottom:'1px solid #f0f0f0'}}>{typeof file.sizeBytes === 'number' ? file.sizeBytes : '-'}</td>
+                                                <td style={{padding:'6px', borderBottom:'1px solid #f0f0f0'}}>{file.createdAt || '-'}</td>
+                                                <td style={{padding:'6px', borderBottom:'1px solid #f0f0f0'}}>{file.createdBy || '-'}</td>
+                                            </tr>
+                                        ))}
+                                        {projectFiles.length === 0 && !projectFilesLoading && (
+                                            <tr>
+                                                <td colSpan={6} style={{padding:'8px', color:'#888'}}>No files loaded.</td>
+                                            </tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <div style={{border:'1px solid #ddd', borderRadius:'4px', padding:'10px'}}>
+                            <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'8px'}}>
+                                <strong>Comments</strong>
+                                <button onClick={loadProjectComments} disabled={projectCommentsLoading}>
+                                    {projectCommentsLoading ? 'Loading…' : 'Load Comments'}
+                                </button>
+                            </div>
+
+                            <div style={{display:'flex', gap:'8px', marginBottom:'8px'}}>
+                                <input
+                                    type="text"
+                                    placeholder="targetType"
+                                    value={commentsTargetType}
+                                    onChange={(e) => setCommentsTargetType(e.target.value)}
+                                    style={{padding:'6px', flex:1}}
+                                />
+                                <input
+                                    type="text"
+                                    placeholder="targetId"
+                                    value={commentsTargetId}
+                                    onChange={(e) => setCommentsTargetId(e.target.value)}
+                                    style={{padding:'6px', flex:1}}
+                                />
+                            </div>
+
+                            {projectCommentsError && <div style={{color:'#b71c1c', marginBottom:'8px'}}>{projectCommentsError}</div>}
+
+                            <div style={{maxHeight:'220px', overflow:'auto', border:'1px solid #eee'}}>
+                                <table style={{width:'100%', borderCollapse:'collapse', fontSize:'0.85em'}}>
+                                    <thead>
+                                        <tr style={{background:'#fafafa'}}>
+                                            <th style={{textAlign:'left', padding:'6px', borderBottom:'1px solid #eee'}}>commentId</th>
+                                            <th style={{textAlign:'left', padding:'6px', borderBottom:'1px solid #eee'}}>authorUserId</th>
+                                            <th style={{textAlign:'left', padding:'6px', borderBottom:'1px solid #eee'}}>createdAt</th>
+                                            <th style={{textAlign:'left', padding:'6px', borderBottom:'1px solid #eee'}}>body</th>
+                                            <th style={{textAlign:'left', padding:'6px', borderBottom:'1px solid #eee'}}>attachments</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {projectComments.map((comment, idx) => (
+                                            <tr key={`${comment.id}-${idx}`}>
+                                                <td style={{padding:'6px', borderBottom:'1px solid #f0f0f0'}}>{comment.id}</td>
+                                                <td style={{padding:'6px', borderBottom:'1px solid #f0f0f0'}}>{comment.authorUserId || '-'}</td>
+                                                <td style={{padding:'6px', borderBottom:'1px solid #f0f0f0'}}>{comment.createdAt || '-'}</td>
+                                                <td style={{padding:'6px', borderBottom:'1px solid #f0f0f0'}}>{comment.body || '-'}</td>
+                                                <td style={{padding:'6px', borderBottom:'1px solid #f0f0f0'}}>{Array.isArray(comment.attachments) ? comment.attachments.length : 0}</td>
+                                            </tr>
+                                        ))}
+                                        {projectComments.length === 0 && !projectCommentsLoading && (
+                                            <tr>
+                                                <td colSpan={5} style={{padding:'8px', color:'#888'}}>No comments loaded.</td>
+                                            </tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
             case 'ShellConfig': {
                 if (!bundleData) return <div style={{padding:'20px', color:'#666'}}>No bundle/config loaded yet.</div>;
                 return (
@@ -11465,6 +11710,14 @@ function SysadminPanel({
 function App() {
   
   const [caps, setCaps] = useState<RuntimeCapabilities>({ debugEndpointsEnabled: false, devModeOverridesEnabled: false });
+    const CURRENT_PROJECT_ID_STORAGE_KEY = 'fole.currentProjectId';
+    const [currentProjectId, setCurrentProjectId] = useState<string>(() => {
+            try {
+                    return localStorage.getItem(CURRENT_PROJECT_ID_STORAGE_KEY) || '';
+            } catch {
+                    return '';
+            }
+    });
   const hasDevAuth = !!localStorage.getItem('FOLE_DEV_AUTH');
   const canUseDebugUi = caps.debugEndpointsEnabled && hasDevAuth;
   const uiBuildIdRef = useRef(UI_BUILD_ID);
@@ -11520,6 +11773,14 @@ function App() {
         .then(d => d && setCaps(d))
         .catch(() => {}); 
   }, []);
+
+  useEffect(() => {
+      try {
+          localStorage.setItem(CURRENT_PROJECT_ID_STORAGE_KEY, currentProjectId);
+      } catch {
+          // ignore localStorage errors
+      }
+  }, [currentProjectId]);
 
   const debugFetch = async (inputPath: string, init?: RequestInit): Promise<Response | null> => {
       if (!caps.debugEndpointsEnabled) return null;
@@ -12130,6 +12391,17 @@ function App() {
             <span>{loading ? '(Loading...)' : ''}</span>
             <span style={{color: error ? 'red': 'black'}}>{error}</span>
         </div>
+                <div style={{display:'flex', gap:'8px', alignItems:'center', marginTop:'8px'}}>
+                        <strong style={{fontSize:'0.9em'}}>Current Project ID:</strong>
+                        <input
+                                type="text"
+                                value={currentProjectId}
+                                onChange={(e) => setCurrentProjectId(e.target.value)}
+                                placeholder="Enter projectId"
+                                style={{padding:'4px 6px', minWidth:'260px'}}
+                        />
+                        <span style={{fontSize:'0.8em', color:'#666'}}>Active: {currentProjectId.trim() || '(none)'}</span>
+                </div>
       </div>
 
       {/* App Header Region Removed - Moved to Shell Container */}
@@ -12369,6 +12641,7 @@ function App() {
                  <SysadminPanel 
                      isOpen={sysadminOpen} 
                      onClose={() => setSysadminOpen(false)}
+                     currentProjectId={currentProjectId}
                      bundleData={bundleData}
                      runtimePlan={runtimePlan}
                      runningSource={runningSource}
