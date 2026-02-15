@@ -68,11 +68,13 @@ async function setup(projectId: string) {
 		text: `CREATE TABLE IF NOT EXISTS comments (
 		  id TEXT PRIMARY KEY,
 		  project_id TEXT NOT NULL,
-		  anchor_type TEXT NOT NULL,
-		  anchor_id TEXT NOT NULL,
+		  target_type TEXT NOT NULL,
+		  target_id TEXT NOT NULL,
+		  author_user_id TEXT NOT NULL,
 		  body TEXT NOT NULL,
-		  created_at TEXT NOT NULL,
-		  created_by TEXT NOT NULL
+		  attachments_json TEXT,
+		  metadata_json TEXT,
+		  created_at TEXT NOT NULL
 		)` ,
 		parameters: [],
 	});
@@ -100,8 +102,8 @@ async function runCommentsPermissionsTests(): Promise<void> {
 		setCurrentUserProvider(new TestCurrentUserProvider(ownerUser));
 
 		const createResult = await commentsService.createComment(projectId, {
-			anchorType: "map",
-			anchorId: "map-1",
+			targetType: "map",
+			targetId: "map-1",
 			body: "Owner comment",
 		});
 		assert(createResult.ok, "owner create should succeed");
@@ -123,8 +125,8 @@ async function runCommentsPermissionsTests(): Promise<void> {
 		setCurrentUserProvider(new TestCurrentUserProvider(editorUser));
 
 		const createResult = await commentsService.createComment(projectId, {
-			anchorType: "map",
-			anchorId: "map-2",
+			targetType: "map",
+			targetId: "map-2",
 			body: "Editor comment",
 		});
 		assert(createResult.ok, "editor create should succeed");
@@ -146,8 +148,8 @@ async function runCommentsPermissionsTests(): Promise<void> {
 		setCurrentUserProvider(new TestCurrentUserProvider(viewerUser));
 
 		const createResult = await commentsService.createComment(projectId, {
-			anchorType: "map",
-			anchorId: "map-3",
+			targetType: "map",
+			targetId: "map-3",
 			body: "Viewer comment",
 		});
 		assert(!createResult.ok, "viewer create should be denied");
@@ -179,8 +181,8 @@ async function runCommentsPermissionsTests(): Promise<void> {
 		setCurrentUserProvider(new TestCurrentUserProvider(outsiderUser));
 
 		const createResult = await commentsService.createComment(projectId, {
-			anchorType: "map",
-			anchorId: "map-4",
+			targetType: "map",
+			targetId: "map-4",
 			body: "Outsider comment",
 		});
 		assert(!createResult.ok, "non-member create should be denied");
@@ -210,8 +212,8 @@ async function runCommentsPermissionsTests(): Promise<void> {
 		setCurrentUserProvider(new TestCurrentUserProvider(user));
 
 		const createResult = await commentsA.createComment(projectA, {
-			anchorType: "map",
-			anchorId: "map-cross",
+			targetType: "map",
+			targetId: "map-cross",
 			body: "Cross project comment",
 		});
 		assert(createResult.ok, "create in projectA should succeed");

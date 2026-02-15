@@ -4,13 +4,16 @@ import { getPermissionService } from "../../core/permissions/PermissionService";
 import { buildProjectPermissionContextForCurrentUser } from "../../core/permissions/PermissionGuards";
 import type { PermissionDecision, ResourceDescriptor } from "../../core/permissions/PermissionModel";
 import type { AppError, Result } from "../../core/foundation/CoreTypes";
+import { createFileRepository } from "./FileRepository";
 
 export interface FileRecord {
   id: string;
   projectId: string;
-  originalName: string;
+  storageKey: string;
+  filename: string;
   mimeType: string;
-  size: number;
+  sizeBytes: number;
+  metadata: Record<string, unknown> | null;
   createdAt: string;
   createdBy: string;
 }
@@ -23,7 +26,7 @@ export interface FileServiceDependencies {
 export interface FileService {
   uploadFile(
     projectId: string,
-    input: { name: string; contentType: string; sizeBytes: number }
+    input: { name: string; contentType: string; sizeBytes: number; storageKey?: string; metadata?: Record<string, unknown> | null }
   ): Promise<Result<{ fileId: string }, AppError>>;
 
   deleteFile(projectId: string, fileId: string): Promise<Result<void, AppError>>;
@@ -46,6 +49,7 @@ function toPermissionError(decision: PermissionDecision): Result<never, AppError
 export function createFileService(deps: FileServiceDependencies): FileService {
   const { projectDb, membershipService } = deps;
   const permissionService = getPermissionService();
+  const repository = createFileRepository(projectDb);
 
   return {
     async uploadFile(projectId, input) {
@@ -62,48 +66,26 @@ export function createFileService(deps: FileServiceDependencies): FileService {
         return toPermissionError(decision);
       }
 
-      const fileId = `file-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-
-      const conn = await projectDb.getConnection(projectId);
       const now = new Date().toISOString();
       const createdBy = ctx.user?.id ?? "unknown";
 
-      await conn.executeCommand({
-        type: "insert",
-        text:
-          "INSERT INTO files (id, project_id, original_name, mime_type, size, created_at, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)",
-        parameters: [
-          fileId,
-          projectId,
-          input.name,
-          input.contentType,
-          input.sizeBytes,
-          now,
-          createdBy,
-        ],
+      const created = await repository.create(projectId, {
+        storageKey: input.storageKey ?? `projects/${projectId}/files/${Date.now()}-${input.name}`,
+        filename: input.name,
+        mimeType: input.contentType,
+        sizeBytes: input.sizeBytes,
+        metadata: input.metadata ?? null,
+        createdBy,
+        createdAt: now,
       });
 
-      return { ok: true, value: { fileId } };
+      return { ok: true, value: { fileId: created.id } };
     },
 
     async deleteFile(projectId, fileId) {
-      const conn = await projectDb.getConnection(projectId);
+      const file = await repository.get(projectId, fileId);
 
-      const rows = await conn.executeQuery<{
-        id: string;
-        project_id: string;
-        original_name: string;
-        mime_type: string;
-        size: number;
-        created_at: string;
-        created_by: string;
-      }>({
-        text:
-          "SELECT id, project_id, original_name, mime_type, size, created_at, created_by FROM files WHERE id = ? LIMIT 1",
-        parameters: [fileId],
-      });
-
-      if (!rows || rows.length === 0) {
+      if (!file) {
         return {
           ok: false,
           error: {
@@ -113,14 +95,12 @@ export function createFileService(deps: FileServiceDependencies): FileService {
         };
       }
 
-      const row = rows[0];
-
       const ctx = await buildProjectPermissionContextForCurrentUser(projectId, membershipService);
 
       const resource: ResourceDescriptor = {
         type: "file",
-        id: row.id,
-        projectId: row.project_id,
+        id: file.id,
+        projectId: file.projectId,
       };
 
       const decision = permissionService.canWithReason(ctx, "FILE_WRITE", resource);
@@ -128,15 +108,9 @@ export function createFileService(deps: FileServiceDependencies): FileService {
         return toPermissionError(decision);
       }
 
-      await conn.executeCommand({
-        type: "delete",
-        text: "DELETE FROM files WHERE id = ?",
-        parameters: [fileId],
-      });
+      await repository.delete(projectId, fileId);
 
       return { ok: true, value: undefined };
     },
   };
 }
-
-// TODO: Wire the `files` table into real project.db migrations in a dedicated core.db migrations arc.

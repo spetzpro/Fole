@@ -70,14 +70,17 @@ These methods do **not** throw for normal permission outcomes; they use
 `Result<T, AppError>` to represent recoverable failures.
 
 MVP persistence for `feature.files` covers a subset of the full state
-shape above. The current implementation persists, per file:
+shape above. The current implementation persists, per file, in `project.db`:
 
-- `projectId` (as `project_id` in `project.db`)
-- `original_name` / `name`
-- `mime_type` / `contentType`
-- `size` / `sizeBytes`
-- `created_at` / `createdAt`
-- `created_by` / `createdBy`
+- `id`
+- `project_id`
+- `storage_key`
+- `filename`
+- `mime_type`
+- `size_bytes`
+- `metadata_json` (optional)
+- `created_at`
+- `created_by`
 
 Planned future arcs will extend both the DB schema and this module to
 cover the richer model:

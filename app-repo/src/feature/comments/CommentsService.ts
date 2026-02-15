@@ -5,21 +5,26 @@ import { buildProjectPermissionContextForCurrentUser } from "../../core/permissi
 import { getPermissionService } from "../../core/permissions/PermissionService";
 import type { Result, AppError } from "../../core/foundation/CoreTypes";
 import { getCurrentUserProvider } from "../../core/auth/CurrentUserProvider";
+import { createCommentRepository } from "./CommentRepository";
 
 export interface CreateCommentInput {
-	anchorType: string;
-	anchorId: string;
+	targetType: string;
+	targetId: string;
 	body: string;
+	attachments?: readonly string[];
+	metadata?: Record<string, unknown> | null;
 }
 
 export interface CommentRecord {
 	id: string;
 	projectId: string;
-	anchorType: string;
-	anchorId: string;
+	targetType: string;
+	targetId: string;
+	authorUserId: string;
 	body: string;
+	attachments: readonly string[];
+	metadata: Record<string, unknown> | null;
 	createdAt: string;
-	createdBy: string;
 }
 
 export interface CommentsServiceDependencies {
@@ -46,6 +51,7 @@ function toPermissionError(reasonCode: string | undefined, grantSource: string |
 export function createCommentsService(deps: CommentsServiceDependencies): CommentsService {
 	const membershipService = deps.membershipService ?? createProjectMembershipService(deps.projectDb);
 	const permissionService = getPermissionService();
+	const repository = createCommentRepository(deps.projectDb);
 
 	return {
 		async createComment(projectId, input) {
@@ -73,44 +79,31 @@ export function createCommentsService(deps: CommentsServiceDependencies): Commen
 				return toPermissionError(createDecision.reasonCode, createDecision.grantSource);
 			}
 
-			const conn = await deps.projectDb.getConnection(projectId);
-
 			const id = randomUUID();
 			const now = new Date().toISOString();
 			// NOTE: createdBy is taken from the current user provider.
 			const currentUserProvider = getCurrentUserProvider();
 			const currentUser = currentUserProvider?.getCurrentUser() ?? null;
-			const createdBy = currentUser?.id ?? "unknown";
+			const authorUserId = currentUser?.id ?? "unknown";
 
-			await conn.executeCommand({
-				type: "insert",
-				text:
-					"INSERT INTO comments (id, project_id, anchor_type, anchor_id, body, created_at, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)",
-				parameters: [id, projectId, input.anchorType, input.anchorId, input.body, now, createdBy],
+			await repository.create(projectId, {
+				id,
+				targetType: input.targetType,
+				targetId: input.targetId,
+				authorUserId,
+				body: input.body,
+				attachments: input.attachments,
+				metadata: input.metadata ?? null,
+				createdAt: now,
 			});
 
 			return { ok: true, value: { commentId: id } };
 		},
 
 		async deleteComment(projectId, commentId) {
-			const conn = await deps.projectDb.getConnection(projectId);
-			const rows = await conn.executeQuery<{
-				id: string;
-				project_id: string;
-				anchor_type: string;
-				anchor_id: string;
-				body: string;
-				created_at: string;
-				created_by: string;
-			}>(
-				{
-					text:
-						"SELECT id, project_id, anchor_type, anchor_id, body, created_at, created_by FROM comments WHERE id = ? LIMIT 1",
-					parameters: [commentId],
-				}
-			);
+			const row = await repository.get(projectId, commentId);
 
-			if (!rows || rows.length === 0) {
+			if (!row) {
 				return {
 					ok: false,
 					error: {
@@ -120,25 +113,19 @@ export function createCommentsService(deps: CommentsServiceDependencies): Commen
 				};
 			}
 
-			const row = rows[0];
-
 			const ctx = await buildProjectPermissionContextForCurrentUser(projectId, membershipService);
 
 			const decision = await permissionService.canWithReason(ctx, "COMMENT_DELETE", {
 				type: "comment",
 				id: row.id,
-				projectId: row.project_id,
+				projectId: row.projectId,
 			});
 
 			if (!decision.allowed) {
 				return toPermissionError(decision.reasonCode, decision.grantSource);
 			}
 
-			await conn.executeCommand({
-				type: "delete",
-				text: "DELETE FROM comments WHERE id = ?",
-				parameters: [commentId],
-			});
+			await repository.delete(projectId, commentId);
 
 			return { ok: true, value: undefined };
 		},

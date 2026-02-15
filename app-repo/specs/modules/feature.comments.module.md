@@ -65,7 +65,7 @@ Provides a generic comment thread system that can attach to any resource type wh
 As of the current MVP, a backend `CommentsService` is implemented with a
 minimal write surface for project comments:
 
-- `createComment(projectId, { anchorType, anchorId, body }): Promise<Result<{ commentId: string }, AppError>>`
+- `createComment(projectId, { targetType, targetId, body }): Promise<Result<{ commentId: string }, AppError>>`
 - `deleteComment(projectId, commentId): Promise<Result<void, AppError>>`
 
 Both operations:
@@ -108,11 +108,13 @@ in `project.db`:
 
 - `id` (TEXT PRIMARY KEY)
 - `project_id` (TEXT NOT NULL)
-- `anchor_type` (TEXT NOT NULL)
-- `anchor_id` (TEXT NOT NULL)
+- `target_type` (TEXT NOT NULL)
+- `target_id` (TEXT NOT NULL)
+- `author_user_id` (TEXT NOT NULL)
 - `body` (TEXT NOT NULL)
+- `attachments_json` (TEXT NULL)
+- `metadata_json` (TEXT NULL)
 - `created_at` (TEXT NOT NULL)
-- `created_by` (TEXT NOT NULL)
 
 Planned future arcs will extend both the DB schema and this module to
 cover richer capabilities:

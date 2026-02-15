@@ -44,9 +44,9 @@ export class MigrationSqlGenerator {
     if (this.engine === "sqlite") {
       switch (tableName) {
         case "files":
-          return `CREATE TABLE${ine} files (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, original_name TEXT NOT NULL, mime_type TEXT NOT NULL, size INTEGER NOT NULL, created_at TEXT NOT NULL, created_by TEXT NOT NULL);`;
+          return `CREATE TABLE${ine} files (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, storage_key TEXT NOT NULL, filename TEXT NOT NULL, mime_type TEXT NOT NULL, size_bytes INTEGER NOT NULL, metadata_json TEXT, created_at TEXT NOT NULL, created_by TEXT NOT NULL);`;
         case "comments":
-          return `CREATE TABLE${ine} comments (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, anchor_type TEXT NOT NULL, anchor_id TEXT NOT NULL, body TEXT NOT NULL, created_at TEXT NOT NULL, created_by TEXT NOT NULL);`;
+          return `CREATE TABLE${ine} comments (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, target_type TEXT NOT NULL, target_id TEXT NOT NULL, author_user_id TEXT NOT NULL, body TEXT NOT NULL, attachments_json TEXT, metadata_json TEXT, created_at TEXT NOT NULL);`;
         default:
           return `CREATE TABLE${ine} ${tableName} (id TEXT PRIMARY KEY);`;
       }
@@ -54,9 +54,9 @@ export class MigrationSqlGenerator {
     // postgres
     switch (tableName) {
       case "files":
-        return `CREATE TABLE${ine} files (id uuid PRIMARY KEY, project_id text NOT NULL, original_name text NOT NULL, mime_type text NOT NULL, size integer NOT NULL, created_at text NOT NULL, created_by text NOT NULL);`;
+        return `CREATE TABLE${ine} files (id uuid PRIMARY KEY, project_id text NOT NULL, storage_key text NOT NULL, filename text NOT NULL, mime_type text NOT NULL, size_bytes bigint NOT NULL, metadata_json text, created_at text NOT NULL, created_by text NOT NULL);`;
       case "comments":
-        return `CREATE TABLE${ine} comments (id uuid PRIMARY KEY, project_id text NOT NULL, anchor_type text NOT NULL, anchor_id text NOT NULL, body text NOT NULL, created_at text NOT NULL, created_by text NOT NULL);`;
+        return `CREATE TABLE${ine} comments (id uuid PRIMARY KEY, project_id text NOT NULL, target_type text NOT NULL, target_id text NOT NULL, author_user_id text NOT NULL, body text NOT NULL, attachments_json text, metadata_json text, created_at text NOT NULL);`;
       default:
         return `CREATE TABLE${ine} ${tableName} (id uuid PRIMARY KEY);`;
     }

@@ -49,9 +49,11 @@ async function setup(projectId: string) {
     text: `CREATE TABLE IF NOT EXISTS files (
       id TEXT PRIMARY KEY,
       project_id TEXT NOT NULL,
-      original_name TEXT NOT NULL,
+      storage_key TEXT NOT NULL,
+      filename TEXT NOT NULL,
       mime_type TEXT NOT NULL,
-      size INTEGER NOT NULL,
+      size_bytes INTEGER NOT NULL,
+      metadata_json TEXT,
       created_at TEXT NOT NULL,
       created_by TEXT NOT NULL
     )`,
@@ -188,13 +190,15 @@ async function runFilesPermissionsTests(): Promise<void> {
     await conn.executeCommand({
       type: "insert",
       text:
-        "INSERT INTO files (id, project_id, original_name, mime_type, size, created_at, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO files (id, project_id, storage_key, filename, mime_type, size_bytes, metadata_json, created_at, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
       parameters: [
         wrongProjectFileId,
         projectId,
+        `projects/${projectId}/files/${wrongProjectFileId}`,
         "wrong-project.txt",
         "text/plain",
         10,
+        null,
         new Date().toISOString(),
         "user-owner",
       ],

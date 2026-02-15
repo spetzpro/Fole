@@ -47,11 +47,29 @@ async function testGeneratesSqliteSqlForInitialMigrations() {
     s.startsWith("CREATE TABLE IF NOT EXISTS comments"),
   );
 
+  const filesSchemaHasRequiredColumns = projectSql.statements.some((s) =>
+    s.startsWith("CREATE TABLE IF NOT EXISTS files") &&
+    s.includes("storage_key TEXT NOT NULL") &&
+    s.includes("filename TEXT NOT NULL") &&
+    s.includes("size_bytes INTEGER NOT NULL") &&
+    s.includes("metadata_json TEXT"),
+  );
+  const commentsSchemaHasRequiredColumns = projectSql.statements.some((s) =>
+    s.startsWith("CREATE TABLE IF NOT EXISTS comments") &&
+    s.includes("target_type TEXT NOT NULL") &&
+    s.includes("target_id TEXT NOT NULL") &&
+    s.includes("author_user_id TEXT NOT NULL") &&
+    s.includes("attachments_json TEXT") &&
+    s.includes("metadata_json TEXT"),
+  );
+
   assert(hasMaps, "maps table create SQL must be present");
   assert(hasMapCalibrations, "map_calibrations table create SQL must be present");
   assert(hasProjectMembers, "project_members table create SQL must be present");
   assert(hasFiles, "files table create SQL must be present");
   assert(hasComments, "comments table create SQL must be present");
+  assert(filesSchemaHasRequiredColumns, "files table SQL must include required MVP columns");
+  assert(commentsSchemaHasRequiredColumns, "comments table SQL must include required MVP columns");
 }
 
 async function testGeneratesPostgresSqlForInitialMigrations() {
@@ -71,5 +89,4 @@ async function testGeneratesPostgresSqlForInitialMigrations() {
 (async () => {
   await testGeneratesSqliteSqlForInitialMigrations();
   await testGeneratesPostgresSqlForInitialMigrations();
-  console.log("migrationSqlGenerator tests passed");
 })();
