@@ -38,6 +38,29 @@ The long-term vision: sysadmins and power users compose **entire application fea
 Runtime data lives under `STORAGE_ROOT` (outside Git).  
 In-repo storage must use `app-repo/.storage/` (hidden, ignored).
 
+### Local project ID for Sysadmin testing
+
+- A `projectId` is the folder name under `localstorage/projects/<projectId>/`.
+- Sysadmin Projects tab expects:
+  - Current Project ID (that folder name), and
+  - dev auth present in browser localStorage key `FOLE_DEV_AUTH`.
+
+Create/ensure exactly one local project safely:
+
+- Safe default (does not delete existing projects):
+  - `npx ts-node --project tsconfig.json app-repo/scripts/dev/ensure_one_local_project.ts`
+- Force wipe only `localstorage/projects` and recreate one:
+  - `npx ts-node --project tsconfig.json app-repo/scripts/dev/ensure_one_local_project.ts --force`
+
+List existing project IDs:
+
+- PowerShell: `Get-ChildItem -Directory localstorage/projects | Select-Object -ExpandProperty Name`
+
+Dev auth example (browser localStorage):
+
+- Key: `FOLE_DEV_AUTH`
+- Value: `{"userId":"dev-user","roles":["OWNER"]}`
+
 ---
 
 ## AI Governance & Rules
