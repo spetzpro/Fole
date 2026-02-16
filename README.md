@@ -51,6 +51,7 @@ Create/ensure exactly one local project safely:
   - `npx ts-node --project tsconfig.json app-repo/scripts/dev/ensure_one_local_project.ts`
 - Force wipe only `localstorage/projects` and recreate one:
   - `npx ts-node --project tsconfig.json app-repo/scripts/dev/ensure_one_local_project.ts --force`
+- Deprecated (do not run): `app-repo/scripts/create_one_localstorage_project.ts` (stub that exits non-zero)
 
 List existing project IDs:
 
