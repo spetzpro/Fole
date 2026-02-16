@@ -2442,6 +2442,7 @@ function SysadminPanel({
     const [projectCommentsLoading, setProjectCommentsLoading] = useState(false);
     const [projectCommentsError, setProjectCommentsError] = useState<string | null>(null);
     const [projectCommentsRequested, setProjectCommentsRequested] = useState(false);
+    const canLoadComments = commentsTargetType.trim() !== '' && commentsTargetId.trim() !== '';
 
     useEffect(() => {
         setProjectFiles([]);
@@ -8514,7 +8515,7 @@ function SysadminPanel({
                         <div style={{border:'1px solid #ddd', borderRadius:'4px', padding:'10px'}}>
                             <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'8px'}}>
                                 <strong>Comments</strong>
-                                <button onClick={loadProjectComments} disabled={projectCommentsLoading}>
+                                <button onClick={loadProjectComments} disabled={projectCommentsLoading || !canLoadComments}>
                                     {projectCommentsLoading ? 'Loading…' : 'Load Comments'}
                                 </button>
                             </div>
@@ -8535,6 +8536,10 @@ function SysadminPanel({
                                     style={{padding:'6px', flex:1}}
                                 />
                             </div>
+
+                            {!canLoadComments && (
+                                <div style={{fontSize:'0.8em', color:'#666', marginBottom:'8px'}}>Both fields are required.</div>
+                            )}
 
                             {projectCommentsError && <div style={{color:'#b71c1c', marginBottom:'8px'}}>{projectCommentsError}</div>}
 
