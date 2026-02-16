@@ -2338,6 +2338,7 @@ function SysadminPanel({
     isOpen, 
     onClose, 
     currentProjectId,
+    onSetCurrentProjectId,
     bundleData, 
     runtimePlan, 
     runningSource = 'ACTIVE',
@@ -2358,6 +2359,7 @@ function SysadminPanel({
     isOpen: boolean; 
     onClose: () => void; 
     currentProjectId: string;
+    onSetCurrentProjectId: (projectId: string) => void;
     bundleData: BundleResponse | null; 
     runtimePlan: RuntimePlan | null; 
     runningSource?: 'ACTIVE' | 'DRAFT';
@@ -2431,6 +2433,38 @@ function SysadminPanel({
         attachments?: unknown[];
     };
 
+    type RegistryProjectItem = {
+        id: string;
+        name?: string;
+        createdAt?: string;
+        lastOpenedAt?: string;
+    };
+
+    type ProjectMemberItem = {
+        projectId: string;
+        userId: string;
+        role: string;
+    };
+
+    const MEMBER_ROLE_OPTIONS = ['VIEWER', 'EDITOR', 'OWNER', 'ADMIN'];
+
+    const [projectsList, setProjectsList] = useState<RegistryProjectItem[]>([]);
+    const [projectsLoading, setProjectsLoading] = useState(false);
+    const [projectsError, setProjectsError] = useState<string | null>(null);
+    const [projectsRequested, setProjectsRequested] = useState(false);
+    const [newProjectName, setNewProjectName] = useState('');
+    const [createProjectLoading, setCreateProjectLoading] = useState(false);
+    const [createProjectError, setCreateProjectError] = useState<string | null>(null);
+
+    const [projectMembers, setProjectMembers] = useState<ProjectMemberItem[]>([]);
+    const [projectMembersLoading, setProjectMembersLoading] = useState(false);
+    const [projectMembersError, setProjectMembersError] = useState<string | null>(null);
+    const [projectMembersRequested, setProjectMembersRequested] = useState(false);
+    const [memberIdentityInput, setMemberIdentityInput] = useState('');
+    const [memberRoleInput, setMemberRoleInput] = useState('VIEWER');
+    const [memberMutationLoading, setMemberMutationLoading] = useState(false);
+    const [memberMutationError, setMemberMutationError] = useState<string | null>(null);
+
     const [projectFiles, setProjectFiles] = useState<ProjectFileItem[]>([]);
     const [projectFilesLoading, setProjectFilesLoading] = useState(false);
     const [projectFilesError, setProjectFilesError] = useState<string | null>(null);
@@ -2453,6 +2487,11 @@ function SysadminPanel({
         setProjectCommentsError(null);
         setProjectCommentsLoading(false);
         setProjectCommentsRequested(false);
+        setProjectMembers([]);
+        setProjectMembersError(null);
+        setProjectMembersLoading(false);
+        setProjectMembersRequested(false);
+        setMemberMutationError(null);
     }, [currentProjectId]);
 
     const toHttpErrorMessage = async (res: Response, fallback: string): Promise<string> => {
@@ -2497,6 +2536,187 @@ function SysadminPanel({
             setProjectFilesError('Invalid JSON while loading files');
         } finally {
             setProjectFilesLoading(false);
+        }
+    };
+
+    const refreshProjects = async () => {
+        setProjectsLoading(true);
+        setProjectsError(null);
+        setProjectsRequested(true);
+
+        const res = await governedFetch('/api/projects');
+        if (!res) {
+            setProjectsError('Network error while loading projects');
+            setProjectsLoading(false);
+            return;
+        }
+
+        if (!res.ok) {
+            setProjectsError(await toHttpErrorMessage(res, 'Failed to load projects'));
+            setProjectsLoading(false);
+            return;
+        }
+
+        try {
+            const json = await res.json();
+            const items = Array.isArray(json?.data?.items) ? json.data.items : [];
+            setProjectsList(items as RegistryProjectItem[]);
+        } catch {
+            setProjectsError('Invalid JSON while loading projects');
+        } finally {
+            setProjectsLoading(false);
+        }
+    };
+
+    const createProject = async () => {
+        setCreateProjectLoading(true);
+        setCreateProjectError(null);
+
+        const payload = newProjectName.trim().length > 0 ? { name: newProjectName.trim() } : {};
+        const res = await governedFetch('/api/projects', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+
+        if (!res) {
+            setCreateProjectError('Network error while creating project');
+            setCreateProjectLoading(false);
+            return;
+        }
+
+        if (!res.ok) {
+            setCreateProjectError(await toHttpErrorMessage(res, 'Failed to create project'));
+            setCreateProjectLoading(false);
+            return;
+        }
+
+        try {
+            const json = await res.json();
+            const projectId = typeof json?.data?.item?.id === 'string' ? json.data.item.id : '';
+            if (projectId) {
+                onSetCurrentProjectId(projectId);
+                setNewProjectName('');
+                await refreshProjects();
+            }
+        } catch {
+            setCreateProjectError('Invalid JSON while creating project');
+        } finally {
+            setCreateProjectLoading(false);
+        }
+    };
+
+    const loadProjectMembers = async () => {
+        const selectedProjectId = currentProjectId.trim();
+        if (!selectedProjectId) {
+            setProjectMembersError('Select a project first.');
+            return;
+        }
+
+        setProjectMembersLoading(true);
+        setProjectMembersError(null);
+        setProjectMembersRequested(true);
+        setProjectMembers([]);
+
+        const res = await governedFetch(`/api/projects/${encodeURIComponent(selectedProjectId)}/members`);
+        if (!res) {
+            setProjectMembersError('Network error while loading members');
+            setProjectMembersLoading(false);
+            return;
+        }
+
+        if (!res.ok) {
+            setProjectMembersError(await toHttpErrorMessage(res, 'Failed to load members'));
+            setProjectMembersLoading(false);
+            return;
+        }
+
+        try {
+            const json = await res.json();
+            const items = Array.isArray(json?.data?.items) ? json.data.items : [];
+            setProjectMembers(items as ProjectMemberItem[]);
+        } catch {
+            setProjectMembersError('Invalid JSON while loading members');
+        } finally {
+            setProjectMembersLoading(false);
+        }
+    };
+
+    const addOrUpdateMember = async () => {
+        const selectedProjectId = currentProjectId.trim();
+        const memberIdentity = memberIdentityInput.trim();
+        if (!selectedProjectId) {
+            setMemberMutationError('Select a project first.');
+            return;
+        }
+        if (!memberIdentity) {
+            setMemberMutationError('Member userId/email is required.');
+            return;
+        }
+
+        setMemberMutationLoading(true);
+        setMemberMutationError(null);
+
+        const res = await governedFetch(`/api/projects/${encodeURIComponent(selectedProjectId)}/members`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                memberUserIdOrEmail: memberIdentity,
+                role: memberRoleInput,
+            }),
+        });
+
+        if (!res) {
+            setMemberMutationError('Network error while saving member');
+            setMemberMutationLoading(false);
+            return;
+        }
+
+        if (!res.ok) {
+            setMemberMutationError(await toHttpErrorMessage(res, 'Failed to save member'));
+            setMemberMutationLoading(false);
+            return;
+        }
+
+        try {
+            setMemberIdentityInput('');
+            await loadProjectMembers();
+        } finally {
+            setMemberMutationLoading(false);
+        }
+    };
+
+    const removeMember = async (userId: string) => {
+        const selectedProjectId = currentProjectId.trim();
+        if (!selectedProjectId) {
+            setMemberMutationError('Select a project first.');
+            return;
+        }
+
+        setMemberMutationLoading(true);
+        setMemberMutationError(null);
+
+        const res = await governedFetch(
+            `/api/projects/${encodeURIComponent(selectedProjectId)}/members/${encodeURIComponent(userId)}`,
+            { method: 'DELETE' },
+        );
+
+        if (!res) {
+            setMemberMutationError('Network error while removing member');
+            setMemberMutationLoading(false);
+            return;
+        }
+
+        if (!res.ok) {
+            setMemberMutationError(await toHttpErrorMessage(res, 'Failed to remove member'));
+            setMemberMutationLoading(false);
+            return;
+        }
+
+        try {
+            await loadProjectMembers();
+        } finally {
+            setMemberMutationLoading(false);
         }
     };
 
@@ -8450,24 +8670,154 @@ function SysadminPanel({
             }
             case 'Projects': {
                 const projectId = currentProjectId.trim();
-                if (!projectId) {
-                    return (
-                        <div style={{padding:'20px', color:'#666'}}>
-                            Set Current Project ID in the app header before using this section.
-                        </div>
-                    );
-                }
 
                 return (
                     <div style={{display:'flex', flexDirection:'column', gap:'16px'}}>
+                        <div style={{border:'1px solid #ddd', borderRadius:'4px', padding:'10px'}}>
+                            <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'8px'}}>
+                                <strong>Projects Registry</strong>
+                                <button onClick={refreshProjects} disabled={projectsLoading}>
+                                    {projectsLoading ? 'Refreshing…' : 'Refresh Projects'}
+                                </button>
+                            </div>
+
+                            <div style={{display:'flex', gap:'8px', marginBottom:'8px'}}>
+                                <input
+                                    type="text"
+                                    placeholder="New project name (optional)"
+                                    value={newProjectName}
+                                    onChange={(e) => setNewProjectName(e.target.value)}
+                                    style={{padding:'6px', flex:1}}
+                                />
+                                <button onClick={createProject} disabled={createProjectLoading}>
+                                    {createProjectLoading ? 'Creating…' : 'Create Project'}
+                                </button>
+                            </div>
+
+                            {projectsError && <div style={{color:'#b71c1c', marginBottom:'8px'}}>{projectsError}</div>}
+                            {createProjectError && <div style={{color:'#b71c1c', marginBottom:'8px'}}>{createProjectError}</div>}
+
+                            <div style={{maxHeight:'180px', overflow:'auto', border:'1px solid #eee'}}>
+                                <table style={{width:'100%', borderCollapse:'collapse', fontSize:'0.85em'}}>
+                                    <thead>
+                                        <tr style={{background:'#fafafa'}}>
+                                            <th style={{textAlign:'left', padding:'6px', borderBottom:'1px solid #eee'}}>projectId</th>
+                                            <th style={{textAlign:'left', padding:'6px', borderBottom:'1px solid #eee'}}>name</th>
+                                            <th style={{textAlign:'left', padding:'6px', borderBottom:'1px solid #eee'}}>createdAt</th>
+                                            <th style={{textAlign:'left', padding:'6px', borderBottom:'1px solid #eee'}}>select</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {projectsList.map((project, idx) => (
+                                            <tr key={`${project.id}-${idx}`}>
+                                                <td style={{padding:'6px', borderBottom:'1px solid #f0f0f0'}}>{project.id}</td>
+                                                <td style={{padding:'6px', borderBottom:'1px solid #f0f0f0'}}>{project.name || '-'}</td>
+                                                <td style={{padding:'6px', borderBottom:'1px solid #f0f0f0'}}>{project.createdAt || '-'}</td>
+                                                <td style={{padding:'6px', borderBottom:'1px solid #f0f0f0'}}>
+                                                    <button
+                                                        onClick={() => onSetCurrentProjectId(project.id)}
+                                                        disabled={project.id === projectId}
+                                                    >
+                                                        {project.id === projectId ? 'Selected' : 'Select'}
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                        {!projectsError && !projectsLoading && !projectsRequested && (
+                                            <tr>
+                                                <td colSpan={4} style={{padding:'8px', color:'#888'}}>Not loaded yet.</td>
+                                            </tr>
+                                        )}
+                                        {!projectsError && !projectsLoading && projectsRequested && projectsList.length === 0 && (
+                                            <tr>
+                                                <td colSpan={4} style={{padding:'8px', color:'#888'}}>Loaded (0 projects).</td>
+                                            </tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
                         <div style={{padding:'8px 10px', background:'#f5f5f5', border:'1px solid #ddd', borderRadius:'4px'}}>
-                            <strong>Project:</strong> {projectId}
+                            <strong>Selected Project:</strong> {projectId || '(none)'}
+                        </div>
+
+                        <div style={{border:'1px solid #ddd', borderRadius:'4px', padding:'10px'}}>
+                            <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'8px'}}>
+                                <strong>Members</strong>
+                                <button onClick={loadProjectMembers} disabled={projectMembersLoading || !projectId}>
+                                    {projectMembersLoading ? 'Loading…' : 'Load Members'}
+                                </button>
+                            </div>
+
+                            <div style={{display:'flex', gap:'8px', marginBottom:'8px'}}>
+                                <input
+                                    type="text"
+                                    placeholder="member userId/email"
+                                    value={memberIdentityInput}
+                                    onChange={(e) => setMemberIdentityInput(e.target.value)}
+                                    style={{padding:'6px', flex:1}}
+                                />
+                                <select
+                                    value={memberRoleInput}
+                                    onChange={(e) => setMemberRoleInput(e.target.value)}
+                                    style={{padding:'6px'}}
+                                >
+                                    {MEMBER_ROLE_OPTIONS.map((role) => (
+                                        <option key={role} value={role}>{role}</option>
+                                    ))}
+                                </select>
+                                <button onClick={addOrUpdateMember} disabled={memberMutationLoading || !projectId}>
+                                    {memberMutationLoading ? 'Saving…' : 'Add/Update Member'}
+                                </button>
+                            </div>
+
+                            {projectMembersError && <div style={{color:'#b71c1c', marginBottom:'8px'}}>{projectMembersError}</div>}
+                            {memberMutationError && <div style={{color:'#b71c1c', marginBottom:'8px'}}>{memberMutationError}</div>}
+
+                            <div style={{maxHeight:'200px', overflow:'auto', border:'1px solid #eee'}}>
+                                <table style={{width:'100%', borderCollapse:'collapse', fontSize:'0.85em'}}>
+                                    <thead>
+                                        <tr style={{background:'#fafafa'}}>
+                                            <th style={{textAlign:'left', padding:'6px', borderBottom:'1px solid #eee'}}>userId/email</th>
+                                            <th style={{textAlign:'left', padding:'6px', borderBottom:'1px solid #eee'}}>role</th>
+                                            <th style={{textAlign:'left', padding:'6px', borderBottom:'1px solid #eee'}}>remove</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {projectMembers.map((member, idx) => (
+                                            <tr key={`${member.userId}-${idx}`}>
+                                                <td style={{padding:'6px', borderBottom:'1px solid #f0f0f0'}}>{member.userId}</td>
+                                                <td style={{padding:'6px', borderBottom:'1px solid #f0f0f0'}}>{member.role || '-'}</td>
+                                                <td style={{padding:'6px', borderBottom:'1px solid #f0f0f0'}}>
+                                                    <button
+                                                        onClick={() => removeMember(member.userId)}
+                                                        disabled={memberMutationLoading || !projectId}
+                                                    >
+                                                        Remove
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                        {!projectMembersError && !projectMembersLoading && !projectMembersRequested && (
+                                            <tr>
+                                                <td colSpan={3} style={{padding:'8px', color:'#888'}}>Not loaded yet.</td>
+                                            </tr>
+                                        )}
+                                        {!projectMembersError && !projectMembersLoading && projectMembersRequested && projectMembers.length === 0 && (
+                                            <tr>
+                                                <td colSpan={3} style={{padding:'8px', color:'#888'}}>Loaded (0 members).</td>
+                                            </tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
 
                         <div style={{border:'1px solid #ddd', borderRadius:'4px', padding:'10px'}}>
                             <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'8px'}}>
                                 <strong>Files</strong>
-                                <button onClick={loadProjectFiles} disabled={projectFilesLoading}>
+                                <button onClick={loadProjectFiles} disabled={projectFilesLoading || !projectId}>
                                     {projectFilesLoading ? 'Loading…' : 'Load Files'}
                                 </button>
                             </div>
@@ -8515,7 +8865,7 @@ function SysadminPanel({
                         <div style={{border:'1px solid #ddd', borderRadius:'4px', padding:'10px'}}>
                             <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'8px'}}>
                                 <strong>Comments</strong>
-                                <button onClick={loadProjectComments} disabled={projectCommentsLoading || !canLoadComments}>
+                                <button onClick={loadProjectComments} disabled={projectCommentsLoading || !canLoadComments || !projectId}>
                                     {projectCommentsLoading ? 'Loading…' : 'Load Comments'}
                                 </button>
                             </div>
@@ -12413,7 +12763,7 @@ function App() {
             <span style={{color: error ? 'red': 'black'}}>{error}</span>
         </div>
                 <div style={{display:'flex', gap:'8px', alignItems:'center', marginTop:'8px'}}>
-                        <strong style={{fontSize:'0.9em'}}>Current Project ID:</strong>
+                        <strong style={{fontSize:'0.9em'}}>Current Project ID (Manual override):</strong>
                         <input
                                 type="text"
                                 value={currentProjectId}
@@ -12663,6 +13013,7 @@ function App() {
                      isOpen={sysadminOpen} 
                      onClose={() => setSysadminOpen(false)}
                      currentProjectId={currentProjectId}
+                     onSetCurrentProjectId={setCurrentProjectId}
                      bundleData={bundleData}
                      runtimePlan={runtimePlan}
                      runningSource={runningSource}

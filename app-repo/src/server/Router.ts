@@ -24,6 +24,10 @@ export class Router {
     this.add("POST", path, handler);
   }
 
+  delete(path: string, handler: Handler): void {
+    this.add("DELETE", path, handler);
+  }
+
   private add(method: string, path: string, handler: Handler): void {
     const paramNames: string[] = [];
     // Convert path to regex, e.g. /api/projects/:projectId -> ^/api/projects/([^/]+)$

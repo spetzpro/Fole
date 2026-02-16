@@ -31,20 +31,20 @@ export function createProjectMemberManagementService(
 		async listMembers(projectId: string): Promise<ProjectMemberRecord[]> {
 			const conn = await projectDb.getConnection(projectId);
 			const result = await conn.executeQuery<{
-				project_id: string;
-				user_id: string;
-				role_id: string;
+				projectId: string;
+				userId: string;
+				roleId: string;
 			}>(
 				{
-					text: "SELECT project_id, user_id, role_id FROM project_members WHERE project_id = ?",
+					text: "SELECT project_id AS projectId, user_id AS userId, role_id AS roleId FROM project_members WHERE project_id = ?",
 					parameters: [projectId],
 				}
 			);
 
-			return (result || []).map((row: any) => ({
-				projectId: row.project_id,
-				userId: row.user_id,
-				roleId: row.role_id as RoleId,
+			return (result || []).map((row) => ({
+				projectId: row.projectId,
+				userId: row.userId,
+				roleId: row.roleId as RoleId,
 			}));
 		},
 

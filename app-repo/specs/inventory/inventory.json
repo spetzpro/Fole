@@ -163,6 +163,14 @@
       "notes": "Comment persistence and permissions; backend MVP implements create/delete using COMMENT_* actions via core.permissions with a membership-aware PermissionContext."
     },
     {
+      "name": "feature.projects",
+      "kind": "Module",
+      "layer": "feature",
+      "status": "In implementation",
+      "specPath": "specs/modules/feature.projects.module.md",
+      "notes": "Project registry and membership management module exposing guarded HTTP endpoints and Sysadmin project/member workflows."
+    },
+    {
       "name": "feature.measure",
       "kind": "Block",
       "layer": "feature",

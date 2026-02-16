@@ -13,8 +13,18 @@ export interface ProjectMembershipService {
 }
 
 export function createProjectMembershipService(projectDb: ProjectDb): ProjectMembershipService {
+	const ensureProjectMembersTable = async (projectId: string): Promise<void> => {
+		const conn = await projectDb.getConnection(projectId);
+		await conn.executeCommand({
+			type: "ddl",
+			text: "CREATE TABLE IF NOT EXISTS project_members (project_id TEXT NOT NULL, user_id TEXT NOT NULL, role_id TEXT NOT NULL)",
+			parameters: [],
+		});
+	};
+
 	return {
 		async getMembership(projectId: string, userId: string): Promise<ProjectMembershipRecord | null> {
+			await ensureProjectMembersTable(projectId);
 			const conn = await projectDb.getConnection(projectId);
 
 			const rows = await conn.executeQuery<{ project_id: string; user_id: string; role_id: string }>(
@@ -37,6 +47,7 @@ export function createProjectMembershipService(projectDb: ProjectDb): ProjectMem
 		},
 
 		async addOrUpdateMembership(projectId: string, userId: string, roleId: RoleId): Promise<void> {
+			await ensureProjectMembersTable(projectId);
 			const conn = await projectDb.getConnection(projectId);
 
 			await conn.executeCommand({
@@ -53,6 +64,7 @@ export function createProjectMembershipService(projectDb: ProjectDb): ProjectMem
 		},
 
 		async removeMembership(projectId: string, userId: string): Promise<void> {
+			await ensureProjectMembersTable(projectId);
 			const conn = await projectDb.getConnection(projectId);
 			await conn.executeCommand({
 				type: "delete",

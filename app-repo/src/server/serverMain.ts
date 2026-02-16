@@ -19,9 +19,19 @@ import { requirePermission } from "./DevPermissionGuard";
 import { CoreRuntime } from "../core/CoreRuntime";
 import { ProjectDb } from "../core/ProjectDb";
 import { createProjectMembershipService } from "../core/ProjectMembershipService";
+import {
+    createProjectMemberManagementService,
+    createSecuredProjectMemberManagementService,
+} from "../core/ProjectMemberManagementService";
 import { createFileService, type FileRecord } from "../feature/files/FileService";
 import { createCommentsService, type CommentRecord } from "../feature/comments/CommentsService";
 import { initDefaultPolicies } from "../core/permissions/PolicyRegistry";
+import { getPermissionService } from "../core/permissions/PermissionService";
+import {
+    buildProjectPermissionContextForCurrentUser,
+    createPermissionContextFromCurrentUser,
+} from "../core/permissions/PermissionGuards";
+import type { PermissionAction, ResourceDescriptor } from "../core/permissions/PermissionModel";
 import { setCurrentUserProvider, type CurrentUserProvider } from "../core/auth/CurrentUserProvider";
 import type { CurrentUser } from "../core/auth/CurrentUserTypes";
 import type { AppError } from "../core/foundation/CoreTypes";
@@ -229,7 +239,15 @@ async function main() {
         storageRoot: path.join(cwd, "localstorage"),
     });
     const projectDb = new ProjectDb(coreRuntime);
+    const projectRegistry = coreRuntime.projectRegistry;
     const membershipService = createProjectMembershipService(projectDb);
+    const projectMemberManagementService = createProjectMemberManagementService(projectDb, membershipService);
+    const securedProjectMemberManagementService = createSecuredProjectMemberManagementService(
+        projectMemberManagementService,
+        membershipService,
+        getPermissionService(),
+    );
+    const permissionService = getPermissionService();
     const fileService = createFileService({ projectDb, membershipService });
     const commentsService = createCommentsService({ projectDb, membershipService });
   
@@ -390,6 +408,55 @@ async function main() {
         return result;
     };
 
+    const MEMBER_ROLE_OPTIONS = new Set(["VIEWER", "EDITOR", "OWNER", "ADMIN"]);
+
+    const toProjectResponse = (project: any) => ({
+        id: project.id,
+        name: project.name,
+        createdAt: project.createdAt,
+        lastOpenedAt: project.lastOpenedAt,
+        version: project.version,
+        dbSchemaVersion: project.dbSchemaVersion,
+    });
+
+    const toMemberResponse = (row: { projectId: string; userId: string; roleId: string }) => ({
+        projectId: row.projectId,
+        userId: row.userId,
+        role: row.roleId,
+    });
+
+    const toPermissionDeniedError = (decision: { reasonCode?: string; grantSource?: string }): AppError => ({
+        code: "PERMISSION_DENIED",
+        message: "Permission denied",
+        details: {
+            reasonCode: decision.reasonCode,
+            grantSource: decision.grantSource,
+        },
+    });
+
+    const ensureProjectActionAllowed = async (
+        projectId: string,
+        action: PermissionAction,
+    ): Promise<AppError | null> => {
+        const permissionCtx = await buildProjectPermissionContextForCurrentUser(projectId, membershipService);
+        const resource: ResourceDescriptor = { type: "project", id: projectId, projectId };
+        const decision = permissionService.canWithReason(permissionCtx, action, resource);
+        if (decision.allowed) {
+            return null;
+        }
+        return toPermissionDeniedError(decision);
+    };
+
+    const ensureProjectCreateAllowed = (): AppError | null => {
+        const permissionCtx = createPermissionContextFromCurrentUser();
+        const resource: ResourceDescriptor = { type: "project", id: "new" };
+        const decision = permissionService.canWithReason(permissionCtx, "PROJECT_WRITE", resource);
+        if (decision.allowed) {
+            return null;
+        }
+        return toPermissionDeniedError(decision);
+    };
+
 
       router.post("/api/actions/dispatch", async (req, res) => {
           const body = await parseJsonBody(req);
@@ -469,6 +536,214 @@ async function main() {
                     uiAdvice: { reloadRecommended: false }
             });
     });
+
+      router.get("/api/projects", async (req, res, _params, ctx) => {
+          const result = await withRequestUser(req, ctx, async () => {
+              const projectsResult = await projectRegistry.listProjects();
+              if (!projectsResult.ok) {
+                  return {
+                      ok: false as const,
+                      error: {
+                          code: "INVALID_REQUEST",
+                          message: projectsResult.error.message,
+                      } as AppError,
+                  };
+              }
+
+              const visible: any[] = [];
+              for (const project of projectsResult.value) {
+                  const projectId = String((project as any).id || "");
+                  if (!projectId) continue;
+                  const permissionErr = await ensureProjectActionAllowed(projectId, "PROJECT_READ");
+                  if (!permissionErr) {
+                      visible.push(toProjectResponse(project));
+                  }
+              }
+
+              return { ok: true as const, value: visible };
+          });
+
+          if (!result.ok) {
+              return sendAppError(res, ctx, result.error);
+          }
+
+          return sendEnvelope(res, ctx, { items: result.value });
+      });
+
+      router.post("/api/projects", async (req, res, _params, ctx) => {
+          let body: any = {};
+          try {
+              body = await router.readJsonBody(req);
+          } catch {
+              return sendErrorEnvelope(res, ctx, 400, "invalid_request", "Invalid JSON body");
+          }
+
+          const name = typeof body?.name === "string" && body.name.trim().length > 0
+              ? body.name.trim()
+              : "Untitled Project";
+
+          const result = await withRequestUser(req, ctx, async () => {
+              const permissionErr = ensureProjectCreateAllowed();
+              if (permissionErr) {
+                  return { ok: false as const, error: permissionErr };
+              }
+
+              const created = await projectRegistry.createProject(name);
+              if (!created.ok) {
+                  return {
+                      ok: false as const,
+                      error: {
+                          code: "INVALID_REQUEST",
+                          message: created.error.message,
+                      } as AppError,
+                  };
+              }
+
+              const currentUser = createPermissionContextFromCurrentUser().user;
+              if (currentUser?.id) {
+                  await membershipService.addOrUpdateMembership(created.value.id, currentUser.id, "OWNER");
+              }
+
+              return { ok: true as const, value: toProjectResponse(created.value) };
+          });
+
+          if (!result.ok) {
+              return sendAppError(res, ctx, result.error);
+          }
+
+          return sendEnvelope(res, ctx, { item: result.value });
+      });
+
+      router.get("/api/projects/:projectId", async (req, res, params, ctx) => {
+          const { projectId } = params;
+
+          const result = await withRequestUser(req, ctx, async () => {
+              const permissionErr = await ensureProjectActionAllowed(projectId, "PROJECT_READ");
+              if (permissionErr) {
+                  return { ok: false as const, error: permissionErr };
+              }
+
+              const projectResult = await projectRegistry.getProjectById(projectId as any);
+              if (!projectResult.ok) {
+                  return {
+                      ok: false as const,
+                      error: {
+                          code: "INVALID_REQUEST",
+                          message: projectResult.error.message,
+                      } as AppError,
+                  };
+              }
+
+              if (!projectResult.value) {
+                  return {
+                      ok: false as const,
+                      error: {
+                          code: "NOT_FOUND",
+                          message: "Project not found",
+                      } as AppError,
+                  };
+              }
+
+              return { ok: true as const, value: toProjectResponse(projectResult.value) };
+          });
+
+          if (!result.ok) {
+              return sendAppError(res, ctx, result.error);
+          }
+
+          return sendEnvelope(res, ctx, { item: result.value });
+      });
+
+      router.get("/api/projects/:projectId/members", async (req, res, params, ctx) => {
+          const { projectId } = params;
+
+          const result = await withRequestUser(req, ctx, async () => {
+              const permissionErr = await ensureProjectActionAllowed(projectId, "PROJECT_READ");
+              if (permissionErr) {
+                  return { ok: false as const, error: permissionErr };
+              }
+
+              const members = await projectMemberManagementService.listMembers(projectId);
+              return { ok: true as const, value: members.map(toMemberResponse) };
+          });
+
+          if (!result.ok) {
+              return sendAppError(res, ctx, result.error);
+          }
+
+          return sendEnvelope(res, ctx, { items: result.value });
+      });
+
+      router.post("/api/projects/:projectId/members", async (req, res, params, ctx) => {
+          const { projectId } = params;
+
+          let body: any;
+          try {
+              body = await router.readJsonBody(req);
+          } catch {
+              return sendErrorEnvelope(res, ctx, 400, "invalid_request", "Invalid JSON body");
+          }
+
+          const memberUserIdOrEmail = typeof body?.memberUserIdOrEmail === "string"
+              ? body.memberUserIdOrEmail.trim()
+              : "";
+          const role = typeof body?.role === "string" ? body.role.trim().toUpperCase() : "";
+
+          if (!memberUserIdOrEmail || !role) {
+              return sendErrorEnvelope(res, ctx, 400, "invalid_request", "Missing required fields: memberUserIdOrEmail and role");
+          }
+
+          if (!MEMBER_ROLE_OPTIONS.has(role)) {
+              return sendErrorEnvelope(res, ctx, 400, "invalid_request", "Invalid role. Allowed: VIEWER, EDITOR, OWNER, ADMIN");
+          }
+
+          try {
+              await withRequestUser(req, ctx, async () => {
+                  await securedProjectMemberManagementService.addOrUpdateMember(projectId, memberUserIdOrEmail, role);
+              });
+          } catch (error: any) {
+              if (error?.code === "FORBIDDEN") {
+                  return sendErrorEnvelope(res, ctx, 403, "forbidden", "Permission denied");
+              }
+              return sendErrorEnvelope(res, ctx, 400, "invalid_request", error?.message || "Failed to add or update member");
+          }
+
+          return sendEnvelope(res, ctx, {
+              item: { projectId, userId: memberUserIdOrEmail, role },
+          });
+      });
+
+      router.delete("/api/projects/:projectId/members/:memberUserIdOrEmail", async (req, res, params, ctx) => {
+          const { projectId } = params;
+          const memberUserIdOrEmail = (() => {
+              if (typeof params.memberUserIdOrEmail !== "string") {
+                  return "";
+              }
+
+              try {
+                  return decodeURIComponent(params.memberUserIdOrEmail).trim();
+              } catch {
+                  return params.memberUserIdOrEmail.trim();
+              }
+          })();
+
+          if (!memberUserIdOrEmail) {
+              return sendErrorEnvelope(res, ctx, 400, "invalid_request", "Missing required path param: memberUserIdOrEmail");
+          }
+
+          try {
+              await withRequestUser(req, ctx, async () => {
+                  await securedProjectMemberManagementService.removeMember(projectId, memberUserIdOrEmail);
+              });
+          } catch (error: any) {
+              if (error?.code === "FORBIDDEN") {
+                  return sendErrorEnvelope(res, ctx, 403, "forbidden", "Permission denied");
+              }
+              return sendErrorEnvelope(res, ctx, 400, "invalid_request", error?.message || "Failed to remove member");
+          }
+
+          return sendEnvelope(res, ctx, { removed: true });
+      });
 
       router.get("/api/projects/:projectId/files", async (req, res, params, ctx) => {
           const { projectId } = params;

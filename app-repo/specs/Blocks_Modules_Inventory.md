@@ -19,7 +19,7 @@ It is derived from a scan of spec files under `specs/blocks/**` and `specs/modul
 - Block specs found: 12
 	- `specs/blocks/*.md`
 	- `specs/blocks/lib/*.md`
-- Module specs found: 54 (excludes `specs/modules/README.md`)
+- Module specs found: 55 (excludes `specs/modules/README.md`)
 	- `specs/modules/*/*.md`
 	- `specs/modules/*.md` (legacy root-level specs)
 
@@ -142,6 +142,7 @@ It is derived from a scan of spec files under `specs/blocks/**` and `specs/modul
 | feature.sketch | Draft | Vector sketches for projects/maps. | TBD (see spec) | TBD (see spec) | specs/modules/feature.sketch.module.md |
 | feature.files | Draft | Project file library and attachments. | TBD (see spec) | TBD (see spec) | specs/modules/feature.files.module.md |
 | feature.comments | Draft | Comment threads for resources. | TBD (see spec) | TBD (see spec) | specs/modules/feature.comments.module.md |
+| feature.projects | Draft | Project registry and membership management. | TBD (see spec) | TBD (see spec) | specs/modules/feature.projects.module.md |
 | feature.measure | Draft | Measurement tools and persistence. | TBD (see spec) | TBD (see spec) | specs/modules/feature.measure.module.md |
 
 ### debug.projectOverview
@@ -180,6 +181,7 @@ This table mirrors the current `specs/inventory/inventory.json` entries for CI c
 | feature.files | Module | feature | In implementation | File metadata and storage integration; backend MVP implements file upload/delete using FILE_READ/FILE_WRITE via core.permissions. |  |
 | feature.comments | Block | feature | In implementation | Comment UI and activity surfaces; MVP focuses on basic create/delete flows. |  |
 | feature.comments | Module | feature | In implementation | Comment persistence and permissions; backend MVP implements create/delete using COMMENT_* actions via core.permissions with a membership-aware PermissionContext. |  |
+| feature.projects | Module | feature | In implementation | Project registry and membership HTTP endpoints with Sysadmin project/member management flows, delegated permission decisions, and bounded endpoint coverage script. | specs/modules/feature.projects.module.md |
 | feature.measure | Block | feature | Planned | Measurement tools on maps/sketches. |  |
 | feature.measure | Module | feature | Planned | Measurement math, snapping, tolerances. |  |
 | core.exportImport | Module | core | In implementation | Project export/import services; project.db (including project_members) is preserved on import. Export/import permission errors follow the canonical PERMISSION_DENIED AppError shape. | specs/modules/core.exportImport |

@@ -12,12 +12,14 @@ import type {
   TransactionOptions,
 } from "./DalContext";
 import type { StoragePaths } from "../storage/StoragePaths";
+import sqlite3 from "sqlite3";
+import * as fs from "fs";
+import * as path from "path";
 
 export interface SqliteDbConnection extends DbConnection {
   readonly engine: "sqlite";
   readonly dbFilePath: string;
-  /** Placeholder for future sqlite driver handle. */
-  readonly raw: unknown;
+  readonly raw: sqlite3.Database;
 }
 
 interface SqliteEngineConfig {
@@ -27,20 +29,51 @@ interface SqliteEngineConfig {
 class SqliteConnectionImpl implements SqliteDbConnection {
   readonly engine: "sqlite" = "sqlite";
   readonly dbFilePath: string;
-  readonly raw: unknown = null;
+  readonly raw: sqlite3.Database;
 
   constructor(dbFilePath: string) {
     this.dbFilePath = dbFilePath;
+    fs.mkdirSync(path.dirname(dbFilePath), { recursive: true });
+    this.raw = new sqlite3.Database(
+      dbFilePath,
+      sqlite3.OPEN_READWRITE | sqlite3.OPEN_CREATE,
+    );
   }
 
-   async executeCommand(_command: DbCommand): Promise<DbCommandResult> {
-    // Placeholder for future sqlite command execution.
-    return {};
+  private run(sql: string, parameters: ReadonlyArray<unknown>): Promise<DbCommandResult> {
+    return new Promise((resolve, reject) => {
+      this.raw.run(sql, parameters as any[], function (this: sqlite3.RunResult, err: Error | null) {
+        if (err) {
+          reject(err);
+          return;
+        }
+
+        resolve({
+          rowsAffected: typeof this.changes === "number" ? this.changes : undefined,
+          raw: this,
+        });
+      });
+    });
   }
 
-  async executeQuery<TResult = unknown>(_query: DbQuery): Promise<ReadonlyArray<TResult>> {
-    // Placeholder for future sqlite query execution.
-    return [];
+  private all<TResult>(sql: string, parameters: ReadonlyArray<unknown>): Promise<ReadonlyArray<TResult>> {
+    return new Promise((resolve, reject) => {
+      this.raw.all(sql, parameters as any[], (err: Error | null, rows: TResult[]) => {
+        if (err) {
+          reject(err);
+          return;
+        }
+        resolve(rows || []);
+      });
+    });
+  }
+
+  async executeCommand(command: DbCommand): Promise<DbCommandResult> {
+    return this.run(command.text, command.parameters || []);
+  }
+
+  async executeQuery<TResult = unknown>(query: DbQuery): Promise<ReadonlyArray<TResult>> {
+    return this.all<TResult>(query.text, query.parameters || []);
   }
 }
 
@@ -60,8 +93,15 @@ abstract class BaseSqliteHandle {
 
   async runInTransaction<T>(fn: (conn: DbConnection) => Promise<T>, _options?: TransactionOptions): Promise<T> {
     const conn = await this.getConnection();
-    // Future: wrap callback inside BEGIN/COMMIT/ROLLBACK.
-    return fn(conn);
+    await conn.executeCommand({ type: "custom", text: "BEGIN" });
+    try {
+      const result = await fn(conn);
+      await conn.executeCommand({ type: "custom", text: "COMMIT" });
+      return result;
+    } catch (error) {
+      await conn.executeCommand({ type: "custom", text: "ROLLBACK" });
+      throw error;
+    }
   }
 }
 
