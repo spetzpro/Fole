@@ -457,6 +457,26 @@ async function main() {
         return toPermissionDeniedError(decision);
     };
 
+    const toSortedUnique = (values: readonly string[]): string[] =>
+        Array.from(new Set(values)).sort((a, b) => a.localeCompare(b));
+
+    const resolveAuthSource = (req: http.IncomingMessage, ctx: any, user: CurrentUser | null): string => {
+        if (ctx.auth?.userId) {
+            return "request-auth";
+        }
+
+        if (!user) {
+            return "anonymous";
+        }
+
+        const hasDevHeader = typeof req.headers["x-dev-auth"] === "string";
+        if (hasDevHeader && ModeGate.canUseDevAuthBypass(ctx)) {
+            return "dev-auth";
+        }
+
+        return "unknown";
+    };
+
 
       router.post("/api/actions/dispatch", async (req, res) => {
           const body = await parseJsonBody(req);
@@ -537,6 +557,22 @@ async function main() {
             });
     });
 
+      router.get("/api/whoami", async (req, res, _params, ctx) => {
+          const result = await withRequestUser(req, ctx, async () => {
+              const user = getRequestUser(req, ctx);
+              const authSource = resolveAuthSource(req, ctx, user);
+              return {
+                  userId: user?.id ?? null,
+                  roles: toSortedUnique(user?.roles ?? []),
+                  isAuthenticated: user !== null,
+                  isDevAuth: authSource === "dev-auth",
+                  authSource,
+              };
+          });
+
+          return sendEnvelope(res, ctx, { item: result });
+      });
+
       router.get("/api/projects", async (req, res, _params, ctx) => {
           const result = await withRequestUser(req, ctx, async () => {
               const projectsResult = await projectRegistry.listProjects();
@@ -559,6 +595,8 @@ async function main() {
                       visible.push(toProjectResponse(project));
                   }
               }
+
+              visible.sort((a, b) => String(a.id).localeCompare(String(b.id)));
 
               return { ok: true as const, value: visible };
           });
@@ -605,6 +643,56 @@ async function main() {
               }
 
               return { ok: true as const, value: toProjectResponse(created.value) };
+          });
+
+          if (!result.ok) {
+              return sendAppError(res, ctx, result.error);
+          }
+
+          return sendEnvelope(res, ctx, { item: result.value });
+      });
+
+      router.get("/api/projects/:projectId/effective-permissions", async (req, res, params, ctx) => {
+          const { projectId } = params;
+
+          const result = await withRequestUser(req, ctx, async () => {
+              const permissionErr = await ensureProjectActionAllowed(projectId, "PROJECT_READ");
+              if (permissionErr) {
+                  return { ok: false as const, error: permissionErr };
+              }
+
+              const permissionCtx = await buildProjectPermissionContextForCurrentUser(projectId, membershipService);
+              const user = permissionCtx.user;
+              const authSource = resolveAuthSource(req, ctx, user);
+              const projectRole = permissionCtx.projectMembership?.roleId ?? null;
+
+              const globalPermissions = permissionCtx.globalPermissions ?? [];
+              const membershipPermissions = permissionCtx.projectMembership?.permissions ?? [];
+              const permissions = toSortedUnique([...globalPermissions, ...membershipPermissions]);
+
+              const roles = toSortedUnique([
+                  ...(user?.roles ?? []),
+                  ...(projectRole ? [projectRole] : []),
+              ]);
+
+              const permissionSources = permissions.map((permission) => ({
+                  permission,
+                  source: membershipPermissions.includes(permission) ? "project_membership" : "global_role",
+                  role: membershipPermissions.includes(permission) ? projectRole : null,
+              }));
+
+              return {
+                  ok: true as const,
+                  value: {
+                      projectId,
+                      userId: user?.id ?? null,
+                      isAuthenticated: user !== null,
+                      authSource,
+                      roles,
+                      permissions,
+                      permissionSources,
+                  },
+              };
           });
 
           if (!result.ok) {

@@ -2446,6 +2446,23 @@ function SysadminPanel({
         role: string;
     };
 
+    type WhoAmIItem = {
+        userId: string | null;
+        roles: string[];
+        isAuthenticated: boolean;
+        isDevAuth: boolean;
+        authSource: string;
+    };
+
+    type EffectivePermissionsItem = {
+        projectId: string;
+        userId: string | null;
+        isAuthenticated: boolean;
+        authSource: string;
+        roles: string[];
+        permissions: string[];
+    };
+
     const MEMBER_ROLE_OPTIONS = ['VIEWER', 'EDITOR', 'OWNER', 'ADMIN'];
 
     const [projectsList, setProjectsList] = useState<RegistryProjectItem[]>([]);
@@ -2478,6 +2495,16 @@ function SysadminPanel({
     const [projectCommentsRequested, setProjectCommentsRequested] = useState(false);
     const canLoadComments = commentsTargetType.trim() !== '' && commentsTargetId.trim() !== '';
 
+    const [whoAmILoading, setWhoAmILoading] = useState(false);
+    const [whoAmIData, setWhoAmIData] = useState<WhoAmIItem | null>(null);
+    const [whoAmIError, setWhoAmIError] = useState<string | null>(null);
+
+    const [effectivePermsLoading, setEffectivePermsLoading] = useState(false);
+    const [effectivePermsData, setEffectivePermsData] = useState<EffectivePermissionsItem | null>(null);
+    const [effectivePermsError, setEffectivePermsError] = useState<string | null>(null);
+
+    const [observabilityLastError, setObservabilityLastError] = useState<{ message: string; requestId?: string | null } | null>(null);
+
     useEffect(() => {
         setProjectFiles([]);
         setProjectFilesError(null);
@@ -2501,6 +2528,23 @@ function SysadminPanel({
             return `${res.status} ${details}`;
         } catch {
             return `${res.status} ${fallback}`;
+        }
+    };
+
+    const toHttpErrorDetails = async (
+        res: Response,
+        fallback: string,
+    ): Promise<{ message: string; requestId?: string | null }> => {
+        try {
+            const json = await res.json();
+            const details = json?.error?.message || json?.error || json?.message || fallback;
+            const requestId = typeof json?.requestId === 'string' ? json.requestId : null;
+            return {
+                message: requestId ? `${res.status} ${details} (requestId: ${requestId})` : `${res.status} ${details}`,
+                requestId,
+            };
+        } catch {
+            return { message: `${res.status} ${fallback}` };
         }
     };
 
@@ -2764,6 +2808,80 @@ function SysadminPanel({
         }
     };
 
+    const loadWhoAmI = async () => {
+        setWhoAmILoading(true);
+        setWhoAmIError(null);
+
+        const res = await governedFetch('/api/whoami');
+        if (!res) {
+            const message = 'Network error while loading identity';
+            setWhoAmIError(message);
+            setObservabilityLastError({ message });
+            setWhoAmILoading(false);
+            return;
+        }
+
+        if (!res.ok) {
+            const details = await toHttpErrorDetails(res, 'Failed to load identity');
+            setWhoAmIError(details.message);
+            setObservabilityLastError(details);
+            setWhoAmILoading(false);
+            return;
+        }
+
+        try {
+            const json = await res.json();
+            setWhoAmIData((json?.data?.item || null) as WhoAmIItem | null);
+        } catch {
+            const message = 'Invalid JSON while loading identity';
+            setWhoAmIError(message);
+            setObservabilityLastError({ message });
+        } finally {
+            setWhoAmILoading(false);
+        }
+    };
+
+    const loadEffectivePermissions = async () => {
+        const projectId = currentProjectId.trim();
+        if (!projectId) {
+            const message = 'Select a project first.';
+            setEffectivePermsError(message);
+            setObservabilityLastError({ message });
+            return;
+        }
+
+        setEffectivePermsLoading(true);
+        setEffectivePermsError(null);
+
+        const res = await governedFetch(`/api/projects/${encodeURIComponent(projectId)}/effective-permissions`);
+        if (!res) {
+            const message = 'Network error while loading effective permissions';
+            setEffectivePermsError(message);
+            setObservabilityLastError({ message });
+            setEffectivePermsLoading(false);
+            return;
+        }
+
+        if (!res.ok) {
+            const details = await toHttpErrorDetails(res, 'Failed to load effective permissions');
+            setEffectivePermsError(details.message);
+            setObservabilityLastError(details);
+            setEffectivePermsLoading(false);
+            return;
+        }
+
+        try {
+            const json = await res.json();
+            setEffectivePermsData((json?.data?.item || null) as EffectivePermissionsItem | null);
+        } catch {
+            const message = 'Invalid JSON while loading effective permissions';
+            setEffectivePermsError(message);
+            setObservabilityLastError({ message });
+        } finally {
+            setEffectivePermsLoading(false);
+        }
+    };
+
     // Block Schema Cache (non-ui-node)
     const [blockSchemas, setBlockSchemas] = useState<Record<string, any>>({});
     const [blockSchemaErrors, setBlockSchemaErrors] = useState<Record<string, string | null>>({});
@@ -2965,6 +3083,7 @@ function SysadminPanel({
     }
     tabs.push('Resolved Graph');
     tabs.push('Projects');
+    tabs.push('Observability');
     tabs.push('ConfigSysadmin');
     tabs.push('Node Editor (Button)');
     tabs.push('Node Editor (Text)');
@@ -8927,6 +9046,89 @@ function SysadminPanel({
                                     </tbody>
                                 </table>
                             </div>
+                        </div>
+                    </div>
+                );
+            }
+            case 'Observability': {
+                const projectId = currentProjectId.trim();
+                const hasDevAuth = !!localStorage.getItem('FOLE_DEV_AUTH');
+
+                return (
+                    <div style={{display:'flex', flexDirection:'column', gap:'16px'}}>
+                        {!hasDevAuth && (
+                            <div style={{border:'1px solid #f1c40f', background:'#fff9e6', borderRadius:'4px', padding:'10px', color:'#8a6d3b'}}>
+                                <strong>FOLE_DEV_AUTH missing.</strong> Set <code>FOLE_DEV_AUTH</code> in local storage for authenticated observability checks.
+                            </div>
+                        )}
+
+                        <div style={{padding:'8px 10px', background:'#f5f5f5', border:'1px solid #ddd', borderRadius:'4px'}}>
+                            <strong>Selected Project:</strong> {projectId || '(none)'}
+                        </div>
+
+                        <div style={{border:'1px solid #ddd', borderRadius:'4px', padding:'10px'}}>
+                            <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'8px'}}>
+                                <strong>WhoAmI</strong>
+                                <button onClick={loadWhoAmI} disabled={whoAmILoading}>
+                                    {whoAmILoading ? 'Loading…' : 'Load Identity'}
+                                </button>
+                            </div>
+
+                            {whoAmIError && <div style={{color:'#b71c1c', marginBottom:'8px'}}>{whoAmIError}</div>}
+                            {!whoAmIError && whoAmIData && (
+                                <table style={{width:'100%', borderCollapse:'collapse', fontSize:'0.85em', border:'1px solid #eee'}}>
+                                    <tbody>
+                                        <tr><td style={{padding:'6px', borderBottom:'1px solid #f0f0f0', width:'220px'}}>userId</td><td style={{padding:'6px', borderBottom:'1px solid #f0f0f0'}}>{whoAmIData.userId || '(anonymous)'}</td></tr>
+                                        <tr><td style={{padding:'6px', borderBottom:'1px solid #f0f0f0'}}>isAuthenticated</td><td style={{padding:'6px', borderBottom:'1px solid #f0f0f0'}}>{String(!!whoAmIData.isAuthenticated)}</td></tr>
+                                        <tr><td style={{padding:'6px', borderBottom:'1px solid #f0f0f0'}}>isDevAuth</td><td style={{padding:'6px', borderBottom:'1px solid #f0f0f0'}}>{String(!!whoAmIData.isDevAuth)}</td></tr>
+                                        <tr><td style={{padding:'6px', borderBottom:'1px solid #f0f0f0'}}>authSource</td><td style={{padding:'6px', borderBottom:'1px solid #f0f0f0'}}>{whoAmIData.authSource || '-'}</td></tr>
+                                        <tr><td style={{padding:'6px'}}>roles</td><td style={{padding:'6px'}}>{whoAmIData.roles?.length ? whoAmIData.roles.join(', ') : '(none)'}</td></tr>
+                                    </tbody>
+                                </table>
+                            )}
+                            {!whoAmIError && !whoAmIData && !whoAmILoading && (
+                                <div style={{color:'#666', fontSize:'0.85em'}}>Not loaded yet.</div>
+                            )}
+                        </div>
+
+                        <div style={{border:'1px solid #ddd', borderRadius:'4px', padding:'10px'}}>
+                            <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'8px'}}>
+                                <strong>Effective Permissions</strong>
+                                <button onClick={loadEffectivePermissions} disabled={effectivePermsLoading || !projectId}>
+                                    {effectivePermsLoading ? 'Loading…' : 'Load Effective Permissions'}
+                                </button>
+                            </div>
+
+                            {effectivePermsError && <div style={{color:'#b71c1c', marginBottom:'8px'}}>{effectivePermsError}</div>}
+                            {!effectivePermsError && effectivePermsData && (
+                                <table style={{width:'100%', borderCollapse:'collapse', fontSize:'0.85em', border:'1px solid #eee'}}>
+                                    <tbody>
+                                        <tr><td style={{padding:'6px', borderBottom:'1px solid #f0f0f0', width:'220px'}}>projectId</td><td style={{padding:'6px', borderBottom:'1px solid #f0f0f0'}}>{effectivePermsData.projectId}</td></tr>
+                                        <tr><td style={{padding:'6px', borderBottom:'1px solid #f0f0f0'}}>userId</td><td style={{padding:'6px', borderBottom:'1px solid #f0f0f0'}}>{effectivePermsData.userId || '(anonymous)'}</td></tr>
+                                        <tr><td style={{padding:'6px', borderBottom:'1px solid #f0f0f0'}}>isAuthenticated</td><td style={{padding:'6px', borderBottom:'1px solid #f0f0f0'}}>{String(!!effectivePermsData.isAuthenticated)}</td></tr>
+                                        <tr><td style={{padding:'6px', borderBottom:'1px solid #f0f0f0'}}>authSource</td><td style={{padding:'6px', borderBottom:'1px solid #f0f0f0'}}>{effectivePermsData.authSource || '-'}</td></tr>
+                                        <tr><td style={{padding:'6px', borderBottom:'1px solid #f0f0f0'}}>roles</td><td style={{padding:'6px', borderBottom:'1px solid #f0f0f0'}}>{effectivePermsData.roles?.length ? effectivePermsData.roles.join(', ') : '(none)'}</td></tr>
+                                        <tr><td style={{padding:'6px'}}>permissions</td><td style={{padding:'6px'}}>{effectivePermsData.permissions?.length ? effectivePermsData.permissions.join(', ') : '(none)'}</td></tr>
+                                    </tbody>
+                                </table>
+                            )}
+                            {!effectivePermsError && !effectivePermsData && !effectivePermsLoading && (
+                                <div style={{color:'#666', fontSize:'0.85em'}}>Not loaded yet.</div>
+                            )}
+                        </div>
+
+                        <div style={{border:'1px solid #ddd', borderRadius:'4px', padding:'10px'}}>
+                            <strong>Last Error</strong>
+                            {observabilityLastError ? (
+                                <div style={{marginTop:'6px', color:'#b71c1c', fontSize:'0.9em'}}>
+                                    <div>{observabilityLastError.message}</div>
+                                    {observabilityLastError.requestId && (
+                                        <div style={{fontSize:'0.85em'}}>requestId: {observabilityLastError.requestId}</div>
+                                    )}
+                                </div>
+                            ) : (
+                                <div style={{marginTop:'6px', color:'#666', fontSize:'0.85em'}}>(none)</div>
+                            )}
                         </div>
                     </div>
                 );

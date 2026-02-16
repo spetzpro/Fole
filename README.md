@@ -44,6 +44,14 @@ In-repo storage must use `app-repo/.storage/` (hidden, ignored).
 - Sysadmin Projects tab expects:
   - Current Project ID (that folder name), and
   - dev auth present in browser localStorage key `FOLE_DEV_AUTH`.
+- Sysadmin Observability tab expects:
+  - `FOLE_DEV_AUTH` in localStorage for authenticated checks,
+  - and a selected Project ID for effective-permissions lookup.
+
+Observability endpoints used by Sysadmin UI:
+
+- `GET /api/whoami` (always returns identity/anonymous state)
+- `GET /api/projects/:projectId/effective-permissions` (requires `PROJECT_READ`)
 
 Create/ensure exactly one local project safely:
 

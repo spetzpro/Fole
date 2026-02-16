@@ -66,6 +66,7 @@ Current MVP delivers the following HTTP endpoints:
 - `GET /api/projects/:projectId/members`
 - `POST /api/projects/:projectId/members`
 - `DELETE /api/projects/:projectId/members/:memberUserIdOrEmail`
+- `GET /api/projects/:projectId/effective-permissions`
 
 Current MVP Sysadmin UI adds:
 
@@ -75,8 +76,16 @@ Current MVP Sysadmin UI adds:
 
 All operations follow the existing response envelope (`{ ok, data?, error? }`) and preserve canonical permission-denied shape from shared API error handling.
 
+## Explicit v1 Non-Goals
+
+- No project archive endpoint in v1.
+- No project delete endpoint in v1.
+- No archive/delete controls in Sysadmin Projects or Observability UI for v1.
+- No new permission identifiers for lifecycle operations in v1.
+
 ## Test Matrix
 - Registry flows: create then list includes created project.
 - Membership flows: add/update role, list includes member, remove excludes member.
 - Authorization: write endpoints deny callers without project write capability.
+- Effective permissions observability: authorized caller sees computed project permissions; unauthorized caller receives permission-denied response without permissions payload.
 - Validation: invalid payloads return structured bad-request style responses.
